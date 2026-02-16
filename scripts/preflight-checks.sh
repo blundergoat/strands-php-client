@@ -48,7 +48,7 @@ fi
 # ── Helpers ───────────────────────────────────────────────────────
 header() {
     echo ""
-    echo -e "${BOLD}  Preflight Check — strands-php-client${RESET}"
+    echo -e "${BOLD}  Preflight Check -strands-php-client${RESET}"
     echo -e "  ${DIM}$(date '+%Y-%m-%d %H:%M:%S')${RESET}"
     echo -e "  ${DIM}$(printf '─%.0s' {1..44})${RESET}"
     echo ""
@@ -161,7 +161,7 @@ if [[ -x vendor/bin/php-cs-fixer ]]; then
         pass "$(elapsed_since $t)"
     else
         fix_count=$(echo "$cs_output" | grep -c "^   [0-9]*)" || true)
-        fail "Code style (${fix_count} files need fixing — run composer cs:fix)"
+        fail "Code style (${fix_count} files need fixing -run composer cs:fix)"
     fi
 else
     skip "php-cs-fixer not installed"
@@ -309,7 +309,7 @@ if [[ "$RUN_MUTATE" == true ]]; then
     if [[ ! -x vendor/bin/infection ]]; then
         fail "Mutation testing (infection not installed)"
     elif ! php -m 2>/dev/null | grep -qi "xdebug\|pcov"; then
-        fail "Mutation testing (no coverage driver — install xdebug or pcov)"
+        fail "Mutation testing (no coverage driver -install xdebug or pcov)"
     else
         mutate_output=$(XDEBUG_MODE=coverage vendor/bin/infection --threads=4 --show-mutations=0 2>&1)
         mutate_exit=$?

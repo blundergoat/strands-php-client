@@ -55,12 +55,12 @@ composer preflight
 ```
 
 This runs:
-- **PHPUnit** — All tests must pass
-- **PHPStan Level 10** — Strictest static analysis
-- **PHP-CS-Fixer** — PSR-12 code style
-- **PHPMD** — Mess detector (design, codesize, unusedcode)
-- **Cyclomatic complexity** — Max 20 per method
-- **Coverage** — Minimum 80% line coverage (when run with `--coverage-min=80`)
+- **PHPUnit** -All tests must pass
+- **PHPStan Level 10** -Strictest static analysis
+- **PHP-CS-Fixer** -PSR-12 code style
+- **PHPMD** -Mess detector (design, codesize, unusedcode)
+- **Cyclomatic complexity** -Max 20 per method
+- **Coverage** -Minimum 80% line coverage (when run with `--coverage-min=80`)
 
 ### 4. Submit a PR
 
@@ -103,7 +103,7 @@ composer test:coverage
 
 ### Writing tests
 
-- All tests use mocked HTTP responses — no network, no Docker, no API keys
+- All tests use mocked HTTP responses -no network, no Docker, no API keys
 - Use `$this->createMock()` for `HttpTransport` and `StrandsClient`
 - Use fixture files in `tests/Fixtures/` for realistic test data
 - Test names should be descriptive: `testInvokeRetriesOnTransientError`
@@ -170,12 +170,19 @@ src/
 │   ├── SymfonyHttpTransport.php   # Symfony HTTP client (invoke + stream)
 │   └── PsrHttpTransport.php       # PSR-18 client (invoke only)
 ├── Integration/
+│   ├── StrandsClientFactory.php   # Shared factory (Laravel + Symfony)
+│   ├── Laravel/                   # Laravel service provider
+│   │   ├── StrandsServiceProvider.php
+│   │   ├── Facades/
+│   │   │   └── Strands.php
+│   │   └── config/
+│   │       └── strands.php
 │   └── Symfony/                   # Symfony bundle
 │       ├── StrandsBundle.php
 │       └── DependencyInjection/
 │           ├── Configuration.php      # YAML schema definition
 │           ├── StrandsExtension.php   # Service registration
-│           └── StrandsClientFactory.php  # Client factory
+│           └── StrandsClientFactory.php  # Extends shared factory
 ├── Response/
 │   ├── AgentResponse.php          # invoke() return type
 │   └── Usage.php                  # Token usage stats

@@ -31,4 +31,4 @@ $ composer preflight
 
 ## Notes
 
-<!-- Anything reviewers should know — design decisions, trade-offs, follow-up work -->
+<!-- Anything reviewers should know -design decisions, trade-offs, follow-up work -->

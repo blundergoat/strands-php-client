@@ -8,7 +8,7 @@
     <description>PHPMD rules for strands-php-client</description>
 
     <!--
-        Codesize — CyclomaticComplexity and NPathComplexity are excluded
+        Codesize -CyclomaticComplexity and NPathComplexity are excluded
         because the custom analyse:complexity script already handles CC
         at threshold 20.
     -->
@@ -41,7 +41,7 @@
     </rule>
 
     <!--
-        Clean code — ExcessiveParameterList excluded for DTOs with
+        Clean code -ExcessiveParameterList excluded for DTOs with
         promoted readonly constructor parameters and sensible defaults.
     -->
     <rule ref="rulesets/codesize.xml/ExcessiveParameterList">

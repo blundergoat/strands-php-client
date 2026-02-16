@@ -90,4 +90,4 @@ body:
     id: context
     attributes:
       label: Additional Context
-      description: Any other context — Symfony version, OS, Docker, custom auth strategy, etc.
+      description: Any other context -Symfony version, OS, Docker, custom auth strategy, etc.

@@ -232,7 +232,7 @@ class StreamParserTest extends TestCase
         $events1 = $parser->feed("data: {broken\n\n");
         $this->assertCount(0, $events1);
 
-        // Feed valid JSON — buffer should be clean
+        // Feed valid JSON -buffer should be clean
         $events2 = $parser->feed("data: {\"type\": \"text\", \"content\": \"recovered\"}\n\n");
         $this->assertCount(1, $events2);
         $this->assertSame('recovered', $events2[0]->text);

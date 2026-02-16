@@ -295,7 +295,7 @@ class StrandsClientStreamTest extends TestCase
 
     public function testStreamPrefersAccumulatedTextOverFullText(): void
     {
-        // Both Text events and Complete.fullText present — accumulated text wins
+        // Both Text events and Complete.fullText present -accumulated text wins
         $sseData = "data: {\"type\": \"text\", \"content\": \"Streamed\"}\n\n"
             . "data: {\"type\": \"complete\", \"text\": \"Streamed\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
         $transport = $this->createStreamingTransport($sseData);

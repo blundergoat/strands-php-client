@@ -1,6 +1,6 @@
 # Usage Guide
 
-This guide walks through real-world usage patterns for the Strands PHP Client, based on the [the-summit-chat](https://github.com/blundergoat/the-summit-chat) demo application — a Symfony app where three AI agents (Analyst, Skeptic, Strategist) debate your decisions.
+This guide walks through real-world usage patterns for the Strands PHP Client, based on the [the-summit-chat](https://github.com/blundergoat/the-summit-chat) demo application -a Symfony app where three AI agents (Analyst, Skeptic, Strategist) debate your decisions.
 
 ## Table of Contents
 
@@ -50,7 +50,7 @@ The PHP side never runs an agentic loop. It sends a message, optionally with con
 
 ## Basic Invoke
 
-The simplest usage — send a message, get a response:
+The simplest usage -send a message, get a response:
 
 ```php
 use Strands\StrandsClient;
@@ -121,7 +121,7 @@ echo $result->totalEvents;            // Total events (text + tools + complete)
 
 ## Session Management
 
-Sessions enable multi-turn conversations. The client sends a `session_id` — the Python agent manages all state server-side.
+Sessions enable multi-turn conversations. The client sends a `session_id` -the Python agent manages all state server-side.
 
 ```php
 // First turn
@@ -130,7 +130,7 @@ $r1 = $client->invoke(
     sessionId: 'consult-001',
 );
 
-// Second turn — agent remembers the full conversation
+// Second turn -agent remembers the full conversation
 $r2 = $client->invoke(
     message: 'Make it more formal and add the diagnosis',
     sessionId: 'consult-001',
@@ -170,11 +170,11 @@ $response = $client->invoke(
 );
 ```
 
-**Session sharing across agents:** In the-summit-chat, all three agents receive the same `session_id`. The Skeptic sees what the Analyst said, and the Strategist sees both. This is how multi-agent debate works — shared session history.
+**Session sharing across agents:** In the-summit-chat, all three agents receive the same `session_id`. The Skeptic sees what the Analyst said, and the Strategist sees both. This is how multi-agent debate works -shared session history.
 
 ## Context Builder
 
-`AgentContext` is an immutable builder for passing application context to agents. It uses a clone-and-mutate pattern — every `with*()` call returns a new instance.
+`AgentContext` is an immutable builder for passing application context to agents. It uses a clone-and-mutate pattern -every `with*()` call returns a new instance.
 
 ```php
 use Strands\Context\AgentContext;
@@ -219,7 +219,7 @@ Instead of three separate endpoints, one endpoint with metadata selects the pers
 
 The client supports pluggable authentication strategies. See [docs/auth.md](auth.md) for the full guide.
 
-**No auth (local dev — the default):**
+**No auth (local dev -the default):**
 
 ```php
 $config = new StrandsConfig(endpoint: 'http://localhost:8081');
@@ -266,19 +266,19 @@ Retries apply to `invoke()` calls only. Streaming requests are not retried.
 ## Logging
 
 `StrandsClient` accepts an optional PSR-3 logger. It logs:
-- `debug` — Request URLs, response metadata (session ID, token usage, event counts)
-- `warning` — Retry attempts with delay and error details
+- `debug` -Request URLs, response metadata (session ID, token usage, event counts)
+- `warning` -Retry attempts with delay and error details
 
 ```php
 use Psr\Log\LoggerInterface;
 
-// Vanilla PHP — pass any PSR-3 logger
+// Vanilla PHP -pass any PSR-3 logger
 $client = new StrandsClient(
     config: $config,
     logger: $yourMonologLogger,
 );
 
-// Symfony — injected automatically via the bundle
+// Symfony -injected automatically via the bundle
 // All StrandsClient instances get the app's logger for free
 ```
 
@@ -333,7 +333,7 @@ class SummitCouncilOrchestrator
 }
 ```
 
-The bundle auto-detects `symfony/http-client` and creates `SymfonyHttpTransport` instances — both `invoke()` and `stream()` work out of the box. A PSR-3 logger is injected automatically.
+The bundle auto-detects `symfony/http-client` and creates `SymfonyHttpTransport` instances -both `invoke()` and `stream()` work out of the box. A PSR-3 logger is injected automatically.
 
 ### Bundle registration
 
@@ -348,7 +348,7 @@ return [
 
 ## Multi-Agent Orchestration
 
-the-summit-chat demonstrates a **council pattern** — multiple agents called sequentially with a shared session, each building on the previous responses.
+the-summit-chat demonstrates a **council pattern** -multiple agents called sequentially with a shared session, each building on the previous responses.
 
 ### Synchronous orchestration
 
@@ -389,9 +389,9 @@ class SummitCouncilOrchestrator
 
 **How the council debate works:**
 
-1. **Analyst** goes first — analyses the question with no prior context
-2. **Skeptic** goes second — the shared session contains the Analyst's response, so the Skeptic can challenge it
-3. **Strategist** goes third — sees both the Analyst and Skeptic's arguments and synthesises a recommendation
+1. **Analyst** goes first -analyses the question with no prior context
+2. **Skeptic** goes second -the shared session contains the Analyst's response, so the Skeptic can challenge it
+3. **Strategist** goes third -sees both the Analyst and Skeptic's arguments and synthesises a recommendation
 
 ### Controller wiring
 
@@ -545,9 +545,9 @@ When you call `$client->invoke()` or `$client->stream()`, the PHP client sends a
 }
 ```
 
-- `message` (string, required) — The user's message.
-- `session_id` (string, optional) — UUID for multi-turn conversation continuity. Omitted for one-shot requests.
-- `context` (object, optional) — Application context from `AgentContext`. Only non-empty fields are included (`system_prompt`, `metadata`, `permissions`, `documents`, `structured_data`). Null/empty values are omitted entirely.
+- `message` (string, required) -The user's message.
+- `session_id` (string, optional) -UUID for multi-turn conversation continuity. Omitted for one-shot requests.
+- `context` (object, optional) -Application context from `AgentContext`. Only non-empty fields are included (`system_prompt`, `metadata`, `permissions`, `documents`, `structured_data`). Null/empty values are omitted entirely.
 
 ### SSE event contract (streaming)
 
@@ -556,11 +556,11 @@ For `/stream`, the PHP client's `StreamParser` expects Server-Sent Events with `
 | Type | Required Fields | Description |
 |------|----------------|-------------|
 | `text` | `content` | A piece of generated text (token) |
-| `thinking` | — | Agent is reasoning (informational) |
+| `thinking` | -| Agent is reasoning (informational) |
 | `tool_use` | `tool_name` | Agent is calling a tool |
 | `tool_result` | `tool_name` | Tool returned a result |
-| `complete` | `text` | Stream finished — includes full response text |
-| `error` | `message` | Stream failed — includes error description |
+| `complete` | `text` | Stream finished -includes full response text |
+| `error` | `message` | Stream failed -includes error description |
 
 Every stream **must** end with either `complete` or `error`. If the connection drops without a terminal event, the PHP client throws `StreamInterruptedException`.
 
@@ -584,10 +584,10 @@ data: {"type": "complete", "text": "The answer is 42.", "session_id": "abc-123",
 The Strands SDK `Agent` class accepts conversation input as the **first positional argument** (`prompt`), which supports multiple formats:
 
 ```python
-# String — single-turn conversation
+# String -single-turn conversation
 result = agent("Should we migrate to microservices?")
 
-# Messages list — multi-turn conversation with history
+# Messages list -multi-turn conversation with history
 result = agent(messages)
 
 # Async streaming
@@ -595,10 +595,10 @@ async for event in agent.stream_async(messages):
     ...
 ```
 
-**Common mistake — passing messages as a keyword argument:**
+**Common mistake -passing messages as a keyword argument:**
 
 ```python
-# WRONG — "messages" goes into **kwargs, NOT the prompt parameter.
+# WRONG -"messages" goes into **kwargs, NOT the prompt parameter.
 # The agent runs with NO conversation history and only sees its system prompt.
 result = agent(messages=messages)
 async for event in agent.stream_async(messages=messages):  # Also wrong
@@ -617,10 +617,10 @@ Passing `messages=messages` sends it into `**kwargs` (deprecated), not `prompt`.
 The Strands SDK expects message content as a **list of content blocks**, not a plain string:
 
 ```python
-# WRONG — the SDK will iterate over characters, not words
+# WRONG -the SDK will iterate over characters, not words
 messages = [{"role": "user", "content": "Hello world"}]
 
-# CORRECT — content is a list of ContentBlock dicts
+# CORRECT -content is a list of ContentBlock dicts
 messages = [{"role": "user", "content": [{"text": "Hello world"}]}]
 ```
 
@@ -700,7 +700,7 @@ async def stream(req: AgentRequest):
         got_terminal = False
 
         try:
-            # Pass messages as the FIRST POSITIONAL argument — not messages=messages
+            # Pass messages as the FIRST POSITIONAL argument -not messages=messages
             async for event in agent.stream_async(messages):
                 if isinstance(event, dict):
                     event_type = event.get("type", "")
@@ -741,7 +741,7 @@ class SessionStore:
 
     def append_user(self, session_id: str, content: str) -> None:
         history = self._sessions[session_id]
-        # Deduplicate — the same message may be sent to multiple agents
+        # Deduplicate -the same message may be sent to multiple agents
         if history and history[-1]["role"] == "user" and history[-1]["content"] == content:
             return
         history.append({"role": "user", "content": content})
@@ -781,7 +781,7 @@ async def invoke(req: AgentRequest):
     else:
         messages = [{"role": "user", "content": [{"text": req.message}]}]
 
-    result = agent(messages)  # Positional — not agent(messages=messages)!
+    result = agent(messages)  # Positional -not agent(messages=messages)!
 
     if req.session_id:
         sessions.append_assistant(req.session_id, str(result), persona)
@@ -789,11 +789,11 @@ async def invoke(req: AgentRequest):
     return {"text": str(result), "agent": persona, "session_id": req.session_id, "usage": {}, "tools_used": []}
 ```
 
-This is how [the-summit-chat](https://github.com/blundergoat/the-summit-chat) implements its council debate — all three agents share the same `session_id`, so the Skeptic sees the Analyst's response and the Strategist sees both.
+This is how [the-summit-chat](https://github.com/blundergoat/the-summit-chat) implements its council debate -all three agents share the same `session_id`, so the Skeptic sees the Analyst's response and the Strategist sees both.
 
 ## Testing
 
-All tests use mocked HTTP responses — no network calls, no Docker, no API keys.
+All tests use mocked HTTP responses -no network calls, no Docker, no API keys.
 
 ### Testing invoke()
 
@@ -857,7 +857,7 @@ $analyst
     });
 ```
 
-This makes stream tests fully deterministic — no timing issues, no network dependency.
+This makes stream tests fully deterministic -no timing issues, no network dependency.
 
 ### Test fixtures
 

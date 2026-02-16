@@ -23,6 +23,7 @@
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
+        "illuminate/support": "^10.0 || ^11.0 || ^12.0",
         "infection/infection": "^0.32.4",
         "phpmd/phpmd": "^2.15",
         "phpstan/phpstan": "^2.0",
@@ -32,12 +33,14 @@
         "symfony/dependency-injection": "^6.4 || ^7.0",
         "symfony/framework-bundle": "^6.4 || ^7.0",
         "symfony/http-client": "^6.4 || ^7.0",
-        "symfony/yaml": "^6.4 || ^7.0"
+        "symfony/yaml": "^6.4 || ^7.0",
+        "vlucas/phpdotenv": "^5.6"
     },
     "suggest": {
         "symfony/http-client": "Required for SSE streaming support via SymfonyHttpTransport. Without it, only invoke() is available via PsrHttpTransport.",
         "symfony/framework-bundle": "Required for Symfony bundle integration (^6.4|^7.0)",
-        "guzzlehttp/guzzle": "PSR-18 HTTP client — use with PsrHttpTransport for invoke() support without Symfony."
+        "illuminate/support": "Required for Laravel service provider integration (^10.0|^11.0|^12.0)",
+        "guzzlehttp/guzzle": "PSR-18 HTTP client -use with PsrHttpTransport for invoke() support without Symfony."
     },
     "autoload": {
         "psr-4": {
@@ -59,6 +62,14 @@
     "extra": {
         "branch-alias": {
             "dev-main": "1.0.x-dev"
+        },
+        "laravel": {
+            "providers": [
+                "Strands\\Integration\\Laravel\\StrandsServiceProvider"
+            ],
+            "aliases": {
+                "Strands": "Strands\\Integration\\Laravel\\Facades\\Strands"
+            }
         }
     },
     "scripts": {
