@@ -1,0 +1,17 @@
+/vendor/
+composer.lock
+.phpunit.result.cache
+.phpunit.cache/
+.php-cs-fixer.cache
+.phpstan-cache/
+coverage-html/
+coverage.xml
+.infection/
+infection.log
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+.env
+.DS_Store

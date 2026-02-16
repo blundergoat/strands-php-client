@@ -1,0 +1,4 @@
+data: {"type": "text", "content": "Starting analysis..."}
+
+data: {"type": "error", "code": "INTERNAL", "message": "Model rate limited"}
+

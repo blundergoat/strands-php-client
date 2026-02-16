@@ -1,0 +1,10 @@
+{
+    "text": "**BLUF:** The migration cost is estimated at $180K-$240K over 6 months, with a 65% probability of timeline overrun.\n\n## What the Data Says\n- Current monolith deployment: 45 minutes\n- Team size: 6 engineers\n- Estimated microservices: 8-12 services\n\n## Scenario Analysis\n| Scenario | Cost | Timeline | Risk |\n|----------|------|----------|------|\n| Optimistic | $180K | 4 months | Low |\n| Most Likely | $210K | 6 months | Medium |\n| Pessimistic | $240K | 9 months | High |",
+    "agent": "analyst",
+    "session_id": "test-session-001",
+    "usage": {
+        "input_tokens": 150,
+        "output_tokens": 280
+    },
+    "tools_used": []
+}

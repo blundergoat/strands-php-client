@@ -1,0 +1,6 @@
+data: {"type": "text", "content": "Hello, "}
+
+data: {"type": "text", "content": "world!"}
+
+data: {"type": "complete", "text": "Hello, world!", "session_id": "test-001", "usage": {"input_tokens": 10, "output_tokens": 5}, "tools_used": []}
+

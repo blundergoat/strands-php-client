@@ -1,0 +1,6 @@
+data: {"type": "text", "content": "Hello, "}
+
+data: {"type": "text", "content": "world!"}
+
+data: {"type": "complete", "text": "Hello, world!", "session_id": "test-crlf", "usage": {"input_tokens": 11, "output_tokens": 6}, "tools_used": []}
+

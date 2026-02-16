@@ -1,0 +1,79 @@
+{
+    "name": "blundergoat/strands-php-client",
+    "description": "PHP client for consuming Strands AI agents over HTTP - invoke, stream via SSE, manage sessions.",
+    "type": "library",
+    "license": "Apache-2.0",
+    "keywords": ["strands", "ai", "agent", "bedrock", "llm", "sse", "streaming"],
+    "homepage": "https://github.com/blundergoat/strands-php-client",
+    "authors": [
+        {
+            "name": "Matthew Hansen",
+            "homepage": "https://www.blundergoat.com/about"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/blundergoat/strands-php-client/issues",
+        "source": "https://github.com/blundergoat/strands-php-client"
+    },
+    "require": {
+        "php": ">=8.2",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
+        "psr/log": "^3.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.0",
+        "infection/infection": "^0.32.4",
+        "phpmd/phpmd": "^2.15",
+        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan-symfony": "^2.0",
+        "phpunit/phpunit": "^11.0",
+        "symfony/config": "^6.4 || ^7.0",
+        "symfony/dependency-injection": "^6.4 || ^7.0",
+        "symfony/framework-bundle": "^6.4 || ^7.0",
+        "symfony/http-client": "^6.4 || ^7.0",
+        "symfony/yaml": "^6.4 || ^7.0"
+    },
+    "suggest": {
+        "symfony/http-client": "Required for SSE streaming support via SymfonyHttpTransport. Without it, only invoke() is available via PsrHttpTransport.",
+        "symfony/framework-bundle": "Required for Symfony bundle integration (^6.4|^7.0)",
+        "guzzlehttp/guzzle": "PSR-18 HTTP client — use with PsrHttpTransport for invoke() support without Symfony."
+    },
+    "autoload": {
+        "psr-4": {
+            "Strands\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Strands\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "infection/extension-installer": true
+        }
+    },
+    "minimum-stability": "stable",
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.0.x-dev"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test:coverage": "XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-html=coverage-html --coverage-clover=coverage.xml",
+        "analyse": "vendor/bin/phpstan analyse",
+        "analyse:complexity": "php scripts/check-cyclomatic-complexity.php --path=src --max=20",
+        "analyse:messdetector": "vendor/bin/phpmd src text phpmd.xml",
+        "cs:check": "vendor/bin/php-cs-fixer fix --dry-run --diff",
+        "cs:fix": "vendor/bin/php-cs-fixer fix",
+        "validate:composer": "@composer validate --strict",
+        "security:audit": "@composer audit",
+        "mutate": "XDEBUG_MODE=coverage vendor/bin/infection --threads=4",
+        "preflight": "./scripts/preflight-checks.sh",
+        "preflight:coverage": "./scripts/preflight-checks.sh --coverage-min=80",
+        "preflight:mutate": "./scripts/preflight-checks.sh --mutate"
+    }
+}

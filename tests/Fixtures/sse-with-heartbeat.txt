@@ -1,0 +1,8 @@
+: heartbeat
+
+data: {"type": "text", "content": "Processing..."}
+
+: keep-alive
+
+data: {"type": "complete", "text": "Processing...", "session_id": null, "usage": {}, "tools_used": []}
+
