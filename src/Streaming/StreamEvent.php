@@ -21,6 +21,7 @@ class StreamEvent
      * @param string|null      $toolName      Tool name (for ToolUse/ToolResult events).
      * @param array<string, mixed>  $toolInput  Input/arguments passed to the tool.
      * @param string|null      $toolResult    Result/output from a tool (for ToolResult events).
+     * @param bool             $hasObjective  Whether this agent had a secret objective active.
      */
     public function __construct(
         public readonly StreamEventType $type,
@@ -34,6 +35,7 @@ class StreamEvent
         public readonly ?string $toolName = null,
         public readonly array $toolInput = [],
         public readonly ?string $toolResult = null,
+        public readonly bool $hasObjective = false,
     ) {
     }
 
@@ -63,6 +65,7 @@ class StreamEvent
             toolName: self::string($data, 'tool_name'),
             toolInput: self::arrayField($data, 'tool_input'),
             toolResult: self::encodeResult($data['result'] ?? null),
+            hasObjective: ($data['has_objective'] ?? false) === true,
         );
     }
 

@@ -48,7 +48,7 @@ fi
 # ── Helpers ───────────────────────────────────────────────────────
 header() {
     echo ""
-    echo -e "${BOLD}  Preflight Check -strands-php-client${RESET}"
+    echo -e "${BOLD}  Preflight Check - strands-php-client${RESET}"
     echo -e "  ${DIM}$(date '+%Y-%m-%d %H:%M:%S')${RESET}"
     echo -e "  ${DIM}$(printf '─%.0s' {1..44})${RESET}"
     echo ""
@@ -155,13 +155,13 @@ fi
 step "Code style (PHP-CS-Fixer)"
 t=$(now_ns)
 if [[ -x vendor/bin/php-cs-fixer ]]; then
-    cs_output=$(vendor/bin/php-cs-fixer fix --dry-run --diff 2>&1)
+    cs_output=$(vendor/bin/php-cs-fixer fix --dry-run --diff --sequential 2>&1)
     cs_exit=$?
     if [[ $cs_exit -eq 0 ]]; then
         pass "$(elapsed_since $t)"
     else
         fix_count=$(echo "$cs_output" | grep -c "^   [0-9]*)" || true)
-        fail "Code style (${fix_count} files need fixing -run composer cs:fix)"
+        fail "Code style (${fix_count} files need fixing - run composer cs:fix)"
     fi
 else
     skip "php-cs-fixer not installed"
@@ -220,6 +220,17 @@ if [[ -x vendor/bin/phpstan ]]; then
         stan_output=$(vendor/bin/phpstan analyse src --no-progress --error-format=raw 2>&1)
     fi
     stan_exit=$?
+
+    if [[ $stan_exit -ne 0 ]] && echo "$stan_output" | grep -q 'Failed to listen on "tcp://127.0.0.1:0"'; then
+        # Fallback for constrained environments where PHPStan worker sockets cannot bind.
+        if [[ -f phpstan.neon || -f phpstan.neon.dist ]]; then
+            stan_output=$(vendor/bin/phpstan analyse --no-progress --error-format=raw --debug 2>&1)
+        else
+            stan_output=$(vendor/bin/phpstan analyse src --no-progress --error-format=raw --debug 2>&1)
+        fi
+        stan_exit=$?
+    fi
+
     if [[ $stan_exit -eq 0 ]]; then
         pass "$(elapsed_since $t)"
     else
@@ -309,7 +320,7 @@ if [[ "$RUN_MUTATE" == true ]]; then
     if [[ ! -x vendor/bin/infection ]]; then
         fail "Mutation testing (infection not installed)"
     elif ! php -m 2>/dev/null | grep -qi "xdebug\|pcov"; then
-        fail "Mutation testing (no coverage driver -install xdebug or pcov)"
+        fail "Mutation testing (no coverage driver - install xdebug or pcov)"
     else
         mutate_output=$(XDEBUG_MODE=coverage vendor/bin/infection --threads=4 --show-mutations=0 2>&1)
         mutate_exit=$?

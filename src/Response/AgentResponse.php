@@ -10,11 +10,12 @@ namespace StrandsPhpClient\Response;
 class AgentResponse
 {
     /**
-     * @param string  $text       The agent's text response.
+     * @param string  $text           The agent's text response.
      * @param string|null  $agent      Agent name that handled the request.
      * @param string|null  $sessionId  Session ID for multi-turn conversations.
-     * @param Usage   $usage      Token usage statistics.
+     * @param Usage   $usage              Token usage statistics.
      * @param list<array{name: string, duration_ms?: int}>  $toolsUsed  Tools the agent called.
+     * @param bool    $hasObjective       Whether this agent had a secret objective active.
      */
     public function __construct(
         public readonly string $text,
@@ -22,6 +23,7 @@ class AgentResponse
         public readonly ?string $sessionId = null,
         public readonly Usage $usage = new Usage(),
         public readonly array $toolsUsed = [],
+        public readonly bool $hasObjective = false,
     ) {
     }
 
@@ -45,6 +47,7 @@ class AgentResponse
             text: is_string($data['text'] ?? null) ? $data['text'] : '',
             agent: is_string($data['agent'] ?? null) ? $data['agent'] : null,
             sessionId: is_string($data['session_id'] ?? null) ? $data['session_id'] : null,
+            hasObjective: ($data['has_objective'] ?? false) === true,
             usage: $usage,
             toolsUsed: self::parseToolsUsed($data),
         );

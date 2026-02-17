@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `AgentResponse::$hasObjective` and `StreamEvent::$hasObjective`, hydrated from API `has_objective` when strictly `true`.
+- Additional unit coverage for `has_objective` hydration and Laravel service-provider container bindings.
+
+### Changed
+
+- Expanded `composer.json` keywords for discoverability (`php`, `sdk`, `psr-18`, `laravel`, `symfony`).
+- `scripts/preflight-checks.sh` now runs PHP-CS-Fixer in sequential mode and falls back to single-process PHPStan analysis when worker socket binding fails in constrained environments.
+- Documentation/comment formatting cleanup for hyphen-as-dash spacing consistency.
+
 ## [1.1.0] - 2026-02-17
 
 ### Added
@@ -15,8 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StrandsServiceProvider` -Registers `StrandsClientFactory`, default `StrandsClient` binding, and named `strands.client.<name>` bindings.
 - `Strands` facade -Proxies to the default `StrandsClient` with `@method` PHPDoc for IDE completion.
 - Publishable `config/strands.php` with `default` agent key, `agents` array, and `env()` helpers.
-- Auto-discovery via `extra.laravel` in `composer.json` -no manual provider registration needed.
-- `docs/laravel-config.md` -Full configuration reference for Laravel.
+- Auto-discovery via `extra.laravel` in `composer.json` - no manual provider registration needed.
+- `docs/laravel-config.md` - Full configuration reference for Laravel.
 
 ### Changed
 

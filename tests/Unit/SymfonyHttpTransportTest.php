@@ -153,7 +153,7 @@ class SymfonyHttpTransportTest extends TestCase
             $transport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected StrandsException was not thrown');
         } catch (StrandsException $e) {
-            // Assert exact message -must NOT be double-wrapped with "HTTP request to agent failed:" prefix
+            // Assert exact message - must NOT be double-wrapped with "HTTP request to agent failed:" prefix
             $this->assertSame('Invalid JSON response from agent', $e->getMessage());
         }
     }

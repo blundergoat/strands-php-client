@@ -3,7 +3,7 @@
     "description": "PHP client for consuming Strands AI agents over HTTP - invoke, stream via SSE, manage sessions.",
     "type": "library",
     "license": "Apache-2.0",
-    "keywords": ["strands", "ai", "agent", "bedrock", "llm", "sse", "streaming"],
+    "keywords": ["strands", "ai", "agent", "php", "sdk", "llm", "bedrock", "sse", "streaming", "psr-18", "laravel", "symfony"],
     "homepage": "https://github.com/blundergoat/strands-php-client",
     "authors": [
         {
