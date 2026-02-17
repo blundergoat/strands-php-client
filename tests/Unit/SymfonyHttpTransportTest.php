@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit;
+namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
-use Strands\Exceptions\AgentErrorException;
-use Strands\Exceptions\StrandsException;
-use Strands\Exceptions\StreamInterruptedException;
-use Strands\Http\SymfonyHttpTransport;
+use StrandsPhpClient\Exceptions\AgentErrorException;
+use StrandsPhpClient\Exceptions\StrandsException;
+use StrandsPhpClient\Exceptions\StreamInterruptedException;
+use StrandsPhpClient\Http\SymfonyHttpTransport;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Contracts\HttpClient\ChunkInterface;

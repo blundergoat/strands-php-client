@@ -9,13 +9,13 @@
 
 declare(strict_types=1);
 
-namespace Strands\Integration\Laravel;
+namespace StrandsPhpClient\Integration\Laravel;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
-use Strands\Integration\StrandsClientFactory;
-use Strands\StrandsClient;
+use StrandsPhpClient\Integration\StrandsClientFactory;
+use StrandsPhpClient\StrandsClient;
 
 class StrandsServiceProvider extends ServiceProvider
 {

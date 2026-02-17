@@ -53,8 +53,8 @@ The PHP side never runs an agentic loop. It sends a message, optionally with con
 The simplest usage -send a message, get a response:
 
 ```php
-use Strands\StrandsClient;
-use Strands\Config\StrandsConfig;
+use StrandsPhpClient\StrandsClient;
+use StrandsPhpClient\Config\StrandsConfig;
 
 $client = new StrandsClient(
     config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -77,8 +77,8 @@ print_r($response->toolsUsed);           // Tools the agent called
 For real-time token delivery, use `stream()`. Each event arrives as the agent produces it, and `stream()` returns a `StreamResult` with the accumulated text and metadata:
 
 ```php
-use Strands\Streaming\StreamEvent;
-use Strands\Streaming\StreamEventType;
+use StrandsPhpClient\Streaming\StreamEvent;
+use StrandsPhpClient\Streaming\StreamEventType;
 
 $result = $client->stream(
     message: 'Explain quantum computing',
@@ -177,7 +177,7 @@ $response = $client->invoke(
 `AgentContext` is an immutable builder for passing application context to agents. It uses a clone-and-mutate pattern -every `with*()` call returns a new instance.
 
 ```php
-use Strands\Context\AgentContext;
+use StrandsPhpClient\Context\AgentContext;
 
 $context = AgentContext::create()
     ->withMetadata('persona', 'analyst')
@@ -228,7 +228,7 @@ $config = new StrandsConfig(endpoint: 'http://localhost:8081');
 **API key auth (production):**
 
 ```php
-use Strands\Auth\ApiKeyAuth;
+use StrandsPhpClient\Auth\ApiKeyAuth;
 
 $config = new StrandsConfig(
     endpoint: 'https://api.example.com/agent',
@@ -314,7 +314,7 @@ Each agent entry creates a service named `strands.client.<name>`.
 Inject named clients into your services using Symfony's `#[Autowire]` attribute:
 
 ```php
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 class SummitCouncilOrchestrator
@@ -341,7 +341,7 @@ The bundle auto-detects `symfony/http-client` and creates `SymfonyHttpTransport`
 // config/bundles.php
 return [
     Symfony\Bundle\FrameworkBundle\FrameworkBundle::class => ['all' => true],
-    Strands\Integration\Symfony\StrandsBundle::class => ['all' => true],
+    StrandsPhpClient\Integration\Symfony\StrandsBundle::class => ['all' => true],
     // ...
 ];
 ```
@@ -799,9 +799,9 @@ All tests use mocked HTTP responses -no network calls, no Docker, no API keys.
 
 ```php
 use PHPUnit\Framework\TestCase;
-use Strands\StrandsClient;
-use Strands\Config\StrandsConfig;
-use Strands\Response\AgentResponse;
+use StrandsPhpClient\StrandsClient;
+use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\Response\AgentResponse;
 
 class SummitCouncilOrchestratorTest extends TestCase
 {

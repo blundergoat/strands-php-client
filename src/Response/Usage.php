@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Response;
+namespace StrandsPhpClient\Response;
 
 /**
  * Token usage statistics for an agent request/response.

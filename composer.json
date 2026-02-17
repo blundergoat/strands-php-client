@@ -44,12 +44,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Strands\\": "src/"
+            "StrandsPhpClient\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Strands\\Tests\\": "tests/"
+            "StrandsPhpClient\\Tests\\": "tests/"
         }
     },
     "config": {
@@ -61,14 +61,14 @@
     "minimum-stability": "stable",
     "extra": {
         "branch-alias": {
-            "dev-main": "1.0.x-dev"
+            "dev-main": "1.1.x-dev"
         },
         "laravel": {
             "providers": [
-                "Strands\\Integration\\Laravel\\StrandsServiceProvider"
+                "StrandsPhpClient\\Integration\\Laravel\\StrandsServiceProvider"
             ],
             "aliases": {
-                "Strands": "Strands\\Integration\\Laravel\\Facades\\Strands"
+                "Strands": "StrandsPhpClient\\Integration\\Laravel\\Facades\\Strands"
             }
         }
     },

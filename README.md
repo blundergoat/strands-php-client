@@ -71,8 +71,8 @@ For a full walkthrough with real-world examples, see the [Usage Guide](docs/usag
 If `symfony/http-client` is installed, the transport is auto-detected -just create a client and go:
 
 ```php
-use Strands\StrandsClient;
-use Strands\Config\StrandsConfig;
+use StrandsPhpClient\StrandsClient;
+use StrandsPhpClient\Config\StrandsConfig;
 
 $client = new StrandsClient(
     config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -92,9 +92,9 @@ For Symfony projects, the bundle adds YAML config and autowiring -see [Symfony B
 Pass a `PsrHttpTransport` with your PSR-18 client:
 
 ```php
-use Strands\StrandsClient;
-use Strands\Config\StrandsConfig;
-use Strands\Http\PsrHttpTransport;
+use StrandsPhpClient\StrandsClient;
+use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\Http\PsrHttpTransport;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\HttpFactory;
 
@@ -116,7 +116,7 @@ echo $response->text;
 Any library implementing PSR-18 (`psr/http-client`) works -Guzzle, Buzz, php-http/curl-client, etc.:
 
 ```php
-use Strands\Http\PsrHttpTransport;
+use StrandsPhpClient\Http\PsrHttpTransport;
 
 $transport = new PsrHttpTransport(
     httpClient: $yourPsr18Client,        // ClientInterface
@@ -135,7 +135,7 @@ $client = new StrandsClient(
 ### Invoke (blocking)
 
 ```php
-use Strands\Context\AgentContext;
+use StrandsPhpClient\Context\AgentContext;
 
 $response = $client->invoke(
     message: 'Analyse this proposal',
@@ -159,8 +159,8 @@ Real-time token-by-token streaming via Server-Sent Events. Requires `symfony/htt
 `stream()` returns a `StreamResult` with the accumulated text, session info, and usage stats:
 
 ```php
-use Strands\Streaming\StreamEvent;
-use Strands\Streaming\StreamEventType;
+use StrandsPhpClient\Streaming\StreamEvent;
+use StrandsPhpClient\Streaming\StreamEventType;
 
 $result = $client->stream(
     message: 'Explain quantum computing',
@@ -259,8 +259,8 @@ Retries apply to `invoke()` calls. Streaming requests are not retried.
 | `SigV4Auth` | AWS service-to-service (IAM) | Planned |
 
 ```php
-use Strands\Auth\NullAuth;
-use Strands\Auth\ApiKeyAuth;
+use StrandsPhpClient\Auth\NullAuth;
+use StrandsPhpClient\Auth\ApiKeyAuth;
 
 // No auth (default -local development)
 $config = new StrandsConfig(
@@ -302,7 +302,7 @@ strands:
 ```
 
 ```php
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 class ChatController extends AbstractController
@@ -322,7 +322,7 @@ Bundle registration:
 ```php
 // config/bundles.php
 return [
-    Strands\Integration\Symfony\StrandsBundle::class => ['all' => true],
+    StrandsPhpClient\Integration\Symfony\StrandsBundle::class => ['all' => true],
 ];
 ```
 
@@ -358,7 +358,7 @@ return [
 Inject by type-hint or resolve named agents:
 
 ```php
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 
 class ChatController extends Controller
 {
@@ -374,7 +374,7 @@ $analyst = app('strands.client.analyst');
 Use the facade for quick calls:
 
 ```php
-use Strands\Integration\Laravel\Facades\Strands;
+use StrandsPhpClient\Integration\Laravel\Facades\Strands;
 
 $response = Strands::invoke('Analyse this proposal');
 ```

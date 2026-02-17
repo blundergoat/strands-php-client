@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit;
+namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
-use Strands\Config\StrandsConfig;
-use Strands\Context\AgentContext;
-use Strands\Exceptions\StreamInterruptedException;
-use Strands\Http\HttpTransport;
-use Strands\StrandsClient;
-use Strands\Streaming\StreamEvent;
-use Strands\Streaming\StreamEventType;
-use Strands\Streaming\StreamResult;
+use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\Context\AgentContext;
+use StrandsPhpClient\Exceptions\StreamInterruptedException;
+use StrandsPhpClient\Http\HttpTransport;
+use StrandsPhpClient\StrandsClient;
+use StrandsPhpClient\Streaming\StreamEvent;
+use StrandsPhpClient\Streaming\StreamEventType;
+use StrandsPhpClient\Streaming\StreamResult;
 
 class StrandsClientStreamTest extends TestCase
 {

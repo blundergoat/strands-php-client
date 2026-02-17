@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Auth;
+namespace StrandsPhpClient\Auth;
 
 /**
  * No-op authentication strategy for local development.

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Auth;
+namespace StrandsPhpClient\Auth;
 
 /**
  * API key authentication strategy.

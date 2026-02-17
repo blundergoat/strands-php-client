@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Exceptions;
+namespace StrandsPhpClient\Exceptions;
 
 /**
  * Base exception for all Strands PHP Client errors.

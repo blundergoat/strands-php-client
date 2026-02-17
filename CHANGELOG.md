@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-02-17
+
 ### Added
 
 - Laravel service provider integration -config-driven agent registration, DI container bindings, and `Strands` facade.
@@ -18,8 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Extracted `StrandsClientFactory` to `Strands\Integration\StrandsClientFactory` as a shared base class used by both Laravel and Symfony integrations.
-- `Strands\Integration\Symfony\DependencyInjection\StrandsClientFactory` now extends the shared base class (backward compatible).
+- Extracted `StrandsClientFactory` to `StrandsPhpClient\Integration\StrandsClientFactory` as a shared base class used by both Laravel and Symfony integrations.
+- `StrandsPhpClient\Integration\Symfony\DependencyInjection\StrandsClientFactory` now extends the shared base class.
 
 ## [1.0.0] - 2026-02-16
 
@@ -45,5 +47,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI matrix: PHP 8.2/8.3/8.4, Symfony 6.4/7.0.
 - 100+ unit tests with fixture-based mocks (no network calls).
 
-[Unreleased]: https://github.com/blundergoat/strands-php-client/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/blundergoat/strands-php-client/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/blundergoat/strands-php-client/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/blundergoat/strands-php-client/releases/tag/v1.0.0

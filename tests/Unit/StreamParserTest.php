@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit;
+namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
-use Strands\Streaming\StreamEventType;
-use Strands\Streaming\StreamParser;
+use StrandsPhpClient\Streaming\StreamEventType;
+use StrandsPhpClient\Streaming\StreamParser;
 
 class StreamParserTest extends TestCase
 {

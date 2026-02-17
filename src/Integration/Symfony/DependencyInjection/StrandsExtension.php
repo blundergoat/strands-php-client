@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Strands\Integration\Symfony\DependencyInjection;
+namespace StrandsPhpClient\Integration\Symfony\DependencyInjection;
 
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit;
+namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
-use Strands\Context\AgentContext;
+use StrandsPhpClient\Context\AgentContext;
 
 class AgentContextTest extends TestCase
 {

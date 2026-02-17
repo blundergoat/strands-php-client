@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit\Integration\Laravel;
+namespace StrandsPhpClient\Tests\Unit\Integration\Laravel;
 
 use PHPUnit\Framework\TestCase;
 

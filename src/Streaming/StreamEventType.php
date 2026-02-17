@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Streaming;
+namespace StrandsPhpClient\Streaming;
 
 /**
  * All possible types of streaming events from the agent.

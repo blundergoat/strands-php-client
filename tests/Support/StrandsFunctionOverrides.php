@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands;
+namespace StrandsPhpClient;
 
 /**
  * Test-only function override to control class_exists() checks inside the Strands namespace.

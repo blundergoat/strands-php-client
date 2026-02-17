@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit;
+namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
-use Strands\Response\AgentResponse;
+use StrandsPhpClient\Response\AgentResponse;
 
 class AgentResponseTest extends TestCase
 {
@@ -84,7 +84,7 @@ class AgentResponseTest extends TestCase
 
     public function testUsageDefaultValues(): void
     {
-        $usage = new \Strands\Response\Usage();
+        $usage = new \StrandsPhpClient\Response\Usage();
 
         $this->assertSame(0, $usage->inputTokens);
         $this->assertSame(0, $usage->outputTokens);

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit;
+namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
-use Strands\Auth\NullAuth;
+use StrandsPhpClient\Auth\NullAuth;
 
 class NullAuthTest extends TestCase
 {

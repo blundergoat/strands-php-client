@@ -51,7 +51,7 @@ STRANDS_ENDPOINT=http://localhost:8081
 4. Inject and use:
 
 ```php
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 
 class ChatController extends Controller
 {
@@ -75,11 +75,11 @@ If you have disabled auto-discovery, add the provider and facade manually:
 ```php
 // config/app.php
 'providers' => [
-    Strands\Integration\Laravel\StrandsServiceProvider::class,
+    StrandsPhpClient\Integration\Laravel\StrandsServiceProvider::class,
 ],
 
 'aliases' => [
-    'Strands' => Strands\Integration\Laravel\Facades\Strands::class,
+    'Strands' => StrandsPhpClient\Integration\Laravel\Facades\Strands::class,
 ],
 ```
 
@@ -364,7 +364,7 @@ With `max_retries: 3` and `retry_delay_ms: 500`, the retry timing is:
 The agent specified by the `default` config key is bound to `StrandsClient::class`. Inject it by type-hint:
 
 ```php
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 
 class MyService
 {
@@ -386,7 +386,7 @@ $skeptic = app('strands.client.skeptic');
 Or use constructor injection with Laravel's contextual binding:
 
 ```php
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 
 $this->app->when(CouncilOrchestrator::class)
     ->needs(StrandsClient::class)
@@ -398,7 +398,7 @@ $this->app->when(CouncilOrchestrator::class)
 The `Strands` facade proxies to the default `StrandsClient`:
 
 ```php
-use Strands\Integration\Laravel\Facades\Strands;
+use StrandsPhpClient\Integration\Laravel\Facades\Strands;
 
 // Invoke
 $response = Strands::invoke('Analyse this proposal');

@@ -8,15 +8,15 @@
 
 declare(strict_types=1);
 
-namespace Strands\Integration;
+namespace StrandsPhpClient\Integration;
 
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
-use Strands\Auth\ApiKeyAuth;
-use Strands\Auth\AuthStrategy;
-use Strands\Auth\NullAuth;
-use Strands\Config\StrandsConfig;
-use Strands\StrandsClient;
+use StrandsPhpClient\Auth\ApiKeyAuth;
+use StrandsPhpClient\Auth\AuthStrategy;
+use StrandsPhpClient\Auth\NullAuth;
+use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\StrandsClient;
 
 class StrandsClientFactory
 {

@@ -233,7 +233,7 @@ $this->logger->warning('Strands request failed, retrying', [
 Imports are ordered alphabetically. Group by:
 1. PHP built-in classes
 2. Third-party (PSR, Symfony)
-3. Internal (`Blundergoat\Strands\...`)
+3. Internal (`Blundergoat\StrandsPhpClient\...`)
 
 ### Code Style (PHP-CS-Fixer)
 

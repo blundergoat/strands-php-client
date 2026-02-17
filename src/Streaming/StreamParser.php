@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Streaming;
+namespace StrandsPhpClient\Streaming;
 
 /**
  * Incremental SSE (Server-Sent Events) parser.

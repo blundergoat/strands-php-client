@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Auth;
+namespace StrandsPhpClient\Auth;
 
 /**
  * Strategy interface for applying authentication to outgoing requests.

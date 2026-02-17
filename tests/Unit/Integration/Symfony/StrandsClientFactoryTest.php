@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit\Integration\Symfony;
+namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
 
 use PHPUnit\Framework\TestCase;
-use Strands\Integration\Symfony\DependencyInjection\StrandsClientFactory;
-use Strands\StrandsClient;
+use StrandsPhpClient\Integration\Symfony\DependencyInjection\StrandsClientFactory;
+use StrandsPhpClient\StrandsClient;
 
 class StrandsClientFactoryTest extends TestCase
 {

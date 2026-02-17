@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit\Integration\Symfony;
+namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
 
 use PHPUnit\Framework\TestCase;
-use Strands\Integration\Symfony\DependencyInjection\Configuration;
+use StrandsPhpClient\Integration\Symfony\DependencyInjection\Configuration;
 use Symfony\Component\Config\Definition\Processor;
 
 class ConfigurationTest extends TestCase

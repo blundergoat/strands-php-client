@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Exceptions;
+namespace StrandsPhpClient\Exceptions;
 
 /**
  * Exception thrown when an SSE stream ends without a terminal event.

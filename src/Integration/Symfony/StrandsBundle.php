@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Strands\Integration\Symfony;
+namespace StrandsPhpClient\Integration\Symfony;
 
-use Strands\Integration\Symfony\DependencyInjection\StrandsExtension;
+use StrandsPhpClient\Integration\Symfony\DependencyInjection\StrandsExtension;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 

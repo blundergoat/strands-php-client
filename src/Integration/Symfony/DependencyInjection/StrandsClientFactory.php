@@ -9,9 +9,9 @@
 
 declare(strict_types=1);
 
-namespace Strands\Integration\Symfony\DependencyInjection;
+namespace StrandsPhpClient\Integration\Symfony\DependencyInjection;
 
-use Strands\Integration\StrandsClientFactory as BaseFactory;
+use StrandsPhpClient\Integration\StrandsClientFactory as BaseFactory;
 
 class StrandsClientFactory extends BaseFactory
 {

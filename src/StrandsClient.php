@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace Strands;
+namespace StrandsPhpClient;
 
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
-use Strands\Config\StrandsConfig;
-use Strands\Context\AgentContext;
-use Strands\Exceptions\AgentErrorException;
-use Strands\Exceptions\StrandsException;
-use Strands\Http\HttpTransport;
-use Strands\Http\SymfonyHttpTransport;
-use Strands\Response\AgentResponse;
-use Strands\Response\Usage;
-use Strands\Streaming\StreamEvent;
-use Strands\Streaming\StreamEventType;
-use Strands\Streaming\StreamParser;
-use Strands\Streaming\StreamResult;
+use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\Context\AgentContext;
+use StrandsPhpClient\Exceptions\AgentErrorException;
+use StrandsPhpClient\Exceptions\StrandsException;
+use StrandsPhpClient\Http\HttpTransport;
+use StrandsPhpClient\Http\SymfonyHttpTransport;
+use StrandsPhpClient\Response\AgentResponse;
+use StrandsPhpClient\Response\Usage;
+use StrandsPhpClient\Streaming\StreamEvent;
+use StrandsPhpClient\Streaming\StreamEventType;
+use StrandsPhpClient\Streaming\StreamParser;
+use StrandsPhpClient\Streaming\StreamResult;
 
 /**
  * The primary client for interacting with Strands AI agents.

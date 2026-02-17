@@ -34,7 +34,7 @@ The Strands PHP Client includes a Symfony bundle that registers `StrandsClient` 
 // config/bundles.php
 return [
     // ... other bundles
-    Strands\Integration\Symfony\StrandsBundle::class => ['all' => true],
+    StrandsPhpClient\Integration\Symfony\StrandsBundle::class => ['all' => true],
 ];
 ```
 
@@ -58,7 +58,7 @@ AGENT_ENDPOINT=http://localhost:8081
 4. Inject and use:
 
 ```php
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 
 class MyService
 {
@@ -81,7 +81,7 @@ Add the bundle to `config/bundles.php`:
 ```php
 return [
     Symfony\Bundle\FrameworkBundle\FrameworkBundle::class => ['all' => true],
-    Strands\Integration\Symfony\StrandsBundle::class => ['all' => true],
+    StrandsPhpClient\Integration\Symfony\StrandsBundle::class => ['all' => true],
     // ... other bundles
 ];
 ```
@@ -338,7 +338,7 @@ With `max_retries: 3` and `retry_delay_ms: 500`, the retry timing is:
 The **first** agent in your config is automatically aliased as the default `StrandsClient`. You can inject it by type-hint alone:
 
 ```php
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 
 class MyService
 {
@@ -362,7 +362,7 @@ $client = $container->get('strands.client.analyst');
 The recommended way to inject specific named clients in Symfony 6.4+:
 
 ```php
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 class CouncilOrchestrator

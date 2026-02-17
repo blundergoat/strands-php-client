@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Context;
+namespace StrandsPhpClient\Context;
 
 /**
  * Immutable builder for application context sent to agents.

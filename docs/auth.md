@@ -42,7 +42,7 @@ Your Code                StrandsClient              AuthStrategy
 `NullAuth` does nothing -it returns the headers exactly as received. This is the default, so you don't need to specify it:
 
 ```php
-use Strands\Config\StrandsConfig;
+use StrandsPhpClient\Config\StrandsConfig;
 
 // These are equivalent -NullAuth is the default
 $config = new StrandsConfig(endpoint: 'http://localhost:8081');
@@ -60,8 +60,8 @@ $config = new StrandsConfig(endpoint: 'http://localhost:8081', auth: new NullAut
 The most common pattern -sends `Authorization: Bearer <key>`:
 
 ```php
-use Strands\Auth\ApiKeyAuth;
-use Strands\Config\StrandsConfig;
+use StrandsPhpClient\Auth\ApiKeyAuth;
+use StrandsPhpClient\Config\StrandsConfig;
 
 $config = new StrandsConfig(
     endpoint: 'https://api.example.com/agent',
@@ -199,7 +199,7 @@ When using the Laravel service provider, configure auth in `config/strands.php`.
 If you need something beyond API keys (e.g., AWS SigV4 signing, OAuth2 tokens, HMAC signatures), implement the `AuthStrategy` interface:
 
 ```php
-use Strands\Auth\AuthStrategy;
+use StrandsPhpClient\Auth\AuthStrategy;
 
 class OAuth2Auth implements AuthStrategy
 {

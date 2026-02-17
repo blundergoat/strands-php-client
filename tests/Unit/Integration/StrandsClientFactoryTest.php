@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit\Integration;
+namespace StrandsPhpClient\Tests\Unit\Integration;
 
 use PHPUnit\Framework\TestCase;
-use Strands\Integration\StrandsClientFactory;
-use Strands\StrandsClient;
+use StrandsPhpClient\Integration\StrandsClientFactory;
+use StrandsPhpClient\StrandsClient;
 
 class StrandsClientFactoryTest extends TestCase
 {

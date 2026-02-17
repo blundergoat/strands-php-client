@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Strands\Streaming;
+namespace StrandsPhpClient\Streaming;
 
-use Strands\Response\Usage;
+use StrandsPhpClient\Response\Usage;
 
 /**
  * The accumulated result of a completed stream() call.

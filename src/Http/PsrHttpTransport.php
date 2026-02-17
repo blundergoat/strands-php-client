@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Strands\Http;
+namespace StrandsPhpClient\Http;
 
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
-use Strands\Exceptions\AgentErrorException;
-use Strands\Exceptions\StrandsException;
+use StrandsPhpClient\Exceptions\AgentErrorException;
+use StrandsPhpClient\Exceptions\StrandsException;
 
 /**
  * PSR-18 based transport for framework-agnostic HTTP calls.

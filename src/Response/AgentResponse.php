@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Response;
+namespace StrandsPhpClient\Response;
 
 /**
  * Represents the complete response from a synchronous invoke() call.

@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit;
+namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
-use Strands\Auth\AuthStrategy;
-use Strands\Auth\NullAuth;
-use Strands\Config\StrandsConfig;
-use Strands\Context\AgentContext;
-use Strands\Exceptions\AgentErrorException;
-use Strands\Exceptions\StrandsException;
-use Strands\Http\HttpTransport;
-use Strands\Response\AgentResponse;
-use Strands\StrandsClient;
+use StrandsPhpClient\Auth\AuthStrategy;
+use StrandsPhpClient\Auth\NullAuth;
+use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\Context\AgentContext;
+use StrandsPhpClient\Exceptions\AgentErrorException;
+use StrandsPhpClient\Exceptions\StrandsException;
+use StrandsPhpClient\Http\HttpTransport;
+use StrandsPhpClient\Response\AgentResponse;
+use StrandsPhpClient\StrandsClient;
 
 class StrandsClientTest extends TestCase
 {

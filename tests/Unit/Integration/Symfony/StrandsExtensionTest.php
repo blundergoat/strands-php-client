@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit\Integration\Symfony;
+namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
 
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
-use Strands\Integration\Symfony\DependencyInjection\StrandsClientFactory;
-use Strands\Integration\Symfony\DependencyInjection\StrandsExtension;
-use Strands\StrandsClient;
+use StrandsPhpClient\Integration\Symfony\DependencyInjection\StrandsClientFactory;
+use StrandsPhpClient\Integration\Symfony\DependencyInjection\StrandsExtension;
+use StrandsPhpClient\StrandsClient;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 

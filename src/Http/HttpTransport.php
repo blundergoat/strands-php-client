@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Http;
+namespace StrandsPhpClient\Http;
 
 /**
  * Interface for HTTP transport implementations.

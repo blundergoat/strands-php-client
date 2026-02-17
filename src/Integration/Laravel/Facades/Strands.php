@@ -3,18 +3,18 @@
 /**
  * Facade for the default StrandsClient instance.
  *
- * @method static \Strands\Response\AgentResponse invoke(string $message, ?\Strands\Context\AgentContext $context = null, ?string $sessionId = null)
- * @method static \Strands\Streaming\StreamResult stream(string $message, callable $onEvent, ?\Strands\Context\AgentContext $context = null, ?string $sessionId = null)
+ * @method static \StrandsPhpClient\Response\AgentResponse invoke(string $message, ?\StrandsPhpClient\Context\AgentContext $context = null, ?string $sessionId = null)
+ * @method static \StrandsPhpClient\Streaming\StreamResult stream(string $message, callable $onEvent, ?\StrandsPhpClient\Context\AgentContext $context = null, ?string $sessionId = null)
  *
- * @see \Strands\StrandsClient
+ * @see \StrandsPhpClient\StrandsClient
  */
 
 declare(strict_types=1);
 
-namespace Strands\Integration\Laravel\Facades;
+namespace StrandsPhpClient\Integration\Laravel\Facades;
 
 use Illuminate\Support\Facades\Facade;
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 
 class Strands extends Facade
 {
