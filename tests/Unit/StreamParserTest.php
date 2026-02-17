@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit;
+namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
-use Strands\Streaming\StreamEventType;
-use Strands\Streaming\StreamParser;
+use StrandsPhpClient\Streaming\StreamEventType;
+use StrandsPhpClient\Streaming\StreamParser;
 
 class StreamParserTest extends TestCase
 {
@@ -232,7 +232,7 @@ class StreamParserTest extends TestCase
         $events1 = $parser->feed("data: {broken\n\n");
         $this->assertCount(0, $events1);
 
-        // Feed valid JSON — buffer should be clean
+        // Feed valid JSON - buffer should be clean
         $events2 = $parser->feed("data: {\"type\": \"text\", \"content\": \"recovered\"}\n\n");
         $this->assertCount(1, $events2);
         $this->assertSame('recovered', $events2[0]->text);
@@ -281,5 +281,27 @@ class StreamParserTest extends TestCase
 
         $this->assertCount(1, $events);
         $this->assertSame(2, $parser->getSkippedEvents());
+    }
+
+    public function testParsesHasObjectiveFlagWhenTrue(): void
+    {
+        $parser = new StreamParser();
+        $raw = "data: {\"type\": \"text\", \"content\": \"hello\", \"has_objective\": true}\n\n";
+
+        $events = $parser->feed($raw);
+
+        $this->assertCount(1, $events);
+        $this->assertTrue($events[0]->hasObjective);
+    }
+
+    public function testHasObjectiveDefaultsFalseForNonBooleanValues(): void
+    {
+        $parser = new StreamParser();
+        $raw = "data: {\"type\": \"text\", \"content\": \"hello\", \"has_objective\": \"true\"}\n\n";
+
+        $events = $parser->feed($raw);
+
+        $this->assertCount(1, $events);
+        $this->assertFalse($events[0]->hasObjective);
     }
 }

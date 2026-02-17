@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit;
+namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
-use Strands\Config\StrandsConfig;
-use Strands\Context\AgentContext;
-use Strands\Exceptions\StreamInterruptedException;
-use Strands\Http\HttpTransport;
-use Strands\StrandsClient;
-use Strands\Streaming\StreamEvent;
-use Strands\Streaming\StreamEventType;
-use Strands\Streaming\StreamResult;
+use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\Context\AgentContext;
+use StrandsPhpClient\Exceptions\StreamInterruptedException;
+use StrandsPhpClient\Http\HttpTransport;
+use StrandsPhpClient\StrandsClient;
+use StrandsPhpClient\Streaming\StreamEvent;
+use StrandsPhpClient\Streaming\StreamEventType;
+use StrandsPhpClient\Streaming\StreamResult;
 
 class StrandsClientStreamTest extends TestCase
 {
@@ -295,7 +295,7 @@ class StrandsClientStreamTest extends TestCase
 
     public function testStreamPrefersAccumulatedTextOverFullText(): void
     {
-        // Both Text events and Complete.fullText present — accumulated text wins
+        // Both Text events and Complete.fullText present - accumulated text wins
         $sseData = "data: {\"type\": \"text\", \"content\": \"Streamed\"}\n\n"
             . "data: {\"type\": \"complete\", \"text\": \"Streamed\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
         $transport = $this->createStreamingTransport($sseData);

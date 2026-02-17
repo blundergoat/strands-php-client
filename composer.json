@@ -3,7 +3,7 @@
     "description": "PHP client for consuming Strands AI agents over HTTP - invoke, stream via SSE, manage sessions.",
     "type": "library",
     "license": "Apache-2.0",
-    "keywords": ["strands", "ai", "agent", "bedrock", "llm", "sse", "streaming"],
+    "keywords": ["strands", "ai", "agent", "php", "sdk", "llm", "bedrock", "sse", "streaming", "psr-18", "laravel", "symfony"],
     "homepage": "https://github.com/blundergoat/strands-php-client",
     "authors": [
         {
@@ -23,6 +23,7 @@
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
+        "illuminate/support": "^10.0 || ^11.0 || ^12.0",
         "infection/infection": "^0.32.4",
         "phpmd/phpmd": "^2.15",
         "phpstan/phpstan": "^2.0",
@@ -32,21 +33,23 @@
         "symfony/dependency-injection": "^6.4 || ^7.0",
         "symfony/framework-bundle": "^6.4 || ^7.0",
         "symfony/http-client": "^6.4 || ^7.0",
-        "symfony/yaml": "^6.4 || ^7.0"
+        "symfony/yaml": "^6.4 || ^7.0",
+        "vlucas/phpdotenv": "^5.6"
     },
     "suggest": {
         "symfony/http-client": "Required for SSE streaming support via SymfonyHttpTransport. Without it, only invoke() is available via PsrHttpTransport.",
         "symfony/framework-bundle": "Required for Symfony bundle integration (^6.4|^7.0)",
-        "guzzlehttp/guzzle": "PSR-18 HTTP client — use with PsrHttpTransport for invoke() support without Symfony."
+        "illuminate/support": "Required for Laravel service provider integration (^10.0|^11.0|^12.0)",
+        "guzzlehttp/guzzle": "PSR-18 HTTP client -use with PsrHttpTransport for invoke() support without Symfony."
     },
     "autoload": {
         "psr-4": {
-            "Strands\\": "src/"
+            "StrandsPhpClient\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Strands\\Tests\\": "tests/"
+            "StrandsPhpClient\\Tests\\": "tests/"
         }
     },
     "config": {
@@ -58,7 +61,15 @@
     "minimum-stability": "stable",
     "extra": {
         "branch-alias": {
-            "dev-main": "1.0.x-dev"
+            "dev-main": "1.1.x-dev"
+        },
+        "laravel": {
+            "providers": [
+                "StrandsPhpClient\\Integration\\Laravel\\StrandsServiceProvider"
+            ],
+            "aliases": {
+                "Strands": "StrandsPhpClient\\Integration\\Laravel\\Facades\\Strands"
+            }
         }
     },
     "scripts": {

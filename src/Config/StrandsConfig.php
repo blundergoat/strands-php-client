@@ -8,10 +8,10 @@
 
 declare(strict_types=1);
 
-namespace Strands\Config;
+namespace StrandsPhpClient\Config;
 
-use Strands\Auth\AuthStrategy;
-use Strands\Auth\NullAuth;
+use StrandsPhpClient\Auth\AuthStrategy;
+use StrandsPhpClient\Auth\NullAuth;
 
 /**
  * Configuration for connecting to a Strands agent.

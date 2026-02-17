@@ -5,9 +5,9 @@
 [![PHP Version](https://img.shields.io/packagist/dependency-v/blundergoat/strands-php-client/php.svg)](https://packagist.org/packages/blundergoat/strands-php-client)
 [![License](https://img.shields.io/packagist/l/blundergoat/strands-php-client.svg)](https://github.com/blundergoat/strands-php-client/blob/main/LICENSE)
 
-PHP client library for consuming [Strands](https://github.com/strands-agents/strands-agents) AI agents via HTTP. Invoke agents, stream responses via SSE, manage sessions — without running an agentic loop in PHP.
+PHP client library for consuming [Strands](https://github.com/strands-agents/strands-agents) AI agents via HTTP. Invoke agents, stream responses via SSE, manage sessions -without running an agentic loop in PHP.
 
-Works with **any PHP framework** — Symfony, Slim, or vanilla PHP.
+Works with **any PHP framework** -Laravel, Symfony, Slim, or vanilla PHP.
 
 *"Your PHP app doesn't need to become an AI platform. It just needs to talk to one."*
 
@@ -17,7 +17,7 @@ composer require blundergoat/strands-php-client
 
 ## Why This Exists
 
-[Strands Agents](https://github.com/strands-agents/strands-agents) is an open-source Python SDK from AWS for building autonomous AI agents. It handles the hard parts — reasoning loops, tool orchestration, model routing (Claude, Nova, GPT, Ollama) — and exposes agents over HTTP.
+[Strands Agents](https://github.com/strands-agents/strands-agents) is an open-source Python SDK from AWS for building autonomous AI agents. It handles the hard parts -reasoning loops, tool orchestration, model routing (Claude, Nova, GPT, Ollama) -and exposes agents over HTTP.
 
 But most web applications aren't written in Python. If your product runs on Symfony or any PHP framework, you need a way to **consume** those agents without reimplementing the agentic loop in PHP. That's what this library does.
 
@@ -25,7 +25,7 @@ Your Python agents handle the AI. Your PHP app handles the product. This client 
 
 ```mermaid
 graph LR
-    A["PHP Application<br/><small>Symfony · Slim</small>"] -->|"invoke() / stream()"| B["strands-php-client"]
+    A["PHP Application<br/><small>Laravel · Symfony · Slim</small>"] -->|"invoke() / stream()"| B["strands-php-client"]
     B -->|"HTTP + SSE"| C["Strands Agent<br/><small>Python · FastAPI</small>"]
     C -->|"Reasoning Loop"| D["LLM Provider<br/><small>Bedrock · Ollama · OpenAI</small>"]
     C -->|"Tool Calls"| E["Tools & APIs<br/><small>DB · Search · Custom</small>"]
@@ -68,11 +68,11 @@ For a full walkthrough with real-world examples, see the [Usage Guide](docs/usag
 
 ### Symfony (with auto-detection)
 
-If `symfony/http-client` is installed, the transport is auto-detected — just create a client and go:
+If `symfony/http-client` is installed, the transport is auto-detected -just create a client and go:
 
 ```php
-use Strands\StrandsClient;
-use Strands\Config\StrandsConfig;
+use StrandsPhpClient\StrandsClient;
+use StrandsPhpClient\Config\StrandsConfig;
 
 $client = new StrandsClient(
     config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -85,16 +85,16 @@ echo $response->agent;               // Which agent handled it (e.g. "analyst")
 echo $response->usage->inputTokens;
 ```
 
-For Symfony projects, the bundle adds YAML config and autowiring — see [Symfony Bundle Integration](#symfony-bundle-integration) below.
+For Symfony projects, the bundle adds YAML config and autowiring -see [Symfony Bundle Integration](#symfony-bundle-integration) below.
 
 ### PSR-18 / Guzzle
 
 Pass a `PsrHttpTransport` with your PSR-18 client:
 
 ```php
-use Strands\StrandsClient;
-use Strands\Config\StrandsConfig;
-use Strands\Http\PsrHttpTransport;
+use StrandsPhpClient\StrandsClient;
+use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\Http\PsrHttpTransport;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\HttpFactory;
 
@@ -113,10 +113,10 @@ echo $response->text;
 
 ### Any PSR-18 Client
 
-Any library implementing PSR-18 (`psr/http-client`) works — Guzzle, Buzz, php-http/curl-client, etc.:
+Any library implementing PSR-18 (`psr/http-client`) works -Guzzle, Buzz, php-http/curl-client, etc.:
 
 ```php
-use Strands\Http\PsrHttpTransport;
+use StrandsPhpClient\Http\PsrHttpTransport;
 
 $transport = new PsrHttpTransport(
     httpClient: $yourPsr18Client,        // ClientInterface
@@ -135,7 +135,7 @@ $client = new StrandsClient(
 ### Invoke (blocking)
 
 ```php
-use Strands\Context\AgentContext;
+use StrandsPhpClient\Context\AgentContext;
 
 $response = $client->invoke(
     message: 'Analyse this proposal',
@@ -159,8 +159,8 @@ Real-time token-by-token streaming via Server-Sent Events. Requires `symfony/htt
 `stream()` returns a `StreamResult` with the accumulated text, session info, and usage stats:
 
 ```php
-use Strands\Streaming\StreamEvent;
-use Strands\Streaming\StreamEventType;
+use StrandsPhpClient\Streaming\StreamEvent;
+use StrandsPhpClient\Streaming\StreamEventType;
 
 $result = $client->stream(
     message: 'Explain quantum computing',
@@ -183,11 +183,11 @@ echo $result->textEvents;             // Number of text chunks received
 echo $result->totalEvents;            // Total events received
 ```
 
-> **Note:** SSE streaming requires `symfony/http-client` via `SymfonyHttpTransport`. PSR-18 clients only support `invoke()` — this is a limitation of the PSR-18 spec, not this library.
+> **Note:** SSE streaming requires `symfony/http-client` via `SymfonyHttpTransport`. PSR-18 clients only support `invoke()` -this is a limitation of the PSR-18 spec, not this library.
 
 ### Sessions
 
-The client sends a `session_id` — the server manages all state. Multi-turn conversations just work:
+The client sends a `session_id` -the server manages all state. Multi-turn conversations just work:
 
 ```php
 $r1 = $client->invoke('Draft a referral letter', sessionId: 'consult-001');
@@ -248,7 +248,7 @@ Retries apply to `invoke()` calls. Streaming requests are not retried.
 
 **Auto-detection:** If no transport is passed to the constructor, the client checks for `symfony/http-client` and uses `SymfonyHttpTransport` automatically. If Symfony isn't available, it throws with guidance to pass a `PsrHttpTransport`.
 
-**Timeout:** `SymfonyHttpTransport` uses the `timeout` from `StrandsConfig` (default 120s). `connectTimeout` (default 10s) controls how long to wait for the initial TCP connection — separate from the read timeout so a down server fails fast without affecting slow LLM generation. For `PsrHttpTransport`, configure timeout on your PSR-18 client directly (e.g. `new GuzzleHttp\Client(['timeout' => 120])`).
+**Timeout:** `SymfonyHttpTransport` uses the `timeout` from `StrandsConfig` (default 120s). `connectTimeout` (default 10s) controls how long to wait for the initial TCP connection -separate from the read timeout so a down server fails fast without affecting slow LLM generation. For `PsrHttpTransport`, configure timeout on your PSR-18 client directly (e.g. `new GuzzleHttp\Client(['timeout' => 120])`).
 
 ## Auth Strategies
 
@@ -259,10 +259,10 @@ Retries apply to `invoke()` calls. Streaming requests are not retried.
 | `SigV4Auth` | AWS service-to-service (IAM) | Planned |
 
 ```php
-use Strands\Auth\NullAuth;
-use Strands\Auth\ApiKeyAuth;
+use StrandsPhpClient\Auth\NullAuth;
+use StrandsPhpClient\Auth\ApiKeyAuth;
 
-// No auth (default — local development)
+// No auth (default -local development)
 $config = new StrandsConfig(
     endpoint: 'http://localhost:8081',
 );
@@ -302,7 +302,7 @@ strands:
 ```
 
 ```php
-use Strands\StrandsClient;
+use StrandsPhpClient\StrandsClient;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 class ChatController extends AbstractController
@@ -322,26 +322,88 @@ Bundle registration:
 ```php
 // config/bundles.php
 return [
-    Strands\Integration\Symfony\StrandsBundle::class => ['all' => true],
+    StrandsPhpClient\Integration\Symfony\StrandsBundle::class => ['all' => true],
 ];
 ```
 
 For the full configuration reference, see [docs/symfony-config.md](docs/symfony-config.md).
 
+## Laravel Integration
+
+The Laravel service provider adds config-driven agent registration, dependency injection, and a facade:
+
+```php
+// config/strands.php (publish with: php artisan vendor:publish --tag=strands-config)
+return [
+    'default' => env('STRANDS_DEFAULT_AGENT', 'default'),
+
+    'agents' => [
+        'default' => [
+            'endpoint' => env('STRANDS_ENDPOINT', 'http://localhost:8081'),
+            'auth' => [
+                'driver' => env('STRANDS_AUTH_DRIVER', 'null'),
+                'api_key' => env('STRANDS_API_KEY'),
+            ],
+            'timeout' => (int) env('STRANDS_TIMEOUT', 120),
+        ],
+        'analyst' => [
+            'endpoint' => env('AGENT_ENDPOINT'),
+            'auth' => ['driver' => 'api_key', 'api_key' => env('AGENT_API_KEY')],
+            'timeout' => 300,
+        ],
+    ],
+];
+```
+
+Inject by type-hint or resolve named agents:
+
+```php
+use StrandsPhpClient\StrandsClient;
+
+class ChatController extends Controller
+{
+    public function __construct(
+        private readonly StrandsClient $client, // default agent
+    ) {}
+}
+
+// Named agent via container
+$analyst = app('strands.client.analyst');
+```
+
+Use the facade for quick calls:
+
+```php
+use StrandsPhpClient\Integration\Laravel\Facades\Strands;
+
+$response = Strands::invoke('Analyse this proposal');
+```
+
+Auto-discovery is configured via `composer.json` -no manual provider registration needed.
+
+For the full configuration reference, see [docs/laravel-config.md](docs/laravel-config.md).
+
 ## Requirements
 
 - PHP 8.2+
 - One of:
-  - `symfony/http-client` ^6.4 or ^7.0 — for full support (invoke + streaming), auto-detected
-  - Any PSR-18 HTTP client (e.g. `guzzlehttp/guzzle`) — for invoke only, via `PsrHttpTransport`
+  - `symfony/http-client` ^6.4 or ^7.0 -for full support (invoke + streaming), auto-detected
+  - Any PSR-18 HTTP client (e.g. `guzzlehttp/guzzle`) -for invoke only, via `PsrHttpTransport`
 
 ## Installation
+
+**Laravel projects:**
+
+```bash
+composer require blundergoat/strands-php-client
+php artisan vendor:publish --tag=strands-config
+```
 
 **Symfony projects:**
 
 ```bash
 composer require blundergoat/strands-php-client
-# symfony/http-client is likely already installed — transport auto-detects
+# symfony/http-client is likely already installed -transport auto-detects
 ```
 
 **PSR-18 / Guzzle projects:**
@@ -361,7 +423,8 @@ composer require blundergoat/strands-php-client symfony/http-client
 | Document | Description |
 |----------|-------------|
 | [Usage Guide](docs/usage-guide.md) | Real-world patterns from the-summit-chat |
-| [Authentication](docs/auth.md) | Auth strategies, custom drivers, Symfony config |
+| [Authentication](docs/auth.md) | Auth strategies, custom drivers, framework config |
+| [Laravel Config](docs/laravel-config.md) | Full PHP config reference with every option |
 | [Symfony Config](docs/symfony-config.md) | Full YAML config reference with every option |
 | [Changelog](CHANGELOG.md) | Version history and breaking changes |
 | [Contributing](CONTRIBUTING.md) | How to set up dev, run tests, submit PRs |
@@ -373,14 +436,13 @@ composer install
 vendor/bin/phpunit
 ```
 
-All tests use mocked HTTP responses — no Docker, no API keys, no network calls.
+All tests use mocked HTTP responses -no Docker, no API keys, no network calls.
 
 ## Related Repos
 
-| Repo | What |
-|------|------|
-| the-summit-chat | Demo app — three AI agents debating your decisions (coming soon) |
-| strands-agent-stack | AWS deployment (Terraform, Fargate, API Gateway) (coming soon) |
+| Repo                | What |
+|---------------------|------|
+| the-summit-chatroom | Demo app -three AI agents debating your decisions (coming soon) |
 
 ## License
 

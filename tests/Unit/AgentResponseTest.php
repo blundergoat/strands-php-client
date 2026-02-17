@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit;
+namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
-use Strands\Response\AgentResponse;
+use StrandsPhpClient\Response\AgentResponse;
 
 class AgentResponseTest extends TestCase
 {
@@ -15,6 +15,7 @@ class AgentResponseTest extends TestCase
             'text' => 'Hello, world!',
             'agent' => 'analyst',
             'session_id' => 'sess-001',
+            'has_objective' => true,
             'usage' => [
                 'input_tokens' => 100,
                 'output_tokens' => 50,
@@ -29,6 +30,7 @@ class AgentResponseTest extends TestCase
         $this->assertSame('Hello, world!', $response->text);
         $this->assertSame('analyst', $response->agent);
         $this->assertSame('sess-001', $response->sessionId);
+        $this->assertTrue($response->hasObjective);
         $this->assertSame(100, $response->usage->inputTokens);
         $this->assertSame(50, $response->usage->outputTokens);
         $this->assertCount(1, $response->toolsUsed);
@@ -44,6 +46,7 @@ class AgentResponseTest extends TestCase
         $this->assertSame('Minimal response', $response->text);
         $this->assertNull($response->agent);
         $this->assertNull($response->sessionId);
+        $this->assertFalse($response->hasObjective);
         $this->assertSame(0, $response->usage->inputTokens);
         $this->assertSame(0, $response->usage->outputTokens);
         $this->assertSame([], $response->toolsUsed);
@@ -84,7 +87,7 @@ class AgentResponseTest extends TestCase
 
     public function testUsageDefaultValues(): void
     {
-        $usage = new \Strands\Response\Usage();
+        $usage = new \StrandsPhpClient\Response\Usage();
 
         $this->assertSame(0, $usage->inputTokens);
         $this->assertSame(0, $usage->outputTokens);
@@ -104,6 +107,18 @@ class AgentResponseTest extends TestCase
 
         $this->assertSame(0, $response->usage->inputTokens);
         $this->assertSame(0, $response->usage->outputTokens);
+    }
+
+    public function testFromArrayHasObjectiveRequiresStrictTrue(): void
+    {
+        $data = [
+            'text' => 'Test',
+            'has_objective' => 'true',
+        ];
+
+        $response = AgentResponse::fromArray($data);
+
+        $this->assertFalse($response->hasObjective);
     }
 
     public function testFromArrayStripsNonIntDurationMs(): void

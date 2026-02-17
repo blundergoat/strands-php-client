@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Tests\Unit;
+namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Client\ClientInterface;
@@ -11,9 +11,9 @@ use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\StreamInterface;
-use Strands\Exceptions\AgentErrorException;
-use Strands\Exceptions\StrandsException;
-use Strands\Http\PsrHttpTransport;
+use StrandsPhpClient\Exceptions\AgentErrorException;
+use StrandsPhpClient\Exceptions\StrandsException;
+use StrandsPhpClient\Http\PsrHttpTransport;
 
 class PsrHttpTransportTest extends TestCase
 {

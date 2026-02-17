@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Integration\Symfony\DependencyInjection;
+namespace StrandsPhpClient\Integration\Symfony\DependencyInjection;
 
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;

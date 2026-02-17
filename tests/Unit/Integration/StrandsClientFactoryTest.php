@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
+namespace StrandsPhpClient\Tests\Unit\Integration;
 
 use PHPUnit\Framework\TestCase;
-use StrandsPhpClient\Integration\Symfony\DependencyInjection\StrandsClientFactory;
+use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
 class StrandsClientFactoryTest extends TestCase
@@ -91,22 +91,23 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('test');
     }
 
-    public function testCreateWithRetryConfig(): void
+    public function testCreateWithEmptyApiKeyThrows(): void
     {
         $factory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
-                'auth' => ['driver' => 'null'],
-                'timeout' => 60,
-                'connect_timeout' => 5,
-                'max_retries' => 3,
-                'retry_delay_ms' => 1000,
+                'auth' => [
+                    'driver' => 'api_key',
+                    'api_key' => '',
+                ],
+                'timeout' => 120,
             ],
         ]);
 
-        $client = $factory->create('test');
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('api_key" option is required');
 
-        $this->assertInstanceOf(StrandsClient::class, $client);
+        $factory->create('test');
     }
 
     public function testCreateWithApiKeyAuthCustomHeader(): void
@@ -129,29 +130,26 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
-    public function testCreateWithEmptyApiKeyThrows(): void
+    public function testCreateWithRetryConfig(): void
     {
         $factory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
-                'auth' => [
-                    'driver' => 'api_key',
-                    'api_key' => '',
-                ],
-                'timeout' => 120,
+                'auth' => ['driver' => 'null'],
+                'timeout' => 60,
+                'connect_timeout' => 5,
+                'max_retries' => 3,
+                'retry_delay_ms' => 1000,
             ],
         ]);
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('api_key" option is required');
+        $client = $factory->create('test');
 
-        $factory->create('test');
+        $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
     public function testCreateUsesDefaultsWhenRetryFieldsMissing(): void
     {
-        // When connect_timeout, max_retries, retry_delay_ms are NOT in config,
-        // the factory should use defaults without error
         $factory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',

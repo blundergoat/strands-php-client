@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Streaming;
+namespace StrandsPhpClient\Streaming;
 
 /**
  * Incremental SSE (Server-Sent Events) parser.
@@ -77,7 +77,7 @@ class StreamParser
             return null;
         }
 
-        // Skip malformed JSON rather than throwing — a throw would leave
+        // Skip malformed JSON rather than throwing - a throw would leave
         // orphaned data in the buffer and cause cascade failures.
         try {
             $decoded = json_decode($data, true, 512, JSON_THROW_ON_ERROR);

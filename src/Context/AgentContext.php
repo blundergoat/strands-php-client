@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Strands\Context;
+namespace StrandsPhpClient\Context;
 
 /**
  * Immutable builder for application context sent to agents.
@@ -58,7 +58,7 @@ class AgentContext
 
     /**
      * Add an informational permission token the agent can reference in reasoning.
-     * Not an enforcement mechanism — authorization belongs in your API Gateway.
+     * Not an enforcement mechanism - authorization belongs in your API Gateway.
      *
      * @return self  A new instance with the permission added.
      */

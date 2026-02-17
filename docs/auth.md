@@ -9,6 +9,7 @@ The Strands PHP Client uses a **Strategy Pattern** for authentication. Every out
   - [NullAuth (default)](#nullauth-default)
   - [ApiKeyAuth](#apikeyauth)
 - [Symfony Configuration](#symfony-configuration)
+- [Laravel Configuration](#laravel-configuration)
 - [Writing a Custom Strategy](#writing-a-custom-strategy)
 
 ## How It Works
@@ -19,7 +20,7 @@ Every `StrandsClient` has a `StrandsConfig`, and every `StrandsConfig` has an `A
 $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
 ```
 
-The auth strategy receives the current headers, HTTP method, URL, and body, then returns a new set of headers with any authentication data added. This happens transparently — your application code doesn't need to think about auth after initial setup.
+The auth strategy receives the current headers, HTTP method, URL, and body, then returns a new set of headers with any authentication data added. This happens transparently -your application code doesn't need to think about auth after initial setup.
 
 ```
 Your Code                StrandsClient              AuthStrategy
@@ -38,17 +39,17 @@ Your Code                StrandsClient              AuthStrategy
 
 **Use for:** Local development, Docker Compose setups, any environment where the agent doesn't require auth.
 
-`NullAuth` does nothing — it returns the headers exactly as received. This is the default, so you don't need to specify it:
+`NullAuth` does nothing -it returns the headers exactly as received. This is the default, so you don't need to specify it:
 
 ```php
-use Strands\Config\StrandsConfig;
+use StrandsPhpClient\Config\StrandsConfig;
 
-// These are equivalent — NullAuth is the default
+// These are equivalent -NullAuth is the default
 $config = new StrandsConfig(endpoint: 'http://localhost:8081');
 $config = new StrandsConfig(endpoint: 'http://localhost:8081', auth: new NullAuth());
 ```
 
-`NullAuth` follows the **Null Object Pattern** — instead of checking `if ($auth !== null)` everywhere, we use a real object that simply does nothing. This keeps the code clean and avoids null checks.
+`NullAuth` follows the **Null Object Pattern** -instead of checking `if ($auth !== null)` everywhere, we use a real object that simply does nothing. This keeps the code clean and avoids null checks.
 
 ### ApiKeyAuth
 
@@ -56,11 +57,11 @@ $config = new StrandsConfig(endpoint: 'http://localhost:8081', auth: new NullAut
 
 #### Basic usage (Bearer token)
 
-The most common pattern — sends `Authorization: Bearer <key>`:
+The most common pattern -sends `Authorization: Bearer <key>`:
 
 ```php
-use Strands\Auth\ApiKeyAuth;
-use Strands\Config\StrandsConfig;
+use StrandsPhpClient\Auth\ApiKeyAuth;
+use StrandsPhpClient\Config\StrandsConfig;
 
 $config = new StrandsConfig(
     endpoint: 'https://api.example.com/agent',
@@ -105,7 +106,7 @@ X-API-Key: sk-your-api-key-here
 
 ## Symfony Configuration
 
-When using the Symfony bundle, configure auth in `config/packages/strands.yaml`. See [docs/symfony-config.md](symfony-config.md) for the full reference.
+When using the Symfony bundle, configure auth in `config/packages/strands.yaml`. See [symfony-config.md](symfony-config.md) for the full reference.
 
 ### No auth (local dev)
 
@@ -114,7 +115,7 @@ strands:
     agents:
         default:
             endpoint: 'http://localhost:8081'
-            # auth.driver defaults to 'null' — no config needed
+            # auth.driver defaults to 'null' -no config needed
 ```
 
 ### API key auth
@@ -145,12 +146,60 @@ strands:
 
 > **Security:** Never hardcode API keys in config files. Always use environment variables via `%env(...)%` in Symfony or `.env` files.
 
+## Laravel Configuration
+
+When using the Laravel service provider, configure auth in `config/strands.php`. See [laravel-config.md](laravel-config.md) for the full reference.
+
+### No auth (local dev)
+
+```php
+// config/strands.php
+'agents' => [
+    'default' => [
+        'endpoint' => env('STRANDS_ENDPOINT', 'http://localhost:8081'),
+        // auth.driver defaults to 'null' - no config needed
+    ],
+],
+```
+
+### API key auth
+
+```php
+'agents' => [
+    'default' => [
+        'endpoint' => env('STRANDS_ENDPOINT'),
+        'auth' => [
+            'driver' => 'api_key',
+            'api_key' => env('STRANDS_API_KEY'),
+        ],
+    ],
+],
+```
+
+### API key with custom header
+
+```php
+'agents' => [
+    'default' => [
+        'endpoint' => env('STRANDS_ENDPOINT'),
+        'auth' => [
+            'driver' => 'api_key',
+            'api_key' => env('STRANDS_API_KEY'),
+            'header_name' => 'X-API-Key',
+            'value_prefix' => '',
+        ],
+    ],
+],
+```
+
+> **Security:** Never hardcode API keys in config files. Always use environment variables via `env()` in Laravel.
+
 ## Writing a Custom Strategy
 
 If you need something beyond API keys (e.g., AWS SigV4 signing, OAuth2 tokens, HMAC signatures), implement the `AuthStrategy` interface:
 
 ```php
-use Strands\Auth\AuthStrategy;
+use StrandsPhpClient\Auth\AuthStrategy;
 
 class OAuth2Auth implements AuthStrategy
 {
@@ -185,10 +234,10 @@ public function authenticate(
 
 **Parameters explained:**
 
-- **`$headers`** — The headers already set by the client (`Content-Type: application/json`, `Accept: ...`). Add your auth headers to this array and return it. Don't remove existing headers.
-- **`$method`** — Always `'POST'` for Strands requests. Included because some auth schemes (like AWS SigV4) need it for request signing.
-- **`$url`** — The full URL (`https://api.example.com/agent/invoke`). Needed by auth schemes that include the URL in their signature.
-- **`$body`** — The JSON request body. Needed by auth schemes that sign the body content (like AWS SigV4).
+- **`$headers`** -The headers already set by the client (`Content-Type: application/json`, `Accept: ...`). Add your auth headers to this array and return it. Don't remove existing headers.
+- **`$method`** -Always `'POST'` for Strands requests. Included because some auth schemes (like AWS SigV4) need it for request signing.
+- **`$url`** -The full URL (`https://api.example.com/agent/invoke`). Needed by auth schemes that include the URL in their signature.
+- **`$body`** -The JSON request body. Needed by auth schemes that sign the body content (like AWS SigV4).
 
 Then use it directly:
 

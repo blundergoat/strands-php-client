@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Strands\Http;
+namespace StrandsPhpClient\Http;
 
-use Strands\Exceptions\AgentErrorException;
-use Strands\Exceptions\StrandsException;
-use Strands\Exceptions\StreamInterruptedException;
+use StrandsPhpClient\Exceptions\AgentErrorException;
+use StrandsPhpClient\Exceptions\StrandsException;
+use StrandsPhpClient\Exceptions\StreamInterruptedException;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
