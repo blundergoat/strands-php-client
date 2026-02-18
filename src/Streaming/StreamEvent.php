@@ -10,18 +10,21 @@ namespace StrandsPhpClient\Streaming;
 class StreamEvent
 {
     /**
-     * @param StreamEventType  $type          The type of this event (Text, ToolUse, Complete, etc.).
-     * @param string|null      $text          The text token for Text/Thinking events.
-     * @param string|null      $fullText      The full accumulated text in Complete events.
-     * @param string|null      $sessionId     Session ID, typically in the Complete event.
-     * @param string|null      $errorCode     Error code for Error events.
-     * @param string|null      $errorMessage  Human-readable error description for Error events.
-     * @param array<string, mixed>  $usage    Token usage statistics.
+     * @param StreamEventType  $type                The type of this event (Text, ToolUse, Complete, etc.).
+     * @param string|null      $text                The text token for Text/Thinking events.
+     * @param string|null      $fullText            The full accumulated text in Complete events.
+     * @param string|null      $sessionId           Session ID, typically in the Complete event.
+     * @param string|null      $errorCode           Error code for Error events.
+     * @param string|null      $errorMessage        Human-readable error description for Error events.
+     * @param array<string, mixed>  $usage          Token usage statistics.
      * @param list<array{name: string, duration_ms?: int}>  $toolsUsed  Tools the agent used.
-     * @param string|null      $toolName      Tool name (for ToolUse/ToolResult events).
-     * @param array<string, mixed>  $toolInput  Input/arguments passed to the tool.
-     * @param string|null      $toolResult    Result/output from a tool (for ToolResult events).
-     * @param bool             $hasObjective  Whether this agent had a secret objective active.
+     * @param string|null      $toolName            Tool name (for ToolUse/ToolResult events).
+     * @param array<string, mixed>  $toolInput      Input/arguments passed to the tool.
+     * @param string|null      $toolResult          Result/output from a tool (for ToolResult events).
+     * @param bool             $hasObjective        Whether this agent had a secret objective active.
+     * @param array<string, mixed>|null $citation    Citation content block for Citation events.
+     * @param string|null      $reasoningSignature  Reasoning signature for ReasoningSignature events.
+     * @param string|null      $stopReason          Why the agent stopped (in Complete events).
      */
     public function __construct(
         public readonly StreamEventType $type,
@@ -36,6 +39,9 @@ class StreamEvent
         public readonly array $toolInput = [],
         public readonly ?string $toolResult = null,
         public readonly bool $hasObjective = false,
+        public readonly ?array $citation = null,
+        public readonly ?string $reasoningSignature = null,
+        public readonly ?string $stopReason = null,
     ) {
     }
 
@@ -66,6 +72,9 @@ class StreamEvent
             toolInput: self::arrayField($data, 'tool_input'),
             toolResult: self::encodeResult($data['result'] ?? null),
             hasObjective: ($data['has_objective'] ?? false) === true,
+            citation: self::nullableArrayField($data, 'citation'),
+            reasoningSignature: self::string($data, 'signature'),
+            stopReason: self::string($data, 'stop_reason'),
         );
     }
 
@@ -127,6 +136,19 @@ class StreamEvent
         }
 
         return $tools;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function nullableArrayField(array $data, string $key): ?array
+    {
+        $value = $data[$key] ?? null;
+
+        /** @var array<string, mixed>|null */
+        return is_array($value) ? $value : null;
     }
 
     private static function encodeResult(mixed $raw): ?string

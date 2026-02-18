@@ -304,4 +304,51 @@ class StreamParserTest extends TestCase
         $this->assertCount(1, $events);
         $this->assertFalse($events[0]->hasObjective);
     }
+
+    public function testCitationEventParsed(): void
+    {
+        $parser = new StreamParser();
+        $raw = "data: {\"type\": \"citation\", \"citation\": {\"source\": \"doc.pdf\", \"page\": 3, \"text\": \"relevant excerpt\"}}\n\n";
+
+        $events = $parser->feed($raw);
+
+        $this->assertCount(1, $events);
+        $this->assertSame(StreamEventType::Citation, $events[0]->type);
+        $this->assertSame(['source' => 'doc.pdf', 'page' => 3, 'text' => 'relevant excerpt'], $events[0]->citation);
+    }
+
+    public function testReasoningSignatureEventParsed(): void
+    {
+        $parser = new StreamParser();
+        $raw = "data: {\"type\": \"reasoning_signature\", \"signature\": \"abc123def456\"}\n\n";
+
+        $events = $parser->feed($raw);
+
+        $this->assertCount(1, $events);
+        $this->assertSame(StreamEventType::ReasoningSignature, $events[0]->type);
+        $this->assertSame('abc123def456', $events[0]->reasoningSignature);
+    }
+
+    public function testReasoningRedactedEventParsed(): void
+    {
+        $parser = new StreamParser();
+        $raw = "data: {\"type\": \"reasoning_redacted\"}\n\n";
+
+        $events = $parser->feed($raw);
+
+        $this->assertCount(1, $events);
+        $this->assertSame(StreamEventType::ReasoningRedacted, $events[0]->type);
+    }
+
+    public function testCompleteEventParsesStopReason(): void
+    {
+        $parser = new StreamParser();
+        $raw = "data: {\"type\": \"complete\", \"text\": \"Done\", \"session_id\": \"s-1\", \"usage\": {}, \"tools_used\": [], \"stop_reason\": \"end_turn\"}\n\n";
+
+        $events = $parser->feed($raw);
+
+        $this->assertCount(1, $events);
+        $this->assertSame(StreamEventType::Complete, $events[0]->type);
+        $this->assertSame('end_turn', $events[0]->stopReason);
+    }
 }

@@ -26,4 +26,13 @@ enum StreamEventType: string
 
     /** An error occurred during the stream (terminal). */
     case Error = 'error';
+
+    /** Source citation data from the model. */
+    case Citation = 'citation';
+
+    /** Reasoning verification signature. */
+    case ReasoningSignature = 'reasoning_signature';
+
+    /** Redacted reasoning content block. */
+    case ReasoningRedacted = 'reasoning_redacted';
 }

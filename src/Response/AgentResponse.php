@@ -10,12 +10,14 @@ namespace StrandsPhpClient\Response;
 class AgentResponse
 {
     /**
-     * @param string  $text           The agent's text response.
-     * @param string|null  $agent      Agent name that handled the request.
-     * @param string|null  $sessionId  Session ID for multi-turn conversations.
+     * @param string  $text               The agent's text response.
+     * @param string|null  $agent          Agent name that handled the request.
+     * @param string|null  $sessionId      Session ID for multi-turn conversations.
      * @param Usage   $usage              Token usage statistics.
      * @param list<array{name: string, duration_ms?: int}>  $toolsUsed  Tools the agent called.
      * @param bool    $hasObjective       Whether this agent had a secret objective active.
+     * @param StopReason|null $stopReason  Why the agent stopped generating output.
+     * @param array<string, mixed>|null $structuredOutput  Schema-validated structured output.
      */
     public function __construct(
         public readonly string $text,
@@ -24,6 +26,8 @@ class AgentResponse
         public readonly Usage $usage = new Usage(),
         public readonly array $toolsUsed = [],
         public readonly bool $hasObjective = false,
+        public readonly ?StopReason $stopReason = null,
+        public readonly ?array $structuredOutput = null,
     ) {
     }
 
@@ -34,14 +38,14 @@ class AgentResponse
      */
     public static function fromArray(array $data): self
     {
-        $usageData = is_array($data['usage'] ?? null) ? $data['usage'] : [];
-        $inputTokens = $usageData['input_tokens'] ?? 0;
-        $outputTokens = $usageData['output_tokens'] ?? 0;
+        $usage = self::parseUsage($data);
 
-        $usage = new Usage(
-            inputTokens: is_int($inputTokens) ? $inputTokens : 0,
-            outputTokens: is_int($outputTokens) ? $outputTokens : 0,
-        );
+        $rawStopReason = $data['stop_reason'] ?? null;
+        $stopReason = is_string($rawStopReason) ? StopReason::tryFrom($rawStopReason) : null;
+
+        $rawStructuredOutput = $data['structured_output'] ?? null;
+        /** @var array<string, mixed>|null $structuredOutput */
+        $structuredOutput = is_array($rawStructuredOutput) ? $rawStructuredOutput : null;
 
         return new self(
             text: is_string($data['text'] ?? null) ? $data['text'] : '',
@@ -50,7 +54,39 @@ class AgentResponse
             hasObjective: ($data['has_objective'] ?? false) === true,
             usage: $usage,
             toolsUsed: self::parseToolsUsed($data),
+            stopReason: $stopReason,
+            structuredOutput: $structuredOutput,
         );
+    }
+
+    /**
+     * Parse usage statistics from the raw API data.
+     *
+     * @param array<string, mixed> $data
+     */
+    private static function parseUsage(array $data): Usage
+    {
+        /** @var array<string, mixed> $usageData */
+        $usageData = is_array($data['usage'] ?? null) ? $data['usage'] : [];
+
+        return new Usage(
+            inputTokens: self::intField($usageData, 'input_tokens'),
+            outputTokens: self::intField($usageData, 'output_tokens'),
+            cacheReadInputTokens: self::intField($usageData, 'cache_read_input_tokens'),
+            cacheWriteInputTokens: self::intField($usageData, 'cache_write_input_tokens'),
+            latencyMs: self::intField($usageData, 'latency_ms'),
+            timeToFirstByteMs: self::intField($usageData, 'time_to_first_byte_ms'),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private static function intField(array $data, string $key): int
+    {
+        $value = $data[$key] ?? 0;
+
+        return is_int($value) ? $value : 0;
     }
 
     /**

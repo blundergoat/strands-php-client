@@ -118,8 +118,10 @@ class StrandsClient
         $resultToolsUsed = [];
         /** @var string|null $completeFullText */
         $completeFullText = null;
+        /** @var string|null $resultStopReason */
+        $resultStopReason = null;
 
-        $this->transport->stream($url, $headers, $body, $this->config->timeout, $this->config->connectTimeout, function (string $chunk) use ($parser, $onEvent, &$receivedTerminal, &$accumulatedText, &$textEvents, &$totalEvents, &$resultSessionId, &$resultUsage, &$resultToolsUsed, &$completeFullText) {
+        $this->transport->stream($url, $headers, $body, $this->config->timeout, $this->config->connectTimeout, function (string $chunk) use ($parser, $onEvent, &$receivedTerminal, &$accumulatedText, &$textEvents, &$totalEvents, &$resultSessionId, &$resultUsage, &$resultToolsUsed, &$completeFullText, &$resultStopReason) {
             $events = $parser->feed($chunk);
 
             foreach ($events as $event) {
@@ -138,6 +140,7 @@ class StrandsClient
                         $resultUsage = $event->usage;
                         $resultToolsUsed = $event->toolsUsed;
                         $completeFullText = $event->fullText;
+                        $resultStopReason = $event->stopReason;
                     }
                 }
 
@@ -151,21 +154,18 @@ class StrandsClient
             );
         }
 
-        $inputTokens = $resultUsage['input_tokens'] ?? 0;
-        $outputTokens = $resultUsage['output_tokens'] ?? 0;
-
         $finalText = $accumulatedText !== '' ? $accumulatedText : ($completeFullText ?? '');
+
+        $stopReason = is_string($resultStopReason) ? Response\StopReason::tryFrom($resultStopReason) : null;
 
         $result = new StreamResult(
             text: $finalText,
             sessionId: $resultSessionId,
-            usage: new Usage(
-                inputTokens: is_int($inputTokens) ? $inputTokens : 0,
-                outputTokens: is_int($outputTokens) ? $outputTokens : 0,
-            ),
+            usage: self::usageFromArray($resultUsage),
             toolsUsed: $resultToolsUsed,
             textEvents: $textEvents,
             totalEvents: $totalEvents,
+            stopReason: $stopReason,
         );
 
         $this->logger->debug('Strands stream complete', [
@@ -178,6 +178,84 @@ class StrandsClient
         ]);
 
         return $result;
+    }
+
+    /**
+     * Send a JSON POST to a custom endpoint path.
+     *
+     * Unlike invoke(), this accepts an arbitrary path and payload — useful for
+     * agent endpoints with custom request/response schemas (file processing,
+     * metadata extraction, etc.). Returns the raw decoded JSON array.
+     *
+     * @param string               $path     The endpoint path (e.g. '/file-summarise').
+     * @param array<string, mixed> $payload  The JSON payload to send.
+     *
+     * @return array<string, mixed>  The decoded JSON response.
+     *
+     * @throws StrandsException  If the request fails or the payload cannot be encoded.
+     */
+    public function postJson(string $path, array $payload): array
+    {
+        $url = $this->buildUrl($path);
+        [$headers, $body] = $this->buildJsonRequest($url, $payload, 'application/json');
+
+        $this->logger->debug('Strands postJson request', [
+            'url' => $url,
+            'path' => $path,
+        ]);
+
+        $data = $this->postWithRetry($url, $headers, $body);
+
+        $this->logger->debug('Strands postJson response', [
+            'url' => $url,
+        ]);
+
+        return $data;
+    }
+
+    /**
+     * Stream SSE events from a custom endpoint path.
+     *
+     * Unlike stream(), this accepts an arbitrary path and payload, and delivers
+     * raw decoded JSON arrays to the callback — preserving all fields including
+     * domain-specific data that StreamEvent would discard.
+     *
+     * @param string               $path      The endpoint path (e.g. '/file-summarise-stream').
+     * @param array<string, mixed> $payload   The JSON payload to send.
+     * @param callable(array<string, mixed>): void $onEvent  Called for each decoded SSE event.
+     *
+     * @throws StrandsException  If the request fails or the payload cannot be encoded.
+     */
+    public function streamSse(string $path, array $payload, callable $onEvent): void
+    {
+        $url = $this->buildUrl($path);
+        [$headers, $body] = $this->buildJsonRequest($url, $payload, 'text/event-stream');
+
+        $this->logger->debug('Strands streamSse request', [
+            'url' => $url,
+            'path' => $path,
+        ]);
+
+        $buffer = '';
+
+        $this->transport->stream($url, $headers, $body, $this->config->timeout, $this->config->connectTimeout, function (string $chunk) use (&$buffer, $onEvent) {
+            $buffer = str_replace(["\r\n", "\r"], "\n", $buffer . $chunk);
+
+            while (($pos = strpos($buffer, "\n\n")) !== false) {
+                $rawEvent = substr($buffer, 0, $pos);
+                $buffer = substr($buffer, $pos + 2);
+
+                $decoded = self::extractSseData($rawEvent);
+
+                if ($decoded !== null) {
+                    $onEvent($decoded);
+                }
+            }
+        });
+
+        $this->logger->debug('Strands streamSse complete', [
+            'url' => $url,
+        ]);
     }
 
     /**
@@ -266,6 +344,121 @@ class StrandsClient
         $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
 
         return [$headers, $body];
+    }
+
+    /**
+     * Create a Usage object from a raw usage array.
+     *
+     * @param array<string, mixed> $data
+     */
+    private static function usageFromArray(array $data): Usage
+    {
+        return new Usage(
+            inputTokens: self::intFromArray($data, 'input_tokens'),
+            outputTokens: self::intFromArray($data, 'output_tokens'),
+            cacheReadInputTokens: self::intFromArray($data, 'cache_read_input_tokens'),
+            cacheWriteInputTokens: self::intFromArray($data, 'cache_write_input_tokens'),
+            latencyMs: self::intFromArray($data, 'latency_ms'),
+            timeToFirstByteMs: self::intFromArray($data, 'time_to_first_byte_ms'),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private static function intFromArray(array $data, string $key): int
+    {
+        $value = $data[$key] ?? 0;
+
+        return is_int($value) ? $value : 0;
+    }
+
+    /**
+     * Build the full URL for a custom endpoint path.
+     */
+    private function buildUrl(string $path): string
+    {
+        $base = rtrim($this->config->endpoint, '/');
+        $path = ltrim($path, '/');
+
+        if ($path === '') {
+            return $base;
+        }
+
+        return $base . '/' . $path;
+    }
+
+    /**
+     * Build headers and body for a custom JSON request.
+     *
+     * @param string               $url      The full URL.
+     * @param array<string, mixed> $payload  The payload to JSON-encode.
+     * @param string               $accept   The Accept header value.
+     *
+     * @return array{0: array<string, string>, 1: string}
+     *
+     * @throws StrandsException  If the payload cannot be JSON-encoded.
+     */
+    private function buildJsonRequest(string $url, array $payload, string $accept): array
+    {
+        try {
+            $body = json_encode($payload, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new StrandsException(
+                'Failed to encode request payload: ' . $e->getMessage(),
+                previous: $e,
+            );
+        }
+
+        $headers = [
+            'Content-Type' => 'application/json',
+            'Accept' => $accept,
+        ];
+
+        $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
+
+        return [$headers, $body];
+    }
+
+    /**
+     * Extract and decode JSON data from a single raw SSE event block.
+     *
+     * @return array<string, mixed>|null  The decoded data, or null if empty/malformed.
+     */
+    private static function extractSseData(string $rawEvent): ?array
+    {
+        $dataLines = [];
+
+        foreach (explode("\n", $rawEvent) as $line) {
+            if (str_starts_with($line, ':')) {
+                continue;
+            }
+
+            if (str_starts_with($line, 'data: ')) {
+                $dataLines[] = substr($line, 6);
+            } elseif (str_starts_with($line, 'data:')) {
+                $dataLines[] = substr($line, 5);
+            }
+        }
+
+        $data = implode("\n", $dataLines);
+
+        if ($data === '') {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($data, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $decoded */
+        return $decoded;
     }
 
     /**
