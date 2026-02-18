@@ -10,6 +10,7 @@ use StrandsPhpClient\Config\StrandsConfig;
 use StrandsPhpClient\Context\AgentContext;
 use StrandsPhpClient\Exceptions\StreamInterruptedException;
 use StrandsPhpClient\Http\HttpTransport;
+use StrandsPhpClient\Response\StopReason;
 use StrandsPhpClient\StrandsClient;
 use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
@@ -333,5 +334,66 @@ class StrandsClientStreamTest extends TestCase
 
         $this->assertSame(0, $result->usage->inputTokens);
         $this->assertSame(0, $result->usage->outputTokens);
+    }
+
+    public function testStreamCompleteEventHasStopReason(): void
+    {
+        $sseData = "data: {\"type\": \"text\", \"content\": \"Done\"}\n\n"
+            . "data: {\"type\": \"complete\", \"text\": \"Done\", \"session_id\": \"s-1\", \"usage\": {}, \"tools_used\": [], \"stop_reason\": \"end_turn\"}\n\n";
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $result = $client->stream(
+            message: 'Test',
+            onEvent: function (): void {
+            },
+        );
+
+        $this->assertSame(StopReason::EndTurn, $result->stopReason);
+    }
+
+    public function testStreamStopReasonDefaultsToNull(): void
+    {
+        $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $result = $client->stream(
+            message: 'Test',
+            onEvent: function (): void {
+            },
+        );
+
+        $this->assertNull($result->stopReason);
+    }
+
+    public function testStreamUsageHydratesCacheTokens(): void
+    {
+        $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {\"input_tokens\": 100, \"output_tokens\": 50, \"cache_read_input_tokens\": 80, \"cache_write_input_tokens\": 20, \"latency_ms\": 1500, \"time_to_first_byte_ms\": 200}, \"tools_used\": []}\n\n";
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $result = $client->stream(
+            message: 'Test',
+            onEvent: function (): void {
+            },
+        );
+
+        $this->assertSame(80, $result->usage->cacheReadInputTokens);
+        $this->assertSame(20, $result->usage->cacheWriteInputTokens);
+        $this->assertSame(1500, $result->usage->latencyMs);
+        $this->assertSame(200, $result->usage->timeToFirstByteMs);
     }
 }
