@@ -7,15 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-02-19
+
 ### Added
 
+- `StrandsClient::postJson(string $path, array $payload): array` — send JSON to custom agent endpoints with arbitrary payloads while reusing auth, retry, timeout, and config infrastructure.
+- `StrandsClient::streamSse(string $path, array $payload, callable $onEvent): void` — stream SSE events from custom agent endpoints, delivering raw decoded arrays that preserve all domain-specific fields.
+- `StopReason` enum with 7 values matching the Python SDK: `EndTurn`, `ToolUse`, `MaxTokens`, `StopSequence`, `ContentFiltered`, `GuardrailIntervened`, `Interrupt`.
+- `AgentResponse::$stopReason` and `StreamResult::$stopReason` — why the agent stopped generating output, hydrated from the `stop_reason` field in API responses and complete stream events.
+- `AgentResponse::$structuredOutput` — schema-validated structured output from agents that return JSON conforming to a schema.
+- `Usage::$cacheReadInputTokens`, `Usage::$cacheWriteInputTokens`, `Usage::$latencyMs`, `Usage::$timeToFirstByteMs` — enriched token and performance metrics matching the Python SDK's `EventLoopMetrics`.
+- `StreamEventType::Citation`, `StreamEventType::ReasoningSignature`, `StreamEventType::ReasoningRedacted` — new stream event types matching the Python SDK.
+- `StreamEvent::$citation`, `StreamEvent::$reasoningSignature`, `StreamEvent::$stopReason` — new fields for the corresponding event types.
 - `AgentResponse::$hasObjective` and `StreamEvent::$hasObjective`, hydrated from API `has_objective` when strictly `true`.
-- Additional unit coverage for `has_objective` hydration and Laravel service-provider container bindings.
+- 33 new unit tests (214 total, 578 assertions).
 
 ### Changed
 
 - Expanded `composer.json` keywords for discoverability (`php`, `sdk`, `psr-18`, `laravel`, `symfony`).
 - `scripts/preflight-checks.sh` now runs PHP-CS-Fixer in sequential mode and falls back to single-process PHPStan analysis when worker socket binding fails in constrained environments.
+- PHPMD `ExcessiveParameterList` threshold raised from 13 to 16 to accommodate `StreamEvent` DTO constructor.
 - Documentation/comment formatting cleanup for hyphen-as-dash spacing consistency.
 
 ## [1.1.0] - 2026-02-17
@@ -58,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI matrix: PHP 8.2/8.3/8.4, Symfony 6.4/7.0.
 - 100+ unit tests with fixture-based mocks (no network calls).
 
-[Unreleased]: https://github.com/blundergoat/strands-php-client/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/blundergoat/strands-php-client/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/blundergoat/strands-php-client/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/blundergoat/strands-php-client/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/blundergoat/strands-php-client/releases/tag/v1.0.0
