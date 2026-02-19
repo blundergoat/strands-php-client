@@ -4,11 +4,14 @@ This document provides context, patterns, and guidelines for AI coding assistant
 
 ## Product Overview
 
-Strands PHP Client is a PHP library for consuming [Strands Agents](https://github.com/strands-agents/strands-agents) AI agents over HTTP. It provides synchronous invocation via `invoke()` and real-time SSE streaming via `stream()`, with pluggable authentication, retry logic, and optional Laravel and Symfony framework integrations.
+Strands PHP Client is a PHP library for consuming [Strands Agents](https://github.com/strands-agents/strands-agents) AI agents over HTTP. It provides synchronous invocation via `invoke()`, real-time SSE streaming via `stream()`, custom endpoint support via `postJson()` and `streamSse()`, with pluggable authentication, retry logic, and optional Laravel and Symfony framework integrations.
 
 **Core Features:**
 - Synchronous Invocation: Send a message, get a typed `AgentResponse`
 - SSE Streaming: Real-time token-by-token streaming with typed `StreamEvent` objects
+- Custom Endpoints: `postJson()` and `streamSse()` for arbitrary payloads and response schemas
+- Per-Request Timeout: Override global config timeout on individual `postJson()` and `streamSse()` calls
+- Stream Cancellation: Callback returns `false` to abort the stream at the transport level (closes HTTP connection)
 - Transport Abstraction: Symfony HttpClient (full support) or any PSR-18 client (invoke only)
 - Authentication Strategies: Null Object pattern for local dev, API key/Bearer token for production, extensible interface for custom auth
 - Immutable Context Builder: System prompts, metadata, permissions, documents, structured data
@@ -37,7 +40,8 @@ strands-php-client/
 │   │   └── PsrHttpTransport.php            # PSR-18 (invoke only)
 │   ├── Response/
 │   │   ├── AgentResponse.php               # Invoke response DTO
-│   │   └── Usage.php                       # Token usage stats
+│   │   ├── StopReason.php                  # Backed enum (EndTurn, ToolUse, MaxTokens, etc.)
+│   │   └── Usage.php                       # Token usage stats (with fromArray() factory)
 │   ├── Streaming/                          # SSE support
 │   │   ├── StreamEvent.php                 # Single parsed event
 │   │   ├── StreamEventType.php             # Backed enum (Text, ToolUse, ToolResult, etc.)
@@ -45,7 +49,7 @@ strands-php-client/
 │   │   └── StreamResult.php                # Accumulated stream result
 │   ├── Exceptions/
 │   │   ├── StrandsException.php            # Base exception
-│   │   ├── AgentErrorException.php         # HTTP error from agent
+│   │   ├── AgentErrorException.php         # HTTP error from agent (includes responseBody)
 │   │   └── StreamInterruptedException.php  # Stream ended without terminal event
 │   └── Integration/                        # Framework integrations
 │       ├── StrandsClientFactory.php        # Shared factory (used by both Laravel and Symfony)
@@ -66,6 +70,8 @@ strands-php-client/
 │   ├── Unit/                               # Test classes (mirrors src/)
 │   │   ├── StrandsClientTest.php
 │   │   ├── StrandsClientStreamTest.php
+│   │   ├── StrandsClientPostJsonTest.php    # postJson() timeout and retry tests
+│   │   ├── StrandsClientStreamSseTest.php   # streamSse() timeout, cancellation tests
 │   │   ├── SymfonyHttpTransportTest.php
 │   │   ├── PsrHttpTransportTest.php
 │   │   ├── StreamParserTest.php
@@ -249,8 +255,68 @@ Run `composer cs:fix` to auto-format before committing.
 ### Error Handling
 
 - Use the custom exception hierarchy: `StrandsException` (base), `AgentErrorException` (HTTP errors), `StreamInterruptedException` (incomplete streams)
+- `AgentErrorException` carries `$responseBody` (the full decoded JSON response) for structured error inspection. Pass `responseBody: $errorData ?: null` when throwing.
 - Document exceptions in PHPDoc `@throws` annotations
 - Defensive parsing of API responses with type checks and safe defaults
+
+### Per-Request Timeout Override
+
+Methods that accept `?int $timeout` validate it and thread it through to the transport:
+
+```php
+public function postJson(string $path, array $payload, ?int $timeout = null): array
+{
+    if ($timeout !== null && $timeout < 1) {
+        throw new \InvalidArgumentException('timeout must be at least 1');
+    }
+    // ...
+    $data = $this->postWithRetry($url, $headers, $body, $timeout);
+}
+```
+
+The private `postWithRetry()` resolves the effective timeout: `$timeout ?? $this->config->timeout`.
+
+### Stream Cancellation
+
+Stream callbacks (`stream()` and `streamSse()`) can return `false` to cancel the stream. This triggers a transport-level abort:
+
+```php
+// StrandsClient closure returns bool to propagate cancellation
+function (string $chunk) use (&$cancelled, $onEvent): bool {
+    if ($cancelled) {
+        return false;
+    }
+    // ... process events ...
+    if ($onEvent($event) === false) {
+        $cancelled = true;
+        return false;
+    }
+    return true;
+}
+```
+
+In `SymfonyHttpTransport`, returning `false` calls `$response->cancel()` and breaks the chunk loop, closing the HTTP connection immediately. The `=== false` check preserves backward compatibility with `void` callbacks.
+
+### Usage Factory
+
+`Usage::fromArray()` is the canonical way to create `Usage` from raw API arrays. Both `AgentResponse::parseUsage()` and `StrandsClient::usageFromArray()` delegate to it:
+
+```php
+public static function fromArray(array $data): self
+{
+    return new self(
+        inputTokens: self::intField($data, 'input_tokens'),
+        outputTokens: self::intField($data, 'output_tokens'),
+        // ... other fields
+    );
+}
+
+private static function intField(array $data, string $key): int
+{
+    $value = $data[$key] ?? 0;
+    return is_int($value) ? $value : 0;
+}
+```
 
 ## Testing Patterns
 

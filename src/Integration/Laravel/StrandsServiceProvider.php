@@ -14,6 +14,7 @@ namespace StrandsPhpClient\Integration\Laravel;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
+use Psr\Log\LoggerInterface;
 use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
@@ -36,7 +37,10 @@ class StrandsServiceProvider extends ServiceProvider
             /** @var array<string, array{endpoint: string, auth: array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string}, timeout: int, connect_timeout?: int, max_retries?: int, retry_delay_ms?: int}> $agents */
             $agents = $config->get('strands.agents', []);
 
-            return new StrandsClientFactory($agents);
+            /** @var LoggerInterface $logger */
+            $logger = $app->make(LoggerInterface::class);
+
+            return new StrandsClientFactory($agents, $logger);
         });
 
         $this->app->singleton(StrandsClient::class, function (Application $app): StrandsClient {

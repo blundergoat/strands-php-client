@@ -7,6 +7,8 @@ namespace StrandsPhpClient\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Auth\AuthStrategy;
 use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\Exceptions\AgentErrorException;
+use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\StrandsClient;
 
@@ -228,6 +230,131 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('hello', $events[0]['content']);
     }
 
+    public function testStreamSseUsesConfigTimeoutByDefault(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('stream')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                120,
+                10,
+                $this->anything(),
+            )
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                $onChunk("data: {\"type\": \"complete\"}\n\n");
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
+            transport: $transport,
+        );
+
+        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        });
+    }
+
+    public function testStreamSseUsesPerRequestTimeout(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('stream')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                15,
+                10,
+                $this->anything(),
+            )
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                $onChunk("data: {\"type\": \"complete\"}\n\n");
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
+            transport: $transport,
+        );
+
+        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        }, timeout: 15);
+    }
+
+    public function testStreamSseCancelsOnFalseReturn(): void
+    {
+        $sseData = "data: {\"type\": \"text\", \"content\": \"first\"}\n\n"
+            . "data: {\"type\": \"text\", \"content\": \"second\"}\n\n"
+            . "data: {\"type\": \"text\", \"content\": \"third\"}\n\n";
+
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
+            $events[] = $event;
+
+            return count($events) < 2;  // cancel after 2nd event
+        });
+
+        $this->assertCount(2, $events);
+        $this->assertSame('first', $events[0]['content']);
+        $this->assertSame('second', $events[1]['content']);
+    }
+
+    public function testStreamSseVoidCallbackContinues(): void
+    {
+        $sseData = "data: {\"type\": \"text\", \"content\": \"first\"}\n\n"
+            . "data: {\"type\": \"text\", \"content\": \"second\"}\n\n"
+            . "data: {\"type\": \"complete\"}\n\n";
+
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): void {
+            $events[] = $event;
+        });
+
+        $this->assertCount(3, $events);
+    }
+
+    public function testStreamSseCancelsAcrossChunks(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->method('stream')
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                // First chunk delivers one event
+                $onChunk("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
+                // Second chunk delivers another — but callback already cancelled
+                $onChunk("data: {\"type\": \"text\", \"content\": \"second\"}\n\n");
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
+            $events[] = $event;
+
+            return false;  // cancel immediately
+        });
+
+        $this->assertCount(1, $events);
+        $this->assertSame('first', $events[0]['content']);
+    }
+
     public function testStreamSseHandlesCrlfLineEndings(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"hello\"}\r\n\r\n"
@@ -248,5 +375,98 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertCount(2, $events);
         $this->assertSame('hello', $events[0]['content']);
         $this->assertSame('complete', $events[1]['type']);
+    }
+
+    public function testStreamSseHandlesChunkedDelivery(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->method('stream')
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                // SSE event split across two TCP chunks
+                $onChunk('data: {"type":');
+                $onChunk(" \"text\", \"content\": \"hello\"}\n\n");
+                // Second complete event in one chunk
+                $onChunk("data: {\"type\": \"complete\", \"text\": \"hello\"}\n\n");
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
+            $events[] = $event;
+        });
+
+        $this->assertCount(2, $events);
+        $this->assertSame('text', $events[0]['type']);
+        $this->assertSame('hello', $events[0]['content']);
+        $this->assertSame('complete', $events[1]['type']);
+    }
+
+    public function testStreamSsePropagatesTransportError(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->method('stream')
+            ->willThrowException(new AgentErrorException('Internal Server Error', statusCode: 500));
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(AgentErrorException::class);
+        $this->expectExceptionMessage('Internal Server Error');
+
+        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        });
+    }
+
+    public function testStreamSseThrowsOnEncodingFailure(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(StrandsException::class);
+        $this->expectExceptionMessage('Failed to encode request payload');
+
+        $client->streamSse('/test-stream', ['bad_value' => NAN], function () {
+        });
+    }
+
+    public function testStreamSseRejectsZeroTimeout(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('timeout must be at least 1');
+
+        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        }, timeout: 0);
+    }
+
+    public function testStreamSseRejectsNegativeTimeout(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        }, timeout: -5);
     }
 }

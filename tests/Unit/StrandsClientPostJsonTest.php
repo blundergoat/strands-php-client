@@ -213,6 +213,50 @@ class StrandsClientPostJsonTest extends TestCase
         $client->postJson('/file-summarise', ['file_base64' => 'abc']);
     }
 
+    public function testPostJsonUsesConfigTimeoutByDefault(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('post')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                120,
+                10,
+            )
+            ->willReturn(['ok' => true]);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
+            transport: $transport,
+        );
+
+        $client->postJson('/test', ['data' => 'test']);
+    }
+
+    public function testPostJsonUsesPerRequestTimeout(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('post')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                30,
+                10,
+            )
+            ->willReturn(['ok' => true]);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
+            transport: $transport,
+        );
+
+        $client->postJson('/file-metadata', ['data' => 'test'], timeout: 30);
+    }
+
     public function testPostJsonHandlesEmptyPath(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -235,5 +279,56 @@ class StrandsClientPostJsonTest extends TestCase
         $result = $client->postJson('', ['data' => 'test']);
 
         $this->assertSame(['ok' => true], $result);
+    }
+
+    public function testPostJsonRejectsZeroTimeout(): void
+    {
+        $transport = $this->createMockTransport([]);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('timeout must be at least 1');
+
+        $client->postJson('/test', ['data' => 'test'], timeout: 0);
+    }
+
+    public function testPostJsonRejectsNegativeTimeout(): void
+    {
+        $transport = $this->createMockTransport([]);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $client->postJson('/test', ['data' => 'test'], timeout: -10);
+    }
+
+    public function testPostJsonNullTimeoutUsesDefault(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('post')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                120,
+                $this->anything(),
+            )
+            ->willReturn(['ok' => true]);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120),
+            transport: $transport,
+        );
+
+        $client->postJson('/test', ['data' => 'test'], timeout: null);
     }
 }

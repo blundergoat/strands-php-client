@@ -7,6 +7,8 @@ namespace StrandsPhpClient\Tests\Unit\Integration\Laravel;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Foundation\Application;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use StrandsPhpClient\Config\StrandsConfig;
 use StrandsPhpClient\Integration\Laravel\StrandsServiceProvider;
 use StrandsPhpClient\Integration\StrandsClientFactory;
@@ -190,6 +192,10 @@ class StrandsServiceProviderTest extends TestCase
             function ($abstract) use (&$bindings, &$instances, $config, $app): mixed {
                 if ($abstract === 'config') {
                     return $config;
+                }
+
+                if ($abstract === LoggerInterface::class) {
+                    return new NullLogger();
                 }
 
                 if (!is_string($abstract) || $abstract === '') {

@@ -83,7 +83,7 @@ class StrandsClient
      * Send a message and receive the response as a real-time stream of events.
      *
      * @param string            $message    The message to send to the agent.
-     * @param callable(StreamEvent): void $onEvent  Called for each event as it arrives.
+     * @param callable(StreamEvent): (void|bool) $onEvent  Called for each event as it arrives. Return false to cancel.
      * @param AgentContext|null  $context    Optional extra context.
      * @param string|null        $sessionId  Optional session ID.
      *
@@ -121,7 +121,13 @@ class StrandsClient
         /** @var string|null $resultStopReason */
         $resultStopReason = null;
 
-        $this->transport->stream($url, $headers, $body, $this->config->timeout, $this->config->connectTimeout, function (string $chunk) use ($parser, $onEvent, &$receivedTerminal, &$accumulatedText, &$textEvents, &$totalEvents, &$resultSessionId, &$resultUsage, &$resultToolsUsed, &$completeFullText, &$resultStopReason) {
+        $cancelled = false;
+
+        $this->transport->stream($url, $headers, $body, $this->config->timeout, $this->config->connectTimeout, function (string $chunk) use ($parser, $onEvent, &$receivedTerminal, &$cancelled, &$accumulatedText, &$textEvents, &$totalEvents, &$resultSessionId, &$resultUsage, &$resultToolsUsed, &$completeFullText, &$resultStopReason): bool {
+            if ($cancelled) {
+                return false;
+            }
+
             $events = $parser->feed($chunk);
 
             foreach ($events as $event) {
@@ -144,11 +150,17 @@ class StrandsClient
                     }
                 }
 
-                $onEvent($event);
+                if ($onEvent($event) === false) {
+                    $cancelled = true;
+
+                    return false;
+                }
             }
+
+            return true;
         });
 
-        if (!$receivedTerminal) {
+        if (!$receivedTerminal && !$cancelled) {
             throw new Exceptions\StreamInterruptedException(
                 'Stream ended without a terminal event (complete or error). The connection may have dropped.',
             );
@@ -189,13 +201,19 @@ class StrandsClient
      *
      * @param string               $path     The endpoint path (e.g. '/file-summarise').
      * @param array<string, mixed> $payload  The JSON payload to send.
+     * @param int|null             $timeout  Per-request timeout in seconds (null = use config default).
      *
      * @return array<string, mixed>  The decoded JSON response.
      *
-     * @throws StrandsException  If the request fails or the payload cannot be encoded.
+     * @throws StrandsException           If the request fails or the payload cannot be encoded.
+     * @throws \InvalidArgumentException  If timeout is less than 1.
      */
-    public function postJson(string $path, array $payload): array
+    public function postJson(string $path, array $payload, ?int $timeout = null): array
     {
+        if ($timeout !== null && $timeout < 1) {
+            throw new \InvalidArgumentException('timeout must be at least 1');
+        }
+
         $url = $this->buildUrl($path);
         [$headers, $body] = $this->buildJsonRequest($url, $payload, 'application/json');
 
@@ -204,7 +222,7 @@ class StrandsClient
             'path' => $path,
         ]);
 
-        $data = $this->postWithRetry($url, $headers, $body);
+        $data = $this->postWithRetry($url, $headers, $body, $timeout);
 
         $this->logger->debug('Strands postJson response', [
             'url' => $url,
@@ -222,12 +240,18 @@ class StrandsClient
      *
      * @param string               $path      The endpoint path (e.g. '/file-summarise-stream').
      * @param array<string, mixed> $payload   The JSON payload to send.
-     * @param callable(array<string, mixed>): void $onEvent  Called for each decoded SSE event.
+     * @param callable(array<string, mixed>): (void|bool) $onEvent  Called for each decoded SSE event. Return false to cancel.
+     * @param int|null             $timeout   Per-request timeout in seconds (null = use config default).
      *
-     * @throws StrandsException  If the request fails or the payload cannot be encoded.
+     * @throws StrandsException           If the request fails or the payload cannot be encoded.
+     * @throws \InvalidArgumentException  If timeout is less than 1.
      */
-    public function streamSse(string $path, array $payload, callable $onEvent): void
+    public function streamSse(string $path, array $payload, callable $onEvent, ?int $timeout = null): void
     {
+        if ($timeout !== null && $timeout < 1) {
+            throw new \InvalidArgumentException('timeout must be at least 1');
+        }
+
         $url = $this->buildUrl($path);
         [$headers, $body] = $this->buildJsonRequest($url, $payload, 'text/event-stream');
 
@@ -236,9 +260,15 @@ class StrandsClient
             'path' => $path,
         ]);
 
+        $effectiveTimeout = $timeout ?? $this->config->timeout;
         $buffer = '';
+        $cancelled = false;
 
-        $this->transport->stream($url, $headers, $body, $this->config->timeout, $this->config->connectTimeout, function (string $chunk) use (&$buffer, $onEvent) {
+        $this->transport->stream($url, $headers, $body, $effectiveTimeout, $this->config->connectTimeout, function (string $chunk) use (&$buffer, &$cancelled, $onEvent): bool {
+            if ($cancelled) {
+                return false;
+            }
+
             $buffer = str_replace(["\r\n", "\r"], "\n", $buffer . $chunk);
 
             while (($pos = strpos($buffer, "\n\n")) !== false) {
@@ -248,9 +278,15 @@ class StrandsClient
                 $decoded = self::extractSseData($rawEvent);
 
                 if ($decoded !== null) {
-                    $onEvent($decoded);
+                    if ($onEvent($decoded) === false) {
+                        $cancelled = true;
+
+                        return false;
+                    }
                 }
             }
+
+            return true;
         });
 
         $this->logger->debug('Strands streamSse complete', [
@@ -264,17 +300,19 @@ class StrandsClient
      * @param string $url
      * @param array<string, string> $headers
      * @param string $body
+     * @param int|null $timeout  Per-request timeout override (null = use config default).
      *
      * @return array<string, mixed>
      */
-    private function postWithRetry(string $url, array $headers, string $body): array
+    private function postWithRetry(string $url, array $headers, string $body, ?int $timeout = null): array
     {
         $attempt = 0;
         $maxRetries = $this->config->maxRetries;
+        $effectiveTimeout = $timeout ?? $this->config->timeout;
 
         while (true) {
             try {
-                return $this->transport->post($url, $headers, $body, $this->config->timeout, $this->config->connectTimeout);
+                return $this->transport->post($url, $headers, $body, $effectiveTimeout, $this->config->connectTimeout);
             } catch (StrandsException $e) {
                 if (
                     $e instanceof AgentErrorException
@@ -353,24 +391,7 @@ class StrandsClient
      */
     private static function usageFromArray(array $data): Usage
     {
-        return new Usage(
-            inputTokens: self::intFromArray($data, 'input_tokens'),
-            outputTokens: self::intFromArray($data, 'output_tokens'),
-            cacheReadInputTokens: self::intFromArray($data, 'cache_read_input_tokens'),
-            cacheWriteInputTokens: self::intFromArray($data, 'cache_write_input_tokens'),
-            latencyMs: self::intFromArray($data, 'latency_ms'),
-            timeToFirstByteMs: self::intFromArray($data, 'time_to_first_byte_ms'),
-        );
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private static function intFromArray(array $data, string $key): int
-    {
-        $value = $data[$key] ?? 0;
-
-        return is_int($value) ? $value : 0;
+        return Usage::fromArray($data);
     }
 
     /**

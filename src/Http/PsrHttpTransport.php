@@ -63,6 +63,7 @@ class PsrHttpTransport implements HttpTransport
             $data = json_decode($content, true);
 
             if ($statusCode >= 400) {
+                /** @var array<string, mixed> $errorData */
                 $errorData = is_array($data) ? $data : [];
                 $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
                 $errorMessage = is_string($detail) ? $detail : (json_encode($detail) ?: 'Unknown agent error');
@@ -70,6 +71,7 @@ class PsrHttpTransport implements HttpTransport
                 throw new AgentErrorException(
                     message: $errorMessage,
                     statusCode: $statusCode,
+                    responseBody: $errorData ?: null,
                 );
             }
 

@@ -10,16 +10,18 @@ namespace StrandsPhpClient\Exceptions;
 class AgentErrorException extends StrandsException
 {
     /**
-     * @param string          $message    Human-readable error message.
-     * @param int             $statusCode HTTP status code from the agent response.
-     * @param string|null     $errorCode  Machine-readable error code (e.g. "unauthorized").
-     * @param \Throwable|null $previous   The original exception, if any.
+     * @param string               $message      Human-readable error message.
+     * @param int                  $statusCode   HTTP status code from the agent response.
+     * @param string|null          $errorCode    Machine-readable error code (e.g. "unauthorized").
+     * @param \Throwable|null      $previous     The original exception, if any.
+     * @param array<string, mixed>|null $responseBody Full decoded response body for debugging.
      */
     public function __construct(
         string $message,
         public readonly int $statusCode = 0,
         public readonly ?string $errorCode = null,
         ?\Throwable $previous = null,
+        public readonly ?array $responseBody = null,
     ) {
         parent::__construct($message, $statusCode, $previous);
     }

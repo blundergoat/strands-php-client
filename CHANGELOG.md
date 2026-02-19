@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Per-request timeout override on `postJson()` and `streamSse()` — optional `?int $timeout` parameter (in seconds) that overrides the global config timeout for individual calls. Values < 1 throw `InvalidArgumentException`.
+- `AgentErrorException::$responseBody` — the full decoded JSON response body from error responses (4xx/5xx), enabling structured error inspection for debugging. `null` when the response wasn't valid JSON.
+- Stream cancellation support — `stream()` and `streamSse()` callbacks can return `false` to cancel the stream. This is a true transport-level abort: `SymfonyHttpTransport` calls `$response->cancel()` and breaks out of the chunk loop, closing the HTTP connection immediately.
+- `Usage::fromArray(array $data)` static factory method — canonical way to create `Usage` from raw API arrays, replacing duplicated helpers in `AgentResponse` and `StrandsClient`.
+- `HttpTransport::stream()` callback now supports returning `false` to signal cancellation to the transport layer.
+- 27 new unit tests (241 total, 657 assertions).
+
+### Changed
+
+- `AgentResponse::parseUsage()` and `StrandsClient::usageFromArray()` now delegate to `Usage::fromArray()`, eliminating code duplication.
+- `StrandsClient::stream()` and `streamSse()` internal closures now return `bool` to propagate cancellation to the transport.
+
+### Fixed
+
+- `Strands` facade missing `@method` annotations for `postJson()` and `streamSse()` — IDE autocompletion and static analysis now see all public methods.
+- Laravel `StrandsServiceProvider` now injects the application's PSR-3 logger into `StrandsClientFactory` — debug/warning logging was silently discarded through the Laravel integration.
+- Branch alias in `composer.json` updated from `1.1.x-dev` to `1.3.x-dev`.
+
 ## [1.2.0] - 2026-02-19
 
 ### Added

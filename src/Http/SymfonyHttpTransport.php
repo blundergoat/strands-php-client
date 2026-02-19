@@ -52,6 +52,7 @@ class SymfonyHttpTransport implements HttpTransport
             $data = json_decode($content, true);
 
             if ($statusCode >= 400) {
+                /** @var array<string, mixed> $errorData */
                 $errorData = is_array($data) ? $data : [];
                 $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
                 $errorMessage = is_string($detail) ? $detail : (json_encode($detail) ?: 'Unknown agent error');
@@ -59,6 +60,7 @@ class SymfonyHttpTransport implements HttpTransport
                 throw new AgentErrorException(
                     message: $errorMessage,
                     statusCode: $statusCode,
+                    responseBody: $errorData ?: null,
                 );
             }
 
@@ -84,7 +86,7 @@ class SymfonyHttpTransport implements HttpTransport
      * @param string               $body            JSON-encoded request body.
      * @param int                  $timeout         Per-chunk idle timeout in seconds.
      * @param int                  $connectTimeout  Connection timeout in seconds.
-     * @param callable(string): void $onChunk       Called with each raw SSE data chunk.
+     * @param callable(string): (void|bool) $onChunk  Called with each raw SSE data chunk. Return false to cancel.
      *
      * @throws AgentErrorException          If the server returned an error.
      * @throws StreamInterruptedException   If the stream times out.
@@ -103,6 +105,7 @@ class SymfonyHttpTransport implements HttpTransport
             if ($statusCode >= 400) {
                 $content = $response->getContent(false);
                 $data = json_decode($content, true);
+                /** @var array<string, mixed> $errorData */
                 $errorData = is_array($data) ? $data : [];
                 $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
                 $errorMessage = is_string($detail) ? $detail : (json_encode($detail) ?: 'Unknown agent error');
@@ -110,6 +113,7 @@ class SymfonyHttpTransport implements HttpTransport
                 throw new AgentErrorException(
                     message: $errorMessage,
                     statusCode: $statusCode,
+                    responseBody: $errorData ?: null,
                 );
             }
 
@@ -121,7 +125,11 @@ class SymfonyHttpTransport implements HttpTransport
                 $content = $chunk->getContent();
 
                 if ($content !== '') {
-                    $onChunk($content);
+                    if ($onChunk($content) === false) {
+                        $response->cancel();
+
+                        break;
+                    }
                 }
 
                 if ($chunk->isLast()) {

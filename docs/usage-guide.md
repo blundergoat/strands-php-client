@@ -7,6 +7,9 @@ This guide walks through real-world usage patterns for the Strands PHP Client, b
 - [Architecture Overview](#architecture-overview)
 - [Basic Invoke](#basic-invoke)
 - [Streaming with SSE](#streaming-with-sse)
+- [Custom Endpoints](#custom-endpoints)
+- [Stream Cancellation](#stream-cancellation)
+- [Error Handling](#error-handling)
 - [Session Management](#session-management)
 - [Context Builder](#context-builder)
 - [Authentication](#authentication)
@@ -120,6 +123,135 @@ echo $result->totalEvents;            // Total events (text + tools + complete)
 When present, `has_objective` is exposed as `$event->hasObjective`.
 
 > **Note:** Streaming requires `symfony/http-client` via `SymfonyHttpTransport`. PSR-18 clients only support `invoke()`.
+
+## Custom Endpoints
+
+For agent endpoints that don't follow the standard invoke/stream contract - file processing, metadata extraction, custom validation - use `postJson()` and `streamSse()`. These work with arbitrary payloads and return raw decoded JSON instead of typed DTOs.
+
+### postJson() - Synchronous custom requests
+
+```php
+// Send an arbitrary JSON payload and get back a raw array
+$result = $client->postJson('/file-summarise', [
+    'file_base64' => base64_encode($fileBytes),
+    'file_name' => 'report.pdf',
+    'template' => 'executive-summary',
+]);
+
+echo $result['summary'];
+echo $result['model'];
+echo $result['confidence'];
+```
+
+`postJson()` reuses the same auth, retry, and timeout infrastructure as `invoke()`. The difference is that it accepts an arbitrary path and payload, and returns the raw decoded JSON array instead of an `AgentResponse`.
+
+### streamSse() - Streaming custom requests
+
+```php
+// Stream raw SSE events from a custom endpoint
+$client->streamSse('/file-summarise-stream', [
+    'file_base64' => base64_encode($fileBytes),
+], function (array $event) {
+    // Each $event is a raw decoded JSON array - all fields preserved
+    match ($event['type'] ?? '') {
+        'progress' => printf("Processing: %d%%\n", $event['percent']),
+        'text'     => print($event['content']),
+        'complete' => print("\n[Done]"),
+        default    => null,
+    };
+});
+```
+
+Unlike `stream()` which delivers typed `StreamEvent` objects, `streamSse()` delivers raw decoded arrays. This preserves domain-specific fields (like `percent` above) that `StreamEvent` would discard.
+
+### Per-request timeout
+
+Both `postJson()` and `streamSse()` accept an optional `timeout:` parameter (in seconds) that overrides the global config timeout for that single call:
+
+```php
+// Different timeouts for different operations, same client
+$client->postJson('/file-metadata', $payload, timeout: 5);     // Fast: 5s
+$client->postJson('/file-summarise', $payload, timeout: 120);   // Slow: 2min
+$client->streamSse('/long-analysis', $payload, $callback, timeout: 300); // Very slow: 5min
+```
+
+This avoids creating separate `StrandsClient` instances for operations with different timeout needs. The timeout must be at least 1 second; values less than 1 throw `InvalidArgumentException`.
+
+## Stream Cancellation
+
+Both `stream()` and `streamSse()` callbacks can return `false` to cancel the stream. This is a true transport-level abort - the HTTP connection is closed immediately via `$response->cancel()`, not just skipping events.
+
+### Cancelling a stream() call
+
+```php
+$maxTokens = 500;
+$tokenCount = 0;
+
+$result = $client->stream(
+    message: 'Write a long essay',
+    onEvent: function (StreamEvent $event) use (&$tokenCount, $maxTokens): bool {
+        if ($event->type === StreamEventType::Text) {
+            $tokenCount++;
+            print($event->text);
+
+            if ($tokenCount >= $maxTokens) {
+                return false; // Cancel - HTTP connection closes immediately
+            }
+        }
+
+        return true; // Continue
+    },
+);
+
+// $result contains whatever was accumulated before cancellation
+echo "\nReceived {$result->textEvents} text events";
+```
+
+### Cancelling a streamSse() call
+
+```php
+// Cancel when the browser disconnects
+$client->streamSse('/long-analysis', $payload, function (array $event): bool {
+    broadcast($event);
+
+    return !connection_aborted(); // false = abort stream
+});
+```
+
+### Backward compatibility
+
+Returning `void` (i.e., no explicit return) from the callback continues the stream as before. Only an explicit `return false` triggers cancellation. Existing callbacks don't need changes.
+
+## Error Handling
+
+`AgentErrorException` carries the full decoded JSON response body for structured error inspection:
+
+```php
+use StrandsPhpClient\Exceptions\AgentErrorException;
+
+try {
+    $client->postJson('/validate', $payload);
+} catch (AgentErrorException $e) {
+    echo $e->statusCode;    // 422
+    echo $e->getMessage();  // "Validation failed"
+
+    // Full decoded response body for structured debugging
+    if ($e->responseBody !== null) {
+        print_r($e->responseBody);
+        // ['detail' => 'Validation failed', 'errors' => ['field' => 'required']]
+    }
+}
+```
+
+The `responseBody` is `null` when the server returned non-JSON content (e.g., plain text error pages). It's available on both `SymfonyHttpTransport` and `PsrHttpTransport` errors.
+
+### Exception hierarchy
+
+| Exception | When | Key Properties |
+|-----------|------|----------------|
+| `StrandsException` | Base class for all library errors | Standard exception |
+| `AgentErrorException` | HTTP 4xx/5xx from the agent | `$statusCode`, `$errorCode`, `$responseBody` |
+| `StreamInterruptedException` | Stream ended without terminal event | Standard exception |
 
 ## Session Management
 

@@ -375,6 +375,107 @@ class StrandsClientStreamTest extends TestCase
         $this->assertNull($result->stopReason);
     }
 
+    public function testStreamCancelsOnFalseReturn(): void
+    {
+        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
+            . "data: {\"type\": \"text\", \"content\": \" world\"}\n\n"
+            . "data: {\"type\": \"complete\", \"text\": \"Hello world\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $result = $client->stream(
+            message: 'Test',
+            onEvent: function (StreamEvent $event) use (&$events): bool {
+                $events[] = $event;
+
+                return false;  // cancel after first event
+            },
+        );
+
+        $this->assertCount(1, $events);
+        $this->assertSame(StreamEventType::Text, $events[0]->type);
+        // Should return partial result without throwing StreamInterruptedException
+        $this->assertSame('Hello', $result->text);
+    }
+
+    public function testStreamCancelDoesNotThrowInterruptedException(): void
+    {
+        // Stream with no terminal event — but cancelled, so no exception
+        $sseData = "data: {\"type\": \"text\", \"content\": \"partial\"}\n\n";
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $result = $client->stream(
+            message: 'Test',
+            onEvent: function (): bool {
+                return false;
+            },
+        );
+
+        $this->assertSame('partial', $result->text);
+    }
+
+    public function testStreamVoidCallbackContinues(): void
+    {
+        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
+            . "data: {\"type\": \"complete\", \"text\": \"Hello\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $result = $client->stream(
+            message: 'Test',
+            onEvent: function (StreamEvent $event) use (&$events): void {
+                $events[] = $event;
+            },
+        );
+
+        $this->assertCount(2, $events);
+        $this->assertSame('Hello', $result->text);
+    }
+
+    public function testStreamCancelsAcrossChunks(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->method('stream')
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                $onChunk("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
+                // Second chunk — callback already cancelled, should be skipped
+                $onChunk("data: {\"type\": \"text\", \"content\": \"second\"}\n\n");
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $result = $client->stream(
+            message: 'Test',
+            onEvent: function (StreamEvent $event) use (&$events): bool {
+                $events[] = $event;
+
+                return false;
+            },
+        );
+
+        $this->assertCount(1, $events);
+        $this->assertSame('first', $result->text);
+    }
+
     public function testStreamUsageHydratesCacheTokens(): void
     {
         $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {\"input_tokens\": 100, \"output_tokens\": 50, \"cache_read_input_tokens\": 80, \"cache_write_input_tokens\": 20, \"latency_ms\": 1500, \"time_to_first_byte_ms\": 200}, \"tools_used\": []}\n\n";

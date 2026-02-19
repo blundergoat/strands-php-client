@@ -228,6 +228,35 @@ class PsrHttpTransportTest extends TestCase
         $this->assertSame('ok', $result['text']);
     }
 
+    public function testPostErrorIncludesResponseBody(): void
+    {
+        $response = $this->createResponse(422, '{"detail":"Validation failed","errors":[{"field":"name","msg":"required"}]}');
+        $transport = $this->createTransport($response);
+
+        try {
+            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $this->fail('Expected AgentErrorException');
+        } catch (AgentErrorException $e) {
+            $this->assertSame(422, $e->statusCode);
+            $this->assertIsArray($e->responseBody);
+            $this->assertSame('Validation failed', $e->responseBody['detail']);
+            $this->assertCount(1, $e->responseBody['errors']);
+        }
+    }
+
+    public function testPostErrorResponseBodyNullForPlainText(): void
+    {
+        $response = $this->createResponse(500, 'Internal Server Error');
+        $transport = $this->createTransport($response);
+
+        try {
+            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $this->fail('Expected AgentErrorException');
+        } catch (AgentErrorException $e) {
+            $this->assertNull($e->responseBody);
+        }
+    }
+
     public function testPostDoesNotDoubleWrapStrandsException(): void
     {
         $response = $this->createResponse(200, 'not json');
