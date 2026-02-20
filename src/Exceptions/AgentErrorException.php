@@ -25,4 +25,25 @@ class AgentErrorException extends StrandsException
     ) {
         parent::__construct($message, $statusCode, $previous);
     }
+
+    /**
+     * Build an AgentErrorException from a raw HTTP error response.
+     *
+     * @param int    $statusCode  HTTP status code (400+).
+     * @param string $content     Raw response body string.
+     * @param mixed  $decoded     json_decode() result (array, null, or other scalar).
+     */
+    public static function fromHttpResponse(int $statusCode, string $content, mixed $decoded): self
+    {
+        /** @var array<string, mixed> $errorData */
+        $errorData = is_array($decoded) ? $decoded : [];
+        $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
+        $errorMessage = is_string($detail) ? $detail : (json_encode($detail) ?: 'Unknown agent error');
+
+        return new self(
+            message: $errorMessage,
+            statusCode: $statusCode,
+            responseBody: $errorData ?: null,
+        );
+    }
 }

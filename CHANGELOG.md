@@ -11,14 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Per-request timeout override on `postJson()` and `streamSse()` — optional `?int $timeout` parameter (in seconds) that overrides the global config timeout for individual calls. Values < 1 throw `InvalidArgumentException`.
 - `AgentErrorException::$responseBody` — the full decoded JSON response body from error responses (4xx/5xx), enabling structured error inspection for debugging. `null` when the response wasn't valid JSON.
+- `AgentErrorException::fromHttpResponse()` — static factory that builds an `AgentErrorException` from a raw HTTP status code, body string, and decoded JSON. Replaces the duplicated error-extraction logic that was in both `PsrHttpTransport::post()` and `SymfonyHttpTransport::post()`/`stream()`.
 - Stream cancellation support — `stream()` and `streamSse()` callbacks can return `false` to cancel the stream. This is a true transport-level abort: `SymfonyHttpTransport` calls `$response->cancel()` and breaks out of the chunk loop, closing the HTTP connection immediately.
+- `StreamResult::$cancelled` — boolean flag indicating whether the stream was stopped by the `onEvent` callback returning `false`. Allows consumers to distinguish user-initiated cancellation from an interrupted/completed stream.
+- `PsrHttpTransport` now accepts an optional `LoggerInterface` and logs a `notice` on first use when timeout parameters cannot be honoured — prevents silent debugging headaches for users who set `timeout` in config but use a PSR-18 client.
 - `Usage::fromArray(array $data)` static factory method — canonical way to create `Usage` from raw API arrays, replacing duplicated helpers in `AgentResponse` and `StrandsClient`.
 - `HttpTransport::stream()` callback now supports returning `false` to signal cancellation to the transport layer.
 - 27 new unit tests (241 total, 657 assertions).
 
 ### Changed
 
-- `AgentResponse::parseUsage()` and `StrandsClient::usageFromArray()` now delegate to `Usage::fromArray()`, eliminating code duplication.
+- `StrandsConfig` endpoint validation now uses `parse_url()` with scheme+host check instead of `FILTER_VALIDATE_URL`. This accepts Docker/Kubernetes hostnames without a TLD (e.g. `http://agent:8080`) that were previously rejected.
+- `PsrHttpTransport`, `SymfonyHttpTransport` error-to-exception mapping now delegates to `AgentErrorException::fromHttpResponse()`, eliminating three near-identical code blocks.
+- Removed `StrandsClient::usageFromArray()` — one-line passthrough replaced by direct `Usage::fromArray()` call.
+- `AgentResponse::parseUsage()` now delegates to `Usage::fromArray()`, eliminating code duplication.
 - `StrandsClient::stream()` and `streamSse()` internal closures now return `bool` to propagate cancellation to the transport.
 
 ### Fixed

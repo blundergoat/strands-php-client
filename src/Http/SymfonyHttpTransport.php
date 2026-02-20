@@ -52,16 +52,7 @@ class SymfonyHttpTransport implements HttpTransport
             $data = json_decode($content, true);
 
             if ($statusCode >= 400) {
-                /** @var array<string, mixed> $errorData */
-                $errorData = is_array($data) ? $data : [];
-                $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
-                $errorMessage = is_string($detail) ? $detail : (json_encode($detail) ?: 'Unknown agent error');
-
-                throw new AgentErrorException(
-                    message: $errorMessage,
-                    statusCode: $statusCode,
-                    responseBody: $errorData ?: null,
-                );
+                throw AgentErrorException::fromHttpResponse($statusCode, $content, $data);
             }
 
             if (!is_array($data)) {
@@ -104,17 +95,7 @@ class SymfonyHttpTransport implements HttpTransport
             $statusCode = $response->getStatusCode();
             if ($statusCode >= 400) {
                 $content = $response->getContent(false);
-                $data = json_decode($content, true);
-                /** @var array<string, mixed> $errorData */
-                $errorData = is_array($data) ? $data : [];
-                $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
-                $errorMessage = is_string($detail) ? $detail : (json_encode($detail) ?: 'Unknown agent error');
-
-                throw new AgentErrorException(
-                    message: $errorMessage,
-                    statusCode: $statusCode,
-                    responseBody: $errorData ?: null,
-                );
+                throw AgentErrorException::fromHttpResponse($statusCode, $content, json_decode($content, true));
             }
 
             foreach ($this->httpClient->stream($response, $timeout) as $chunk) {

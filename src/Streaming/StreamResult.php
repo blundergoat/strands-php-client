@@ -20,6 +20,7 @@ class StreamResult
      * @param int             $textEvents  Number of Text events received.
      * @param int             $totalEvents Total number of events received.
      * @param StopReason|null $stopReason  Why the agent stopped generating output.
+     * @param bool            $cancelled   True if the stream was cancelled by the onEvent callback.
      */
     public function __construct(
         public readonly string $text,
@@ -29,6 +30,7 @@ class StreamResult
         public readonly int $textEvents = 0,
         public readonly int $totalEvents = 0,
         public readonly ?StopReason $stopReason = null,
+        public readonly bool $cancelled = false,
     ) {
     }
 }

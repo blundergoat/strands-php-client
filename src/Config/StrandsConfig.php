@@ -41,7 +41,12 @@ class StrandsConfig
         public readonly int $retryDelayMs = 500,
         public readonly array $retryableStatusCodes = [429, 502, 503, 504],
     ) {
-        if (!filter_var($endpoint, FILTER_VALIDATE_URL)) {
+        $parts = parse_url($endpoint);
+        if (
+            $parts === false
+            || !isset($parts['scheme'], $parts['host'])
+            || !in_array($parts['scheme'], ['http', 'https'], true)
+        ) {
             throw new \InvalidArgumentException(sprintf('Invalid endpoint URL: "%s"', $endpoint));
         }
 

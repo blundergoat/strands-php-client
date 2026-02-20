@@ -173,11 +173,12 @@ class StrandsClient
         $result = new StreamResult(
             text: $finalText,
             sessionId: $resultSessionId,
-            usage: self::usageFromArray($resultUsage),
+            usage: Usage::fromArray($resultUsage),
             toolsUsed: $resultToolsUsed,
             textEvents: $textEvents,
             totalEvents: $totalEvents,
             stopReason: $stopReason,
+            cancelled: $cancelled,
         );
 
         $this->logger->debug('Strands stream complete', [
@@ -382,16 +383,6 @@ class StrandsClient
         $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
 
         return [$headers, $body];
-    }
-
-    /**
-     * Create a Usage object from a raw usage array.
-     *
-     * @param array<string, mixed> $data
-     */
-    private static function usageFromArray(array $data): Usage
-    {
-        return Usage::fromArray($data);
     }
 
     /**
