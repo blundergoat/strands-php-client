@@ -43,7 +43,7 @@ class AgentErrorException extends StrandsException
         return new self(
             message: $errorMessage,
             statusCode: $statusCode,
-            responseBody: $errorData ?: null,
+            responseBody: $errorData !== [] ? $errorData : null,
         );
     }
 }

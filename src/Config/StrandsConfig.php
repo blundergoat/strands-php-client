@@ -71,7 +71,7 @@ class StrandsConfig
         foreach ($retryableStatusCodes as $code) {
             if ($code < 400 || $code > 599) {
                 throw new \InvalidArgumentException(
-                    sprintf('retryableStatusCodes must contain HTTP error codes (400-599), got: %s', (string) $code),
+                    sprintf('All retryableStatusCodes must be HTTP error codes (400-599), but got: %s', (string) $code),
                 );
             }
         }

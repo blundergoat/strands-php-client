@@ -548,7 +548,7 @@ class StrandsClientTest extends TestCase
     public function testConfigRejectsRetryableStatusCodeBelow400(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('retryableStatusCodes must contain HTTP error codes (400-599)');
+        $this->expectExceptionMessage('All retryableStatusCodes must be HTTP error codes (400-599), but got:');
 
         new StrandsConfig(endpoint: 'http://localhost:8081', retryableStatusCodes: [200]);
     }
@@ -556,7 +556,7 @@ class StrandsClientTest extends TestCase
     public function testConfigRejectsRetryableStatusCodeAbove599(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('retryableStatusCodes must contain HTTP error codes (400-599)');
+        $this->expectExceptionMessage('All retryableStatusCodes must be HTTP error codes (400-599), but got:');
 
         new StrandsConfig(endpoint: 'http://localhost:8081', retryableStatusCodes: [600]);
     }
