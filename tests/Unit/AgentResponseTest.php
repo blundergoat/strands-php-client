@@ -92,6 +92,10 @@ class AgentResponseTest extends TestCase
 
         $this->assertSame(0, $usage->inputTokens);
         $this->assertSame(0, $usage->outputTokens);
+        $this->assertSame(0, $usage->cacheReadInputTokens);
+        $this->assertSame(0, $usage->cacheWriteInputTokens);
+        $this->assertSame(0, $usage->latencyMs);
+        $this->assertSame(0, $usage->timeToFirstByteMs);
     }
 
     public function testFromArrayHandlesNonIntUsageValues(): void

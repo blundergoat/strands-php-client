@@ -205,6 +205,7 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame([], $result->toolsUsed);
         $this->assertSame(0, $result->textEvents);
         $this->assertSame(0, $result->totalEvents);
+        $this->assertFalse($result->cancelled);
     }
 
     public function testStreamLogsDebugMessages(): void
@@ -373,6 +374,224 @@ class StrandsClientStreamTest extends TestCase
         );
 
         $this->assertNull($result->stopReason);
+    }
+
+    public function testStreamCancelsOnFalseReturn(): void
+    {
+        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
+            . "data: {\"type\": \"text\", \"content\": \" world\"}\n\n"
+            . "data: {\"type\": \"complete\", \"text\": \"Hello world\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $result = $client->stream(
+            message: 'Test',
+            onEvent: function (StreamEvent $event) use (&$events): bool {
+                $events[] = $event;
+
+                return false;  // cancel after first event
+            },
+        );
+
+        $this->assertCount(1, $events);
+        $this->assertSame(StreamEventType::Text, $events[0]->type);
+        // Should return partial result without throwing StreamInterruptedException
+        $this->assertSame('Hello', $result->text);
+    }
+
+    public function testStreamCancelDoesNotThrowInterruptedException(): void
+    {
+        // Stream with no terminal event — but cancelled, so no exception
+        $sseData = "data: {\"type\": \"text\", \"content\": \"partial\"}\n\n";
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $result = $client->stream(
+            message: 'Test',
+            onEvent: function (): bool {
+                return false;
+            },
+        );
+
+        $this->assertSame('partial', $result->text);
+    }
+
+    public function testStreamVoidCallbackContinues(): void
+    {
+        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
+            . "data: {\"type\": \"complete\", \"text\": \"Hello\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $result = $client->stream(
+            message: 'Test',
+            onEvent: function (StreamEvent $event) use (&$events): void {
+                $events[] = $event;
+            },
+        );
+
+        $this->assertCount(2, $events);
+        $this->assertSame('Hello', $result->text);
+    }
+
+    public function testStreamCancelsAcrossChunks(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->method('stream')
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                $onChunk("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
+                // Second chunk — callback already cancelled, should be skipped
+                $onChunk("data: {\"type\": \"text\", \"content\": \"second\"}\n\n");
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $result = $client->stream(
+            message: 'Test',
+            onEvent: function (StreamEvent $event) use (&$events): bool {
+                $events[] = $event;
+
+                return false;
+            },
+        );
+
+        $this->assertCount(1, $events);
+        $this->assertSame('first', $result->text);
+    }
+
+    public function testStreamWithTimeoutSecondsOverride(): void
+    {
+        $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('stream')
+            ->with(
+                'http://localhost:8081/stream',
+                $this->anything(),
+                $this->anything(),
+                300,
+                10,
+                $this->anything(),
+            )
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
+                $onChunk($sseData);
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $client->stream(
+            message: 'Test',
+            onEvent: function (): void {
+            },
+            timeoutSeconds: 300,
+        );
+    }
+
+    public function testStreamTimeoutSecondsRejectsZero(): void
+    {
+        $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('timeoutSeconds must be at least 1');
+
+        $client->stream(
+            message: 'Test',
+            onEvent: function (): void {
+            },
+            timeoutSeconds: 0,
+        );
+    }
+
+    public function testStreamTimeoutSecondsNullUsesDefault(): void
+    {
+        $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('stream')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                60,
+                10,
+                $this->anything(),
+            )
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
+                $onChunk($sseData);
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 60),
+            transport: $transport,
+        );
+
+        $client->stream(
+            message: 'Test',
+            onEvent: function (): void {
+            },
+            timeoutSeconds: null,
+        );
+    }
+
+    public function testStreamTimeoutSecondsAcceptsBoundaryOne(): void
+    {
+        $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('stream')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                1,
+                10,
+                $this->anything(),
+            )
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
+                $onChunk($sseData);
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $client->stream(
+            message: 'Test',
+            onEvent: function (): void {
+            },
+            timeoutSeconds: 1,
+        );
     }
 
     public function testStreamUsageHydratesCacheTokens(): void

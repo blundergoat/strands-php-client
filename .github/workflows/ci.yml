@@ -84,3 +84,25 @@ jobs:
           ")
           echo "Coverage: ${COVERAGE}%"
           php -r "exit((float)'${COVERAGE}' >= 80 ? 0 : 1);"
+
+  mutation:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    name: Mutation Testing
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: xdebug
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run mutation testing
+        run: XDEBUG_MODE=coverage vendor/bin/infection --threads=4 --min-msi=80 --min-covered-msi=80

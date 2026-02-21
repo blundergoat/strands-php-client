@@ -54,7 +54,13 @@ class StreamEvent
      */
     public static function fromArray(array $data): self
     {
-        $type = StreamEventType::from(self::string($data, 'type') ?? '');
+        $rawType = self::string($data, 'type') ?? '';
+        $type = StreamEventType::tryFrom($rawType);
+        if ($type === null) {
+            throw new \InvalidArgumentException(
+                sprintf('Unknown stream event type: "%s"', $rawType !== '' ? $rawType : '(missing)'),
+            );
+        }
 
         // Field mapping note: the API uses different field names per event type.
         // Text/Thinking events send tokens in 'content' → mapped to $text.

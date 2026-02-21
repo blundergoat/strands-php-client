@@ -41,7 +41,12 @@ class StrandsConfig
         public readonly int $retryDelayMs = 500,
         public readonly array $retryableStatusCodes = [429, 502, 503, 504],
     ) {
-        if (!filter_var($endpoint, FILTER_VALIDATE_URL)) {
+        $parts = parse_url($endpoint);
+        if (
+            $parts === false
+            || !isset($parts['scheme'], $parts['host'])
+            || !in_array($parts['scheme'], ['http', 'https'], true)
+        ) {
             throw new \InvalidArgumentException(sprintf('Invalid endpoint URL: "%s"', $endpoint));
         }
 
@@ -59,6 +64,16 @@ class StrandsConfig
 
         if ($retryDelayMs < 1) {
             throw new \InvalidArgumentException('retryDelayMs must be at least 1');
+        }
+
+        // Only 4xx/5xx codes make sense for retry — retrying on 2xx/3xx
+        // would mask successful responses as errors.
+        foreach ($retryableStatusCodes as $code) {
+            if ($code < 400 || $code > 599) {
+                throw new \InvalidArgumentException(
+                    sprintf('All retryableStatusCodes must be HTTP error codes (400-599), but got: %s', (string) $code),
+                );
+            }
         }
     }
 }

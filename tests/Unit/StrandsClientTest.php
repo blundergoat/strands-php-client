@@ -284,12 +284,16 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
+        $this->expectException(AgentErrorException::class);
+        $this->expectExceptionMessage('Bad request');
+
         try {
             $client->invoke(message: 'Test');
-            $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
             $this->assertSame(400, $e->statusCode);
             $this->assertSame(1, $callCount, 'Should not retry on 400');
+
+            throw $e;
         }
     }
 
@@ -333,12 +337,16 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
+        $this->expectException(AgentErrorException::class);
+        $this->expectExceptionMessage('Unauthorized');
+
         try {
             $client->invoke(message: 'Test');
-            $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
             $this->assertSame(401, $e->statusCode);
             $this->assertSame(1, $callCount, 'Should not retry on 401');
+
+            throw $e;
         }
     }
 
@@ -471,6 +479,140 @@ class StrandsClientTest extends TestCase
         );
 
         $client->invoke(message: 'Test');
+    }
+
+    public function testInvokeWithTimeoutSecondsOverride(): void
+    {
+        $fixture = $this->loadFixture('invoke-analyst-response.json');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('post')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                300,
+                10,
+            )
+            ->willReturn($fixture);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $client->invoke(message: 'Test', timeoutSeconds: 300);
+    }
+
+    public function testInvokeTimeoutSecondsRejectsZero(): void
+    {
+        $fixture = $this->loadFixture('invoke-analyst-response.json');
+        $transport = $this->createMockTransport($fixture);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('timeoutSeconds must be at least 1');
+
+        $client->invoke(message: 'Test', timeoutSeconds: 0);
+    }
+
+    public function testInvokeTimeoutSecondsNullUsesDefault(): void
+    {
+        $fixture = $this->loadFixture('invoke-analyst-response.json');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('post')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                60,
+                10,
+            )
+            ->willReturn($fixture);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 60),
+            transport: $transport,
+        );
+
+        $client->invoke(message: 'Test', timeoutSeconds: null);
+    }
+
+    public function testConfigRejectsRetryableStatusCodeBelow400(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('All retryableStatusCodes must be HTTP error codes (400-599), but got:');
+
+        new StrandsConfig(endpoint: 'http://localhost:8081', retryableStatusCodes: [200]);
+    }
+
+    public function testConfigRejectsRetryableStatusCodeAbove599(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('All retryableStatusCodes must be HTTP error codes (400-599), but got:');
+
+        new StrandsConfig(endpoint: 'http://localhost:8081', retryableStatusCodes: [600]);
+    }
+
+    public function testConfigAcceptsValidRetryableStatusCodes(): void
+    {
+        $config = new StrandsConfig(
+            endpoint: 'http://localhost:8081',
+            retryableStatusCodes: [429, 500, 502, 503, 504],
+        );
+
+        $this->assertSame([429, 500, 502, 503, 504], $config->retryableStatusCodes);
+    }
+
+    public function testConfigAcceptsBoundaryRetryableStatusCodes(): void
+    {
+        $config = new StrandsConfig(
+            endpoint: 'http://localhost:8081',
+            retryableStatusCodes: [400, 599],
+        );
+
+        $this->assertSame([400, 599], $config->retryableStatusCodes);
+    }
+
+    public function testConfigAcceptsEmptyRetryableStatusCodes(): void
+    {
+        $config = new StrandsConfig(
+            endpoint: 'http://localhost:8081',
+            retryableStatusCodes: [],
+        );
+
+        $this->assertSame([], $config->retryableStatusCodes);
+    }
+
+    public function testInvokeTimeoutSecondsAcceptsBoundaryOne(): void
+    {
+        $fixture = $this->loadFixture('invoke-analyst-response.json');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('post')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                1,
+                10,
+            )
+            ->willReturn($fixture);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $client->invoke(message: 'Test', timeoutSeconds: 1);
     }
 
     public function testConstructorThrowsWhenNoTransportCanBeDetected(): void

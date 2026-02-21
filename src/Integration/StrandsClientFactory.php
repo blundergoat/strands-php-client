@@ -16,10 +16,14 @@ use StrandsPhpClient\Auth\ApiKeyAuth;
 use StrandsPhpClient\Auth\AuthStrategy;
 use StrandsPhpClient\Auth\NullAuth;
 use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\Http\RequestMiddleware;
 use StrandsPhpClient\StrandsClient;
 
 class StrandsClientFactory
 {
+    /** @var list<RequestMiddleware> */
+    private readonly array $middleware;
+
     /**
      * @param array<string, array{
      *     endpoint: string,
@@ -28,12 +32,22 @@ class StrandsClientFactory
      *     connect_timeout?: int,
      *     max_retries?: int,
      *     retry_delay_ms?: int,
+     *     retryable_status_codes?: list<int>,
      * }> $agents
+     * @param iterable<RequestMiddleware> $middleware
      */
     public function __construct(
         private readonly array $agents,
         private readonly LoggerInterface $logger = new NullLogger(),
+        iterable $middleware = [],
     ) {
+        // Normalise to a plain list so we can pass it to StrandsClient.
+        // Symfony DI passes a tagged iterator (Traversable), Laravel passes an array.
+        $this->middleware = array_values(
+            $middleware instanceof \Traversable
+                ? iterator_to_array($middleware, false)
+                : $middleware,
+        );
     }
 
     /**
@@ -53,6 +67,8 @@ class StrandsClientFactory
 
         $config = $this->agents[$agentName];
 
+        // All agents created by this factory share the same middleware stack.
+        // Per-agent middleware is not supported — use separate factories if needed.
         return new StrandsClient(
             config: new StrandsConfig(
                 endpoint: $config['endpoint'],
@@ -61,8 +77,10 @@ class StrandsClientFactory
                 connectTimeout: $config['connect_timeout'] ?? 10,
                 maxRetries: $config['max_retries'] ?? 0,
                 retryDelayMs: $config['retry_delay_ms'] ?? 500,
+                retryableStatusCodes: $config['retryable_status_codes'] ?? [429, 502, 503, 504],
             ),
             logger: $this->logger,
+            middleware: $this->middleware,
         );
     }
 

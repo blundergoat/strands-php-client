@@ -7,6 +7,8 @@ namespace StrandsPhpClient\Http;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\StrandsException;
 
@@ -19,16 +21,23 @@ use StrandsPhpClient\Exceptions\StrandsException;
  */
 class PsrHttpTransport implements HttpTransport
 {
+    private LoggerInterface $logger;
+
+    private bool $timeoutWarningLogged = false;
+
     /**
      * @param ClientInterface         $httpClient      PSR-18 HTTP client.
      * @param RequestFactoryInterface $requestFactory  PSR-7 request factory.
      * @param StreamFactoryInterface  $streamFactory   PSR-7 stream factory.
+     * @param LoggerInterface|null    $logger          PSR-3 logger (NullLogger if null).
      */
     public function __construct(
         private readonly ClientInterface $httpClient,
         private readonly RequestFactoryInterface $requestFactory,
         private readonly StreamFactoryInterface $streamFactory,
+        ?LoggerInterface $logger = null,
     ) {
+        $this->logger = $logger ?? new NullLogger();
     }
 
     /**
@@ -45,6 +54,15 @@ class PsrHttpTransport implements HttpTransport
      */
     public function post(string $url, array $headers, string $body, int $timeout, int $connectTimeout): array
     {
+        if (!$this->timeoutWarningLogged) {
+            $this->timeoutWarningLogged = true;
+            $this->logger->notice(
+                'PsrHttpTransport does not support timeout parameters. '
+                . 'Configure timeout on your PSR-18 client instance directly.',
+                ['timeout' => $timeout, 'connectTimeout' => $connectTimeout],
+            );
+        }
+
         try {
             $request = $this->requestFactory->createRequest('POST', $url);
 
@@ -63,14 +81,7 @@ class PsrHttpTransport implements HttpTransport
             $data = json_decode($content, true);
 
             if ($statusCode >= 400) {
-                $errorData = is_array($data) ? $data : [];
-                $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
-                $errorMessage = is_string($detail) ? $detail : (json_encode($detail) ?: 'Unknown agent error');
-
-                throw new AgentErrorException(
-                    message: $errorMessage,
-                    statusCode: $statusCode,
-                );
+                throw AgentErrorException::fromHttpResponse($statusCode, $content, $data);
             }
 
             if (!is_array($data)) {

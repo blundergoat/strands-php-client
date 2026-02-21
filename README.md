@@ -185,6 +185,65 @@ echo $result->totalEvents;            // Total events received
 
 > **Note:** SSE streaming requires `symfony/http-client` via `SymfonyHttpTransport`. PSR-18 clients only support `invoke()` -this is a limitation of the PSR-18 spec, not this library.
 
+### Custom Endpoints (postJson / streamSse)
+
+For agent endpoints with custom request/response schemas (file processing, metadata extraction, etc.), use `postJson()` and `streamSse()`. These bypass the standard invoke/stream contract and work with arbitrary payloads.
+
+```php
+// Synchronous - returns raw decoded JSON array
+$result = $client->postJson('/file-summarise', [
+    'file_base64' => base64_encode($fileBytes),
+    'file_name' => 'report.pdf',
+    'template' => 'executive-summary',
+], timeout: 120);
+
+echo $result['summary'];
+echo $result['model'];
+
+// Streaming - delivers raw decoded JSON arrays to the callback
+$client->streamSse('/file-summarise-stream', [
+    'file_base64' => base64_encode($fileBytes),
+], function (array $event) {
+    match ($event['type'] ?? '') {
+        'text'     => print($event['content']),
+        'complete' => print("\n[Done]"),
+        default    => null,
+    };
+}, timeout: 120);
+```
+
+**Per-request timeout:** Both methods accept an optional `timeout:` parameter (in seconds) that overrides the global config timeout. This lets you use short timeouts for fast operations and long timeouts for slow ones, without creating separate agent configs:
+
+```php
+$client->postJson('/file-metadata', $payload, timeout: 5);     // Fast: 5s
+$client->postJson('/file-summarise', $payload, timeout: 120);   // Slow: 2min
+```
+
+**Stream cancellation:** Both `stream()` and `streamSse()` callbacks can return `false` to cancel the stream. This is a true transport-level abort -the HTTP connection is closed immediately:
+
+```php
+$client->streamSse('/stream', $payload, function (array $event): bool {
+    broadcast($event);
+    return !connection_aborted();  // false = abort stream
+});
+```
+
+### Error Handling
+
+`AgentErrorException` carries the full response body for debugging structured errors:
+
+```php
+use StrandsPhpClient\Exceptions\AgentErrorException;
+
+try {
+    $client->postJson('/validate', $payload);
+} catch (AgentErrorException $e) {
+    $e->statusCode;    // 422
+    $e->getMessage();  // "Validation failed"
+    $e->responseBody;  // ['detail' => '...', 'errors' => [...]]
+}
+```
+
 ### Sessions
 
 The client sends a `session_id` -the server manages all state. Multi-turn conversations just work:

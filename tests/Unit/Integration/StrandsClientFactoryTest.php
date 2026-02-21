@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Tests\Unit\Integration;
 
 use PHPUnit\Framework\TestCase;
+use StrandsPhpClient\Config\StrandsConfig;
 use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
@@ -159,8 +160,36 @@ class StrandsClientFactoryTest extends TestCase
         ]);
 
         $client = $factory->create('test');
+        $config = $this->extractConfig($client);
 
-        $this->assertInstanceOf(StrandsClient::class, $client);
+        $this->assertSame(10, $config->connectTimeout);
+        $this->assertSame(0, $config->maxRetries);
+        $this->assertSame(500, $config->retryDelayMs);
+        $this->assertSame([429, 502, 503, 504], $config->retryableStatusCodes);
+    }
+
+    public function testCreatePropagatesExplicitConfigValues(): void
+    {
+        $factory = new StrandsClientFactory([
+            'test' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => ['driver' => 'null'],
+                'timeout' => 60,
+                'connect_timeout' => 5,
+                'max_retries' => 3,
+                'retry_delay_ms' => 1000,
+                'retryable_status_codes' => [429, 500],
+            ],
+        ]);
+
+        $client = $factory->create('test');
+        $config = $this->extractConfig($client);
+
+        $this->assertSame(60, $config->timeout);
+        $this->assertSame(5, $config->connectTimeout);
+        $this->assertSame(3, $config->maxRetries);
+        $this->assertSame(1000, $config->retryDelayMs);
+        $this->assertSame([429, 500], $config->retryableStatusCodes);
     }
 
     public function testUnknownAgentListsConfiguredAgents(): void
@@ -185,5 +214,16 @@ class StrandsClientFactoryTest extends TestCase
             $this->assertStringContainsString('analyst', $e->getMessage());
             $this->assertStringContainsString('skeptic', $e->getMessage());
         }
+    }
+
+    private function extractConfig(StrandsClient $client): StrandsConfig
+    {
+        $reflection = new \ReflectionProperty(StrandsClient::class, 'config');
+        $reflection->setAccessible(true);
+
+        $config = $reflection->getValue($client);
+        $this->assertInstanceOf(StrandsConfig::class, $config);
+
+        return $config;
     }
 }

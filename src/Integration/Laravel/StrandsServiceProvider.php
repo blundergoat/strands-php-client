@@ -14,6 +14,8 @@ namespace StrandsPhpClient\Integration\Laravel;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
+use Psr\Log\LoggerInterface;
+use StrandsPhpClient\Http\RequestMiddleware;
 use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
@@ -36,7 +38,16 @@ class StrandsServiceProvider extends ServiceProvider
             /** @var array<string, array{endpoint: string, auth: array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string}, timeout: int, connect_timeout?: int, max_retries?: int, retry_delay_ms?: int}> $agents */
             $agents = $config->get('strands.agents', []);
 
-            return new StrandsClientFactory($agents);
+            /** @var LoggerInterface $logger */
+            $logger = $app->make(LoggerInterface::class);
+
+            // Resolve any middleware tagged with 'strands.middleware'.
+            // To register middleware in your app:
+            //   $this->app->tag([MyTracingMiddleware::class], 'strands.middleware');
+            /** @var list<RequestMiddleware> $middleware */
+            $middleware = $app->tagged('strands.middleware');
+
+            return new StrandsClientFactory($agents, $logger, $middleware);
         });
 
         $this->app->singleton(StrandsClient::class, function (Application $app): StrandsClient {

@@ -69,24 +69,7 @@ class AgentResponse
         /** @var array<string, mixed> $usageData */
         $usageData = is_array($data['usage'] ?? null) ? $data['usage'] : [];
 
-        return new Usage(
-            inputTokens: self::intField($usageData, 'input_tokens'),
-            outputTokens: self::intField($usageData, 'output_tokens'),
-            cacheReadInputTokens: self::intField($usageData, 'cache_read_input_tokens'),
-            cacheWriteInputTokens: self::intField($usageData, 'cache_write_input_tokens'),
-            latencyMs: self::intField($usageData, 'latency_ms'),
-            timeToFirstByteMs: self::intField($usageData, 'time_to_first_byte_ms'),
-        );
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private static function intField(array $data, string $key): int
-    {
-        $value = $data[$key] ?? 0;
-
-        return is_int($value) ? $value : 0;
+        return Usage::fromArray($usageData);
     }
 
     /**

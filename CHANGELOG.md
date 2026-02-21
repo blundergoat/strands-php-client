@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `RequestMiddleware` interface — operation-scoped middleware for observing and modifying HTTP requests to Strands agents. `beforeRequest()` runs once before the first attempt (including retries), `afterResponse()` runs once after the final outcome. Use cases: OpenTelemetry/Datadog tracing, custom header injection, request logging, metrics collection.
+- Middleware pipeline in `StrandsClient` — accepts `list<RequestMiddleware>` via constructor. Middleware is applied to all four public methods: `invoke()`, `stream()`, `postJson()`, and `streamSse()`. Middleware exceptions in `afterResponse()` are caught and logged, never propagated.
+- Middleware support in Symfony bundle — `RequestMiddleware` implementations are autoconfigured via the `strands.middleware` tag and injected into the factory as a `TaggedIteratorArgument`.
+- Middleware support in Laravel service provider — resolved via `$app->tagged('strands.middleware')` and passed to `StrandsClientFactory`.
+- Per-request `?int $timeoutSeconds` on `invoke()` and `stream()` — overrides the global config timeout for individual calls. Values < 1 throw `InvalidArgumentException`.
+- Per-request timeout override on `postJson()` and `streamSse()` — optional `?int $timeout` parameter (in seconds) with the same semantics.
+- Buffer overflow protection in `StreamParser` — throws `StreamInterruptedException` if the internal buffer exceeds 10 MB without a complete event delimiter, guarding against unbounded memory growth from broken proxies or non-SSE responses.
+- `retryableStatusCodes` validation in `StrandsConfig` — codes must be in the 400-599 range; out-of-range values throw `InvalidArgumentException`.
+- `retryable_status_codes` option in Symfony bundle `Configuration` — array of integers, defaults to `[429, 502, 503, 504]`.
+- `AgentErrorException::$responseBody` — the full decoded JSON response body from error responses (4xx/5xx), enabling structured error inspection for debugging. `null` when the response wasn't valid JSON.
+- `AgentErrorException::fromHttpResponse()` — static factory that builds an `AgentErrorException` from a raw HTTP status code, body string, and decoded JSON. Replaces the duplicated error-extraction logic that was in both `PsrHttpTransport::post()` and `SymfonyHttpTransport::post()`/`stream()`.
+- Stream cancellation support — `stream()` and `streamSse()` callbacks can return `false` to cancel the stream. This is a true transport-level abort: `SymfonyHttpTransport` calls `$response->cancel()` and breaks out of the chunk loop, closing the HTTP connection immediately.
+- `StreamResult::$cancelled` — boolean flag indicating whether the stream was stopped by the `onEvent` callback returning `false`. Allows consumers to distinguish user-initiated cancellation from an interrupted/completed stream.
+- `PsrHttpTransport` now accepts an optional `LoggerInterface` and logs a `notice` on first use when timeout parameters cannot be honoured — prevents silent debugging headaches for users who set `timeout` in config but use a PSR-18 client.
+- `Usage::fromArray(array $data)` static factory method — canonical way to create `Usage` from raw API arrays, replacing duplicated helpers in `AgentResponse` and `StrandsClient`.
+- `HttpTransport::stream()` callback now supports returning `false` to signal cancellation to the transport layer.
+- Mutation testing CI job — runs Infection on pull requests to `main` with `--min-msi=80 --min-covered-msi=80` (PHP 8.3, `continue-on-error: true`).
+- 68 new unit tests (282 total, 843 assertions).
+
+### Changed
+
+- Retry delay now capped at 30 seconds — prevents absurd sleep times at high retry counts. Formula: `min(retryDelayMs * 2^attempt, 30_000) * random(0.5, 1.0)`.
+- `StreamEvent::fromArray()` now uses `StreamEventType::tryFrom()` with a descriptive `InvalidArgumentException` for unknown types — previously used `from()` which threw an opaque `ValueError`.
+- Cancelled streams report status 0 to middleware `afterResponse()` — previously reported 200, which misrepresented incomplete HTTP responses as successful.
+- `StrandsConfig` endpoint validation now uses `parse_url()` with scheme+host check instead of `FILTER_VALIDATE_URL`. This accepts Docker/Kubernetes hostnames without a TLD (e.g. `http://agent:8080`) that were previously rejected.
+- `PsrHttpTransport`, `SymfonyHttpTransport` error-to-exception mapping now delegates to `AgentErrorException::fromHttpResponse()`, eliminating three near-identical code blocks.
+- Removed `StrandsClient::usageFromArray()` — one-line passthrough replaced by direct `Usage::fromArray()` call.
+- `AgentResponse::parseUsage()` now delegates to `Usage::fromArray()`, eliminating code duplication.
+- `StrandsClient::stream()` and `streamSse()` internal closures now return `bool` to propagate cancellation to the transport.
+
+### Fixed
+
+- `postJson()` and `streamSse()` now call `afterResponse()` on middleware — previously only `beforeRequest()` was applied, leaving observability middleware blind to these methods' outcomes.
+- Laravel `StrandsServiceProvider` now wires `RequestMiddleware` implementations via `strands.middleware` tagged services — previously the factory was constructed without middleware, making it impossible for Laravel users to use the middleware pipeline.
+- `StreamParser` uses `use` import for `StreamInterruptedException` instead of inline FQCN — consistent with project style.
+- `Strands` facade missing `@method` annotations for `postJson()` and `streamSse()` — IDE autocompletion and static analysis now see all public methods.
+- Laravel `StrandsServiceProvider` now injects the application's PSR-3 logger into `StrandsClientFactory` — debug/warning logging was silently discarded through the Laravel integration.
+- Branch alias in `composer.json` updated from `1.1.x-dev` to `1.3.x-dev`.
+
 ## [1.2.0] - 2026-02-19
 
 ### Added

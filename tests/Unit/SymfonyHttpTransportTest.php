@@ -21,13 +21,9 @@ class SymfonyHttpTransportTest extends TestCase
     /**
      * @param list<ChunkInterface> $chunks
      */
-    private function createTransportWithStreamChunks(array $chunks, int $statusCode = 200, string $body = ''): SymfonyHttpTransport
+    private function createResponseStream(ResponseInterface $response, array $chunks): ResponseStreamInterface
     {
-        $response = $this->createMock(ResponseInterface::class);
-        $response->method('getStatusCode')->willReturn($statusCode);
-        $response->method('getContent')->willReturn($body);
-
-        $stream = new class ($response, $chunks) implements ResponseStreamInterface {
+        return new class ($response, $chunks) implements ResponseStreamInterface {
             /**
              * @param list<ChunkInterface> $chunks
              */
@@ -63,6 +59,18 @@ class SymfonyHttpTransportTest extends TestCase
                 return isset($this->chunks[$this->position]);
             }
         };
+    }
+
+    /**
+     * @param list<ChunkInterface> $chunks
+     */
+    private function createTransportWithStreamChunks(array $chunks, int $statusCode = 200, string $body = ''): SymfonyHttpTransport
+    {
+        $response = $this->createMock(ResponseInterface::class);
+        $response->method('getStatusCode')->willReturn($statusCode);
+        $response->method('getContent')->willReturn($body);
+
+        $stream = $this->createResponseStream($response, $chunks);
 
         $httpClient = $this->createMock(HttpClientInterface::class);
         $httpClient->method('request')->willReturn($response);
@@ -233,6 +241,45 @@ class SymfonyHttpTransportTest extends TestCase
         $this->assertStringContainsString('complete', $received[1]);
     }
 
+    public function testStreamStopsOnCallbackReturnFalse(): void
+    {
+        $transport = $this->createTransportWithStreamChunks([
+            $this->createChunk(timeout: false, last: false, content: 'chunk1'),
+            $this->createChunk(timeout: false, last: false, content: 'chunk2'),
+            $this->createChunk(timeout: false, last: true, content: 'chunk3'),
+        ]);
+
+        $received = [];
+        $transport->stream('http://example.com/stream', [], '{}', 30, 10, function (string $chunk) use (&$received): bool {
+            $received[] = $chunk;
+
+            return false;  // cancel after first chunk
+        });
+
+        $this->assertCount(1, $received);
+        $this->assertSame('chunk1', $received[0]);
+    }
+
+    public function testStreamCancelsResponseOnCallbackReturnFalse(): void
+    {
+        $response = $this->createMock(ResponseInterface::class);
+        $response->method('getStatusCode')->willReturn(200);
+        $response->expects($this->once())->method('cancel');
+
+        $chunk = $this->createChunk(timeout: false, last: false, content: 'data');
+        $stream = $this->createResponseStream($response, [$chunk]);
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('request')->willReturn($response);
+        $httpClient->method('stream')->willReturn($stream);
+
+        $transport = new SymfonyHttpTransport($httpClient);
+
+        $transport->stream('http://example.com/stream', [], '{}', 30, 10, function (): bool {
+            return false;
+        });
+    }
+
     public function testExceptionClasses(): void
     {
         $strands = new StrandsException('base error');
@@ -254,6 +301,64 @@ class SymfonyHttpTransportTest extends TestCase
         $e = new AgentErrorException('error');
         $this->assertSame(0, $e->statusCode);
         $this->assertNull($e->errorCode);
+        $this->assertNull($e->responseBody);
+    }
+
+    public function testAgentErrorExceptionCarriesResponseBody(): void
+    {
+        $e = new AgentErrorException('error', 422, responseBody: ['detail' => 'bad', 'fields' => ['name' => 'required']]);
+        $this->assertSame(422, $e->statusCode);
+        $this->assertSame(['detail' => 'bad', 'fields' => ['name' => 'required']], $e->responseBody);
+    }
+
+    public function testPostErrorIncludesResponseBody(): void
+    {
+        $body = '{"detail":"Validation failed","errors":[{"field":"name","msg":"required"}]}';
+        $mockResponse = new MockResponse($body, ['http_code' => 422]);
+        $client = new MockHttpClient($mockResponse);
+        $transport = new SymfonyHttpTransport($client);
+
+        try {
+            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $this->fail('Expected AgentErrorException');
+        } catch (AgentErrorException $e) {
+            $this->assertSame(422, $e->statusCode);
+            $this->assertIsArray($e->responseBody);
+            $this->assertSame('Validation failed', $e->responseBody['detail']);
+            $this->assertCount(1, $e->responseBody['errors']);
+        }
+    }
+
+    public function testPostErrorResponseBodyNullForPlainText(): void
+    {
+        $mockResponse = new MockResponse('Internal Server Error', ['http_code' => 500]);
+        $client = new MockHttpClient($mockResponse);
+        $transport = new SymfonyHttpTransport($client);
+
+        try {
+            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $this->fail('Expected AgentErrorException');
+        } catch (AgentErrorException $e) {
+            $this->assertNull($e->responseBody);
+        }
+    }
+
+    public function testStreamErrorIncludesResponseBody(): void
+    {
+        $body = '{"detail":"Stream error","code":"RATE_LIMIT"}';
+        $mockResponse = new MockResponse($body, ['http_code' => 429]);
+        $client = new MockHttpClient($mockResponse);
+        $transport = new SymfonyHttpTransport($client);
+
+        try {
+            $transport->stream('http://example.com/stream', [], '{}', 30, 10, function (): void {
+            });
+            $this->fail('Expected AgentErrorException');
+        } catch (AgentErrorException $e) {
+            $this->assertSame(429, $e->statusCode);
+            $this->assertIsArray($e->responseBody);
+            $this->assertSame('RATE_LIMIT', $e->responseBody['code']);
+        }
     }
 
     public function testPostWrapsNonStrandsException(): void
