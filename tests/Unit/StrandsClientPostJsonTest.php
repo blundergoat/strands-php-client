@@ -306,6 +306,7 @@ class StrandsClientPostJsonTest extends TestCase
         );
 
         $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('timeout must be at least 1');
 
         $client->postJson('/test', ['data' => 'test'], timeout: -10);
     }

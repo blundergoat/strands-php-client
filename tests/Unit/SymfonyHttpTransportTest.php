@@ -21,13 +21,9 @@ class SymfonyHttpTransportTest extends TestCase
     /**
      * @param list<ChunkInterface> $chunks
      */
-    private function createTransportWithStreamChunks(array $chunks, int $statusCode = 200, string $body = ''): SymfonyHttpTransport
+    private function createResponseStream(ResponseInterface $response, array $chunks): ResponseStreamInterface
     {
-        $response = $this->createMock(ResponseInterface::class);
-        $response->method('getStatusCode')->willReturn($statusCode);
-        $response->method('getContent')->willReturn($body);
-
-        $stream = new class ($response, $chunks) implements ResponseStreamInterface {
+        return new class ($response, $chunks) implements ResponseStreamInterface {
             /**
              * @param list<ChunkInterface> $chunks
              */
@@ -63,6 +59,18 @@ class SymfonyHttpTransportTest extends TestCase
                 return isset($this->chunks[$this->position]);
             }
         };
+    }
+
+    /**
+     * @param list<ChunkInterface> $chunks
+     */
+    private function createTransportWithStreamChunks(array $chunks, int $statusCode = 200, string $body = ''): SymfonyHttpTransport
+    {
+        $response = $this->createMock(ResponseInterface::class);
+        $response->method('getStatusCode')->willReturn($statusCode);
+        $response->method('getContent')->willReturn($body);
+
+        $stream = $this->createResponseStream($response, $chunks);
 
         $httpClient = $this->createMock(HttpClientInterface::class);
         $httpClient->method('request')->willReturn($response);
@@ -259,41 +267,7 @@ class SymfonyHttpTransportTest extends TestCase
         $response->expects($this->once())->method('cancel');
 
         $chunk = $this->createChunk(timeout: false, last: false, content: 'data');
-
-        $stream = new class ($response, [$chunk]) implements ResponseStreamInterface {
-            /** @param list<ChunkInterface> $chunks */
-            public function __construct(
-                private readonly ResponseInterface $response,
-                private readonly array $chunks,
-                private int $position = 0,
-            ) {
-            }
-
-            public function rewind(): void
-            {
-                $this->position = 0;
-            }
-
-            public function current(): ChunkInterface
-            {
-                return $this->chunks[$this->position];
-            }
-
-            public function key(): ResponseInterface
-            {
-                return $this->response;
-            }
-
-            public function next(): void
-            {
-                ++$this->position;
-            }
-
-            public function valid(): bool
-            {
-                return isset($this->chunks[$this->position]);
-            }
-        };
+        $stream = $this->createResponseStream($response, [$chunk]);
 
         $httpClient = $this->createMock(HttpClientInterface::class);
         $httpClient->method('request')->willReturn($response);

@@ -465,6 +465,7 @@ class StrandsClientStreamSseTest extends TestCase
         );
 
         $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('timeout must be at least 1');
 
         $client->streamSse('/test-stream', ['data' => 'test'], function () {
         }, timeout: -5);
