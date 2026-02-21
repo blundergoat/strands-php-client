@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use StrandsPhpClient\Exceptions\StreamInterruptedException;
 use StrandsPhpClient\Streaming\StreamEventType;
 use StrandsPhpClient\Streaming\StreamParser;
 
@@ -196,6 +197,22 @@ class StreamParserTest extends TestCase
         $this->assertSame(1, $parser->getSkippedEvents());
     }
 
+    public function testStreamEventFromArrayThrowsOnUnknownType(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unknown stream event type: "unknown_type"');
+
+        \StrandsPhpClient\Streaming\StreamEvent::fromArray(['type' => 'unknown_type']);
+    }
+
+    public function testStreamEventFromArrayThrowsOnMissingType(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unknown stream event type: "(missing)"');
+
+        \StrandsPhpClient\Streaming\StreamEvent::fromArray(['type' => '']);
+    }
+
     public function testSkipsEventWithMissingTypeField(): void
     {
         $parser = new StreamParser();
@@ -338,6 +355,35 @@ class StreamParserTest extends TestCase
 
         $this->assertCount(1, $events);
         $this->assertSame(StreamEventType::ReasoningRedacted, $events[0]->type);
+    }
+
+    public function testBufferOverflowThrowsStreamInterruptedException(): void
+    {
+        $parser = new StreamParser();
+
+        // Feed data that exceeds 10MB without a complete event (no double newline)
+        $chunk = str_repeat('x', 1024 * 1024); // 1MB chunks
+
+        $this->expectException(StreamInterruptedException::class);
+        $this->expectExceptionMessage('SSE buffer exceeded');
+
+        for ($i = 0; $i < 11; $i++) {
+            $parser->feed($chunk);
+        }
+    }
+
+    public function testBufferDoesNotThrowBelowLimit(): void
+    {
+        $parser = new StreamParser();
+
+        // Feed 9MB of data without complete event — should not throw
+        $chunk = str_repeat('x', 1024 * 1024);
+        for ($i = 0; $i < 9; $i++) {
+            $parser->feed($chunk);
+        }
+
+        // No exception expected, parser still usable
+        $this->assertSame(0, $parser->getSkippedEvents());
     }
 
     public function testCompleteEventParsesStopReason(): void

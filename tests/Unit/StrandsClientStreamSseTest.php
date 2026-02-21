@@ -469,4 +469,32 @@ class StrandsClientStreamSseTest extends TestCase
         $client->streamSse('/test-stream', ['data' => 'test'], function () {
         }, timeout: -5);
     }
+
+    public function testStreamSseAcceptsBoundaryOneTimeout(): void
+    {
+        $sseData = "data: {\"status\": \"ok\"}\n\n";
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('stream')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                1,
+                $this->anything(),
+                $this->anything(),
+            )
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
+                $onChunk($sseData);
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $client->streamSse('/test-stream', ['data' => 'test'], function (): void {
+        }, timeout: 1);
+    }
 }

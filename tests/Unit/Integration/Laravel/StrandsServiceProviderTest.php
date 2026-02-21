@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\Http\RequestMiddleware;
 use StrandsPhpClient\Integration\Laravel\StrandsServiceProvider;
 use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
@@ -85,6 +86,33 @@ class StrandsServiceProviderTest extends TestCase
         $this->assertSame('Bearer ', $agent['auth']['value_prefix']);
     }
 
+    public function testFactoryReceivesTaggedMiddleware(): void
+    {
+        $mw = $this->createMock(RequestMiddleware::class);
+
+        $app = $this->createRegisteredApplication([
+            'default' => 'primary',
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                    'auth' => ['driver' => 'null'],
+                    'timeout' => 120,
+                ],
+            ],
+        ], [$mw]);
+
+        $factory = $app->make(StrandsClientFactory::class);
+        $this->assertInstanceOf(StrandsClientFactory::class, $factory);
+
+        // Verify middleware was passed by checking the factory's private property
+        $reflection = new \ReflectionProperty(StrandsClientFactory::class, 'middleware');
+        $reflection->setAccessible(true);
+        $middleware = $reflection->getValue($factory);
+
+        $this->assertCount(1, $middleware);
+        $this->assertSame($mw, $middleware[0]);
+    }
+
     public function testRegisterResolvesFactoryDefaultAndNamedClientBindings(): void
     {
         $app = $this->createRegisteredApplication([
@@ -138,8 +166,9 @@ class StrandsServiceProviderTest extends TestCase
      *     retry_delay_ms?: int
      *   }>
      * } $strandsConfig
+     * @param list<RequestMiddleware> $taggedMiddleware
      */
-    private function createRegisteredApplication(array $strandsConfig): Application
+    private function createRegisteredApplication(array $strandsConfig, array $taggedMiddleware = []): Application
     {
         /** @var array<string, mixed> $configState */
         $configState = ['strands' => $strandsConfig];
@@ -177,6 +206,15 @@ class StrandsServiceProviderTest extends TestCase
         });
 
         $app = $this->createMock(Application::class);
+        $app->method('tagged')->willReturnCallback(
+            function (string $tag) use ($taggedMiddleware): iterable {
+                if ($tag === 'strands.middleware') {
+                    return $taggedMiddleware;
+                }
+
+                return [];
+            },
+        );
         $app->method('singleton')->willReturnCallback(
             function ($abstract, $concrete = null) use (&$bindings, $app): Application {
                 if (!is_string($abstract) || !is_callable($concrete)) {

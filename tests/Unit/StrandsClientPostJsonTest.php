@@ -331,4 +331,26 @@ class StrandsClientPostJsonTest extends TestCase
 
         $client->postJson('/test', ['data' => 'test'], timeout: null);
     }
+
+    public function testPostJsonAcceptsBoundaryOneTimeout(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('post')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                1,
+                $this->anything(),
+            )
+            ->willReturn(['ok' => true]);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $client->postJson('/test', ['data' => 'test'], timeout: 1);
+    }
 }

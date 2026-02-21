@@ -302,6 +302,47 @@ class ConfigurationTest extends TestCase
         ]);
     }
 
+    public function testDefaultRetryableStatusCodes(): void
+    {
+        $config = $this->processConfig([
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                ],
+            ],
+        ]);
+
+        $this->assertSame([429, 502, 503, 504], $config['agents']['primary']['retryable_status_codes']);
+    }
+
+    public function testCustomRetryableStatusCodes(): void
+    {
+        $config = $this->processConfig([
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                    'retryable_status_codes' => [429, 500, 502, 503],
+                ],
+            ],
+        ]);
+
+        $this->assertSame([429, 500, 502, 503], $config['agents']['primary']['retryable_status_codes']);
+    }
+
+    public function testEmptyRetryableStatusCodes(): void
+    {
+        $config = $this->processConfig([
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                    'retryable_status_codes' => [],
+                ],
+            ],
+        ]);
+
+        $this->assertSame([], $config['agents']['primary']['retryable_status_codes']);
+    }
+
     public function testDefaultRetryableFields(): void
     {
         $config = $this->processConfig([

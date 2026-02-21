@@ -15,6 +15,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Psr\Log\LoggerInterface;
+use StrandsPhpClient\Http\RequestMiddleware;
 use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
@@ -40,7 +41,13 @@ class StrandsServiceProvider extends ServiceProvider
             /** @var LoggerInterface $logger */
             $logger = $app->make(LoggerInterface::class);
 
-            return new StrandsClientFactory($agents, $logger);
+            // Resolve any middleware tagged with 'strands.middleware'.
+            // To register middleware in your app:
+            //   $this->app->tag([MyTracingMiddleware::class], 'strands.middleware');
+            /** @var list<RequestMiddleware> $middleware */
+            $middleware = $app->tagged('strands.middleware');
+
+            return new StrandsClientFactory($agents, $logger, $middleware);
         });
 
         $this->app->singleton(StrandsClient::class, function (Application $app): StrandsClient {

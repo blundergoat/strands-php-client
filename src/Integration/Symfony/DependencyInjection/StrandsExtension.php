@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Integration\Symfony\DependencyInjection;
 
+use StrandsPhpClient\Http\RequestMiddleware;
 use StrandsPhpClient\StrandsClient;
+use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
@@ -30,9 +32,13 @@ class StrandsExtension extends Extension
             return;
         }
 
+        $container->registerForAutoconfiguration(RequestMiddleware::class)
+            ->addTag('strands.middleware');
+
         $factoryDef = new Definition(StrandsClientFactory::class);
         $factoryDef->setArgument('$agents', $agents);
         $factoryDef->setArgument('$logger', new Reference('logger'));
+        $factoryDef->setArgument('$middleware', new TaggedIteratorArgument('strands.middleware'));
         $container->setDefinition('strands.client_factory', $factoryDef);
 
         $firstServiceId = null;

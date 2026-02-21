@@ -134,6 +134,32 @@ class StrandsExtensionTest extends TestCase
         $this->assertSame('analyst', $def->getArgument(0));
     }
 
+    public function testFactoryReceivesMiddlewareArgument(): void
+    {
+        $container = $this->loadExtension([
+            'agents' => [
+                'analyst' => ['endpoint' => 'http://agent:8000'],
+            ],
+        ]);
+
+        $factoryDef = $container->getDefinition('strands.client_factory');
+        $middlewareArg = $factoryDef->getArgument('$middleware');
+
+        $this->assertInstanceOf(\Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument::class, $middlewareArg);
+    }
+
+    public function testRequestMiddlewareAutoconfigured(): void
+    {
+        $container = $this->loadExtension([
+            'agents' => [
+                'analyst' => ['endpoint' => 'http://agent:8000'],
+            ],
+        ]);
+
+        $autoconfigured = $container->getAutoconfiguredInstanceof();
+        $this->assertArrayHasKey(\StrandsPhpClient\Http\RequestMiddleware::class, $autoconfigured);
+    }
+
     public function testMultipleAgentsEachGetCorrectName(): void
     {
         $container = $this->loadExtension([

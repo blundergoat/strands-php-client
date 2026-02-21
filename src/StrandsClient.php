@@ -11,6 +11,7 @@ use StrandsPhpClient\Context\AgentContext;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
+use StrandsPhpClient\Http\RequestMiddleware;
 use StrandsPhpClient\Http\SymfonyHttpTransport;
 use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\Response\Usage;
@@ -28,34 +29,49 @@ class StrandsClient
 
     private LoggerInterface $logger;
 
+    /** @var list<RequestMiddleware> */
+    private readonly array $middleware;
+
     /**
-     * @param StrandsConfig       $config     Agent endpoint, auth, timeouts, retry settings.
-     * @param HttpTransport|null  $transport  HTTP transport (auto-detected if null).
-     * @param LoggerInterface|null $logger    PSR-3 logger (NullLogger if null).
+     * @param StrandsConfig              $config      Agent endpoint, auth, timeouts, retry settings.
+     * @param HttpTransport|null         $transport   HTTP transport (auto-detected if null).
+     * @param LoggerInterface|null       $logger      PSR-3 logger (NullLogger if null).
+     * @param list<RequestMiddleware>    $middleware   Request middleware (executed in order).
      */
     public function __construct(
         private readonly StrandsConfig $config,
         ?HttpTransport $transport = null,
         ?LoggerInterface $logger = null,
+        array $middleware = [],
     ) {
         $this->transport = $transport ?? self::detectTransport();
         $this->logger = $logger ?? new NullLogger();
+        $this->middleware = $middleware;
     }
 
     /**
      * Send a message and wait for the complete response.
      *
-     * @param string            $message    The message to send to the agent.
-     * @param AgentContext|null  $context    Optional extra context (system prompts, metadata).
-     * @param string|null        $sessionId  Optional session ID to continue a conversation.
+     * @param string            $message         The message to send to the agent.
+     * @param AgentContext|null  $context         Optional extra context (system prompts, metadata).
+     * @param string|null        $sessionId       Optional session ID to continue a conversation.
+     * @param int|null           $timeoutSeconds  Override the config timeout for this request only.
      *
      * @return AgentResponse
+     *
+     * @throws \InvalidArgumentException  If timeoutSeconds is less than 1.
      */
     public function invoke(
         string $message,
         ?AgentContext $context = null,
         ?string $sessionId = null,
+        ?int $timeoutSeconds = null,
     ): AgentResponse {
+        if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
+            throw new \InvalidArgumentException('timeoutSeconds must be at least 1');
+        }
+
+        $timeout = $timeoutSeconds ?? $this->config->timeout;
         $url = rtrim($this->config->endpoint, '/') . '/invoke';
         [$headers, $body] = $this->buildRequest($url, $message, $context, $sessionId, 'application/json');
 
@@ -64,7 +80,20 @@ class StrandsClient
             'session_id' => $sessionId,
         ]);
 
-        $data = $this->postWithRetry($url, $headers, $body);
+        $startTime = hrtime(true);
+
+        try {
+            $data = $this->postWithRetry($url, $headers, $body, $timeout);
+        } catch (\Throwable $e) {
+            $durationMs = (hrtime(true) - $startTime) / 1e6;
+            $statusCode = $e instanceof AgentErrorException ? $e->statusCode : 0;
+            $this->notifyAfterResponse($url, $statusCode, $durationMs, $e);
+
+            throw $e;
+        }
+
+        $durationMs = (hrtime(true) - $startTime) / 1e6;
+        $this->notifyAfterResponse($url, 200, $durationMs);
 
         $response = AgentResponse::fromArray($data);
 
@@ -82,21 +111,29 @@ class StrandsClient
     /**
      * Send a message and receive the response as a real-time stream of events.
      *
-     * @param string            $message    The message to send to the agent.
+     * @param string            $message         The message to send to the agent.
      * @param callable(StreamEvent): (void|bool) $onEvent  Called for each event as it arrives. Return false to cancel.
-     * @param AgentContext|null  $context    Optional extra context.
-     * @param string|null        $sessionId  Optional session ID.
+     * @param AgentContext|null  $context         Optional extra context.
+     * @param string|null        $sessionId       Optional session ID.
+     * @param int|null           $timeoutSeconds  Override the config timeout for this request only.
      *
      * @return StreamResult
      *
      * @throws Exceptions\StreamInterruptedException  If the stream ends without a terminal event.
+     * @throws \InvalidArgumentException              If timeoutSeconds is less than 1.
      */
     public function stream(
         string $message,
         callable $onEvent,
         ?AgentContext $context = null,
         ?string $sessionId = null,
+        ?int $timeoutSeconds = null,
     ): StreamResult {
+        if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
+            throw new \InvalidArgumentException('timeoutSeconds must be at least 1');
+        }
+
+        $timeout = $timeoutSeconds ?? $this->config->timeout;
         $url = rtrim($this->config->endpoint, '/') . '/stream';
         [$headers, $body] = $this->buildRequest($url, $message, $context, $sessionId, 'text/event-stream');
 
@@ -107,6 +144,10 @@ class StrandsClient
 
         $parser = new StreamParser();
         $receivedTerminal = false;
+
+        // We accumulate text from individual "text" events so callers get the
+        // full response even if the "complete" event's fullText is missing.
+        // completeFullText is the fallback sent by the server in the terminal event.
         $accumulatedText = '';
         $textEvents = 0;
         $totalEvents = 0;
@@ -123,48 +164,69 @@ class StrandsClient
 
         $cancelled = false;
 
-        $this->transport->stream($url, $headers, $body, $this->config->timeout, $this->config->connectTimeout, function (string $chunk) use ($parser, $onEvent, &$receivedTerminal, &$cancelled, &$accumulatedText, &$textEvents, &$totalEvents, &$resultSessionId, &$resultUsage, &$resultToolsUsed, &$completeFullText, &$resultStopReason): bool {
-            if ($cancelled) {
-                return false;
-            }
+        $startTime = hrtime(true);
 
-            $events = $parser->feed($chunk);
-
-            foreach ($events as $event) {
-                $totalEvents++;
-
-                if ($event->type === StreamEventType::Text && $event->text !== null) {
-                    $accumulatedText .= $event->text;
-                    $textEvents++;
+        try {
+            $this->transport->stream($url, $headers, $body, $timeout, $this->config->connectTimeout, function (string $chunk) use ($parser, $onEvent, &$receivedTerminal, &$cancelled, &$accumulatedText, &$textEvents, &$totalEvents, &$resultSessionId, &$resultUsage, &$resultToolsUsed, &$completeFullText, &$resultStopReason): bool {
+                if ($cancelled) {
+                    return false;
                 }
 
-                if ($event->isTerminal()) {
-                    $receivedTerminal = true;
+                $events = $parser->feed($chunk);
 
-                    if ($event->type === StreamEventType::Complete) {
-                        $resultSessionId = $event->sessionId;
-                        $resultUsage = $event->usage;
-                        $resultToolsUsed = $event->toolsUsed;
-                        $completeFullText = $event->fullText;
-                        $resultStopReason = $event->stopReason;
+                foreach ($events as $event) {
+                    $totalEvents++;
+
+                    if ($event->type === StreamEventType::Text && $event->text !== null) {
+                        $accumulatedText .= $event->text;
+                        $textEvents++;
+                    }
+
+                    if ($event->isTerminal()) {
+                        $receivedTerminal = true;
+
+                        if ($event->type === StreamEventType::Complete) {
+                            $resultSessionId = $event->sessionId;
+                            $resultUsage = $event->usage;
+                            $resultToolsUsed = $event->toolsUsed;
+                            $completeFullText = $event->fullText;
+                            $resultStopReason = $event->stopReason;
+                        }
+                    }
+
+                    if ($onEvent($event) === false) {
+                        $cancelled = true;
+
+                        return false;
                     }
                 }
 
-                if ($onEvent($event) === false) {
-                    $cancelled = true;
+                return true;
+            });
+        } catch (\Throwable $e) {
+            $durationMs = (hrtime(true) - $startTime) / 1e6;
+            $statusCode = $e instanceof AgentErrorException ? $e->statusCode : 0;
+            $this->notifyAfterResponse($url, $statusCode, $durationMs, $e);
 
-                    return false;
-                }
-            }
+            throw $e;
+        }
 
-            return true;
-        });
+        $durationMs = (hrtime(true) - $startTime) / 1e6;
 
+        // A stream that ends without a terminal event (complete/error) likely had
+        // its TCP connection dropped. This is distinct from user cancellation.
         if (!$receivedTerminal && !$cancelled) {
-            throw new Exceptions\StreamInterruptedException(
+            $interrupted = new Exceptions\StreamInterruptedException(
                 'Stream ended without a terminal event (complete or error). The connection may have dropped.',
             );
+            $this->notifyAfterResponse($url, 0, $durationMs, $interrupted);
+
+            throw $interrupted;
         }
+
+        // Report status 0 for cancelled streams because no complete HTTP
+        // response was received — the user chose to stop early.
+        $this->notifyAfterResponse($url, $cancelled ? 0 : 200, $durationMs);
 
         $finalText = $accumulatedText !== '' ? $accumulatedText : ($completeFullText ?? '');
 
@@ -223,7 +285,20 @@ class StrandsClient
             'path' => $path,
         ]);
 
-        $data = $this->postWithRetry($url, $headers, $body, $timeout);
+        $startTime = hrtime(true);
+
+        try {
+            $data = $this->postWithRetry($url, $headers, $body, $timeout);
+        } catch (\Throwable $e) {
+            $durationMs = (hrtime(true) - $startTime) / 1e6;
+            $statusCode = $e instanceof AgentErrorException ? $e->statusCode : 0;
+            $this->notifyAfterResponse($url, $statusCode, $durationMs, $e);
+
+            throw $e;
+        }
+
+        $durationMs = (hrtime(true) - $startTime) / 1e6;
+        $this->notifyAfterResponse($url, 200, $durationMs);
 
         $this->logger->debug('Strands postJson response', [
             'url' => $url,
@@ -265,30 +340,45 @@ class StrandsClient
         $buffer = '';
         $cancelled = false;
 
-        $this->transport->stream($url, $headers, $body, $effectiveTimeout, $this->config->connectTimeout, function (string $chunk) use (&$buffer, &$cancelled, $onEvent): bool {
-            if ($cancelled) {
-                return false;
-            }
+        $startTime = hrtime(true);
 
-            $buffer = str_replace(["\r\n", "\r"], "\n", $buffer . $chunk);
+        try {
+            $this->transport->stream($url, $headers, $body, $effectiveTimeout, $this->config->connectTimeout, function (string $chunk) use (&$buffer, &$cancelled, $onEvent): bool {
+                if ($cancelled) {
+                    return false;
+                }
 
-            while (($pos = strpos($buffer, "\n\n")) !== false) {
-                $rawEvent = substr($buffer, 0, $pos);
-                $buffer = substr($buffer, $pos + 2);
+                $buffer = str_replace(["\r\n", "\r"], "\n", $buffer . $chunk);
 
-                $decoded = self::extractSseData($rawEvent);
+                while (($pos = strpos($buffer, "\n\n")) !== false) {
+                    $rawEvent = substr($buffer, 0, $pos);
+                    $buffer = substr($buffer, $pos + 2);
 
-                if ($decoded !== null) {
-                    if ($onEvent($decoded) === false) {
-                        $cancelled = true;
+                    $decoded = self::extractSseData($rawEvent);
 
-                        return false;
+                    if ($decoded !== null) {
+                        if ($onEvent($decoded) === false) {
+                            $cancelled = true;
+
+                            return false;
+                        }
                     }
                 }
-            }
 
-            return true;
-        });
+                return true;
+            });
+        } catch (\Throwable $e) {
+            $durationMs = (hrtime(true) - $startTime) / 1e6;
+            $statusCode = $e instanceof AgentErrorException ? $e->statusCode : 0;
+            $this->notifyAfterResponse($url, $statusCode, $durationMs, $e);
+
+            throw $e;
+        }
+
+        // Status 0 for cancelled streams (user returned false from onEvent),
+        // 200 for streams that ran to natural completion.
+        $durationMs = (hrtime(true) - $startTime) / 1e6;
+        $this->notifyAfterResponse($url, $cancelled ? 0 : 200, $durationMs);
 
         $this->logger->debug('Strands streamSse complete', [
             'url' => $url,
@@ -315,6 +405,8 @@ class StrandsClient
             try {
                 return $this->transport->post($url, $headers, $body, $effectiveTimeout, $this->config->connectTimeout);
             } catch (StrandsException $e) {
+                // Only retry on status codes explicitly marked as retryable (e.g. 429, 502).
+                // Non-retryable errors like 400 or 401 are thrown immediately.
                 if (
                     $e instanceof AgentErrorException
                     && !in_array($e->statusCode, $this->config->retryableStatusCodes, true)
@@ -328,7 +420,11 @@ class StrandsClient
 
                 // Exponential backoff with jitter (50-100% of base delay)
                 // to avoid thundering herd when multiple clients retry simultaneously.
-                $baseDelay = $this->config->retryDelayMs * (2 ** min($attempt, 20));
+                // Capped at 30 seconds to prevent absurd delays at high retry counts.
+                $baseDelay = min(
+                    $this->config->retryDelayMs * (2 ** $attempt),
+                    30_000,
+                );
                 $delayMs = (int) ($baseDelay * (0.5 + lcg_value() * 0.5));
                 $attempt++;
 
@@ -382,6 +478,14 @@ class StrandsClient
 
         $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
 
+        // Middleware runs once per operation, not per retry attempt.
+        // The modified headers/body are reused for all retry attempts.
+        foreach ($this->middleware as $mw) {
+            $result = $mw->beforeRequest($url, $headers, $body);
+            $headers = $result['headers'];
+            $body = $result['body'];
+        }
+
         return [$headers, $body];
     }
 
@@ -429,6 +533,14 @@ class StrandsClient
 
         $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
 
+        // Middleware runs once per operation, not per retry attempt.
+        // The modified headers/body are reused for all retry attempts.
+        foreach ($this->middleware as $mw) {
+            $result = $mw->beforeRequest($url, $headers, $body);
+            $headers = $result['headers'];
+            $body = $result['body'];
+        }
+
         return [$headers, $body];
     }
 
@@ -441,6 +553,9 @@ class StrandsClient
     {
         $dataLines = [];
 
+        // Per the SSE spec (https://html.spec.whatwg.org/multipage/server-sent-events.html):
+        // - Lines starting with ":" are comments (used as heartbeats)
+        // - "data:" lines carry the payload; multiple data lines are joined with "\n"
         foreach (explode("\n", $rawEvent) as $line) {
             if (str_starts_with($line, ':')) {
                 continue;
@@ -471,6 +586,27 @@ class StrandsClient
 
         /** @var array<string, mixed> $decoded */
         return $decoded;
+    }
+
+    /**
+     * Notify middleware of a completed operation (success or failure).
+     *
+     * Exceptions from middleware are caught and logged — never propagated.
+     * This prevents observability middleware (tracing, metrics) from breaking
+     * the caller's error handling or masking the original exception.
+     */
+    private function notifyAfterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
+    {
+        foreach ($this->middleware as $mw) {
+            try {
+                $mw->afterResponse($url, $statusCode, $durationMs, $error);
+            } catch (\Throwable $e) {
+                $this->logger->warning('Middleware afterResponse threw an exception', [
+                    'middleware' => $mw::class,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**

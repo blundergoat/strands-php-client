@@ -65,5 +65,15 @@ class StrandsConfig
         if ($retryDelayMs < 1) {
             throw new \InvalidArgumentException('retryDelayMs must be at least 1');
         }
+
+        // Only 4xx/5xx codes make sense for retry — retrying on 2xx/3xx
+        // would mask successful responses as errors.
+        foreach ($retryableStatusCodes as $code) {
+            if ($code < 400 || $code > 599) {
+                throw new \InvalidArgumentException(
+                    sprintf('retryableStatusCodes must contain HTTP error codes (400-599), got: %s', (string) $code),
+                );
+            }
+        }
     }
 }

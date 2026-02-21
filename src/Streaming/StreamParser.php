@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Streaming;
 
+use StrandsPhpClient\Exceptions\StreamInterruptedException;
+
 /**
  * Incremental SSE (Server-Sent Events) parser.
  *
@@ -13,6 +15,9 @@ namespace StrandsPhpClient\Streaming;
  */
 class StreamParser
 {
+    /** Maximum buffer size before throwing (10 MB). */
+    private const MAX_BUFFER_SIZE = 10 * 1024 * 1024;
+
     private string $buffer = '';
 
     private int $skippedEvents = 0;
@@ -31,6 +36,17 @@ class StreamParser
      */
     public function feed(string $chunk): array
     {
+        // Guard against unbounded memory growth if the server sends a huge
+        // payload without the double-newline event delimiter (e.g. a broken proxy
+        // that strips newlines, or a non-SSE response body).
+        if (strlen($this->buffer) + strlen($chunk) > self::MAX_BUFFER_SIZE) {
+            throw new StreamInterruptedException(
+                sprintf('SSE buffer exceeded %d bytes without a complete event', self::MAX_BUFFER_SIZE),
+            );
+        }
+
+        // Normalise line endings: the SSE spec uses LF, but some proxies/servers
+        // may emit CRLF or bare CR. We normalise everything to LF before parsing.
         $this->buffer = str_replace(["\r\n", "\r"], "\n", $this->buffer . $chunk);
 
         $events = [];
@@ -93,6 +109,9 @@ class StreamParser
             return null;
         }
 
+        // Use tryFrom() to silently skip unknown event types (e.g. new types
+        // added server-side that this client version doesn't recognise yet).
+        // StreamEvent::fromArray() would throw on unknown types.
         $rawType = $decoded['type'];
         $type = StreamEventType::tryFrom(is_string($rawType) ? $rawType : '');
         if ($type === null) {
