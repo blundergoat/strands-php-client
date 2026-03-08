@@ -48,15 +48,7 @@ class StreamParser
         // Normalise line endings on the new chunk only. The existing buffer is
         // already normalised from a previous feed() call, so re-processing it
         // would be O(buffer_size) wasted work on every chunk.
-        // Edge case: a \r\n may be split across chunks (buffer ends with \r,
-        // chunk starts with \n). We handle this by pulling the trailing \r
-        // from the buffer into the chunk before normalisation.
-        $prefix = '';
-        if ($this->buffer !== '' && $this->buffer[-1] === "\r") {
-            $this->buffer = substr($this->buffer, 0, -1);
-            $prefix = "\r";
-        }
-        $this->buffer .= str_replace(["\r\n", "\r"], "\n", $prefix . $chunk);
+        $this->buffer .= str_replace(["\r\n", "\r"], "\n", $chunk);
 
         $events = [];
 

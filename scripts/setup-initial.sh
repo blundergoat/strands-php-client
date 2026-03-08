@@ -164,14 +164,11 @@ install_php_ext() {
     fi
 }
 
-NEED_APT_UPDATE=false
-
 # Check if any extensions need installing via apt
 if [[ "$OS" == "debian" ]]; then
     if ! php -m 2>/dev/null | grep -qi "^pcov$"; then
         info "Updating apt package list..."
         sudo apt-get update -qq
-        NEED_APT_UPDATE=true
     fi
 fi
 

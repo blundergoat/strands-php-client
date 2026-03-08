@@ -37,31 +37,6 @@ graph LR
     style E fill:#d97706,color:#fff,stroke:none
 ```
 
-The request flow in detail:
-
-```mermaid
-sequenceDiagram
-    participant App as PHP App
-    participant Client as StrandsClient
-    participant Transport as HttpTransport
-    participant Agent as Python Agent
-    participant LLM as LLM Provider
-
-    App->>Client: invoke(message, context, sessionId)
-    Client->>Client: Build JSON payload
-    Client->>Client: Apply AuthStrategy headers
-    Client->>Transport: post(url, headers, body)
-    Transport->>Agent: HTTP POST /invoke
-    Agent->>LLM: Reasoning loop + tool calls
-    LLM-->>Agent: Response
-    Agent-->>Transport: JSON response
-    Transport-->>Client: Raw response
-    Client->>Client: Hydrate AgentResponse
-    Client-->>App: AgentResponse
-
-    Note over App,Agent: Streaming follows the same path but uses<br/>SSE chunks parsed by StreamParser
-```
-
 For a full walkthrough with real-world examples, see the [Usage Guide](docs/usage-guide.md).
 
 ## Quick Start
@@ -87,9 +62,9 @@ echo $response->usage->inputTokens;
 
 For Symfony projects, the bundle adds YAML config and autowiring -see [Symfony Bundle Integration](#symfony-bundle-integration) below.
 
-### PSR-18 / Guzzle
+### PSR-18 (Guzzle, Buzz, etc.)
 
-Pass a `PsrHttpTransport` with your PSR-18 client:
+Any PSR-18 client works via `PsrHttpTransport` (invoke only, no streaming):
 
 ```php
 use StrandsPhpClient\StrandsClient;
@@ -109,25 +84,6 @@ $client = new StrandsClient(
 
 $response = $client->invoke('Should we migrate to microservices?');
 echo $response->text;
-```
-
-### Any PSR-18 Client
-
-Any library implementing PSR-18 (`psr/http-client`) works -Guzzle, Buzz, php-http/curl-client, etc.:
-
-```php
-use StrandsPhpClient\Http\PsrHttpTransport;
-
-$transport = new PsrHttpTransport(
-    httpClient: $yourPsr18Client,        // ClientInterface
-    requestFactory: $yourRequestFactory, // RequestFactoryInterface
-    streamFactory: $yourStreamFactory,   // StreamFactoryInterface
-);
-
-$client = new StrandsClient(
-    config: new StrandsConfig(endpoint: 'https://agent-api.example.com'),
-    transport: $transport,
-);
 ```
 
 ## Features
@@ -228,18 +184,14 @@ echo $result->isInterrupted() ? 'yes' : 'no'; // Whether the agent was interrupt
 
 ### Custom Endpoints (postJson / streamSse)
 
-For agent endpoints with custom request/response schemas (file processing, metadata extraction, etc.), use `postJson()` and `streamSse()`. These bypass the standard invoke/stream contract and work with arbitrary payloads.
+For agent endpoints with custom request/response schemas, use `postJson()` and `streamSse()`. These bypass the standard invoke/stream contract and work with arbitrary payloads:
 
 ```php
 // Synchronous - returns raw decoded JSON array
 $result = $client->postJson('/file-summarise', [
     'file_base64' => base64_encode($fileBytes),
     'file_name' => 'report.pdf',
-    'template' => 'executive-summary',
 ], timeout: 120);
-
-echo $result['summary'];
-echo $result['model'];
 
 // Streaming - delivers raw decoded JSON arrays to the callback
 $client->streamSse('/file-summarise-stream', [
@@ -253,21 +205,7 @@ $client->streamSse('/file-summarise-stream', [
 }, timeout: 120);
 ```
 
-**Per-request timeout:** Both methods accept an optional `timeout:` parameter (in seconds) that overrides the global config timeout. This lets you use short timeouts for fast operations and long timeouts for slow ones, without creating separate agent configs:
-
-```php
-$client->postJson('/file-metadata', $payload, timeout: 5);     // Fast: 5s
-$client->postJson('/file-summarise', $payload, timeout: 120);   // Slow: 2min
-```
-
-**Stream cancellation:** Both `stream()` and `streamSse()` callbacks can return `false` to cancel the stream. This is a true transport-level abort -the HTTP connection is closed immediately:
-
-```php
-$client->streamSse('/stream', $payload, function (array $event): bool {
-    broadcast($event);
-    return !connection_aborted();  // false = abort stream
-});
-```
+Both methods accept optional `timeout:` overrides and stream callbacks can return `false` to cancel.
 
 ### Error Handling
 
@@ -285,59 +223,39 @@ try {
 }
 ```
 
-### Sessions
+### Sessions & Context
 
-The client sends a `session_id` -the server manages all state. Multi-turn conversations just work:
+Pass `sessionId` for multi-turn conversations -the server manages all state:
 
 ```php
 $r1 = $client->invoke('Draft a referral letter', sessionId: 'consult-001');
 $r2 = $client->invoke('Make it more formal', sessionId: 'consult-001');
-// Server remembers the full conversation
 ```
 
-### Context Builder
-
-Immutable builder for passing application context to agents:
+Use the immutable `AgentContext` builder to pass application context:
 
 ```php
 $context = AgentContext::create()
     ->withMetadata('clinic_id', 'CL-789')
-    ->withMetadata('user_role', 'practitioner')
     ->withSystemPrompt('You are a clinical documentation assistant.')
     ->withPermission('read:patients')
-    ->withDocument('referral.pdf', base64_encode($pdfBytes), 'application/pdf')
-    ->withStructuredData('patient', ['id' => 'P-123', 'age' => 42]);
+    ->withDocument('referral.pdf', base64_encode($pdfBytes), 'application/pdf');
 ```
 
-### Logging
-
-`StrandsClient` accepts an optional PSR-3 logger. When provided, it logs request/response details at `debug` level and retries at `warning` level:
-
-```php
-use Psr\Log\LoggerInterface;
-
-$client = new StrandsClient(
-    config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-    logger: $yourLogger,  // Any PSR-3 LoggerInterface
-);
-```
-
-In the Symfony bundle, the logger is injected automatically from Monolog.
-
-### Retries with Exponential Backoff
-
-Configure automatic retries for transient errors (429, 502, 503, 504):
+### Retries, Timeouts & Logging
 
 ```php
 $config = new StrandsConfig(
     endpoint: 'https://api.example.com/agent',
-    maxRetries: 3,          // Retry up to 3 times
-    retryDelayMs: 500,      // 500ms → 1000ms → 2000ms (exponential backoff)
-    connectTimeout: 5,      // Fail fast if server is down (separate from read timeout)
+    maxRetries: 3,          // Retry up to 3 times (invoke/postJson only)
+    retryDelayMs: 500,      // 500ms → 1s → 2s (exponential backoff with jitter)
+    connectTimeout: 5,      // Fail fast if server is down
 );
+
+$client = new StrandsClient(config: $config, logger: $yourPsr3Logger);
 ```
 
-Retries apply to `invoke()` and `postJson()` calls. Streaming requests (`stream()`, `streamSse()`) are not retried.
+Retries apply to `invoke()` and `postJson()`. Streaming requests are not retried. The Symfony bundle injects Monolog automatically.
 
 ## Transport
 
@@ -540,7 +458,7 @@ composer require blundergoat/strands-php-client symfony/http-client
 
 | Document | Description |
 |----------|-------------|
-| [Usage Guide](docs/usage-guide.md) | Real-world patterns from the-summit-chat |
+| [Usage Guide](docs/usage-guide.md) | Real-world patterns and examples |
 | [Authentication](docs/auth.md) | Auth strategies, custom drivers, framework config |
 | [Rich Input](docs/rich-input.md) | Multi-modal input: images, documents, S3 locations |
 | [Interrupts & Guardrails](docs/interrupts-and-guardrails.md) | Human-in-the-loop and content safety |
@@ -558,12 +476,11 @@ vendor/bin/phpunit
 
 All tests use mocked HTTP responses -no Docker, no API keys, no network calls.
 
-## Related Repos
+## Related
 
-| Repo                | What |
-|---------------------|------|
-| the-summit-chatroom | Demo app -three AI agents debating your decisions (coming soon) |
+| Repo | What                                                 |
+|------|------------------------------------------------------|
+| [the-summit-chatroom](https://github.com/blundergoat/the-summit-chatroom) | Demo app - three AI agents debating your decisions   |
+| [terraform-aws-strands](https://github.com/blundergoat/terraform-aws-strands) | Terraform module for deploying Strands agents on AWS |
 
-## License
-
-Apache 2.0
+Maintained by [Matthew Hansen](https://www.blundergoat.com/about).

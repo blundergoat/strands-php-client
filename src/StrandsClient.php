@@ -351,13 +351,8 @@ class StrandsClient
                     return false;
                 }
 
-                // Normalise only the new chunk. Handle \r\n split across chunks.
-                $prefix = '';
-                if ($buffer !== '' && $buffer[-1] === "\r") {
-                    $buffer = substr($buffer, 0, -1);
-                    $prefix = "\r";
-                }
-                $buffer .= str_replace(["\r\n", "\r"], "\n", $prefix . $chunk);
+                // Normalise line endings on the new chunk only.
+                $buffer .= str_replace(["\r\n", "\r"], "\n", $chunk);
 
                 while (($pos = strpos($buffer, "\n\n")) !== false) {
                     $rawEvent = substr($buffer, 0, $pos);
