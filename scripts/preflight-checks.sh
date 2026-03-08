@@ -268,7 +268,7 @@ fi
 step "Coverage (PHPUnit)"
 t=$(now_ns)
 if ! php -m 2>/dev/null | grep -qi "xdebug\|pcov"; then
-    skip "no coverage driver (install xdebug or pcov)"
+    skip "no coverage driver — install one with: scripts/setup-initial.sh"
 elif [[ ! -x vendor/bin/phpunit ]]; then
     skip "phpunit not installed"
 else

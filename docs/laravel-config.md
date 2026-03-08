@@ -102,13 +102,20 @@ return [
 
             // Authentication settings.
             'auth' => [
-                // Which auth strategy to use: 'null' or 'api_key'.
+                // Which auth strategy to use: 'null', 'api_key', or 'sigv4'.
                 'driver' => 'null',                    // default: 'null'
 
                 // Only used when driver is 'api_key':
                 'api_key' => null,                     // default: null (required for api_key driver)
                 'header_name' => 'Authorization',      // default: 'Authorization'
                 'value_prefix' => 'Bearer ',           // default: 'Bearer '
+
+                // Only used when driver is 'sigv4':
+                'region' => null,                      // default: null (required for sigv4 driver)
+                'service' => 'execute-api',            // default: 'execute-api'
+                'access_key_id' => null,               // default: null (falls back to env)
+                'secret_access_key' => null,            // default: null (falls back to env)
+                'session_token' => null,               // default: null
             ],
 
             // How long to wait for the agent to respond (seconds).
@@ -163,7 +170,7 @@ Authentication configuration. Controls how the client identifies itself to the a
 
 #### driver: null (default)
 
-No authentication -headers are sent as-is. Use for local development.
+No authentication - headers are sent as-is. Use for local development.
 
 ```php
 'auth' => [
@@ -171,7 +178,7 @@ No authentication -headers are sent as-is. Use for local development.
 ],
 ```
 
-Or simply omit the `auth` section entirely -`null` is the default.
+Or simply omit the `auth` section entirely - `null` is the default.
 
 #### driver: api_key
 
@@ -196,6 +203,32 @@ For APIs that expect `X-API-Key: <key>` without a prefix:
     'api_key' => env('STRANDS_API_KEY'),
     'header_name' => 'X-API-Key',
     'value_prefix' => '',
+],
+```
+
+#### driver: sigv4
+
+Signs requests with AWS Signature Version 4 for agents behind API Gateway with IAM authorization.
+
+```php
+'auth' => [
+    'driver' => 'sigv4',
+    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),   // Required
+    'service' => 'execute-api',                            // Optional (default)
+],
+```
+
+When `access_key_id` and `secret_access_key` are omitted (or null), the factory calls `SigV4Auth::fromEnvironment()`, which reads `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from the process environment. This is the recommended approach for ECS/EC2/Lambda deployments.
+
+To pass credentials explicitly:
+
+```php
+'auth' => [
+    'driver' => 'sigv4',
+    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    'access_key_id' => env('AWS_ACCESS_KEY_ID'),
+    'secret_access_key' => env('AWS_SECRET_ACCESS_KEY'),
+    'session_token' => env('AWS_SESSION_TOKEN'),   // Optional, for STS temporary credentials
 ],
 ```
 
@@ -438,7 +471,7 @@ When Laravel boots, the service provider processes your config through two steps
 
 2. **`StrandsClientFactory::create()`** -Called at runtime (lazy) to create each `StrandsClient`. It:
    - Looks up the agent config by name
-   - Resolves the auth driver (`'null'` -> `NullAuth`, `'api_key'` -> `ApiKeyAuth`)
+   - Resolves the auth driver (`'null'` -> `NullAuth`, `'api_key'` -> `ApiKeyAuth`, `'sigv4'` -> `SigV4Auth`)
    - Builds a `StrandsConfig` with all settings
    - Creates the `StrandsClient`
 

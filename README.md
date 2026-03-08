@@ -132,6 +132,29 @@ $client = new StrandsClient(
 
 ## Features
 
+### Rich Input (AgentInput)
+
+Send multi-modal content to agents - images, documents, S3 locations - alongside your text message:
+
+```php
+use StrandsPhpClient\Context\AgentInput;
+
+// Text with an image
+$input = AgentInput::text("What's in this image?")
+    ->withImage(base64_encode($imageBytes), 'image/png');
+
+$response = $client->invoke(message: $input);
+
+// Text with a document from S3
+$input = AgentInput::text('Summarise this report')
+    ->withDocumentFromS3('s3://my-bucket/report.pdf', 'pdf', 'report');
+
+// Resume after an interrupt (human-in-the-loop)
+$input = AgentInput::interruptResponse($interruptId, ['approved' => true]);
+```
+
+When no content blocks are attached, `AgentInput::text()` serializes as a plain string - fully backward compatible. See [docs/rich-input.md](docs/rich-input.md) for the full API reference.
+
 ### Invoke (blocking)
 
 ```php
@@ -145,11 +168,26 @@ $response = $client->invoke(
     sessionId: 'session-001',
 );
 
-$response->text;        // Agent's response
-$response->agent;       // Agent name (e.g. "analyst")
-$response->sessionId;   // Session ID for follow-ups
-$response->usage;       // Token usage (inputTokens, outputTokens)
-$response->toolsUsed;   // Tools the agent called
+$response->text;                         // Agent's response
+$response->agent;                        // Agent name (e.g. "analyst")
+$response->sessionId;                    // Session ID for follow-ups
+$response->usage;                        // Token usage (inputTokens, outputTokens)
+$response->usage->totalTokens();         // Total tokens (input + output)
+$response->toolsUsed;                    // Tools the agent called
+$response->metadata;                     // Unrecognised response fields (forward-compat)
+
+// Interrupt handling (human-in-the-loop)
+if ($response->isInterrupted()) {
+    foreach ($response->interrupts as $interrupt) {
+        echo $interrupt->toolName;       // Tool that needs approval
+        echo $interrupt->reason;         // Why the agent paused
+    }
+}
+
+// Guardrail traces (content safety)
+if ($response->guardrailTrace !== null) {
+    echo $response->guardrailTrace->action;  // 'INTERVENED' or 'NONE'
+}
 ```
 
 ### Stream (SSE)
@@ -176,11 +214,14 @@ $result = $client->stream(
     sessionId: 'session-001',
 );
 
-echo $result->text;                   // Full accumulated text
-echo $result->sessionId;              // Session ID
-echo $result->usage->inputTokens;     // Token usage
-echo $result->textEvents;             // Number of text chunks received
-echo $result->totalEvents;            // Total events received
+echo $result->text;                          // Full accumulated text
+echo $result->sessionId;                     // Session ID
+echo $result->usage->inputTokens;            // Token usage
+echo $result->usage->totalTokens();          // Total tokens (input + output)
+echo $result->textEvents;                    // Number of text chunks received
+echo $result->totalEvents;                   // Total events received
+echo $result->timeToFirstTextTokenMs;        // Client-measured TTFT in ms
+echo $result->isInterrupted() ? 'yes' : 'no'; // Whether the agent was interrupted
 ```
 
 > **Note:** SSE streaming requires `symfony/http-client` via `SymfonyHttpTransport`. PSR-18 clients only support `invoke()` -this is a limitation of the PSR-18 spec, not this library.
@@ -315,7 +356,7 @@ Retries apply to `invoke()` calls. Streaming requests are not retried.
 |----------|----------|--------|
 | `NullAuth` | Local dev via Docker Compose | Available |
 | `ApiKeyAuth` | API Gateway / reverse proxy with API keys | Available |
-| `SigV4Auth` | AWS service-to-service (IAM) | Planned |
+| `SigV4Auth` | AWS service-to-service (IAM) | Available |
 
 ```php
 use StrandsPhpClient\Auth\NullAuth;
@@ -336,6 +377,24 @@ $config = new StrandsConfig(
 $config = new StrandsConfig(
     endpoint: 'https://api.example.com/agent',
     auth: new ApiKeyAuth('sk-your-api-key', headerName: 'X-API-Key', valuePrefix: ''),
+);
+
+// AWS SigV4 auth (agents behind API Gateway with IAM)
+use StrandsPhpClient\Auth\SigV4Auth;
+
+$config = new StrandsConfig(
+    endpoint: 'https://abc123.execute-api.us-east-1.amazonaws.com/prod',
+    auth: new SigV4Auth(
+        accessKeyId: 'AKIA...',
+        secretAccessKey: 'wJalr...',
+        region: 'us-east-1',
+    ),
+);
+
+// SigV4 from environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+$config = new StrandsConfig(
+    endpoint: 'https://abc123.execute-api.us-east-1.amazonaws.com/prod',
+    auth: SigV4Auth::fromEnvironment(region: 'us-east-1'),
 );
 ```
 
@@ -483,6 +542,8 @@ composer require blundergoat/strands-php-client symfony/http-client
 |----------|-------------|
 | [Usage Guide](docs/usage-guide.md) | Real-world patterns from the-summit-chat |
 | [Authentication](docs/auth.md) | Auth strategies, custom drivers, framework config |
+| [Rich Input](docs/rich-input.md) | Multi-modal input: images, documents, S3 locations |
+| [Interrupts & Guardrails](docs/interrupts-and-guardrails.md) | Human-in-the-loop and content safety |
 | [Laravel Config](docs/laravel-config.md) | Full PHP config reference with every option |
 | [Symfony Config](docs/symfony-config.md) | Full YAML config reference with every option |
 | [Changelog](CHANGELOG.md) | Version history and breaking changes |

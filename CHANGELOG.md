@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-03-08
+
+### Added
+
+- `StrandsClient::stream()` now logs an info-level message when the stream parser encounters unknown event types (skipped events), with a hint that the PHP client may need updating. Aids debugging when the upstream Python agent ships new event types.
+- `StreamEvent::tryFromArray(array $data): ?self` — forward-compatible alternative to `fromArray()` that returns `null` on unknown event types instead of throwing. `fromArray()` is unchanged (still throws). Use `tryFromArray()` when you want to silently skip unrecognised events.
+- `Usage::totalTokens(): int` — convenience method returning `inputTokens + outputTokens`.
+- `AgentResponse::$metadata` — new `array` property (default `[]`) capturing unrecognised top-level response fields. Future server-side additions (e.g. `trace_id`, `model_id`) are now preserved instead of silently dropped.
+- `StreamResult::$timeToFirstTextTokenMs` — client-side measurement of how long until the first `Text` event arrives, in milliseconds. `null` when no text events were received (e.g. tool-only responses). Distinct from the server-provided `Usage::$timeToFirstByteMs`.
+- Interrupt awareness — `InterruptDetail` value object (`toolName`, `toolInput`, `toolUseId`, `interruptId`, `reason`). `AgentResponse::$interrupts` and `StreamResult::$interrupts` (both `list<InterruptDetail>`, default `[]`). `AgentResponse::isInterrupted()` and `StreamResult::isInterrupted()` convenience methods.
+- `InterruptDetail::toResumeInput(mixed $response): AgentInput` — convenience method to build an `AgentInput` for resuming after an interrupt. Uses `interruptId`, falls back to `toolUseId`.
+- `AgentInput::interruptResponse(string $interruptId, mixed $response): self` — static factory for creating interrupt response inputs.
+- Guardrail trace — `GuardrailTrace` value object (`action`, `assessments`, `modelOutput`). `AgentResponse::$guardrailTrace` and `StreamResult::$guardrailTrace` (nullable, default `null`). Parsed from `guardrail_trace` (top-level) or `trace.guardrail` (nested) in responses and Complete stream events.
+- Citation content block extraction — `AgentResponse::$citations` extracted from `citationsContent`/`citation` blocks in `message.content[]` (default `[]`). `StreamResult::$citations` accumulated from Citation stream events during streaming.
+- Rich input support — `AgentInput` builder with clone-and-mutate pattern: `AgentInput::text()`, `->withImage()`, `->withDocument()`, `->withDocumentFromS3()`, `->withVideoFromS3()`, `->withStructuredOutputPrompt()`. `invoke()` and `stream()` now accept `string|AgentInput $message`.
+- AWS SigV4 auth strategy — `SigV4Auth` implementing `AuthStrategy` for agents behind API Gateway with IAM auth. Standalone implementation (~260 lines, no `aws/aws-sdk-php` dependency). `SigV4Auth::fromEnvironment()` for credential resolution from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`. `SigV4Auth::__debugInfo()` masks credentials in `var_dump`/`print_r` output. Registered in both Symfony (`driver: sigv4`) and Laravel DI config.
+- `AgentErrorException::$errorCode` — machine-readable error code populated from `code` or `error_code` in the response body, enabling programmatic error handling (e.g. rate-limit backoff).
+- Empty message validation — `invoke()` and `stream()` reject empty strings with a clear `InvalidArgumentException`. `AgentInput` with content blocks (e.g. interrupt responses) is allowed even when text is empty.
+- New test fixtures: `invoke-interrupt-response.json`, `invoke-guardrail-response.json`, `invoke-response-with-citations.json`, `invoke-response-with-metadata.json`, `sse-interrupt-complete.txt`, `sse-guardrail-complete.txt`, `sse-with-unknown-event.txt`.
+- `setup-initial.sh` script for one-command dev environment setup (detects OS, installs pcov for coverage).
+- 453 tests, 1327 assertions.
+
+### Changed
+
+- `StrandsClient::stream()` refactored — extracted `buildStreamResult()` and `logSkippedEvents()` private methods to reduce cyclomatic complexity (24 to 17) and method length (166 to 114 lines).
+- Middleware now runs before auth in `buildRequest()` and `buildJsonRequest()` — body-modifying middleware (e.g. payload enrichment) no longer invalidates SigV4 signatures.
+- `StreamParser::feed()` CRLF normalization optimized — only the new chunk is processed instead of re-normalizing the entire buffer on every call (O(chunk) vs O(buffer)). Handles `\r\n` split across chunk boundaries.
+- `StrandsClient::streamSse()` receives the same CRLF normalization optimization.
+- Error messages improved — `AgentErrorException` now formats as `"Agent returned HTTP {code}: {detail}"`. Transport errors include the URL: `"Expected JSON object from {url}, got {type}"`. Stream interruptions include the URL.
+- `StrandsClientFactory::createSigV4Auth()` rejects partial credentials — providing only one of `access_key_id`/`secret_access_key` throws `InvalidArgumentException` instead of silently falling through to environment variables.
+- `AgentInput::formatToMimeType()` handles common document formats: `txt`→`text/plain`, `csv`→`text/csv`, `html`→`text/html`, `md`→`text/markdown`, `xml`→`application/xml`.
+- Minimum mutation testing MSI raised from 80% to 90%.
+- PHPMD `ExcessiveParameterList` threshold raised from 16 to 18 to accommodate `StreamEvent` DTO constructor with interrupt and guardrail fields.
+- `StreamEvent::fromArray()` refactored — internal logic extracted to `buildFromArray()` shared by both `fromArray()` and `tryFromArray()`.
+- Symfony `Configuration` auth driver enum now includes `'sigv4'` alongside `'null'` and `'api_key'`.
+- `StrandsClientFactory::resolveAuth()` now supports `'sigv4'` driver with region, service, access_key_id, secret_access_key, and session_token options.
+- Laravel `config/strands.php` now includes SigV4 auth options.
+- Improved class-level docstrings across `StrandsClient`, `AgentResponse`, `StreamResult`, `StreamEvent`, `AgentErrorException`, `Usage`, and `StrandsClientFactory`.
+
+### Fixed
+
+- SigV4Auth port handling — non-standard ports (e.g. 8443) are now correctly included in the canonical `Host` header as `hostname:port`. Default ports (443 for HTTPS, 80 for HTTP) are correctly omitted.
+
 ## [1.3.0] - 2026-02-21
 
 ### Added
@@ -110,7 +153,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI matrix: PHP 8.2/8.3/8.4, Symfony 6.4/7.0.
 - 100+ unit tests with fixture-based mocks (no network calls).
 
-[Unreleased]: https://github.com/blundergoat/strands-php-client/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/blundergoat/strands-php-client/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/blundergoat/strands-php-client/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/blundergoat/strands-php-client/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/blundergoat/strands-php-client/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/blundergoat/strands-php-client/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/blundergoat/strands-php-client/releases/tag/v1.0.0

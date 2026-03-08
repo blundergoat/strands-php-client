@@ -135,7 +135,7 @@ class ConfigurationTest extends TestCase
             'agents' => [
                 'primary' => [
                     'endpoint' => 'http://agent:8000',
-                    'auth' => ['driver' => 'sigv4'],
+                    'auth' => ['driver' => 'oauth2'],
                 ],
             ],
         ]);

@@ -56,7 +56,11 @@ class SymfonyHttpTransport implements HttpTransport
             }
 
             if (!is_array($data)) {
-                throw new StrandsException('Invalid JSON response from agent');
+                throw new StrandsException(sprintf(
+                    'Expected JSON object from %s, got %s',
+                    $url,
+                    get_debug_type($data),
+                ));
             }
 
             /** @var array<string, mixed> $data */

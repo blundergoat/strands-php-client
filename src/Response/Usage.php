@@ -9,6 +9,14 @@ namespace StrandsPhpClient\Response;
  */
 class Usage
 {
+    /**
+     * @param int $inputTokens            Number of input tokens processed.
+     * @param int $outputTokens           Number of output tokens generated.
+     * @param int $cacheReadInputTokens   Input tokens served from cache.
+     * @param int $cacheWriteInputTokens  Input tokens written to cache.
+     * @param int $latencyMs              Server-reported total latency in milliseconds.
+     * @param int $timeToFirstByteMs      Server-reported time from request receipt to first byte sent.
+     */
     public function __construct(
         public readonly int $inputTokens = 0,
         public readonly int $outputTokens = 0,
@@ -17,6 +25,14 @@ class Usage
         public readonly int $latencyMs = 0,
         public readonly int $timeToFirstByteMs = 0,
     ) {
+    }
+
+    /**
+     * Total tokens consumed (input + output).
+     */
+    public function totalTokens(): int
+    {
+        return $this->inputTokens + $this->outputTokens;
     }
 
     /**

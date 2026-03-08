@@ -1,0 +1,4 @@
+data: {"type": "text", "content": "Sorry, blocked."}
+
+data: {"type": "complete", "text": "Sorry, blocked.", "session_id": "sess-guard-002", "usage": {"input_tokens": 20, "output_tokens": 10}, "tools_used": [], "stop_reason": "guardrail_intervened", "guardrail_trace": {"action": "INTERVENED", "assessments": [{"type": "topic_filter", "policy": "off_topic"}], "model_output": "Original output"}}
+

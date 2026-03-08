@@ -46,13 +46,13 @@ class StrandsClientFactoryTest extends TestCase
         $factory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
-                'auth' => ['driver' => 'sigv4'],
+                'auth' => ['driver' => 'oauth2'],
                 'timeout' => 120,
             ],
         ]);
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported auth driver "sigv4"');
+        $this->expectExceptionMessage('Unsupported auth driver "oauth2"');
 
         $factory->create('test');
     }

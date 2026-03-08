@@ -23,8 +23,10 @@ interface RequestMiddleware
     /**
      * Called once before the operation begins. May modify headers and body.
      *
-     * When retries are configured, the modified headers and body are reused
-     * for every retry attempt within the same operation.
+     * Middleware runs before authentication so that body-modifying middleware
+     * does not invalidate auth signatures (e.g. SigV4). When retries are
+     * configured, the modified headers and body are reused for every retry
+     * attempt within the same operation.
      *
      * @param string               $url     The full request URL.
      * @param array<string, string> $headers Current request headers.

@@ -10,6 +10,7 @@ use StrandsPhpClient\Auth\AuthStrategy;
 use StrandsPhpClient\Auth\NullAuth;
 use StrandsPhpClient\Config\StrandsConfig;
 use StrandsPhpClient\Context\AgentContext;
+use StrandsPhpClient\Context\AgentInput;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
@@ -436,8 +437,12 @@ class StrandsClientTest extends TestCase
         $transport = $this->createMockTransport($fixture);
 
         $logger = $this->createMock(LoggerInterface::class);
+        $debugCalls = [];
         $logger->expects($this->exactly(2))
-            ->method('debug');
+            ->method('debug')
+            ->willReturnCallback(function (string $message, array $context) use (&$debugCalls): void {
+                $debugCalls[] = ['message' => $message, 'context' => $context];
+            });
 
         $client = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -445,7 +450,26 @@ class StrandsClientTest extends TestCase
             logger: $logger,
         );
 
-        $client->invoke(message: 'Test');
+        $client->invoke(message: 'Test', sessionId: 'sess-log');
+
+        // Request log must include url and session_id
+        $this->assertSame('Strands invoke request', $debugCalls[0]['message']);
+        $this->assertArrayHasKey('url', $debugCalls[0]['context']);
+        $this->assertArrayHasKey('session_id', $debugCalls[0]['context']);
+        $this->assertSame('http://localhost:8081/invoke', $debugCalls[0]['context']['url']);
+        $this->assertSame('sess-log', $debugCalls[0]['context']['session_id']);
+
+        // Response log must include session_id, agent, input_tokens, output_tokens, tools_used
+        $this->assertSame('Strands invoke response', $debugCalls[1]['message']);
+        $this->assertArrayHasKey('session_id', $debugCalls[1]['context']);
+        $this->assertArrayHasKey('agent', $debugCalls[1]['context']);
+        $this->assertArrayHasKey('input_tokens', $debugCalls[1]['context']);
+        $this->assertArrayHasKey('output_tokens', $debugCalls[1]['context']);
+        $this->assertArrayHasKey('tools_used', $debugCalls[1]['context']);
+        $this->assertSame('test-session-001', $debugCalls[1]['context']['session_id']);
+        $this->assertSame(150, $debugCalls[1]['context']['input_tokens']);
+        $this->assertSame(280, $debugCalls[1]['context']['output_tokens']);
+        $this->assertSame(0, $debugCalls[1]['context']['tools_used']);
     }
 
     public function testRetryLogsWarning(): void
@@ -466,7 +490,21 @@ class StrandsClientTest extends TestCase
 
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects($this->once())
-            ->method('warning');
+            ->method('warning')
+            ->with(
+                'Strands request failed, retrying',
+                $this->callback(function (array $context): bool {
+                    return isset($context['attempt'])
+                        && isset($context['max_retries'])
+                        && isset($context['delay_ms'])
+                        && isset($context['error'])
+                        && $context['attempt'] === 1
+                        && $context['max_retries'] === 1
+                        && is_int($context['delay_ms'])
+                        && $context['delay_ms'] >= 0
+                        && $context['error'] === 'Unavailable';
+                }),
+            );
 
         $client = new StrandsClient(
             config: new StrandsConfig(
@@ -615,6 +653,83 @@ class StrandsClientTest extends TestCase
         $client->invoke(message: 'Test', timeoutSeconds: 1);
     }
 
+    public function testInvokeAcceptsAgentInput(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('post')
+            ->willReturnCallback(function (string $url, array $headers, string $body) {
+                $decoded = json_decode($body, true);
+                // AgentInput with content blocks should produce an array message
+                \PHPUnit\Framework\Assert::assertIsArray($decoded['message']);
+                \PHPUnit\Framework\Assert::assertArrayHasKey('content', $decoded['message']);
+                \PHPUnit\Framework\Assert::assertCount(2, $decoded['message']['content']);
+                \PHPUnit\Framework\Assert::assertSame('text', $decoded['message']['content'][0]['type']);
+                \PHPUnit\Framework\Assert::assertSame('image', $decoded['message']['content'][1]['type']);
+
+                return ['text' => 'I see a cat', 'usage' => ['input_tokens' => 10, 'output_tokens' => 5]];
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $input = AgentInput::text("What's in this image?")
+            ->withImage('base64cat', 'image/jpeg');
+
+        $response = $client->invoke($input);
+
+        $this->assertSame('I see a cat', $response->text);
+    }
+
+    public function testInvokeAcceptsPlainStringWithAgentInputSignature(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('post')
+            ->willReturnCallback(function (string $url, array $headers, string $body) {
+                $decoded = json_decode($body, true);
+                // Plain string should produce a string message
+                \PHPUnit\Framework\Assert::assertSame('Hello', $decoded['message']);
+
+                return ['text' => 'Hi', 'usage' => []];
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $response = $client->invoke('Hello');
+
+        $this->assertSame('Hi', $response->text);
+    }
+
+    public function testInvokeWithTextOnlyAgentInputSendsString(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('post')
+            ->willReturnCallback(function (string $url, array $headers, string $body) {
+                $decoded = json_decode($body, true);
+                // AgentInput::text() without content blocks should serialize as plain string
+                \PHPUnit\Framework\Assert::assertSame('Simple text', $decoded['message']);
+
+                return ['text' => 'OK', 'usage' => []];
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $input = AgentInput::text('Simple text');
+        $response = $client->invoke($input);
+
+        $this->assertSame('OK', $response->text);
+    }
+
     public function testConstructorThrowsWhenNoTransportCanBeDetected(): void
     {
         require_once __DIR__ . '/../Support/StrandsFunctionOverrides.php';
@@ -629,5 +744,134 @@ class StrandsClientTest extends TestCase
         } finally {
             unset($GLOBALS['__strands_class_exists_overrides']);
         }
+    }
+
+    public function testDetectTransportErrorMessageContainsAllParts(): void
+    {
+        require_once __DIR__ . '/../Support/StrandsFunctionOverrides.php';
+
+        $GLOBALS['__strands_class_exists_overrides'][\Symfony\Component\HttpClient\HttpClient::class] = false;
+
+        try {
+            new StrandsClient(config: new StrandsConfig(endpoint: 'http://localhost:8081'));
+            $this->fail('Expected StrandsException');
+        } catch (StrandsException $e) {
+            $this->assertStringContainsString('No HTTP transport available', $e->getMessage());
+            $this->assertStringContainsString('symfony/http-client', $e->getMessage());
+            $this->assertStringContainsString('invoke + streaming support', $e->getMessage());
+            $this->assertStringContainsString('PsrHttpTransport', $e->getMessage());
+        } finally {
+            unset($GLOBALS['__strands_class_exists_overrides']);
+        }
+    }
+
+    public function testMiddlewareAfterResponseExceptionLogsContext(): void
+    {
+        $fixture = $this->loadFixture('invoke-analyst-response.json');
+        $transport = $this->createMockTransport($fixture);
+
+        $mw = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
+            public function beforeRequest(string $url, array $headers, string $body): array
+            {
+                return ['headers' => $headers, 'body' => $body];
+            }
+
+            public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
+            {
+                throw new \RuntimeException('Middleware boom');
+            }
+        };
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->atLeastOnce())
+            ->method('warning')
+            ->with(
+                'Middleware afterResponse threw an exception',
+                $this->callback(function (array $context) use ($mw): bool {
+                    return isset($context['middleware'])
+                        && isset($context['error'])
+                        && $context['middleware'] === $mw::class
+                        && $context['error'] === 'Middleware boom';
+                }),
+            );
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+            logger: $logger,
+            middleware: [$mw],
+        );
+
+        // Should NOT throw — middleware exceptions are caught and logged
+        $client->invoke(message: 'Test');
+    }
+
+    public function testStreamStripsTrailingSlashFromEndpoint(): void
+    {
+        $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())
+            ->method('stream')
+            ->with('http://localhost:8081/stream', $this->anything(), $this->anything(), $this->anything(), $this->anything(), $this->anything())
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
+                $onChunk($sseData);
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081/'),
+            transport: $transport,
+        );
+
+        $client->stream(message: 'Test', onEvent: function () {
+        });
+    }
+
+    public function testInvokeRejectsEmptyString(): void
+    {
+        $transport = $this->createMockTransport([]);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Message cannot be empty');
+
+        $client->invoke(message: '');
+    }
+
+    public function testStreamRejectsEmptyString(): void
+    {
+        $transport = $this->createMockTransport([]);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Message cannot be empty');
+
+        $client->stream(message: '', onEvent: function () {
+        });
+    }
+
+    public function testInvokeAcceptsInterruptResponseWithEmptyText(): void
+    {
+        $fixture = $this->loadFixture('invoke-analyst-response.json');
+        $transport = $this->createMockTransport($fixture);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        // interruptResponse has empty text but content blocks — should not throw
+        $input = \StrandsPhpClient\Context\AgentInput::interruptResponse('int-123', 'Approved');
+        $response = $client->invoke(message: $input);
+
+        $this->assertNotEmpty($response->text);
     }
 }

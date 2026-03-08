@@ -61,6 +61,7 @@ This runs:
 - **PHPMD** -Mess detector (design, codesize, unusedcode)
 - **Cyclomatic complexity** -Max 20 per method
 - **Coverage** -Minimum 80% line coverage (when run with `--coverage-min=80`)
+- **Infection** -Mutation testing with minimum 90% MSI
 
 ### 4. Submit a PR
 

@@ -45,9 +45,18 @@ class StreamParser
             );
         }
 
-        // Normalise line endings: the SSE spec uses LF, but some proxies/servers
-        // may emit CRLF or bare CR. We normalise everything to LF before parsing.
-        $this->buffer = str_replace(["\r\n", "\r"], "\n", $this->buffer . $chunk);
+        // Normalise line endings on the new chunk only. The existing buffer is
+        // already normalised from a previous feed() call, so re-processing it
+        // would be O(buffer_size) wasted work on every chunk.
+        // Edge case: a \r\n may be split across chunks (buffer ends with \r,
+        // chunk starts with \n). We handle this by pulling the trailing \r
+        // from the buffer into the chunk before normalisation.
+        $prefix = '';
+        if ($this->buffer !== '' && $this->buffer[-1] === "\r") {
+            $this->buffer = substr($this->buffer, 0, -1);
+            $prefix = "\r";
+        }
+        $this->buffer .= str_replace(["\r\n", "\r"], "\n", $prefix . $chunk);
 
         $events = [];
 
@@ -109,18 +118,16 @@ class StreamParser
             return null;
         }
 
-        // Use tryFrom() to silently skip unknown event types (e.g. new types
-        // added server-side that this client version doesn't recognise yet).
-        // StreamEvent::fromArray() would throw on unknown types.
-        $rawType = $decoded['type'];
-        $type = StreamEventType::tryFrom(is_string($rawType) ? $rawType : '');
-        if ($type === null) {
+        // tryFromArray() returns null for unknown types rather than throwing,
+        // ensuring forward compatibility with new server-side event types.
+        /** @var array<string, mixed> $decoded */
+        $event = StreamEvent::tryFromArray($decoded);
+        if ($event === null) {
             $this->skippedEvents++;
 
             return null;
         }
 
-        /** @var array<string, mixed> $decoded */
-        return StreamEvent::fromArray($decoded);
+        return $event;
     }
 }

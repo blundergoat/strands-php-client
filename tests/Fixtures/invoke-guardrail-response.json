@@ -1,0 +1,23 @@
+{
+    "text": "I'm sorry, I can't help with that request.",
+    "agent": "safe-agent",
+    "session_id": "sess-guard-001",
+    "usage": {
+        "input_tokens": 30,
+        "output_tokens": 15
+    },
+    "tools_used": [],
+    "stop_reason": "guardrail_intervened",
+    "guardrail_trace": {
+        "action": "INTERVENED",
+        "assessments": [
+            {
+                "type": "content_filter",
+                "policy": "harmful_content",
+                "confidence": "HIGH",
+                "action": "BLOCKED"
+            }
+        ],
+        "model_output": "The original unsafe response text"
+    }
+}

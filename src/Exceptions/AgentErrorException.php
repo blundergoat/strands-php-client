@@ -6,6 +6,10 @@ namespace StrandsPhpClient\Exceptions;
 
 /**
  * Exception thrown when the Strands agent returns an HTTP error response (400+).
+ *
+ * The $statusCode and $errorCode properties enable programmatic handling
+ * (e.g. "if errorCode is 'rate_limit', back off"). The $responseBody
+ * preserves the full decoded JSON for debugging.
  */
 class AgentErrorException extends StrandsException
 {
@@ -38,11 +42,19 @@ class AgentErrorException extends StrandsException
         /** @var array<string, mixed> $errorData */
         $errorData = is_array($decoded) ? $decoded : [];
         $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
-        $errorMessage = is_string($detail) ? $detail : (json_encode($detail) ?: 'Unknown agent error');
+        if (is_string($detail)) {
+            $detailText = $detail;
+        } else {
+            $detailText = json_encode($detail) ?: 'Unknown agent error';
+        }
+        $errorMessage = sprintf('Agent returned HTTP %d: %s', $statusCode, $detailText);
+
+        $rawCode = $errorData['code'] ?? $errorData['error_code'] ?? null;
 
         return new self(
             message: $errorMessage,
             statusCode: $statusCode,
+            errorCode: is_string($rawCode) ? $rawCode : null,
             responseBody: $errorData !== [] ? $errorData : null,
         );
     }

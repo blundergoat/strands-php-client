@@ -6,9 +6,13 @@ This guide walks through real-world usage patterns for the Strands PHP Client, b
 
 - [Architecture Overview](#architecture-overview)
 - [Basic Invoke](#basic-invoke)
+- [Rich Input (AgentInput)](#rich-input-agentinput)
 - [Streaming with SSE](#streaming-with-sse)
 - [Custom Endpoints](#custom-endpoints)
 - [Stream Cancellation](#stream-cancellation)
+- [Interrupt Handling](#interrupt-handling)
+- [Guardrail Traces](#guardrail-traces)
+- [Response Metadata](#response-metadata)
 - [Error Handling](#error-handling)
 - [Session Management](#session-management)
 - [Context Builder](#context-builder)
@@ -71,10 +75,46 @@ echo $response->sessionId;               // Session ID for follow-ups
 echo $response->hasObjective ? 'yes' : 'no'; // Whether a secret objective was active
 echo $response->usage->inputTokens;      // Tokens consumed
 echo $response->usage->outputTokens;     // Tokens generated
+echo $response->usage->totalTokens();    // Total tokens (input + output)
 print_r($response->toolsUsed);           // Tools the agent called
+print_r($response->metadata);           // Unrecognised response fields (forward-compat)
 ```
 
 `invoke()` blocks until the agent finishes its entire reasoning loop (including any tool calls) and returns the final response.
+
+## Rich Input (AgentInput)
+
+For multi-modal input - images, documents, S3 locations - use `AgentInput` instead of a plain string. It serializes to the content block format the Strands API expects.
+
+```php
+use StrandsPhpClient\Context\AgentInput;
+
+// Text with an image
+$input = AgentInput::text("What's in this image?")
+    ->withImage(base64_encode(file_get_contents('photo.png')), 'image/png');
+
+$response = $client->invoke(message: $input);
+
+// Text with a PDF document
+$input = AgentInput::text('Summarise this report')
+    ->withDocument(base64_encode(file_get_contents('report.pdf')), 'pdf', 'Q4 Report');
+
+// Document from S3 (no base64 needed)
+$input = AgentInput::text('Summarise this report')
+    ->withDocumentFromS3('s3://my-bucket/report.pdf', 'pdf', 'Q4 Report');
+
+// Video from S3
+$input = AgentInput::text('Describe what happens in this video')
+    ->withVideoFromS3('s3://my-bucket/demo.mp4', 'mp4');
+
+// Structured output prompt
+$input = AgentInput::text('List the key findings')
+    ->withStructuredOutputPrompt('Return a JSON array of strings');
+```
+
+When no content blocks are attached, `AgentInput::text('hello')` serializes as the plain string `"hello"` - fully backward compatible with agents that expect a simple message.
+
+For the full API reference and wire format details, see [rich-input.md](rich-input.md).
 
 ## Streaming with SSE
 
@@ -94,18 +134,22 @@ $result = $client->stream(
             StreamEventType::Thinking   => print("[Thinking...]"),
             StreamEventType::Complete   => print("\n[Done]"),
             StreamEventType::Error      => print("Error: {$event->errorMessage}"),
+            default                     => null, // Forward-compatible: ignore unknown event types
         };
     },
     sessionId: 'session-001',
 );
 
 // StreamResult has the accumulated data from the entire stream
-echo $result->text;                   // Full text assembled from all Text events
-echo $result->sessionId;              // Session ID from the Complete event
-echo $result->usage->inputTokens;     // Token usage
+echo $result->text;                          // Full text assembled from all Text events
+echo $result->sessionId;                     // Session ID from the Complete event
+echo $result->usage->inputTokens;            // Token usage
 echo $result->usage->outputTokens;
-echo $result->textEvents;             // Number of Text events received
-echo $result->totalEvents;            // Total events (text + tools + complete)
+echo $result->usage->totalTokens();          // Total tokens (input + output)
+echo $result->textEvents;                    // Number of Text events received
+echo $result->totalEvents;                   // Total events (text + tools + complete)
+echo $result->timeToFirstTextTokenMs;        // Client-measured TTFT in milliseconds
+echo $result->isInterrupted() ? 'yes' : 'no'; // Whether the agent was interrupted
 ```
 
 **Event types:**
@@ -116,11 +160,16 @@ echo $result->totalEvents;            // Total events (text + tools + complete)
 | `ToolUse` | Agent is calling a tool | `$event->toolName`, `$event->toolInput` |
 | `ToolResult` | Tool returned a result | `$event->toolName`, `$event->toolResult` |
 | `Thinking` | Agent is reasoning | `$event->text` |
+| `Citation` | Source citation data | `$event->citation` |
+| `ReasoningSignature` | Reasoning verification signature | `$event->reasoningSignature` |
+| `ReasoningRedacted` | Redacted reasoning block | *(informational)* |
 | `Complete` | Stream finished | `$event->fullText`, `$event->sessionId`, `$event->usage` |
 | `Error` | Error occurred | `$event->errorCode`, `$event->errorMessage` |
 
 `Complete` and `Error` are terminal events. If the stream ends without one, the client throws `StreamInterruptedException`.
 When present, `has_objective` is exposed as `$event->hasObjective`.
+
+> **Tip:** Use `default => null` in your `match` expression to gracefully ignore event types added in future versions. The `StreamParser` already skips truly unknown events at the parse level, but new `StreamEventType` enum cases (like `Citation`) will be delivered to your callback.
 
 > **Note:** Streaming requires `symfony/http-client` via `SymfonyHttpTransport`. PSR-18 clients only support `invoke()`.
 
@@ -221,6 +270,155 @@ $client->streamSse('/long-analysis', $payload, function (array $event): bool {
 ### Backward compatibility
 
 Returning `void` (i.e., no explicit return) from the callback continues the stream as before. Only an explicit `return false` triggers cancellation. Existing callbacks don't need changes.
+
+## Interrupt Handling
+
+When an agent's tool requires user approval before proceeding (human-in-the-loop), it returns an **interrupt**. The response contains the tool name, its proposed input, and an ID for resuming the conversation.
+
+```mermaid
+sequenceDiagram
+    participant App as PHP App
+    participant Client as StrandsClient
+    participant Agent as Python Agent
+
+    App->>Client: invoke("Transfer $10k to account X")
+    Client->>Agent: POST /invoke
+    Agent-->>Client: Response with interrupts[]
+    Client-->>App: AgentResponse (isInterrupted = true)
+
+    Note over App: Show approval UI to user
+
+    App->>Client: invoke(AgentInput::interruptResponse(...))
+    Client->>Agent: POST /invoke (interrupt response)
+    Agent-->>Client: Normal response (transfer complete)
+    Client-->>App: AgentResponse (text = "Transfer completed")
+```
+
+### Detecting interrupts (invoke)
+
+```php
+$response = $client->invoke(
+    message: 'Transfer $10,000 to account ACCT-789',
+    sessionId: 'session-001',
+);
+
+if ($response->isInterrupted()) {
+    foreach ($response->interrupts as $interrupt) {
+        echo "Tool: {$interrupt->toolName}\n";       // e.g. "bank_transfer"
+        echo "Reason: {$interrupt->reason}\n";        // e.g. "Amount exceeds $1,000 limit"
+        print_r($interrupt->toolInput);               // ['amount' => 10000, 'account' => 'ACCT-789']
+        echo "Interrupt ID: {$interrupt->interruptId}\n";
+    }
+}
+```
+
+### Resuming after an interrupt
+
+Use `AgentInput::interruptResponse()` to send the user's decision back to the agent:
+
+```php
+use StrandsPhpClient\Context\AgentInput;
+
+// User approved the action
+$input = AgentInput::interruptResponse(
+    interruptId: $interrupt->interruptId,
+    response: ['approved' => true],
+);
+
+$response = $client->invoke(
+    message: $input,
+    sessionId: 'session-001', // Same session to continue the conversation
+);
+
+echo $response->text; // "Transfer of $10,000 to ACCT-789 completed successfully."
+```
+
+### Detecting interrupts (stream)
+
+```php
+$result = $client->stream(
+    message: 'Transfer $10,000 to account ACCT-789',
+    onEvent: function (StreamEvent $event) {
+        match ($event->type) {
+            StreamEventType::Text     => print($event->text),
+            StreamEventType::Complete => print("\n[Done]"),
+            default                   => null,
+        };
+    },
+    sessionId: 'session-001',
+);
+
+if ($result->isInterrupted()) {
+    foreach ($result->interrupts as $interrupt) {
+        // Same InterruptDetail objects as invoke()
+        echo "Needs approval: {$interrupt->toolName}\n";
+    }
+}
+```
+
+For more details and diagrams, see [interrupts-and-guardrails.md](interrupts-and-guardrails.md).
+
+## Guardrail Traces
+
+When the agent has guardrails configured (content safety filters, topic restrictions, etc.), the response may include a **guardrail trace** showing what action was taken.
+
+```php
+$response = $client->invoke(
+    message: 'How do I pick a lock?',
+    sessionId: 'session-001',
+);
+
+if ($response->guardrailTrace !== null) {
+    echo "Action: {$response->guardrailTrace->action}\n"; // 'INTERVENED' or 'NONE'
+
+    foreach ($response->guardrailTrace->assessments as $assessment) {
+        print_r($assessment); // Detailed assessment data
+    }
+
+    if ($response->guardrailTrace->modelOutput !== null) {
+        echo "Original output: {$response->guardrailTrace->modelOutput}\n";
+    }
+}
+```
+
+Guardrail traces are also available on `StreamResult`:
+
+```php
+$result = $client->stream(
+    message: 'How do I pick a lock?',
+    onEvent: function (StreamEvent $event) {
+        match ($event->type) {
+            StreamEventType::Text => print($event->text),
+            default               => null,
+        };
+    },
+);
+
+if ($result->guardrailTrace !== null) {
+    echo "Guardrail action: {$result->guardrailTrace->action}\n";
+}
+```
+
+For more details and diagrams, see [interrupts-and-guardrails.md](interrupts-and-guardrails.md).
+
+## Response Metadata
+
+`AgentResponse` captures any unrecognised top-level fields from the API response into a `metadata` array. This provides forward compatibility - if the server adds new fields, they are preserved without requiring a PHP client update.
+
+```php
+$response = $client->invoke(message: 'Hello');
+
+// Known fields are typed properties
+echo $response->text;
+echo $response->agent;
+echo $response->sessionId;
+
+// Unknown fields land in metadata
+print_r($response->metadata);
+// e.g. ['model_id' => 'claude-sonnet-4-20250514', 'region' => 'us-east-1']
+```
+
+The following fields are **not** included in `metadata` (they have dedicated properties): `text`, `agent`, `session_id`, `usage`, `tools_used`, `has_objective`, `stop_reason`, `structured_output`, `interrupts`, `guardrail_trace`, `trace`, `message`.
 
 ## Error Handling
 
