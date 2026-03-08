@@ -229,8 +229,10 @@ class AgentInputTest extends TestCase
         $payload = $input->toPayloadValue();
 
         $this->assertIsArray($payload);
-        // docx uses application/docx (generic fallback)
-        $this->assertSame('application/docx', $payload['content'][1]['source']['media_type']);
+        $this->assertSame(
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            $payload['content'][1]['source']['media_type'],
+        );
     }
 
     public function testMultipleContentBlocks(): void
@@ -263,6 +265,144 @@ class AgentInputTest extends TestCase
         $this->assertSame('interrupt_response', $payload['content'][0]['type']);
         $this->assertSame('int-abc-123', $payload['content'][0]['interrupt_id']);
         $this->assertSame('Approved', $payload['content'][0]['response']);
+    }
+
+    public function testWithDocumentJsonFormat(): void
+    {
+        $input = AgentInput::text('Parse')
+            ->withDocument('data', 'json', 'schema.json');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('application/json', $payload['content'][1]['source']['media_type']);
+    }
+
+    public function testWithDocumentYamlFormat(): void
+    {
+        $input = AgentInput::text('Parse')
+            ->withDocument('data', 'yaml', 'config.yaml');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('application/yaml', $payload['content'][1]['source']['media_type']);
+    }
+
+    public function testWithDocumentYmlFormat(): void
+    {
+        $input = AgentInput::text('Parse')
+            ->withDocument('data', 'yml', 'config.yml');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('application/yaml', $payload['content'][1]['source']['media_type']);
+    }
+
+    public function testWithDocumentXlsxFormat(): void
+    {
+        $input = AgentInput::text('Analyse')
+            ->withDocument('data', 'xlsx', 'data.xlsx');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame(
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            $payload['content'][1]['source']['media_type'],
+        );
+    }
+
+    public function testWithDocumentXlsFormat(): void
+    {
+        $input = AgentInput::text('Analyse')
+            ->withDocument('data', 'xls', 'data.xls');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('application/vnd.ms-excel', $payload['content'][1]['source']['media_type']);
+    }
+
+    public function testWithDocumentPptxFormat(): void
+    {
+        $input = AgentInput::text('Summarise')
+            ->withDocument('data', 'pptx', 'deck.pptx');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame(
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            $payload['content'][1]['source']['media_type'],
+        );
+    }
+
+    public function testWithDocumentPptFormat(): void
+    {
+        $input = AgentInput::text('Summarise')
+            ->withDocument('data', 'ppt', 'deck.ppt');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('application/vnd.ms-powerpoint', $payload['content'][1]['source']['media_type']);
+    }
+
+    public function testWithDocumentDocFormat(): void
+    {
+        $input = AgentInput::text('Read')
+            ->withDocument('data', 'doc', 'letter.doc');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('application/msword', $payload['content'][1]['source']['media_type']);
+    }
+
+    public function testWithDocumentRtfFormat(): void
+    {
+        $input = AgentInput::text('Read')
+            ->withDocument('data', 'rtf', 'notes.rtf');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('application/rtf', $payload['content'][1]['source']['media_type']);
+    }
+
+    public function testWithDocumentMdFormat(): void
+    {
+        $input = AgentInput::text('Read')
+            ->withDocument('data', 'md', 'readme.md');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('text/markdown', $payload['content'][1]['source']['media_type']);
+    }
+
+    public function testWithDocumentXmlFormat(): void
+    {
+        $input = AgentInput::text('Parse')
+            ->withDocument('data', 'xml', 'config.xml');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('application/xml', $payload['content'][1]['source']['media_type']);
+    }
+
+    public function testUnknownFormatFallsBackToApplicationPrefix(): void
+    {
+        $input = AgentInput::text('Process')
+            ->withDocument('data', 'parquet', 'data.parquet');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('application/parquet', $payload['content'][1]['source']['media_type']);
     }
 
     public function testStructuredOutputPromptOnlyMakesArray(): void

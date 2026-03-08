@@ -63,9 +63,10 @@ class Configuration implements ConfigurationInterface
     /**
      * Define the auth configuration node.
      *
-     * Supports two drivers:
-     *   'null'    → NullAuth (no authentication)
-     *   'api_key' → ApiKeyAuth (sends API key in an HTTP header)
+     * Supports three drivers:
+     *   'null'    - NullAuth (no authentication, default)
+     *   'api_key' - ApiKeyAuth (sends API key in an HTTP header)
+     *   'sigv4'   - SigV4Auth (AWS Signature V4 for IAM-protected endpoints)
      */
     private function authNode(): ArrayNodeDefinition
     {

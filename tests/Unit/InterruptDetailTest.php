@@ -104,4 +104,26 @@ class InterruptDetailTest extends TestCase
         $this->assertSame('tu-001', $payload['content'][0]['interrupt_id']);
         $this->assertSame(['action' => 'allow'], $payload['content'][0]['response']);
     }
+
+    public function testToResumeInputThrowsWhenNoIdentifier(): void
+    {
+        $detail = new InterruptDetail(
+            toolName: 'deploy',
+        );
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('neither interruptId nor toolUseId');
+
+        $detail->toResumeInput('Approved');
+    }
+
+    public function testFromArrayWithNeitherIdProducesDetail(): void
+    {
+        // fromArray() itself should not throw - only toResumeInput() should
+        $detail = InterruptDetail::fromArray(['tool_name' => 'deploy']);
+
+        $this->assertSame('deploy', $detail->toolName);
+        $this->assertNull($detail->interruptId);
+        $this->assertNull($detail->toolUseId);
+    }
 }

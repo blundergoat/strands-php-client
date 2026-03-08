@@ -947,6 +947,79 @@ class SigV4AuthTest extends TestCase
         );
     }
 
+    public function testSignatureWithSessionTokenMatchesManualComputation(): void
+    {
+        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api', 'MY_SESSION_TOKEN');
+        $body = '{}';
+        $url = 'https://api.example.com/invoke';
+
+        $result = $auth->authenticate(
+            ['Content-Type' => 'application/json'],
+            'POST',
+            $url,
+            $body,
+        );
+
+        $amzDate = $result['X-Amz-Date'];
+        $dateStamp = substr($amzDate, 0, 8);
+        $payloadHash = hash('sha256', $body);
+
+        // Session token must appear in canonical headers and signed headers
+        $canonicalHeaders = "content-type:application/json\n"
+            . "host:api.example.com\n"
+            . "x-amz-content-sha256:{$payloadHash}\n"
+            . "x-amz-date:{$amzDate}\n"
+            . "x-amz-security-token:MY_SESSION_TOKEN\n";
+
+        $signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date;x-amz-security-token';
+
+        $canonicalRequest = implode("\n", [
+            'POST',
+            '/invoke',
+            '',
+            $canonicalHeaders,
+            $signedHeaders,
+            $payloadHash,
+        ]);
+
+        $credentialScope = "{$dateStamp}/us-east-1/execute-api/aws4_request";
+
+        $stringToSign = implode("\n", [
+            'AWS4-HMAC-SHA256',
+            $amzDate,
+            $credentialScope,
+            hash('sha256', $canonicalRequest),
+        ]);
+
+        $kDate = hash_hmac('sha256', $dateStamp, 'AWS4' . 'SECRET', true);
+        $kRegion = hash_hmac('sha256', 'us-east-1', $kDate, true);
+        $kService = hash_hmac('sha256', 'execute-api', $kRegion, true);
+        $signingKey = hash_hmac('sha256', 'aws4_request', $kService, true);
+
+        $expectedSignature = hash_hmac('sha256', $stringToSign, $signingKey);
+
+        $this->assertSame($expectedSignature, $this->extractSignature($result['Authorization']));
+        $this->assertSame('MY_SESSION_TOKEN', $result['X-Amz-Security-Token']);
+        $this->assertStringContainsString('x-amz-security-token', $result['Authorization']);
+    }
+
+    public function testPreEncodedPercentInPathNotDoubleEncoded(): void
+    {
+        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+
+        // %20 is already encoded — rawurldecode then rawurlencode should preserve it
+        $result = $auth->authenticate([], 'POST', 'https://api.example.com/foo%20bar/invoke', '{}');
+        $this->assertArrayHasKey('Authorization', $result);
+
+        // A space and %20 should produce the same signature
+        $resultSpace = $auth->authenticate([], 'POST', 'https://api.example.com/foo bar/invoke', '{}');
+        $this->assertSame(
+            $this->extractSignature($result['Authorization']),
+            $this->extractSignature($resultSpace['Authorization']),
+            'Pre-encoded %20 and space must produce same canonical path',
+        );
+    }
+
     private function extractSignature(string $authHeader): string
     {
         preg_match('/Signature=([a-f0-9]+)$/', $authHeader, $matches);

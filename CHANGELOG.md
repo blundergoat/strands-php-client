@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AgentResponse::$metadata` — new `array` property (default `[]`) capturing unrecognised top-level response fields. Future server-side additions (e.g. `trace_id`, `model_id`) are now preserved instead of silently dropped.
 - `StreamResult::$timeToFirstTextTokenMs` — client-side measurement of how long until the first `Text` event arrives, in milliseconds. `null` when no text events were received (e.g. tool-only responses). Distinct from the server-provided `Usage::$timeToFirstByteMs`.
 - Interrupt awareness — `InterruptDetail` value object (`toolName`, `toolInput`, `toolUseId`, `interruptId`, `reason`). `AgentResponse::$interrupts` and `StreamResult::$interrupts` (both `list<InterruptDetail>`, default `[]`). `AgentResponse::isInterrupted()` and `StreamResult::isInterrupted()` convenience methods.
-- `InterruptDetail::toResumeInput(mixed $response): AgentInput` — convenience method to build an `AgentInput` for resuming after an interrupt. Uses `interruptId`, falls back to `toolUseId`.
+- `InterruptDetail::toResumeInput(mixed $response): AgentInput` — convenience method to build an `AgentInput` for resuming after an interrupt. Uses `interruptId`, falls back to `toolUseId`. Throws `LogicException` when neither identifier is available, preventing confusing server errors from empty identifiers.
 - `AgentInput::interruptResponse(string $interruptId, mixed $response): self` — static factory for creating interrupt response inputs.
 - Guardrail trace — `GuardrailTrace` value object (`action`, `assessments`, `modelOutput`). `AgentResponse::$guardrailTrace` and `StreamResult::$guardrailTrace` (nullable, default `null`). Parsed from `guardrail_trace` (top-level) or `trace.guardrail` (nested) in responses and Complete stream events.
 - Citation content block extraction — `AgentResponse::$citations` extracted from `citationsContent`/`citation` blocks in `message.content[]` (default `[]`). `StreamResult::$citations` accumulated from Citation stream events during streaming.
@@ -25,7 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Empty message validation — `invoke()` and `stream()` reject empty strings with a clear `InvalidArgumentException`. `AgentInput` with content blocks (e.g. interrupt responses) is allowed even when text is empty.
 - New test fixtures: `invoke-interrupt-response.json`, `invoke-guardrail-response.json`, `invoke-response-with-citations.json`, `invoke-response-with-metadata.json`, `sse-interrupt-complete.txt`, `sse-guardrail-complete.txt`, `sse-with-unknown-event.txt`.
 - `setup-initial.sh` script for one-command dev environment setup (detects OS, installs pcov for coverage).
-- 453 tests, 1327 assertions.
+- Branch alias staleness check in `scripts/preflight-checks.sh` — detects when `composer.json` branch alias doesn't match the latest CHANGELOG version.
+- 477 tests, 1377 assertions.
 
 ### Changed
 
@@ -35,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StrandsClient::streamSse()` receives the same CRLF normalization optimization.
 - Error messages improved — `AgentErrorException` now formats as `"Agent returned HTTP {code}: {detail}"`. Transport errors include the URL: `"Expected JSON object from {url}, got {type}"`. Stream interruptions include the URL.
 - `StrandsClientFactory::createSigV4Auth()` rejects partial credentials — providing only one of `access_key_id`/`secret_access_key` throws `InvalidArgumentException` instead of silently falling through to environment variables.
-- `AgentInput::formatToMimeType()` handles common document formats: `txt`→`text/plain`, `csv`→`text/csv`, `html`→`text/html`, `md`→`text/markdown`, `xml`→`application/xml`.
+- `AgentInput::formatToMimeType()` handles common text, office, and document formats: `txt`, `csv`, `html`, `md`, `xml`, `json`, `yaml`/`yml`, `rtf`, `doc`, `docx`, `xls`, `xlsx`, `ppt`, `pptx`. Uses correct registered MIME types (e.g. OOXML types for `docx`/`xlsx`/`pptx`, `application/msword` for `doc`).
 - Minimum mutation testing MSI raised from 80% to 90%.
 - PHPMD `ExcessiveParameterList` threshold raised from 16 to 18 to accommodate `StreamEvent` DTO constructor with interrupt and guardrail fields.
 - `StreamEvent::fromArray()` refactored — internal logic extracted to `buildFromArray()` shared by both `fromArray()` and `tryFromArray()`.
@@ -43,9 +44,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StrandsClientFactory::resolveAuth()` now supports `'sigv4'` driver with region, service, access_key_id, secret_access_key, and session_token options.
 - Laravel `config/strands.php` now includes SigV4 auth options.
 - Improved class-level docstrings across `StrandsClient`, `AgentResponse`, `StreamResult`, `StreamEvent`, `AgentErrorException`, `Usage`, and `StrandsClientFactory`.
+- Symfony `Configuration::authNode()` docstring updated from "two drivers" to "three drivers" to reflect SigV4 support.
+- Laravel `StrandsServiceProvider` `@var` type hint now includes SigV4 credential fields.
+- `docs/usage-guide.md` authentication section expanded with SigV4Auth examples (explicit creds, `fromEnvironment()`, STS temp creds).
 
 ### Fixed
 
+- `AgentInput::formatToMimeType('docx')` now returns `application/vnd.openxmlformats-officedocument.wordprocessingml.document` instead of the invalid `application/docx`.
 - SigV4Auth port handling — non-standard ports (e.g. 8443) are now correctly included in the canonical `Host` header as `hostname:port`. Default ports (443 for HTTPS, 80 for HTTP) are correctly omitted.
 
 ## [1.3.0] - 2026-02-21

@@ -874,4 +874,58 @@ class StrandsClientTest extends TestCase
 
         $this->assertNotEmpty($response->text);
     }
+
+    public function testMiddlewareRunsBeforeAuthSoSignatureCoversModifiedBody(): void
+    {
+        $fixture = $this->loadFixture('invoke-analyst-response.json');
+
+        // Track the body and headers that auth receives
+        $authReceivedBody = null;
+        $authReceivedHeaders = null;
+
+        $auth = $this->createMock(AuthStrategy::class);
+        $auth->method('authenticate')
+            ->willReturnCallback(function (array $headers, string $method, string $url, string $body) use (&$authReceivedBody, &$authReceivedHeaders): array {
+                $authReceivedBody = $body;
+                $authReceivedHeaders = $headers;
+                $headers['Authorization'] = 'signed';
+
+                return $headers;
+            });
+
+        // Middleware that modifies the body and adds a header
+        $mw = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
+            public function beforeRequest(string $url, array $headers, string $body): array
+            {
+                $decoded = json_decode($body, true);
+                $decoded['injected'] = true;
+                $headers['X-Custom'] = 'from-middleware';
+
+                return ['headers' => $headers, 'body' => json_encode($decoded)];
+            }
+
+            public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
+            {
+            }
+        };
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->method('post')->willReturn($fixture);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081', auth: $auth),
+            transport: $transport,
+            middleware: [$mw],
+        );
+
+        $client->invoke(message: 'Test');
+
+        // Auth must see the middleware-modified body
+        $this->assertNotNull($authReceivedBody);
+        $decoded = json_decode($authReceivedBody, true);
+        $this->assertTrue($decoded['injected'], 'Auth must receive the body after middleware modification');
+
+        // Auth must see the middleware-added header
+        $this->assertSame('from-middleware', $authReceivedHeaders['X-Custom']);
+    }
 }

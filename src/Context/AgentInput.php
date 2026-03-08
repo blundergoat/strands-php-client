@@ -229,7 +229,8 @@ class AgentInput
     /**
      * Map a document format string to its MIME type.
      *
-     * Handles common formats that don't follow the simple "application/{format}" pattern.
+     * Handles common text, office, and document formats. Unknown formats
+     * fall back to "application/{format}".
      */
     private static function formatToMimeType(string $format): string
     {
@@ -239,6 +240,15 @@ class AgentInput
             'html' => 'text/html',
             'md' => 'text/markdown',
             'xml' => 'application/xml',
+            'json' => 'application/json',
+            'yaml', 'yml' => 'application/yaml',
+            'rtf' => 'application/rtf',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls' => 'application/vnd.ms-excel',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt' => 'application/vnd.ms-powerpoint',
+            'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             default => 'application/' . $format,
         };
     }

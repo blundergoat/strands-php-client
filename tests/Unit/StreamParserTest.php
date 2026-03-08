@@ -681,4 +681,61 @@ class StreamParserTest extends TestCase
         $this->assertCount(1, $events2);
         $this->assertSame('bare', $events2[0]->text);
     }
+
+    public function testPartialEventAtEofRemainsInBuffer(): void
+    {
+        $parser = new StreamParser();
+
+        // Feed a partial event without the double-newline terminator
+        $events = $parser->feed('data: {"type": "text", "content": "partial"}');
+        $this->assertCount(0, $events, 'Partial event without \\n\\n must not emit');
+
+        // Completing the event should then emit it
+        $events2 = $parser->feed("\n\n");
+        $this->assertCount(1, $events2);
+        $this->assertSame('partial', $events2[0]->text);
+    }
+
+    public function testTrailingNewlineAfterLastEventDoesNotCreatePhantomEvent(): void
+    {
+        $parser = new StreamParser();
+
+        // Valid event followed by a single trailing \n (not enough for another event)
+        $events = $parser->feed("data: {\"type\": \"text\", \"content\": \"ok\"}\n\n\n");
+        $this->assertCount(1, $events);
+        $this->assertSame('ok', $events[0]->text);
+    }
+
+    public function testConsecutiveEmptyEventBoundariesSkipped(): void
+    {
+        $parser = new StreamParser();
+
+        // Multiple double-newlines in a row: empty data between them
+        $events = $parser->feed("\n\ndata: {\"type\": \"text\", \"content\": \"after\"}\n\n");
+
+        // The empty block produces null from parseEvent, should not appear
+        $this->assertCount(1, $events);
+        $this->assertSame('after', $events[0]->text);
+    }
+
+    public function testStreamSseEofMidEventIsDiscarded(): void
+    {
+        // Simulates an EOF mid-event in streamSse: the buffer holds an
+        // incomplete event that never gets a \n\n terminator.
+        // The extractSseData path in streamSse never sees it.
+        $parser = new StreamParser();
+
+        // Feed valid event + start of incomplete event
+        $events = $parser->feed(
+            "data: {\"type\": \"text\", \"content\": \"complete\"}\n\n"
+            . 'data: {"type": "text", "content": "incom',
+        );
+
+        // Only the complete event should be returned
+        $this->assertCount(1, $events);
+        $this->assertSame('complete', $events[0]->text);
+
+        // The parser's buffer still holds the incomplete data but no further
+        // feed() calls come, so it's effectively discarded.
+    }
 }

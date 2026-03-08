@@ -32,14 +32,24 @@ final readonly class InterruptDetail
     /**
      * Build an AgentInput that resumes the conversation after this interrupt.
      *
+     * Prefers interruptId; falls back to toolUseId. Throws if neither is set,
+     * since sending an empty identifier would produce a confusing server error.
+     *
      * @param mixed $response  The approval/denial value to send back (e.g. 'Approved', ['action' => 'allow']).
+     *
+     * @throws \LogicException If neither interruptId nor toolUseId is available.
      */
     public function toResumeInput(mixed $response): \StrandsPhpClient\Context\AgentInput
     {
-        return \StrandsPhpClient\Context\AgentInput::interruptResponse(
-            $this->interruptId ?? $this->toolUseId ?? '',
-            $response,
-        );
+        $id = $this->interruptId ?? $this->toolUseId;
+
+        if ($id === null) {
+            throw new \LogicException(
+                'Cannot resume: InterruptDetail has neither interruptId nor toolUseId.',
+            );
+        }
+
+        return \StrandsPhpClient\Context\AgentInput::interruptResponse($id, $response);
     }
 
     /**

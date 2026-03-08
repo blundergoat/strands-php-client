@@ -577,6 +577,41 @@ $config = new StrandsConfig(
 );
 ```
 
+**SigV4 auth (AWS API Gateway with IAM):**
+
+```php
+use StrandsPhpClient\Auth\SigV4Auth;
+
+// From environment variables (recommended for ECS/EC2/Lambda)
+$config = new StrandsConfig(
+    endpoint: 'https://abc123.execute-api.us-east-1.amazonaws.com/prod',
+    auth: SigV4Auth::fromEnvironment(region: 'us-east-1'),
+);
+
+// Explicit credentials
+$config = new StrandsConfig(
+    endpoint: 'https://abc123.execute-api.us-east-1.amazonaws.com/prod',
+    auth: new SigV4Auth(
+        accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+        secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        region: 'us-east-1',
+    ),
+);
+
+// Temporary credentials (STS assumed role)
+$config = new StrandsConfig(
+    endpoint: 'https://abc123.execute-api.us-east-1.amazonaws.com/prod',
+    auth: new SigV4Auth(
+        accessKeyId: 'ASIA...',
+        secretAccessKey: 'wJalr...',
+        region: 'us-east-1',
+        sessionToken: 'FwoGZXIvY...',
+    ),
+);
+```
+
+`SigV4Auth` is a standalone implementation (~260 lines) that does not require `aws/aws-sdk-php`. Use `fromEnvironment()` for production deployments where credentials are provided by the runtime (EC2 instance profiles, ECS task roles, Lambda execution roles).
+
 ## Retries and Timeouts
 
 For production reliability, configure retries with exponential backoff:

@@ -1121,4 +1121,66 @@ class StrandsClientStreamTest extends TestCase
             $this->assertSame(3, $callCount);
         }
     }
+
+    public function testStreamEmptyStreamThrowsInterrupted(): void
+    {
+        // Transport streams nothing — no events at all
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->method('stream')
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                // Stream ends immediately without sending any chunks
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(StreamInterruptedException::class);
+        $this->expectExceptionMessage('terminal event');
+
+        $client->stream(message: 'Test', onEvent: function () {
+        });
+    }
+
+    public function testStreamOnlyHeartbeatsThrowsInterrupted(): void
+    {
+        // Stream contains only SSE comments (heartbeats) — no real events
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->method('stream')
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                $onChunk(": heartbeat\n\n: keepalive\n\n");
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(StreamInterruptedException::class);
+
+        $client->stream(message: 'Test', onEvent: function () {
+        });
+    }
+
+    public function testStreamPartialEventAtEofThrowsInterrupted(): void
+    {
+        // Stream ends with an incomplete event (no \n\n terminator)
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->method('stream')
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                $onChunk('data: {"type": "text", "content": "partial"}');
+                // No \n\n so event never completes
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(StreamInterruptedException::class);
+
+        $client->stream(message: 'Test', onEvent: function () {
+        });
+    }
 }
