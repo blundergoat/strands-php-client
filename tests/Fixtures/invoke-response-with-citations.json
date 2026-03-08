@@ -1,0 +1,30 @@
+{
+    "text": "According to the documentation, the answer is 42.",
+    "agent": "research-agent",
+    "session_id": "sess-cite-001",
+    "usage": {
+        "input_tokens": 80,
+        "output_tokens": 40
+    },
+    "tools_used": [
+        {"name": "web_search", "duration_ms": 500}
+    ],
+    "message": {
+        "content": [
+            {
+                "type": "text",
+                "text": "According to the documentation, "
+            },
+            {
+                "type": "citationsContent",
+                "source": "https://example.com/docs",
+                "title": "Official Documentation",
+                "text": "the answer is 42"
+            },
+            {
+                "type": "text",
+                "text": "."
+            }
+        ]
+    }
+}

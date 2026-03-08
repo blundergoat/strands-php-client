@@ -1,0 +1,4 @@
+data: {"type": "text", "content": "I need approval."}
+
+data: {"type": "complete", "text": "I need approval.", "session_id": "sess-int-002", "usage": {"input_tokens": 40, "output_tokens": 20}, "tools_used": [{"name": "deploy"}], "stop_reason": "interrupt", "interrupts": [{"tool_name": "deploy", "tool_input": {"env": "prod"}, "tool_use_id": "tu-002", "interrupt_id": "int-def-456", "reason": "Needs approval"}]}
+

@@ -190,10 +190,14 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $this->expectException(StrandsException::class);
-        $this->expectExceptionMessage('Failed to encode request payload');
-
-        $client->postJson('/file-summarise', ['bad_value' => NAN]);
+        try {
+            $client->postJson('/file-summarise', ['bad_value' => NAN]);
+            $this->fail('Expected StrandsException');
+        } catch (StrandsException $e) {
+            // Verify the message contains BOTH the prefix AND the original exception message
+            $this->assertStringContainsString('Failed to encode request payload', $e->getMessage());
+            $this->assertStringContainsString('Inf and NaN', $e->getMessage());
+        }
     }
 
     public function testPostJsonLogsDebug(): void
@@ -201,8 +205,12 @@ class StrandsClientPostJsonTest extends TestCase
         $transport = $this->createMockTransport(['summary' => 'test']);
 
         $logger = $this->createMock(LoggerInterface::class);
+        $debugCalls = [];
         $logger->expects($this->exactly(2))
-            ->method('debug');
+            ->method('debug')
+            ->willReturnCallback(function (string $message, array $context) use (&$debugCalls): void {
+                $debugCalls[] = ['message' => $message, 'context' => $context];
+            });
 
         $client = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -211,6 +219,15 @@ class StrandsClientPostJsonTest extends TestCase
         );
 
         $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+
+        // Request log must include url and path
+        $this->assertSame('Strands postJson request', $debugCalls[0]['message']);
+        $this->assertArrayHasKey('url', $debugCalls[0]['context']);
+        $this->assertArrayHasKey('path', $debugCalls[0]['context']);
+
+        // Response log must include url
+        $this->assertSame('Strands postJson response', $debugCalls[1]['message']);
+        $this->assertArrayHasKey('url', $debugCalls[1]['context']);
     }
 
     public function testPostJsonUsesConfigTimeoutByDefault(): void

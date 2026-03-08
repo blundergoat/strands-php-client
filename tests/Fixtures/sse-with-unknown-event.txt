@@ -1,0 +1,6 @@
+data: {"type": "text", "content": "Hello"}
+
+data: {"type": "future_event", "data": "something new"}
+
+data: {"type": "complete", "text": "Hello", "session_id": "test-001", "usage": {"input_tokens": 10, "output_tokens": 5}, "tools_used": []}
+

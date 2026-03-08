@@ -162,7 +162,7 @@ class SymfonyHttpTransportTest extends TestCase
             $this->fail('Expected StrandsException was not thrown');
         } catch (StrandsException $e) {
             // Assert exact message - must NOT be double-wrapped with "HTTP request to agent failed:" prefix
-            $this->assertSame('Invalid JSON response from agent', $e->getMessage());
+            $this->assertSame('Expected JSON object from http://example.com/invoke, got null', $e->getMessage());
         }
     }
 
@@ -410,7 +410,7 @@ class SymfonyHttpTransportTest extends TestCase
             $transport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
-            $this->assertSame('Specific detail', $e->getMessage());
+            $this->assertSame('Agent returned HTTP 422: Specific detail', $e->getMessage());
             $this->assertSame(422, $e->statusCode);
         }
     }
@@ -427,7 +427,7 @@ class SymfonyHttpTransportTest extends TestCase
             $transport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
-            $this->assertSame('["Error 1","Error 2"]', $e->getMessage());
+            $this->assertSame('Agent returned HTTP 422: ["Error 1","Error 2"]', $e->getMessage());
         }
     }
 
@@ -443,7 +443,7 @@ class SymfonyHttpTransportTest extends TestCase
             $transport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
-            $this->assertSame('{"some_key":"value"}', $e->getMessage());
+            $this->assertSame('Agent returned HTTP 500: {"some_key":"value"}', $e->getMessage());
         }
     }
 
@@ -461,7 +461,7 @@ class SymfonyHttpTransportTest extends TestCase
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
             $this->assertSame(400, $e->statusCode);
-            $this->assertSame('Bad Request', $e->getMessage());
+            $this->assertSame('Agent returned HTTP 400: Bad Request', $e->getMessage());
         }
     }
 
@@ -526,5 +526,73 @@ class SymfonyHttpTransportTest extends TestCase
 
         $this->assertEquals(5, $capturedOptions['timeout']);
         $this->assertEquals(45, $capturedOptions['max_duration']);
+    }
+
+    public function testPostErrorExtractsErrorCode(): void
+    {
+        $mockResponse = new MockResponse(
+            '{"detail":"Unauthorized","code":"auth_failed"}',
+            ['http_code' => 401],
+        );
+        $client = new MockHttpClient($mockResponse);
+        $transport = new SymfonyHttpTransport($client);
+
+        try {
+            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $this->fail('Expected AgentErrorException');
+        } catch (AgentErrorException $e) {
+            $this->assertSame('auth_failed', $e->errorCode);
+        }
+    }
+
+    public function testPostErrorExtractsErrorCodeFromAlternateKey(): void
+    {
+        $mockResponse = new MockResponse(
+            '{"detail":"Rate limited","error_code":"throttled"}',
+            ['http_code' => 429],
+        );
+        $client = new MockHttpClient($mockResponse);
+        $transport = new SymfonyHttpTransport($client);
+
+        try {
+            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $this->fail('Expected AgentErrorException');
+        } catch (AgentErrorException $e) {
+            $this->assertSame('throttled', $e->errorCode);
+        }
+    }
+
+    public function testPostErrorCodeIsNullWhenAbsent(): void
+    {
+        $mockResponse = new MockResponse(
+            '{"detail":"Server error"}',
+            ['http_code' => 500],
+        );
+        $client = new MockHttpClient($mockResponse);
+        $transport = new SymfonyHttpTransport($client);
+
+        try {
+            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $this->fail('Expected AgentErrorException');
+        } catch (AgentErrorException $e) {
+            $this->assertNull($e->errorCode);
+        }
+    }
+
+    public function testPostErrorCodePrefersCodeOverErrorCode(): void
+    {
+        $mockResponse = new MockResponse(
+            '{"detail":"Error","code":"primary_code","error_code":"fallback_code"}',
+            ['http_code' => 400],
+        );
+        $client = new MockHttpClient($mockResponse);
+        $transport = new SymfonyHttpTransport($client);
+
+        try {
+            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $this->fail('Expected AgentErrorException');
+        } catch (AgentErrorException $e) {
+            $this->assertSame('primary_code', $e->errorCode);
+        }
     }
 }

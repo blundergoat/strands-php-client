@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Streaming;
 
 /**
- * A single event from an SSE stream.
+ * A single typed event from an SSE stream.
+ *
+ * Created by StreamParser (via tryFromArray) or directly via fromArray.
+ * Each property maps to a specific event type - most are null for types
+ * that don't carry that field.
  */
 class StreamEvent
 {
@@ -25,6 +29,8 @@ class StreamEvent
      * @param array<string, mixed>|null $citation    Citation content block for Citation events.
      * @param string|null      $reasoningSignature  Reasoning signature for ReasoningSignature events.
      * @param string|null      $stopReason          Why the agent stopped (in Complete events).
+     * @param list<array<string, mixed>> $interrupts  Raw interrupt data from Complete events.
+     * @param array<string, mixed>|null $guardrailTrace  Raw guardrail trace from Complete events.
      */
     public function __construct(
         public readonly StreamEventType $type,
@@ -42,6 +48,8 @@ class StreamEvent
         public readonly ?array $citation = null,
         public readonly ?string $reasoningSignature = null,
         public readonly ?string $stopReason = null,
+        public readonly array $interrupts = [],
+        public readonly ?array $guardrailTrace = null,
     ) {
     }
 
@@ -51,6 +59,8 @@ class StreamEvent
      * @param array<string, mixed> $data  The decoded JSON data from one SSE event.
      *
      * @return self  A new StreamEvent instance populated from the array data.
+     *
+     * @throws \InvalidArgumentException  If the event type is unknown or missing.
      */
     public static function fromArray(array $data): self
     {
@@ -62,6 +72,37 @@ class StreamEvent
             );
         }
 
+        return self::buildFromArray($data, $type);
+    }
+
+    /**
+     * Create a StreamEvent from a decoded JSON array, returning null for unknown types.
+     *
+     * Unlike fromArray(), this method is forward-compatible - it silently returns
+     * null when the event type is not recognised, instead of throwing.
+     *
+     * @param array<string, mixed> $data  The decoded JSON data from one SSE event.
+     *
+     * @return self|null  A new StreamEvent, or null if the type is unknown.
+     */
+    public static function tryFromArray(array $data): ?self
+    {
+        $rawType = self::string($data, 'type') ?? '';
+        $type = StreamEventType::tryFrom($rawType);
+        if ($type === null) {
+            return null;
+        }
+
+        return self::buildFromArray($data, $type);
+    }
+
+    /**
+     * Build a StreamEvent from validated data and type.
+     *
+     * @param array<string, mixed> $data
+     */
+    private static function buildFromArray(array $data, StreamEventType $type): self
+    {
         // Field mapping note: the API uses different field names per event type.
         // Text/Thinking events send tokens in 'content' → mapped to $text.
         // Complete events send the full response in 'text' → mapped to $fullText.
@@ -81,6 +122,8 @@ class StreamEvent
             citation: self::nullableArrayField($data, 'citation'),
             reasoningSignature: self::string($data, 'signature'),
             stopReason: self::string($data, 'stop_reason'),
+            interrupts: self::listOfArrays($data, 'interrupts'),
+            guardrailTrace: self::parseGuardrailTrace($data),
         );
     }
 
@@ -155,6 +198,55 @@ class StreamEvent
 
         /** @var array<string, mixed>|null */
         return is_array($value) ? $value : null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function listOfArrays(array $data, string $key): array
+    {
+        $value = $data[$key] ?? null;
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                /** @var array<string, mixed> $item */
+                $result[] = $item;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Extract guardrail trace from top-level or nested trace.guardrail.
+     *
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function parseGuardrailTrace(array $data): ?array
+    {
+        $raw = self::nullableArrayField($data, 'guardrail_trace');
+        if ($raw !== null) {
+            return $raw;
+        }
+
+        $trace = $data['trace'] ?? null;
+        if (is_array($trace)) {
+            $guardrail = $trace['guardrail'] ?? null;
+            if (is_array($guardrail)) {
+                /** @var array<string, mixed> $guardrail */
+                return $guardrail;
+            }
+        }
+
+        return null;
     }
 
     private static function encodeResult(mixed $raw): ?string

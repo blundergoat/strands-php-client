@@ -432,11 +432,14 @@ class StrandsClientStreamSseTest extends TestCase
             transport: $transport,
         );
 
-        $this->expectException(StrandsException::class);
-        $this->expectExceptionMessage('Failed to encode request payload');
-
-        $client->streamSse('/test-stream', ['bad_value' => NAN], function () {
-        });
+        try {
+            $client->streamSse('/test-stream', ['bad_value' => NAN], function () {
+            });
+            $this->fail('Expected StrandsException');
+        } catch (StrandsException $e) {
+            $this->assertStringContainsString('Failed to encode request payload', $e->getMessage());
+            $this->assertStringContainsString('Inf and NaN', $e->getMessage());
+        }
     }
 
     public function testStreamSseRejectsZeroTimeout(): void
@@ -497,5 +500,112 @@ class StrandsClientStreamSseTest extends TestCase
 
         $client->streamSse('/test-stream', ['data' => 'test'], function (): void {
         }, timeout: 1);
+    }
+
+    public function testStreamSseLogsRequestAndCompletionContext(): void
+    {
+        $sseData = "data: {\"type\": \"complete\"}\n\n";
+        $transport = $this->createStreamingTransport($sseData);
+
+        $logger = $this->createMock(\Psr\Log\LoggerInterface::class);
+        $debugCalls = [];
+        $logger->expects($this->exactly(2))
+            ->method('debug')
+            ->willReturnCallback(function (string $message, array $context) use (&$debugCalls): void {
+                $debugCalls[] = ['message' => $message, 'context' => $context];
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+            logger: $logger,
+        );
+
+        $client->streamSse('/test-stream', ['data' => 'test'], function (): void {
+        });
+
+        // Request log must include url and path
+        $this->assertSame('Strands streamSse request', $debugCalls[0]['message']);
+        $this->assertArrayHasKey('url', $debugCalls[0]['context']);
+        $this->assertArrayHasKey('path', $debugCalls[0]['context']);
+
+        // Completion log must include url
+        $this->assertSame('Strands streamSse complete', $debugCalls[1]['message']);
+        $this->assertArrayHasKey('url', $debugCalls[1]['context']);
+    }
+
+    public function testStreamSseDataWithoutSpaceParsesCorrectly(): void
+    {
+        // SSE with "data:" (no space) — should still parse correctly
+        $sseData = "data:{\"type\": \"text\", \"content\": \"hello\"}\n\n";
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $client->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
+            $events[] = $event;
+        });
+
+        $this->assertCount(1, $events);
+        $this->assertSame('hello', $events[0]['content']);
+    }
+
+    public function testStreamSseCrlfInMiddleOfEventBlock(): void
+    {
+        // CRLF line endings must be normalized to LF so "data:...\r\ndata:...\r\n\r\n"
+        // is parsed as one event (two data lines), not split into separate events.
+        // If \r\n normalization is removed, the \r\n\r\n becomes a double-newline
+        // before the second data line, incorrectly splitting it into two events.
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->method('stream')
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                // Two data lines with CRLF endings in the same event block
+                $onChunk("data: {\"type\": \"text\",\r\ndata:  \"content\": \"hello\"}\r\n\r\n");
+            });
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $client->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
+            $events[] = $event;
+        });
+
+        // With correct CRLF normalization, this produces exactly one event
+        $this->assertCount(1, $events);
+        $this->assertSame('text', $events[0]['type']);
+        $this->assertSame('hello', $events[0]['content']);
+    }
+
+    public function testStreamSseCommentLinesBetweenDataLines(): void
+    {
+        // Comments between data lines should be skipped, not break the event
+        $sseData = ": comment 1\n"
+            . "data: {\"type\": \"text\", \"content\": \"first\"}\n\n"
+            . ": comment 2\n"
+            . ": comment 3\n\n"
+            . "data: {\"type\": \"text\", \"content\": \"second\"}\n\n";
+
+        $transport = $this->createStreamingTransport($sseData);
+
+        $client = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $client->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
+            $events[] = $event;
+        });
+
+        $this->assertCount(2, $events);
+        $this->assertSame('first', $events[0]['content']);
+        $this->assertSame('second', $events[1]['content']);
     }
 }

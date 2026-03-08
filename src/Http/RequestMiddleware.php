@@ -23,8 +23,10 @@ interface RequestMiddleware
     /**
      * Called once before the operation begins. May modify headers and body.
      *
-     * When retries are configured, the modified headers and body are reused
-     * for every retry attempt within the same operation.
+     * Middleware runs before authentication so that body-modifying middleware
+     * does not invalidate auth signatures (e.g. SigV4). When retries are
+     * configured, the modified headers and body are reused for every retry
+     * attempt within the same operation.
      *
      * @param string               $url     The full request URL.
      * @param array<string, string> $headers Current request headers.
@@ -36,7 +38,7 @@ interface RequestMiddleware
 
     /**
      * Called once after the operation completes (success or failure).
-     * For observability only — exceptions thrown here are logged, not propagated.
+     * For observability only - exceptions thrown here are logged, not propagated.
      *
      * @param string          $url        The request URL.
      * @param int             $statusCode HTTP status code (200 on success, 0 if cancelled or no response received).

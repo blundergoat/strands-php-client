@@ -103,7 +103,7 @@ class PsrHttpTransportTest extends TestCase
             $transport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected StrandsException was not thrown');
         } catch (StrandsException $e) {
-            $this->assertSame('Invalid JSON response from agent', $e->getMessage());
+            $this->assertSame('Expected JSON object from http://example.com/invoke, got null', $e->getMessage());
         }
     }
 
@@ -171,11 +171,59 @@ class PsrHttpTransportTest extends TestCase
         $response = $this->createResponse(200, '{}');
         $transport = $this->createTransport($response);
 
-        $this->expectException(StrandsException::class);
-        $this->expectExceptionMessage('SSE streaming is not supported by PsrHttpTransport');
+        try {
+            $transport->stream('http://example.com/stream', [], '{}', 30, 10, function () {
+            });
+            $this->fail('Expected StrandsException');
+        } catch (StrandsException $e) {
+            $this->assertStringContainsString('SSE streaming is not supported', $e->getMessage());
+            $this->assertStringContainsString('PsrHttpTransport', $e->getMessage());
+            $this->assertStringContainsString('symfony/http-client', $e->getMessage());
+            $this->assertStringContainsString('SymfonyHttpTransport', $e->getMessage());
+        }
+    }
 
-        $transport->stream('http://example.com/stream', [], '{}', 30, 10, function () {
-        });
+    public function testTimeoutWarningLoggedOnceWithContext(): void
+    {
+        $response = $this->createResponse(200, '{"text":"ok"}');
+
+        $stream = $this->createMock(StreamInterface::class);
+        $request = $this->createMock(RequestInterface::class);
+        $request->method('withHeader')->willReturnSelf();
+        $request->method('withBody')->willReturnSelf();
+
+        $requestFactory = $this->createMock(RequestFactoryInterface::class);
+        $requestFactory->method('createRequest')->willReturn($request);
+
+        $streamFactory = $this->createMock(StreamFactoryInterface::class);
+        $streamFactory->method('createStream')->willReturn($stream);
+
+        $httpClient = $this->createMock(ClientInterface::class);
+        $httpClient->method('sendRequest')->willReturn($response);
+
+        $logger = $this->createMock(\Psr\Log\LoggerInterface::class);
+        $logger->expects($this->once())
+            ->method('notice')
+            ->with(
+                $this->callback(function (string $message): bool {
+                    return str_contains($message, 'does not support timeout')
+                        && str_contains($message, 'Configure timeout')
+                        && str_contains($message, 'PSR-18 client');
+                }),
+                $this->callback(function (array $context): bool {
+                    return isset($context['timeout'])
+                        && isset($context['connectTimeout'])
+                        && $context['timeout'] === 30
+                        && $context['connectTimeout'] === 10;
+                }),
+            );
+
+        $transport = new PsrHttpTransport($httpClient, $requestFactory, $streamFactory, $logger);
+
+        // First call should log
+        $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+        // Second call should NOT log again (once-only)
+        $transport->post('http://example.com/invoke', [], '{}', 60, 20);
     }
 
     public function testPostErrorPrefersDetailOverError(): void
@@ -187,7 +235,7 @@ class PsrHttpTransportTest extends TestCase
             $transport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
-            $this->assertSame('Specific detail', $e->getMessage());
+            $this->assertSame('Agent returned HTTP 422: Specific detail', $e->getMessage());
             $this->assertSame(422, $e->statusCode);
         }
     }
@@ -201,7 +249,7 @@ class PsrHttpTransportTest extends TestCase
             $transport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
-            $this->assertSame('["Error 1","Error 2"]', $e->getMessage());
+            $this->assertSame('Agent returned HTTP 422: ["Error 1","Error 2"]', $e->getMessage());
         }
     }
 
@@ -214,7 +262,7 @@ class PsrHttpTransportTest extends TestCase
             $transport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
-            $this->assertSame('{"some_key":"value"}', $e->getMessage());
+            $this->assertSame('Agent returned HTTP 500: {"some_key":"value"}', $e->getMessage());
         }
     }
 
@@ -266,7 +314,7 @@ class PsrHttpTransportTest extends TestCase
             $transport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected StrandsException');
         } catch (StrandsException $e) {
-            $this->assertSame('Invalid JSON response from agent', $e->getMessage());
+            $this->assertSame('Expected JSON object from http://example.com/invoke, got null', $e->getMessage());
             $this->assertStringNotContainsString('HTTP request to agent failed', $e->getMessage());
         }
     }

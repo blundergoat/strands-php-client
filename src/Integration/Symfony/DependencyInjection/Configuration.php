@@ -63,9 +63,10 @@ class Configuration implements ConfigurationInterface
     /**
      * Define the auth configuration node.
      *
-     * Supports two drivers:
-     *   'null'    → NullAuth (no authentication)
-     *   'api_key' → ApiKeyAuth (sends API key in an HTTP header)
+     * Supports three drivers:
+     *   'null'    - NullAuth (no authentication, default)
+     *   'api_key' - ApiKeyAuth (sends API key in an HTTP header)
+     *   'sigv4'   - SigV4Auth (AWS Signature V4 for IAM-protected endpoints)
      */
     private function authNode(): ArrayNodeDefinition
     {
@@ -77,7 +78,7 @@ class Configuration implements ConfigurationInterface
             ->addDefaultsIfNotSet()
             ->children()
                 ->enumNode('driver')
-                    ->values(['null', 'api_key'])
+                    ->values(['null', 'api_key', 'sigv4'])
                     ->defaultValue('null')
                 ->end()
                 ->scalarNode('api_key')
@@ -91,6 +92,26 @@ class Configuration implements ConfigurationInterface
                 ->scalarNode('value_prefix')
                     ->defaultValue('Bearer ')
                     ->info('Prefix before the API key value (e.g. "Bearer ")')
+                ->end()
+                ->scalarNode('region')
+                    ->defaultNull()
+                    ->info('AWS region (required when driver is sigv4)')
+                ->end()
+                ->scalarNode('service')
+                    ->defaultValue('execute-api')
+                    ->info('AWS service name for SigV4 signing')
+                ->end()
+                ->scalarNode('access_key_id')
+                    ->defaultNull()
+                    ->info('AWS access key ID (falls back to environment if not set)')
+                ->end()
+                ->scalarNode('secret_access_key')
+                    ->defaultNull()
+                    ->info('AWS secret access key (falls back to environment if not set)')
+                ->end()
+                ->scalarNode('session_token')
+                    ->defaultNull()
+                    ->info('AWS session token for temporary credentials')
                 ->end()
             ->end()
         ;

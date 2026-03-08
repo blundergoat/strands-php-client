@@ -103,13 +103,20 @@ strands:
 
             # Authentication settings
             auth:
-                # Which auth strategy to use: 'null' or 'api_key'
+                # Which auth strategy to use: 'null', 'api_key', or 'sigv4'
                 driver: 'null'                    # default: 'null'
 
                 # Only used when driver is 'api_key':
                 api_key: ~                        # default: null (required for api_key driver)
                 header_name: 'Authorization'      # default: 'Authorization'
                 value_prefix: 'Bearer '           # default: 'Bearer '
+
+                # Only used when driver is 'sigv4':
+                region: ~                         # default: null (required for sigv4 driver)
+                service: 'execute-api'            # default: 'execute-api'
+                access_key_id: ~                  # default: null (falls back to env)
+                secret_access_key: ~              # default: null (falls back to env)
+                session_token: ~                  # default: null
 
             # How long to wait for the agent to respond (seconds).
             # LLMs can be slow -120s is generous but safe.
@@ -127,6 +134,9 @@ strands:
             # Base delay between retries in milliseconds.
             # Uses exponential backoff: 500ms → 1000ms → 2000ms → ...
             retry_delay_ms: 500                   # default: 500
+
+            # HTTP status codes that trigger a retry.
+            retryable_status_codes: [429, 502, 503, 504]  # default
 ```
 
 ## Configuration Options
@@ -155,14 +165,14 @@ Authentication configuration. Controls how the client identifies itself to the a
 
 #### driver: null (default)
 
-No authentication -headers are sent as-is. Use for local development.
+No authentication - headers are sent as-is. Use for local development.
 
 ```yaml
 auth:
     driver: 'null'
 ```
 
-Or simply omit the `auth` section entirely -`null` is the default.
+Or simply omit the `auth` section entirely - `null` is the default.
 
 #### driver: api_key
 
@@ -186,6 +196,30 @@ auth:
     api_key: '%env(AGENT_API_KEY)%'
     header_name: 'X-API-Key'
     value_prefix: ''
+```
+
+#### driver: sigv4
+
+Signs requests with AWS Signature Version 4 for agents behind API Gateway with IAM authorization.
+
+```yaml
+auth:
+    driver: sigv4
+    region: '%env(AWS_DEFAULT_REGION)%'   # Required
+    service: 'execute-api'                # Optional (default)
+```
+
+When `access_key_id` and `secret_access_key` are omitted, the factory calls `SigV4Auth::fromEnvironment()`, which reads `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from the process environment. This is the recommended approach for ECS/EC2/Lambda deployments.
+
+To pass credentials explicitly (e.g. from Symfony secrets):
+
+```yaml
+auth:
+    driver: sigv4
+    region: '%env(AWS_DEFAULT_REGION)%'
+    access_key_id: '%env(AWS_ACCESS_KEY_ID)%'
+    secret_access_key: '%env(AWS_SECRET_ACCESS_KEY)%'
+    session_token: '%env(AWS_SESSION_TOKEN)%'   # Optional, for STS temporary credentials
 ```
 
 ### timeout
@@ -222,7 +256,7 @@ max_retries: 2     # retry twice (3 total attempts)
 max_retries: 5     # retry 5 times (for critical production workloads)
 ```
 
-Retries only apply to `invoke()` calls. Streaming requests are not retried (you'd need to restart the entire stream).
+Retries apply to `invoke()` and `postJson()` calls. Streaming requests (`stream()`, `streamSse()`) are not retried - you'd need to restart the entire stream.
 
 ### retry_delay_ms
 
@@ -411,7 +445,7 @@ When Symfony boots, the bundle processes your config through three classes:
 
 3. **`StrandsClientFactory`** -Called at runtime to create each `StrandsClient`. It:
    - Looks up the agent config by name
-   - Resolves the auth driver (`'null'` → `NullAuth`, `'api_key'` → `ApiKeyAuth`)
+   - Resolves the auth driver (`'null'` → `NullAuth`, `'api_key'` → `ApiKeyAuth`, `'sigv4'` → `SigV4Auth`)
    - Builds a `StrandsConfig` with all settings
    - Creates the `StrandsClient` with a PSR-3 logger injected
 

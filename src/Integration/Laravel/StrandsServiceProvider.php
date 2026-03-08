@@ -35,7 +35,7 @@ class StrandsServiceProvider extends ServiceProvider
             /** @var ConfigRepository $config */
             $config = $app->make('config');
 
-            /** @var array<string, array{endpoint: string, auth: array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string}, timeout: int, connect_timeout?: int, max_retries?: int, retry_delay_ms?: int}> $agents */
+            /** @var array<string, array{endpoint: string, auth: array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string, region?: string|null, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null}, timeout: int, connect_timeout?: int, max_retries?: int, retry_delay_ms?: int}> $agents */
             $agents = $config->get('strands.agents', []);
 
             /** @var LoggerInterface $logger */

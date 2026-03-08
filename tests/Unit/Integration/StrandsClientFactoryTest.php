@@ -47,13 +47,13 @@ class StrandsClientFactoryTest extends TestCase
         $factory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
-                'auth' => ['driver' => 'sigv4'],
+                'auth' => ['driver' => 'oauth2'],
                 'timeout' => 120,
             ],
         ]);
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported auth driver "sigv4"');
+        $this->expectExceptionMessage('Unsupported auth driver "oauth2"');
 
         $factory->create('test');
     }
@@ -216,11 +216,198 @@ class StrandsClientFactoryTest extends TestCase
         }
     }
 
+    public function testCreateWithSigv4Auth(): void
+    {
+        $factory = new StrandsClientFactory([
+            'test' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => [
+                    'driver' => 'sigv4',
+                    'access_key_id' => 'AKID',
+                    'secret_access_key' => 'SECRET',
+                    'region' => 'us-east-1',
+                ],
+                'timeout' => 120,
+            ],
+        ]);
+
+        $client = $factory->create('test');
+        $this->assertInstanceOf(StrandsClient::class, $client);
+    }
+
+    public function testCreateWithApiKeyCustomHeaderAndPrefix(): void
+    {
+        $factory = new StrandsClientFactory([
+            'test' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => [
+                    'driver' => 'api_key',
+                    'api_key' => 'sk-test',
+                    'header_name' => 'X-Custom-Key',
+                    'value_prefix' => 'Token ',
+                ],
+                'timeout' => 120,
+            ],
+        ]);
+
+        $client = $factory->create('test');
+        $this->assertInstanceOf(StrandsClient::class, $client);
+    }
+
+    public function testCreateWithApiKeyDefaultHeaderAndPrefix(): void
+    {
+        // When header_name and value_prefix are not provided, defaults should apply
+        $factory = new StrandsClientFactory([
+            'test' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => [
+                    'driver' => 'api_key',
+                    'api_key' => 'sk-test',
+                ],
+                'timeout' => 120,
+            ],
+        ]);
+
+        $client = $factory->create('test');
+        $this->assertInstanceOf(StrandsClient::class, $client);
+    }
+
+    public function testCreateWithTraversableMiddleware(): void
+    {
+        $mw = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
+            public function beforeRequest(string $url, array $headers, string $body): array
+            {
+                return ['headers' => $headers, 'body' => $body];
+            }
+
+            public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
+            {
+            }
+        };
+
+        // Pass middleware as ArrayIterator (Traversable) — simulates Symfony DI tagged iterator
+        $iterator = new \ArrayIterator([$mw]);
+
+        $factory = new StrandsClientFactory(
+            [
+                'test' => [
+                    'endpoint' => 'http://agent:8000',
+                    'auth' => ['driver' => 'null'],
+                    'timeout' => 120,
+                ],
+            ],
+            middleware: $iterator,
+        );
+
+        $client = $factory->create('test');
+        $this->assertInstanceOf(StrandsClient::class, $client);
+    }
+
+    public function testCreateSigv4ThrowsWhenMissingRegion(): void
+    {
+        $factory = new StrandsClientFactory([
+            'test' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => [
+                    'driver' => 'sigv4',
+                    'access_key_id' => 'AKID',
+                    'secret_access_key' => 'SECRET',
+                ],
+                'timeout' => 120,
+            ],
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('region" option is required');
+
+        $factory->create('test');
+    }
+
+    public function testCreateSigv4ThrowsOnPartialCredentials(): void
+    {
+        $factory = new StrandsClientFactory([
+            'test' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => [
+                    'driver' => 'sigv4',
+                    'region' => 'us-east-1',
+                    'access_key_id' => 'AKID',
+                    // secret_access_key intentionally omitted
+                ],
+                'timeout' => 120,
+            ],
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Both "access_key_id" and "secret_access_key" must be provided together');
+
+        $factory->create('test');
+    }
+
+    public function testCreateSigv4ThrowsOnPartialCredentialsReverse(): void
+    {
+        $factory = new StrandsClientFactory([
+            'test' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => [
+                    'driver' => 'sigv4',
+                    'region' => 'us-east-1',
+                    'secret_access_key' => 'SECRET',
+                    // access_key_id intentionally omitted
+                ],
+                'timeout' => 120,
+            ],
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Both "access_key_id" and "secret_access_key" must be provided together');
+
+        $factory->create('test');
+    }
+
+    public function testCreateSigv4WithSessionToken(): void
+    {
+        $factory = new StrandsClientFactory([
+            'test' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => [
+                    'driver' => 'sigv4',
+                    'region' => 'us-east-1',
+                    'access_key_id' => 'AKID',
+                    'secret_access_key' => 'SECRET',
+                    'session_token' => 'TOKEN',
+                ],
+                'timeout' => 120,
+            ],
+        ]);
+
+        $client = $factory->create('test');
+        $this->assertInstanceOf(StrandsClient::class, $client);
+    }
+
+    public function testCreateSigv4WithCustomService(): void
+    {
+        $factory = new StrandsClientFactory([
+            'test' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => [
+                    'driver' => 'sigv4',
+                    'region' => 'us-east-1',
+                    'service' => 'lambda',
+                    'access_key_id' => 'AKID',
+                    'secret_access_key' => 'SECRET',
+                ],
+                'timeout' => 120,
+            ],
+        ]);
+
+        $client = $factory->create('test');
+        $this->assertInstanceOf(StrandsClient::class, $client);
+    }
+
     private function extractConfig(StrandsClient $client): StrandsConfig
     {
         $reflection = new \ReflectionProperty(StrandsClient::class, 'config');
-        $reflection->setAccessible(true);
-
         $config = $reflection->getValue($client);
         $this->assertInstanceOf(StrandsConfig::class, $config);
 

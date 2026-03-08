@@ -8,6 +8,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use StrandsPhpClient\Config\StrandsConfig;
 use StrandsPhpClient\Context\AgentContext;
+use StrandsPhpClient\Context\AgentInput;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
@@ -22,6 +23,10 @@ use StrandsPhpClient\Streaming\StreamResult;
 
 /**
  * The primary client for interacting with Strands AI agents.
+ *
+ * Provides four entry points: invoke() for synchronous calls, stream() for
+ * typed SSE streaming, postJson() and streamSse() for custom endpoints.
+ * Handles auth, middleware, retry with backoff, and connection lifecycle.
  */
 class StrandsClient
 {
@@ -52,7 +57,7 @@ class StrandsClient
     /**
      * Send a message and wait for the complete response.
      *
-     * @param string            $message         The message to send to the agent.
+     * @param string|AgentInput  $message         The message (or rich input) to send to the agent.
      * @param AgentContext|null  $context         Optional extra context (system prompts, metadata).
      * @param string|null        $sessionId       Optional session ID to continue a conversation.
      * @param int|null           $timeoutSeconds  Override the config timeout for this request only.
@@ -62,11 +67,13 @@ class StrandsClient
      * @throws \InvalidArgumentException  If timeoutSeconds is less than 1.
      */
     public function invoke(
-        string $message,
+        string|AgentInput $message,
         ?AgentContext $context = null,
         ?string $sessionId = null,
         ?int $timeoutSeconds = null,
     ): AgentResponse {
+        self::validateMessage($message);
+
         if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
             throw new \InvalidArgumentException('timeoutSeconds must be at least 1');
         }
@@ -111,7 +118,7 @@ class StrandsClient
     /**
      * Send a message and receive the response as a real-time stream of events.
      *
-     * @param string            $message         The message to send to the agent.
+     * @param string|AgentInput  $message         The message (or rich input) to send to the agent.
      * @param callable(StreamEvent): (void|bool) $onEvent  Called for each event as it arrives. Return false to cancel.
      * @param AgentContext|null  $context         Optional extra context.
      * @param string|null        $sessionId       Optional session ID.
@@ -123,12 +130,14 @@ class StrandsClient
      * @throws \InvalidArgumentException              If timeoutSeconds is less than 1.
      */
     public function stream(
-        string $message,
+        string|AgentInput $message,
         callable $onEvent,
         ?AgentContext $context = null,
         ?string $sessionId = null,
         ?int $timeoutSeconds = null,
     ): StreamResult {
+        self::validateMessage($message);
+
         if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
             throw new \InvalidArgumentException('timeoutSeconds must be at least 1');
         }
@@ -144,30 +153,21 @@ class StrandsClient
 
         $parser = new StreamParser();
         $receivedTerminal = false;
-
-        // We accumulate text from individual "text" events so callers get the
-        // full response even if the "complete" event's fullText is missing.
-        // completeFullText is the fallback sent by the server in the terminal event.
         $accumulatedText = '';
         $textEvents = 0;
         $totalEvents = 0;
-        /** @var string|null $resultSessionId */
-        $resultSessionId = null;
-        /** @var array<string, mixed> $resultUsage */
-        $resultUsage = [];
-        /** @var list<array{name: string, duration_ms?: int}> $resultToolsUsed */
-        $resultToolsUsed = [];
-        /** @var string|null $completeFullText */
-        $completeFullText = null;
-        /** @var string|null $resultStopReason */
-        $resultStopReason = null;
-
+        /** @var int|null $firstTextTokenTime */
+        $firstTextTokenTime = null;
+        /** @var StreamEvent|null $completeEvent */
+        $completeEvent = null;
         $cancelled = false;
+        /** @var list<array<string, mixed>> $citations */
+        $citations = [];
 
         $startTime = hrtime(true);
 
         try {
-            $this->transport->stream($url, $headers, $body, $timeout, $this->config->connectTimeout, function (string $chunk) use ($parser, $onEvent, &$receivedTerminal, &$cancelled, &$accumulatedText, &$textEvents, &$totalEvents, &$resultSessionId, &$resultUsage, &$resultToolsUsed, &$completeFullText, &$resultStopReason): bool {
+            $this->transport->stream($url, $headers, $body, $timeout, $this->config->connectTimeout, function (string $chunk) use ($parser, $onEvent, &$receivedTerminal, &$cancelled, &$accumulatedText, &$textEvents, &$totalEvents, &$firstTextTokenTime, &$completeEvent, &$citations): bool {
                 if ($cancelled) {
                     return false;
                 }
@@ -178,19 +178,22 @@ class StrandsClient
                     $totalEvents++;
 
                     if ($event->type === StreamEventType::Text && $event->text !== null) {
+                        if ($firstTextTokenTime === null) {
+                            $firstTextTokenTime = hrtime(true);
+                        }
                         $accumulatedText .= $event->text;
                         $textEvents++;
+                    }
+
+                    if ($event->type === StreamEventType::Citation && $event->citation !== null) {
+                        $citations[] = $event->citation;
                     }
 
                     if ($event->isTerminal()) {
                         $receivedTerminal = true;
 
                         if ($event->type === StreamEventType::Complete) {
-                            $resultSessionId = $event->sessionId;
-                            $resultUsage = $event->usage;
-                            $resultToolsUsed = $event->toolsUsed;
-                            $completeFullText = $event->fullText;
-                            $resultStopReason = $event->stopReason;
+                            $completeEvent = $event;
                         }
                     }
 
@@ -213,34 +216,33 @@ class StrandsClient
 
         $durationMs = (hrtime(true) - $startTime) / 1e6;
 
-        // A stream that ends without a terminal event (complete/error) likely had
-        // its TCP connection dropped. This is distinct from user cancellation.
         if (!$receivedTerminal && !$cancelled) {
             $interrupted = new Exceptions\StreamInterruptedException(
-                'Stream ended without a terminal event (complete or error). The connection may have dropped.',
+                sprintf(
+                    'Stream to %s ended without a terminal event (complete or error). '
+                . 'The connection may have dropped or the server closed the stream prematurely.',
+                    $url,
+                ),
             );
             $this->notifyAfterResponse($url, 0, $durationMs, $interrupted);
 
             throw $interrupted;
         }
 
-        // Report status 0 for cancelled streams because no complete HTTP
-        // response was received — the user chose to stop early.
         $this->notifyAfterResponse($url, $cancelled ? 0 : 200, $durationMs);
+        $this->logSkippedEvents($parser);
 
-        $finalText = $accumulatedText !== '' ? $accumulatedText : ($completeFullText ?? '');
-
-        $stopReason = is_string($resultStopReason) ? Response\StopReason::tryFrom($resultStopReason) : null;
-
-        $result = new StreamResult(
-            text: $finalText,
-            sessionId: $resultSessionId,
-            usage: Usage::fromArray($resultUsage),
-            toolsUsed: $resultToolsUsed,
-            textEvents: $textEvents,
-            totalEvents: $totalEvents,
-            stopReason: $stopReason,
-            cancelled: $cancelled,
+        /** @var int|null $firstTextTokenTime */
+        /** @var list<array<string, mixed>> $citations */
+        $result = $this->buildStreamResult(
+            $accumulatedText,
+            $textEvents,
+            $totalEvents,
+            $cancelled,
+            $startTime,
+            $firstTextTokenTime,
+            $completeEvent,
+            $citations,
         );
 
         $this->logger->debug('Strands stream complete', [
@@ -250,6 +252,7 @@ class StrandsClient
             'text_length' => strlen($result->text),
             'input_tokens' => $result->usage->inputTokens,
             'output_tokens' => $result->usage->outputTokens,
+            'ttft_ms' => $result->timeToFirstTextTokenMs,
         ]);
 
         return $result;
@@ -258,7 +261,7 @@ class StrandsClient
     /**
      * Send a JSON POST to a custom endpoint path.
      *
-     * Unlike invoke(), this accepts an arbitrary path and payload — useful for
+     * Unlike invoke(), this accepts an arbitrary path and payload - useful for
      * agent endpoints with custom request/response schemas (file processing,
      * metadata extraction, etc.). Returns the raw decoded JSON array.
      *
@@ -311,7 +314,7 @@ class StrandsClient
      * Stream SSE events from a custom endpoint path.
      *
      * Unlike stream(), this accepts an arbitrary path and payload, and delivers
-     * raw decoded JSON arrays to the callback — preserving all fields including
+     * raw decoded JSON arrays to the callback - preserving all fields including
      * domain-specific data that StreamEvent would discard.
      *
      * @param string               $path      The endpoint path (e.g. '/file-summarise-stream').
@@ -348,7 +351,8 @@ class StrandsClient
                     return false;
                 }
 
-                $buffer = str_replace(["\r\n", "\r"], "\n", $buffer . $chunk);
+                // Normalise line endings on the new chunk only.
+                $buffer .= str_replace(["\r\n", "\r"], "\n", $chunk);
 
                 while (($pos = strpos($buffer, "\n\n")) !== false) {
                     $rawEvent = substr($buffer, 0, $pos);
@@ -441,18 +445,99 @@ class StrandsClient
     }
 
     /**
+     * @param list<array<string, mixed>> $citations
+     */
+    private function buildStreamResult(
+        string $accumulatedText,
+        int $textEvents,
+        int $totalEvents,
+        bool $cancelled,
+        int $startTime,
+        ?int $firstTextTokenTime,
+        ?StreamEvent $completeEvent,
+        array $citations = [],
+    ): StreamResult {
+        $ttftMs = $firstTextTokenTime !== null
+            ? ($firstTextTokenTime - $startTime) / 1e6
+            : null;
+
+        // Extract fields from the Complete event, falling back to safe
+        // defaults when the stream ended without one (e.g. Error event,
+        // user cancellation, or an interrupted connection).
+        $sessionId = null;
+        $usage = new Usage();
+        $toolsUsed = [];
+        $stopReason = null;
+        $interrupts = [];
+        $guardrailTrace = null;
+        $finalText = $accumulatedText;
+
+        if ($completeEvent !== null) {
+            $sessionId = $completeEvent->sessionId;
+            $usage = Usage::fromArray($completeEvent->usage);
+            $toolsUsed = $completeEvent->toolsUsed;
+
+            if ($finalText === '') {
+                $finalText = $completeEvent->fullText ?? '';
+            }
+
+            if (is_string($completeEvent->stopReason)) {
+                $stopReason = Response\StopReason::tryFrom($completeEvent->stopReason);
+            }
+
+            foreach ($completeEvent->interrupts as $interruptData) {
+                $interrupts[] = Response\InterruptDetail::fromArray($interruptData);
+            }
+
+            if ($completeEvent->guardrailTrace !== null) {
+                $guardrailTrace = Response\GuardrailTrace::fromArray($completeEvent->guardrailTrace);
+            }
+        }
+
+        return new StreamResult(
+            text: $finalText,
+            sessionId: $sessionId,
+            usage: $usage,
+            toolsUsed: $toolsUsed,
+            textEvents: $textEvents,
+            totalEvents: $totalEvents,
+            stopReason: $stopReason,
+            cancelled: $cancelled,
+            timeToFirstTextTokenMs: $ttftMs,
+            interrupts: $interrupts,
+            guardrailTrace: $guardrailTrace,
+            citations: $citations,
+        );
+    }
+
+    private function logSkippedEvents(StreamParser $parser): void
+    {
+        $skippedEvents = $parser->getSkippedEvents();
+        if ($skippedEvents > 0) {
+            $this->logger->info('strands.stream.skipped_events', [
+                'count' => $skippedEvents,
+                'hint' => 'Unknown event types from agent - may need PHP client update',
+            ]);
+        }
+    }
+
+    /**
      * @return array{0: array<string, string>, 1: string}
      *
      * @throws StrandsException  If the payload cannot be JSON-encoded.
      */
     private function buildRequest(
         string $url,
-        string $message,
+        string|AgentInput $message,
         ?AgentContext $context,
         ?string $sessionId,
         string $accept,
     ): array {
-        $payload = ['message' => $message];
+        if ($message instanceof AgentInput) {
+            $payload = ['message' => $message->toPayloadValue()];
+        } else {
+            $payload = ['message' => $message];
+        }
 
         if ($sessionId !== null) {
             $payload['session_id'] = $sessionId;
@@ -476,15 +561,17 @@ class StrandsClient
             'Accept' => $accept,
         ];
 
-        $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
-
-        // Middleware runs once per operation, not per retry attempt.
-        // The modified headers/body are reused for all retry attempts.
+        // Middleware runs before auth so that body-modifying middleware
+        // (e.g. payload enrichment) doesn't invalidate SigV4 signatures.
         foreach ($this->middleware as $mw) {
             $result = $mw->beforeRequest($url, $headers, $body);
             $headers = $result['headers'];
             $body = $result['body'];
         }
+
+        // Auth runs last - after middleware mutations - so signatures
+        // cover the final headers and body that will actually be sent.
+        $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
 
         return [$headers, $body];
     }
@@ -531,15 +618,16 @@ class StrandsClient
             'Accept' => $accept,
         ];
 
-        $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
-
-        // Middleware runs once per operation, not per retry attempt.
-        // The modified headers/body are reused for all retry attempts.
+        // Middleware runs before auth so that body-modifying middleware
+        // doesn't invalidate SigV4 signatures.
         foreach ($this->middleware as $mw) {
             $result = $mw->beforeRequest($url, $headers, $body);
             $headers = $result['headers'];
             $body = $result['body'];
         }
+
+        // Auth runs last - signatures cover the final request.
+        $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
 
         return [$headers, $body];
     }
@@ -591,7 +679,7 @@ class StrandsClient
     /**
      * Notify middleware of a completed operation (success or failure).
      *
-     * Exceptions from middleware are caught and logged — never propagated.
+     * Exceptions from middleware are caught and logged - never propagated.
      * This prevents observability middleware (tracing, metrics) from breaking
      * the caller's error handling or masking the original exception.
      */
@@ -610,6 +698,22 @@ class StrandsClient
     }
 
     /**
+     * Reject empty messages early to avoid a confusing 400 from the API.
+     *
+     * @throws \InvalidArgumentException  If the message text is empty.
+     */
+    private static function validateMessage(string|AgentInput $message): void
+    {
+        $text = $message instanceof AgentInput ? $message->getText() : $message;
+
+        if ($text === '' && !($message instanceof AgentInput && $message->toPayloadValue() !== '')) {
+            throw new \InvalidArgumentException(
+                'Message cannot be empty. Provide a non-empty string or an AgentInput with content blocks.',
+            );
+        }
+    }
+
+    /**
      * @throws StrandsException
      */
     private static function detectTransport(): HttpTransport
@@ -619,9 +723,9 @@ class StrandsClient
         }
 
         throw new StrandsException(
-            'No HTTP transport available. Either install symfony/http-client '
-            . 'for full support (invoke + streaming), or pass a PsrHttpTransport '
-            . 'instance with your PSR-18 HTTP client to the StrandsClient constructor.',
+            'No HTTP transport available. Install symfony/http-client (recommended) '
+            . 'for full invoke + streaming support, or pass a PsrHttpTransport instance '
+            . 'with your PSR-18 client to the StrandsClient constructor (invoke only, no streaming).',
         );
     }
 }
