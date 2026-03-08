@@ -69,6 +69,9 @@ return [
 
             // Base delay between retries in milliseconds (exponential backoff).
             'retry_delay_ms' => (int) env('STRANDS_RETRY_DELAY_MS', 500),
+
+            // HTTP status codes that trigger a retry.
+            'retryable_status_codes' => [429, 502, 503, 504],
         ],
 
     ],

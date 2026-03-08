@@ -9,7 +9,7 @@ namespace StrandsPhpClient\Response;
  */
 enum StopReason: string
 {
-    /** Normal completion — the agent finished its turn. */
+    /** Normal completion - the agent finished its turn. */
     case EndTurn = 'end_turn';
 
     /** Paused to call a tool. */
@@ -27,6 +27,6 @@ enum StopReason: string
     /** Bedrock guardrail blocked the response. */
     case GuardrailIntervened = 'guardrail_intervened';
 
-    /** Human-in-the-loop pause — agent needs user input. */
+    /** Human-in-the-loop pause - agent needs user input. */
     case Interrupt = 'interrupt';
 }

@@ -13,8 +13,12 @@ Strands PHP Client is a PHP library for consuming [Strands Agents](https://githu
 - Per-Request Timeout: Override global config timeout on individual `postJson()` and `streamSse()` calls
 - Stream Cancellation: Callback returns `false` to abort the stream at the transport level (closes HTTP connection)
 - Transport Abstraction: Symfony HttpClient (full support) or any PSR-18 client (invoke only)
-- Authentication Strategies: Null Object pattern for local dev, API key/Bearer token for production, extensible interface for custom auth
+- Authentication Strategies: Null Object pattern for local dev, API key/Bearer token, AWS SigV4 (IAM auth), extensible interface for custom auth
+- Request Middleware: Pluggable interface for pre-processing outgoing requests
 - Immutable Context Builder: System prompts, metadata, permissions, documents, structured data
+- Rich Input Builder: `AgentInput` for constructing messages with text, images, and documents
+- Guardrail Traces: Typed `GuardrailTrace` objects for guardrail intervention data
+- Interrupt Handling: `InterruptDetail` for human-in-the-loop interrupt flows
 - Retry with Exponential Backoff: Configurable retries with jitter on transient HTTP errors
 - Laravel Service Provider: PHP config, named agent bindings, facade, auto-discovery
 - Symfony Bundle: YAML config, named agent services, autowiring, automatic logger injection
@@ -29,17 +33,22 @@ strands-php-client/
 │   ├── Auth/                               # Authentication strategies
 │   │   ├── AuthStrategy.php                # Interface
 │   │   ├── NullAuth.php                    # No-op (Null Object pattern)
-│   │   └── ApiKeyAuth.php                  # Bearer token / custom header
+│   │   ├── ApiKeyAuth.php                  # Bearer token / custom header
+│   │   └── SigV4Auth.php                   # AWS Signature V4 (IAM auth)
 │   ├── Config/
 │   │   └── StrandsConfig.php               # Configuration holder (endpoint, timeouts, retries)
 │   ├── Context/
-│   │   └── AgentContext.php                # Immutable context builder (clone-and-mutate)
+│   │   ├── AgentContext.php                # Immutable context builder (clone-and-mutate)
+│   │   └── AgentInput.php                  # Rich input builder (text, images, documents)
 │   ├── Http/                               # Transport abstraction
 │   │   ├── HttpTransport.php               # Interface
+│   │   ├── RequestMiddleware.php            # Middleware interface
 │   │   ├── SymfonyHttpTransport.php        # Symfony HttpClient (invoke + streaming)
 │   │   └── PsrHttpTransport.php            # PSR-18 (invoke only)
 │   ├── Response/
 │   │   ├── AgentResponse.php               # Invoke response DTO
+│   │   ├── GuardrailTrace.php              # Guardrail intervention data
+│   │   ├── InterruptDetail.php             # Human-in-the-loop interrupt
 │   │   ├── StopReason.php                  # Backed enum (EndTurn, ToolUse, MaxTokens, etc.)
 │   │   └── Usage.php                       # Token usage stats (with fromArray() factory)
 │   ├── Streaming/                          # SSE support
@@ -79,6 +88,10 @@ strands-php-client/
 │   │   ├── AgentResponseTest.php
 │   │   ├── NullAuthTest.php
 │   │   ├── ApiKeyAuthTest.php
+│   │   ├── SigV4AuthTest.php
+│   │   ├── AgentInputTest.php
+│   │   ├── GuardrailTraceTest.php
+│   │   ├── InterruptDetailTest.php
 │   │   └── Integration/                    # Framework integration tests
 │   │       ├── StrandsClientFactoryTest.php # Shared factory tests
 │   │       ├── Laravel/                    # Laravel tests
@@ -101,7 +114,7 @@ strands-php-client/
 ├── phpunit.xml                             # Test runner config
 ├── phpstan.neon                            # Static analysis (Level 10)
 ├── phpmd.xml                               # Mess detector rules
-├── infection.json5                         # Mutation testing (80% MSI)
+├── infection.json5                         # Mutation testing (90% MSI)
 ├── .php-cs-fixer.php                       # Code formatting (PSR-12)
 ├── .github/workflows/ci.yml               # CI/CD pipeline
 ├── AGENTS.md                               # This file
@@ -138,7 +151,7 @@ composer cs:check                # PHP-CS-Fixer - PSR-12 compliance
 composer analyse                 # PHPStan Level 10
 composer analyse:messdetector    # PHPMD
 composer analyse:complexity      # Cyclomatic complexity max 20
-composer mutate                  # Infection - 80% MSI minimum
+composer mutate                  # Infection - 90% MSI minimum
 ```
 
 Run everything at once:

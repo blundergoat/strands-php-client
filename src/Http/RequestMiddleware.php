@@ -38,7 +38,7 @@ interface RequestMiddleware
 
     /**
      * Called once after the operation completes (success or failure).
-     * For observability only — exceptions thrown here are logged, not propagated.
+     * For observability only - exceptions thrown here are logged, not propagated.
      *
      * @param string          $url        The request URL.
      * @param int             $statusCode HTTP status code (200 on success, 0 if cancelled or no response received).

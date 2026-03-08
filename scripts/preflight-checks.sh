@@ -151,7 +151,27 @@ else
     done
 fi
 
-# 3. Code style (PHP-CS-Fixer)
+# 3. Branch alias freshness
+step "Branch alias (composer.json)"
+t=$(now_ns)
+alias_raw=$(php -r '
+    $j = json_decode(file_get_contents("composer.json"), true);
+    echo $j["extra"]["branch-alias"]["dev-main"] ?? "";' 2>/dev/null)
+if [[ -z "$alias_raw" ]]; then
+    skip "no branch alias in composer.json"
+else
+    alias_minor=$(echo "$alias_raw" | grep -oE '^[0-9]+\.[0-9]+')
+    changelog_minor=$(grep -oE '## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | head -1 | sed 's/## \[//;s/\]//' | cut -d. -f1,2)
+    if [[ -z "$changelog_minor" ]]; then
+        skip "no version in CHANGELOG.md"
+    elif [[ "$alias_minor" == "$changelog_minor" ]]; then
+        pass "${alias_raw} $(elapsed_since $t)"
+    else
+        fail "Branch alias stale: ${alias_raw} but CHANGELOG is at ${changelog_minor}.x"
+    fi
+fi
+
+# 4. Code style (PHP-CS-Fixer)
 step "Code style (PHP-CS-Fixer)"
 t=$(now_ns)
 if [[ -x vendor/bin/php-cs-fixer ]]; then

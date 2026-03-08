@@ -185,6 +185,8 @@ sequenceDiagram
 ```
 
 > **Security:** Never hardcode AWS credentials in source code. Use environment variables, IAM instance profiles, ECS task roles, or a secrets manager. The `fromEnvironment()` factory method is the recommended approach for production deployments.
+>
+> `SigV4Auth` implements `__debugInfo()` to mask `secretAccessKey` and `sessionToken` in `var_dump()`/`print_r()` output, preventing accidental credential leakage in logs or error pages.
 
 ## Symfony Configuration
 

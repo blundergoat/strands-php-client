@@ -593,7 +593,7 @@ $config = new StrandsConfig(
 
 The `connectTimeout` is separate from `timeout` so a down server fails fast (5 seconds) without affecting slow LLM generation (which can legitimately take 120+ seconds).
 
-Retries apply to `invoke()` calls only. Streaming requests are not retried.
+Retries apply to `invoke()` and `postJson()` calls. Streaming requests (`stream()`, `streamSse()`) are not retried.
 
 ## Logging
 
@@ -1180,12 +1180,14 @@ Mock the `stream()` method to invoke the callback directly with synthetic events
 $analyst = $this->createMock(StrandsClient::class);
 $analyst
     ->method('stream')
-    ->willReturnCallback(function (string $message, callable $onEvent) {
+    ->willReturnCallback(function (string|AgentInput $message, callable $onEvent) {
         $onEvent(new StreamEvent(type: StreamEventType::Thinking));
         $onEvent(new StreamEvent(type: StreamEventType::ToolUse, toolName: 'search'));
         $onEvent(new StreamEvent(type: StreamEventType::ToolResult, toolName: 'search'));
         $onEvent(new StreamEvent(type: StreamEventType::Text, text: 'Analysis result'));
         $onEvent(new StreamEvent(type: StreamEventType::Complete));
+
+        return new StreamResult(text: 'Analysis result', textEvents: 1, totalEvents: 5);
     });
 ```
 

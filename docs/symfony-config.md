@@ -134,6 +134,9 @@ strands:
             # Base delay between retries in milliseconds.
             # Uses exponential backoff: 500ms → 1000ms → 2000ms → ...
             retry_delay_ms: 500                   # default: 500
+
+            # HTTP status codes that trigger a retry.
+            retryable_status_codes: [429, 502, 503, 504]  # default
 ```
 
 ## Configuration Options
@@ -253,7 +256,7 @@ max_retries: 2     # retry twice (3 total attempts)
 max_retries: 5     # retry 5 times (for critical production workloads)
 ```
 
-Retries only apply to `invoke()` calls. Streaming requests are not retried (you'd need to restart the entire stream).
+Retries apply to `invoke()` and `postJson()` calls. Streaming requests (`stream()`, `streamSse()`) are not retried - you'd need to restart the entire stream.
 
 ### retry_delay_ms
 

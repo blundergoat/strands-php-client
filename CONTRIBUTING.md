@@ -157,17 +157,20 @@ src/
 ├── Auth/                          # Authentication strategies
 │   ├── AuthStrategy.php           # Interface
 │   ├── NullAuth.php               # No-op (local dev)
-│   └── ApiKeyAuth.php             # API key / Bearer token
+│   ├── ApiKeyAuth.php             # API key / Bearer token
+│   └── SigV4Auth.php              # AWS Signature V4 (IAM auth)
 ├── Config/
 │   └── StrandsConfig.php          # Client configuration
 ├── Context/
-│   └── AgentContext.php            # Immutable context builder
+│   ├── AgentContext.php            # Immutable context builder
+│   └── AgentInput.php             # Rich input builder (text, images, docs)
 ├── Exceptions/
 │   ├── StrandsException.php       # Base exception
 │   ├── AgentErrorException.php    # HTTP 4xx/5xx from agent
 │   └── StreamInterruptedException.php  # Stream dropped
 ├── Http/
 │   ├── HttpTransport.php          # Transport interface
+│   ├── RequestMiddleware.php      # Middleware interface
 │   ├── SymfonyHttpTransport.php   # Symfony HTTP client (invoke + stream)
 │   └── PsrHttpTransport.php       # PSR-18 client (invoke only)
 ├── Integration/
@@ -186,6 +189,9 @@ src/
 │           └── StrandsClientFactory.php  # Extends shared factory
 ├── Response/
 │   ├── AgentResponse.php          # invoke() return type
+│   ├── GuardrailTrace.php         # Guardrail intervention data
+│   ├── InterruptDetail.php        # Human-in-the-loop interrupt
+│   ├── StopReason.php             # Why the agent stopped (enum)
 │   └── Usage.php                  # Token usage stats
 ├── Streaming/
 │   ├── StreamEvent.php            # Single SSE event

@@ -70,7 +70,7 @@ class StrandsClientFactory
         $config = $this->agents[$agentName];
 
         // All agents created by this factory share the same middleware stack.
-        // Per-agent middleware is not supported — use separate factories if needed.
+        // Per-agent middleware is not supported - use separate factories if needed.
         return new StrandsClient(
             config: new StrandsConfig(
                 endpoint: $config['endpoint'],
@@ -144,7 +144,7 @@ class StrandsClientFactory
         $hasAccessKey = $accessKeyId !== null && $accessKeyId !== '';
         $hasSecretKey = $secretAccessKey !== null && $secretAccessKey !== '';
 
-        // Reject asymmetric credentials — providing only one is almost certainly
+        // Reject asymmetric credentials - providing only one is almost certainly
         // a configuration error and would silently fall through to env vars.
         if ($hasAccessKey !== $hasSecretKey) {
             throw new \InvalidArgumentException(

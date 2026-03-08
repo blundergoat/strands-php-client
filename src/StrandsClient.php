@@ -261,7 +261,7 @@ class StrandsClient
     /**
      * Send a JSON POST to a custom endpoint path.
      *
-     * Unlike invoke(), this accepts an arbitrary path and payload — useful for
+     * Unlike invoke(), this accepts an arbitrary path and payload - useful for
      * agent endpoints with custom request/response schemas (file processing,
      * metadata extraction, etc.). Returns the raw decoded JSON array.
      *
@@ -314,7 +314,7 @@ class StrandsClient
      * Stream SSE events from a custom endpoint path.
      *
      * Unlike stream(), this accepts an arbitrary path and payload, and delivers
-     * raw decoded JSON arrays to the callback — preserving all fields including
+     * raw decoded JSON arrays to the callback - preserving all fields including
      * domain-specific data that StreamEvent would discard.
      *
      * @param string               $path      The endpoint path (e.g. '/file-summarise-stream').
@@ -521,7 +521,7 @@ class StrandsClient
         if ($skippedEvents > 0) {
             $this->logger->info('strands.stream.skipped_events', [
                 'count' => $skippedEvents,
-                'hint' => 'Unknown event types from agent — may need PHP client update',
+                'hint' => 'Unknown event types from agent - may need PHP client update',
             ]);
         }
     }
@@ -574,7 +574,7 @@ class StrandsClient
             $body = $result['body'];
         }
 
-        // Auth runs last — after middleware mutations — so signatures
+        // Auth runs last - after middleware mutations - so signatures
         // cover the final headers and body that will actually be sent.
         $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
 
@@ -631,7 +631,7 @@ class StrandsClient
             $body = $result['body'];
         }
 
-        // Auth runs last — signatures cover the final request.
+        // Auth runs last - signatures cover the final request.
         $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
 
         return [$headers, $body];
@@ -684,7 +684,7 @@ class StrandsClient
     /**
      * Notify middleware of a completed operation (success or failure).
      *
-     * Exceptions from middleware are caught and logged — never propagated.
+     * Exceptions from middleware are caught and logged - never propagated.
      * This prevents observability middleware (tracing, metrics) from breaking
      * the caller's error handling or masking the original exception.
      */

@@ -337,7 +337,7 @@ $config = new StrandsConfig(
 );
 ```
 
-Retries apply to `invoke()` calls. Streaming requests are not retried.
+Retries apply to `invoke()` and `postJson()` calls. Streaming requests (`stream()`, `streamSse()`) are not retried.
 
 ## Transport
 

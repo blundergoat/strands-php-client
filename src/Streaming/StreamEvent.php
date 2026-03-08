@@ -8,7 +8,7 @@ namespace StrandsPhpClient\Streaming;
  * A single typed event from an SSE stream.
  *
  * Created by StreamParser (via tryFromArray) or directly via fromArray.
- * Each property maps to a specific event type — most are null for types
+ * Each property maps to a specific event type - most are null for types
  * that don't carry that field.
  */
 class StreamEvent
@@ -78,7 +78,7 @@ class StreamEvent
     /**
      * Create a StreamEvent from a decoded JSON array, returning null for unknown types.
      *
-     * Unlike fromArray(), this method is forward-compatible — it silently returns
+     * Unlike fromArray(), this method is forward-compatible - it silently returns
      * null when the event type is not recognised, instead of throwing.
      *
      * @param array<string, mixed> $data  The decoded JSON data from one SSE event.

@@ -8,7 +8,7 @@ namespace StrandsPhpClient\Auth;
  * AWS Signature Version 4 authentication strategy.
  *
  * Signs outgoing requests for agents behind API Gateway with IAM auth.
- * Standalone implementation (~200 lines) — does not require aws/aws-sdk-php.
+ * Standalone implementation (~260 lines) - does not require aws/aws-sdk-php.
  *
  * @see https://docs.aws.amazon.com/general/latest/gr/sigv4_signing.html
  */
@@ -104,10 +104,10 @@ class SigV4Auth implements AuthStrategy
         $path = $parsed['path'] ?? '/';
         $queryString = $parsed['query'] ?? '';
 
-        // Canonical URI — normalize path
+        // Canonical URI - normalize path
         $canonicalUri = $this->normalizePath($path);
 
-        // Canonical query string — parameters sorted by key
+        // Canonical query string - parameters sorted by key
         $canonicalQueryString = $this->canonicalizeQueryString($queryString);
 
         // Content hash
