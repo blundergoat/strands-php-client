@@ -10,7 +10,6 @@ coverage.xml
 infection.log
 .idea/
 .vscode/
-.claude/
 *.swp
 *.swo
 .env
