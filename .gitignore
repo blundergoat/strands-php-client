@@ -1,16 +1,56 @@
+# Dependencies
 /vendor/
+/node_modules/
 composer.lock
+
+# PHPUnit
 .phpunit.result.cache
 .phpunit.cache/
+
+# PHP-CS-Fixer
 .php-cs-fixer.cache
+
+# PHPStan
 .phpstan-cache/
-coverage-html/
-coverage.xml
+
+# Infection
 .infection/
 infection.log
+
+# Code coverage
+coverage-html/
+coverage.xml
+clover.xml
+*.coveralls.json
+
+# IDEs
 .idea/
 .vscode/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+nbproject/
+
+# Editors
 *.swp
 *.swo
-.env
+*~
+
+# OS
 .DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# AI / agent tooling
+.claude/settings.local.json
+.codex/
+
+# Build artifacts
+/build/
+/dist/
