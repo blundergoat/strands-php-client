@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use StrandsPhpClient\Response\GuardrailAssessment;
 use StrandsPhpClient\Response\GuardrailTrace;
 
 class GuardrailTraceTest extends TestCase
@@ -79,5 +80,49 @@ class GuardrailTraceTest extends TestCase
         $trace = GuardrailTrace::fromArray($data);
 
         $this->assertNull($trace->modelOutput);
+    }
+
+    public function testGetAssessmentObjectsReturnsTypedList(): void
+    {
+        $data = [
+            'action' => 'INTERVENED',
+            'assessments' => [
+                ['type' => 'content_filter', 'action' => 'BLOCKED'],
+                ['type' => 'topic_filter', 'action' => 'NONE'],
+            ],
+        ];
+
+        $trace = GuardrailTrace::fromArray($data);
+        $objects = $trace->getAssessmentObjects();
+
+        $this->assertCount(2, $objects);
+        $this->assertInstanceOf(GuardrailAssessment::class, $objects[0]);
+        $this->assertSame('content_filter', $objects[0]->type);
+        $this->assertSame('BLOCKED', $objects[0]->action);
+        $this->assertInstanceOf(GuardrailAssessment::class, $objects[1]);
+        $this->assertSame('topic_filter', $objects[1]->type);
+    }
+
+    public function testGetAssessmentObjectsCachesResult(): void
+    {
+        $data = [
+            'action' => 'NONE',
+            'assessments' => [
+                ['type' => 'test'],
+            ],
+        ];
+
+        $trace = GuardrailTrace::fromArray($data);
+        $first = $trace->getAssessmentObjects();
+        $second = $trace->getAssessmentObjects();
+
+        $this->assertSame($first, $second);
+    }
+
+    public function testGetAssessmentObjectsReturnsEmptyForNoAssessments(): void
+    {
+        $trace = GuardrailTrace::fromArray(['action' => 'NONE']);
+
+        $this->assertSame([], $trace->getAssessmentObjects());
     }
 }

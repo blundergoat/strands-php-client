@@ -10,18 +10,40 @@ namespace StrandsPhpClient\Response;
  * Contains the action taken, individual assessments, and the original
  * model output before the guardrail intervened.
  */
-final readonly class GuardrailTrace
+final class GuardrailTrace
 {
+    /** @var list<GuardrailAssessment>|null */
+    private ?array $assessmentObjects = null;
+
     /**
      * @param string $action                        The guardrail action (e.g. 'INTERVENED', 'NONE').
      * @param list<array<string, mixed>> $assessments  Individual guardrail assessments.
      * @param string|null $modelOutput               The model's original output before intervention.
      */
     public function __construct(
-        public string $action,
-        public array $assessments = [],
-        public ?string $modelOutput = null,
+        public readonly string $action,
+        public readonly array $assessments = [],
+        public readonly ?string $modelOutput = null,
     ) {
+    }
+
+    /**
+     * Get assessments as typed DTOs, hydrated from the raw $assessments arrays.
+     *
+     * @return list<GuardrailAssessment>
+     */
+    public function getAssessmentObjects(): array
+    {
+        if ($this->assessmentObjects !== null) {
+            return $this->assessmentObjects;
+        }
+
+        $this->assessmentObjects = [];
+        foreach ($this->assessments as $data) {
+            $this->assessmentObjects[] = GuardrailAssessment::fromArray($data);
+        }
+
+        return $this->assessmentObjects;
     }
 
     /**

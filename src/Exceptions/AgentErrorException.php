@@ -50,12 +50,42 @@ class AgentErrorException extends StrandsException
         $errorMessage = sprintf('Agent returned HTTP %d: %s', $statusCode, $detailText);
 
         $rawCode = $errorData['code'] ?? $errorData['error_code'] ?? null;
+        $errorCode = is_string($rawCode) ? $rawCode : null;
+        $responseBody = $errorData !== [] ? $errorData : null;
 
-        return new self(
+        $class = self::resolveExceptionClass($statusCode, $errorCode);
+
+        return new $class(
             message: $errorMessage,
             statusCode: $statusCode,
-            errorCode: is_string($rawCode) ? $rawCode : null,
-            responseBody: $errorData !== [] ? $errorData : null,
+            errorCode: $errorCode,
+            responseBody: $responseBody,
         );
+    }
+
+    /**
+     * @param class-string<self> $default
+     *
+     * @return class-string<self>
+     */
+    private static function resolveExceptionClass(int $statusCode, ?string $errorCode, string $default = self::class): string
+    {
+        if ($statusCode === 429) {
+            return ThrottledException::class;
+        }
+
+        if ($errorCode !== null) {
+            $lower = strtolower($errorCode);
+
+            if (str_contains($lower, 'context') && str_contains($lower, 'overflow')) {
+                return ContextOverflowException::class;
+            }
+
+            if (str_contains($lower, 'max_tokens')) {
+                return MaxTokensException::class;
+            }
+        }
+
+        return $default;
     }
 }

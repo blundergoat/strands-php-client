@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Streaming;
 
+use StrandsPhpClient\Response\Citation\Citation;
+
 /**
  * A single typed event from an SSE stream.
  *
@@ -125,6 +127,18 @@ class StreamEvent
             interrupts: self::listOfArrays($data, 'interrupts'),
             guardrailTrace: self::parseGuardrailTrace($data),
         );
+    }
+
+    /**
+     * Get the citation as a typed DTO, hydrated from the raw $citation array.
+     */
+    public function getCitationObject(): ?Citation
+    {
+        if ($this->citation === null) {
+            return null;
+        }
+
+        return Citation::fromArray($this->citation);
     }
 
     /**

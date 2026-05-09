@@ -1,0 +1,41 @@
+{
+    "text": "The capital of France is Paris, as documented in the reference.",
+    "agent": "research-agent",
+    "session_id": "sess-cite-002",
+    "usage": {
+        "input_tokens": 120,
+        "output_tokens": 60
+    },
+    "tools_used": [],
+    "message": {
+        "content": [
+            {
+                "type": "text",
+                "text": "The capital of France is "
+            },
+            {
+                "type": "citationsContent",
+                "location": {
+                    "type": "DOCUMENT",
+                    "start_character_index": 0,
+                    "end_character_index": 25,
+                    "start_page_index": 1,
+                    "end_page_index": 1
+                },
+                "source_content": {
+                    "type": "TEXT",
+                    "text": "Paris is the capital city of France.",
+                    "document_name": "geography.pdf"
+                },
+                "generated_content": {
+                    "type": "TEXT",
+                    "text": "Paris"
+                }
+            },
+            {
+                "type": "text",
+                "text": ", as documented in the reference."
+            }
+        ]
+    }
+}

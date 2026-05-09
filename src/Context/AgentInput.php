@@ -137,6 +137,132 @@ class AgentInput
     }
 
     /**
+     * Add an image from S3 location.
+     *
+     * @param string      $s3Uri        S3 URI (e.g. 's3://my-bucket/image.png').
+     * @param string      $format       Image format (e.g. 'png', 'jpeg').
+     * @param string|null $bucketOwner  Optional bucket owner account ID.
+     *
+     * @return self  A new instance with the S3 image added.
+     */
+    public function withImageFromS3(string $s3Uri, string $format, ?string $bucketOwner = null): self
+    {
+        $clone = clone $this;
+        /** @var array<string, mixed> $source */
+        $source = [
+            'type' => 's3_location',
+            'uri' => $s3Uri,
+        ];
+
+        if ($bucketOwner !== null) {
+            $source['bucket_owner'] = $bucketOwner;
+        }
+
+        $clone->contentBlocks[] = [
+            'type' => 'image',
+            'source' => $source,
+            'format' => $format,
+        ];
+
+        return $clone;
+    }
+
+    /**
+     * Add a base64-encoded video content block.
+     *
+     * @param string $base64Data  Base64-encoded video data.
+     * @param string $format      Video format (e.g. 'mp4', 'webm').
+     *
+     * @return self  A new instance with the video added.
+     */
+    public function withVideo(string $base64Data, string $format): self
+    {
+        $clone = clone $this;
+        $clone->contentBlocks[] = [
+            'type' => 'video',
+            'source' => [
+                'type' => 'base64',
+                'media_type' => 'video/' . $format,
+                'data' => $base64Data,
+            ],
+            'format' => $format,
+        ];
+
+        return $clone;
+    }
+
+    /**
+     * Add an image from a URL.
+     *
+     * @param string $url        The image URL.
+     * @param string $mediaType  MIME type (e.g. 'image/png', 'image/jpeg').
+     *
+     * @return self  A new instance with the URL image added.
+     */
+    public function withImageFromUrl(string $url, string $mediaType): self
+    {
+        $clone = clone $this;
+        $clone->contentBlocks[] = [
+            'type' => 'image',
+            'source' => [
+                'type' => 'url',
+                'url' => $url,
+                'media_type' => $mediaType,
+            ],
+        ];
+
+        return $clone;
+    }
+
+    /**
+     * Add a document from a URL.
+     *
+     * @param string $url     The document URL.
+     * @param string $format  Document format (e.g. 'pdf', 'txt').
+     * @param string $name    Document name.
+     *
+     * @return self  A new instance with the URL document added.
+     */
+    public function withDocumentFromUrl(string $url, string $format, string $name): self
+    {
+        $clone = clone $this;
+        $clone->contentBlocks[] = [
+            'type' => 'document',
+            'source' => [
+                'type' => 'url',
+                'url' => $url,
+            ],
+            'format' => $format,
+            'name' => $name,
+        ];
+
+        return $clone;
+    }
+
+    /**
+     * Add a video from a URL.
+     *
+     * @param string $url     The video URL.
+     * @param string $format  Video format (e.g. 'mp4', 'webm').
+     *
+     * @return self  A new instance with the URL video added.
+     */
+    public function withVideoFromUrl(string $url, string $format): self
+    {
+        $clone = clone $this;
+        $clone->contentBlocks[] = [
+            'type' => 'video',
+            'source' => [
+                'type' => 'url',
+                'url' => $url,
+            ],
+            'format' => $format,
+        ];
+
+        return $clone;
+    }
+
+    /**
      * Add a video from S3 location.
      *
      * @param string      $s3Uri        S3 URI.

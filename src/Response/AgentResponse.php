@@ -14,6 +14,9 @@ namespace StrandsPhpClient\Response;
  */
 class AgentResponse
 {
+    /** @var list<Citation\Citation>|null */
+    private ?array $citationObjects = null;
+
     /**
      * @param string  $text               The agent's text response.
      * @param string|null  $agent          Agent name that handled the request.
@@ -50,6 +53,63 @@ class AgentResponse
     public function isInterrupted(): bool
     {
         return $this->interrupts !== [];
+    }
+
+    /**
+     * Get citations as typed DTOs, hydrated from the raw $citations arrays.
+     *
+     * @return list<Citation\Citation>
+     */
+    public function getCitationObjects(): array
+    {
+        if ($this->citationObjects !== null) {
+            return $this->citationObjects;
+        }
+
+        $this->citationObjects = [];
+        foreach ($this->citations as $data) {
+            $this->citationObjects[] = Citation\Citation::fromArray($data);
+        }
+
+        return $this->citationObjects;
+    }
+
+    /**
+     * Hydrate structured output into a typed DTO.
+     *
+     * @template T of object
+     *
+     * @param class-string<T> $class
+     *
+     * @return T
+     *
+     * @throws \RuntimeException If no structured output is available or hydration fails.
+     */
+    public function structuredOutputAs(string $class): object
+    {
+        if ($this->structuredOutput === null) {
+            throw new \RuntimeException('No structured output in response');
+        }
+
+        try {
+            $reflection = new \ReflectionClass($class);
+
+            if ($reflection->hasMethod('fromArray')) {
+                $method = $reflection->getMethod('fromArray');
+                if ($method->isStatic() && $method->isPublic()) {
+                    /** @var T */
+                    return $method->invoke(null, $this->structuredOutput);
+                }
+            }
+
+            /** @var T */
+            return new $class(...$this->structuredOutput);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException(
+                sprintf('Failed to hydrate structured output into %s: %s', $class, $e->getMessage()),
+                previous: $e,
+            );
+        }
     }
 
     /**
