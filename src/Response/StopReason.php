@@ -29,4 +29,10 @@ enum StopReason: string
 
     /** Human-in-the-loop pause - agent needs user input. */
     case Interrupt = 'interrupt';
+
+    /** The operation was cancelled before completing. */
+    case Cancelled = 'cancelled';
+
+    /** A mid-run checkpoint was reached. */
+    case Checkpoint = 'checkpoint';
 }

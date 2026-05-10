@@ -257,6 +257,59 @@ $client = new StrandsClient(config: $config, logger: $yourPsr3Logger);
 
 Retries apply to `invoke()` and `postJson()`. Streaming requests are not retried. The Symfony bundle injects Monolog automatically.
 
+### Distributed Tracing (OpenTelemetry)
+
+The `OtelTracingMiddleware` emits a `KIND_CLIENT` span for each `invoke()`, `stream()`, `postJson()`, or `streamSse()` call, and injects W3C `traceparent`/`tracestate` headers so your agent service stitches into the same distributed trace. Zero runtime cost when not configured.
+
+```bash
+composer require open-telemetry/api open-telemetry/sdk open-telemetry/exporter-otlp
+```
+
+```php
+use StrandsPhpClient\Http\Middleware\OtelTracingMiddleware;
+
+$client = new StrandsClient(
+    config: $config,
+    middleware: [OtelTracingMiddleware::create($tracer)],
+);
+```
+
+This middleware does **not** capture request or response content on spans. Token counts and model-level tracing come from the server side (Strands SDK). See the [W3C Trace Context spec](https://www.w3.org/TR/trace-context/).
+
+> **Concurrency note:** The middleware uses a LIFO stack for span/scope tracking, which is correct for synchronous PHP-FPM but not safe under Fibers or coroutines.
+
+### Stream Callback Handler
+
+`StreamCallbackHandler` dispatches stream events to typed methods, replacing manual event-type switch logic:
+
+```php
+use StrandsPhpClient\Streaming\PrintingCallbackHandler;
+
+$result = $client->stream('Hello', new PrintingCallbackHandler());
+```
+
+For custom handling, extend `StreamCallbackHandler` and override the methods you need:
+
+```php
+use StrandsPhpClient\Streaming\StreamCallbackHandler;
+use StrandsPhpClient\Streaming\StreamEvent;
+
+class MyHandler extends StreamCallbackHandler
+{
+    protected function onText(StreamEvent $event): ?bool
+    {
+        // handle text tokens
+        return null;
+    }
+
+    protected function onToolUse(StreamEvent $event): ?bool
+    {
+        // handle tool calls
+        return false; // cancel the stream
+    }
+}
+```
+
 ## Transport
 
 | Transport | `invoke()` | `stream()` | Dependency |

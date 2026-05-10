@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - Unreleased
+
+### Added
+
+- **OpenTelemetry tracing middleware** — `OtelTracingMiddleware` emits `KIND_CLIENT` spans and injects W3C `traceparent`/`tracestate` headers for distributed tracing. Zero runtime cost when not configured. OTEL packages in `require-dev` + `suggest` only.
+- **Stream callback handler** — `StreamCallbackHandler` abstract class dispatches stream events to typed `on*()` methods that may return `false` to cancel streaming. `PrintingCallbackHandler` reference implementation writes text to stdout and errors to stderr.
+- **Structured output hydration** — `AgentResponse::structuredOutputAs(string $class)` hydrates structured output into typed DTOs via `fromArray()` factory or constructor named-argument unpacking.
+- **Typed citation DTOs** — `Citation`, `CitationLocation`, `CitationSourceContent`, `CitationGeneratedContent` under `Response\Citation\`. `AgentResponse::getCitationObjects()` and `StreamEvent::getCitationObject()` accessors (raw `$citations`/`$citation` arrays unchanged for BC).
+- **Typed guardrail assessment DTO** — `GuardrailAssessment` with typed policy fields. `GuardrailTrace::getAssessmentObjects()` accessor (raw `$assessments` array unchanged for BC).
+- **Richer exception subclasses** — `ThrottledException` (HTTP 429), `ContextOverflowException`, `MaxTokensException` extending `AgentErrorException`. `fromHttpResponse()` returns specific subtypes. Existing `catch (AgentErrorException $e)` still catches all.
+- **StopReason additions** — `Cancelled` and `Checkpoint` cases for forward-compatibility with the Python SDK (9 total).
+- **AgentInput content parity** — `withImageFromS3()`, `withVideo()`, `withImageFromUrl()`, `withDocumentFromUrl()`, `withVideoFromUrl()` for full media source coverage.
+- 541 tests, 1586 assertions.
+
 ## [1.4.0] - 2026-03-08
 
 ### Added

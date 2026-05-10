@@ -1,447 +1,125 @@
-# AGENTS.md
+# Strands PHP Client - Codex Instructions
 
-This document provides context, patterns, and guidelines for AI coding assistants working in this repository. For human contributors, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+PHP client library for consuming Strands Agents over HTTP. It supports `invoke()`, SSE streaming, custom JSON/SSE endpoints, authentication strategies, retry logic, and Laravel/Symfony integrations.
 
-## Product Overview
+Core invariant: `HttpTransport` is an interface. Do not add default method bodies or turn it into an abstract class.
 
-Strands PHP Client is a PHP library for consuming [Strands Agents](https://github.com/strands-agents/strands-agents) AI agents over HTTP. It provides synchronous invocation via `invoke()`, real-time SSE streaming via `stream()`, custom endpoint support via `postJson()` and `streamSse()`, with pluggable authentication, retry logic, and optional Laravel and Symfony framework integrations.
+## Workspace Boundary
 
-**Core Features:**
-- Synchronous Invocation: Send a message, get a typed `AgentResponse`
-- SSE Streaming: Real-time token-by-token streaming with typed `StreamEvent` objects
-- Custom Endpoints: `postJson()` and `streamSse()` for arbitrary payloads and response schemas
-- Per-Request Timeout: Override global config timeout on individual `postJson()` and `streamSse()` calls
-- Stream Cancellation: Callback returns `false` to abort the stream at the transport level (closes HTTP connection)
-- Transport Abstraction: Symfony HttpClient (full support) or any PSR-18 client (invoke only)
-- Authentication Strategies: Null Object pattern for local dev, API key/Bearer token, AWS SigV4 (IAM auth), extensible interface for custom auth
-- Request Middleware: Pluggable interface for pre-processing outgoing requests
-- Immutable Context Builder: System prompts, metadata, permissions, documents, structured data
-- Rich Input Builder: `AgentInput` for constructing messages with text, images, and documents
-- Guardrail Traces: Typed `GuardrailTrace` objects for guardrail intervention data
-- Interrupt Handling: `InterruptDetail` for human-in-the-loop interrupt flows
-- Retry with Exponential Backoff: Configurable retries with jitter on transient HTTP errors
-- Laravel Service Provider: PHP config, named agent bindings, facade, auto-discovery
-- Symfony Bundle: YAML config, named agent services, autowiring, automatic logger injection
+The controlling GOAT Flow workspace may differ from the selected target project. Treat `.goat-flow/` in the controlling workspace as process state, skills/reference material, and learning-loop storage; treat the selected target project as the source of code evidence and implementation changes. Use target-scoped commands such as `git -C <target> status` when the two are not obviously the same directory.
 
-## Directory Structure
+## Truth Order
 
-```
-strands-php-client/
-│
-├── src/                                    # Production code
-│   ├── StrandsClient.php                   # Main client (invoke, stream, retry logic)
-│   ├── Auth/                               # Authentication strategies
-│   │   ├── AuthStrategy.php                # Interface
-│   │   ├── NullAuth.php                    # No-op (Null Object pattern)
-│   │   ├── ApiKeyAuth.php                  # Bearer token / custom header
-│   │   └── SigV4Auth.php                   # AWS Signature V4 (IAM auth)
-│   ├── Config/
-│   │   └── StrandsConfig.php               # Configuration holder (endpoint, timeouts, retries)
-│   ├── Context/
-│   │   ├── AgentContext.php                # Immutable context builder (clone-and-mutate)
-│   │   └── AgentInput.php                  # Rich input builder (text, images, documents)
-│   ├── Http/                               # Transport abstraction
-│   │   ├── HttpTransport.php               # Interface
-│   │   ├── RequestMiddleware.php            # Middleware interface
-│   │   ├── SymfonyHttpTransport.php        # Symfony HttpClient (invoke + streaming)
-│   │   └── PsrHttpTransport.php            # PSR-18 (invoke only)
-│   ├── Response/
-│   │   ├── AgentResponse.php               # Invoke response DTO
-│   │   ├── GuardrailTrace.php              # Guardrail intervention data
-│   │   ├── InterruptDetail.php             # Human-in-the-loop interrupt
-│   │   ├── StopReason.php                  # Backed enum (EndTurn, ToolUse, MaxTokens, etc.)
-│   │   └── Usage.php                       # Token usage stats (with fromArray() factory)
-│   ├── Streaming/                          # SSE support
-│   │   ├── StreamEvent.php                 # Single parsed event
-│   │   ├── StreamEventType.php             # Backed enum (Text, ToolUse, ToolResult, etc.)
-│   │   ├── StreamParser.php                # Incremental SSE chunk parser
-│   │   └── StreamResult.php                # Accumulated stream result
-│   ├── Exceptions/
-│   │   ├── StrandsException.php            # Base exception
-│   │   ├── AgentErrorException.php         # HTTP error from agent (includes responseBody)
-│   │   └── StreamInterruptedException.php  # Stream ended without terminal event
-│   └── Integration/                        # Framework integrations
-│       ├── StrandsClientFactory.php        # Shared factory (used by both Laravel and Symfony)
-│       ├── Laravel/                        # Laravel service provider
-│       │   ├── StrandsServiceProvider.php  # Service provider (register + boot)
-│       │   ├── Facades/
-│       │   │   └── Strands.php            # Facade for default StrandsClient
-│       │   └── config/
-│       │       └── strands.php            # Publishable config file
-│       └── Symfony/                        # Symfony bundle
-│           ├── StrandsBundle.php           # Bundle registration
-│           └── DependencyInjection/
-│               ├── Configuration.php       # YAML config schema
-│               ├── StrandsExtension.php    # DI container extension
-│               └── StrandsClientFactory.php # Subclass of shared factory
-│
-├── tests/                                  # Unit tests
-│   ├── Unit/                               # Test classes (mirrors src/)
-│   │   ├── StrandsClientTest.php
-│   │   ├── StrandsClientStreamTest.php
-│   │   ├── StrandsClientPostJsonTest.php    # postJson() timeout and retry tests
-│   │   ├── StrandsClientStreamSseTest.php   # streamSse() timeout, cancellation tests
-│   │   ├── SymfonyHttpTransportTest.php
-│   │   ├── PsrHttpTransportTest.php
-│   │   ├── StreamParserTest.php
-│   │   ├── AgentContextTest.php
-│   │   ├── AgentResponseTest.php
-│   │   ├── NullAuthTest.php
-│   │   ├── ApiKeyAuthTest.php
-│   │   ├── SigV4AuthTest.php
-│   │   ├── AgentInputTest.php
-│   │   ├── GuardrailTraceTest.php
-│   │   ├── InterruptDetailTest.php
-│   │   └── Integration/                    # Framework integration tests
-│   │       ├── StrandsClientFactoryTest.php # Shared factory tests
-│   │       ├── Laravel/                    # Laravel tests
-│   │       └── Symfony/                    # Symfony bundle DI tests
-│   ├── Fixtures/                           # Test data (JSON, SSE text)
-│   ├── Support/                            # Test helpers
-│   └── bootstrap.php                       # Test setup
-│
-├── docs/                                   # Documentation
-│   ├── usage-guide.md                      # Real-world patterns and examples
-│   ├── auth.md                             # Authentication strategies
-│   ├── laravel-config.md                   # Full PHP config reference (Laravel)
-│   └── symfony-config.md                   # Full YAML config reference (Symfony)
-│
-├── scripts/
-│   ├── preflight-checks.sh                 # Pre-commit quality gates
-│   └── check-cyclomatic-complexity.php     # CC checker (max 20)
-│
-├── composer.json                           # Dependencies and scripts
-├── phpunit.xml                             # Test runner config
-├── phpstan.neon                            # Static analysis (Level 10)
-├── phpmd.xml                               # Mess detector rules
-├── infection.json5                         # Mutation testing (90% MSI)
-├── .php-cs-fixer.php                       # Code formatting (PSR-12)
-├── .github/workflows/ci.yml               # CI/CD pipeline
-├── AGENTS.md                               # This file
-├── CONTRIBUTING.md                         # Human contributor guidelines
-├── CHANGELOG.md                            # Version history
-└── README.md                               # Project documentation
-```
+1. The user's explicit instruction for this session.
+2. This instruction file.
+3. `.goat-flow/architecture.md` and `.goat-flow/code-map.md`.
+4. Project docs in `README.md`, `CONTRIBUTING.md`, and `docs/`.
+5. GOAT skills/reference files loaded on demand.
 
-**IMPORTANT**: After making changes that affect the directory structure (adding new directories, moving files, or adding significant new files), you MUST update this directory structure section to reflect the current state of the repository.
+## Autonomy Tiers
 
-## Development Workflow
+### Always
 
-### 1. Environment Setup
+Read relevant files before changes, search learning-loop notes, edit within the requested scope, run focused validation, and keep changes small.
+
+### Ask First
+
+Before crossing these boundaries, state the boundary, related code read, footgun checked, local instruction checked, and rollback command: instruction files, package/config files, CI/hooks, framework integrations, public interfaces, and public class/method/namespace add/remove/rename.
+
+### Never
+
+Do not edit secrets or credential files. Do not push, commit, run destructive git commands, or overwrite files without checking existing content first. Freeze writes if interrupted or told "no changes."
+
+## Hard Rules
+
+- If a file exists, modify it in place. Do not create `_modified`, `_new`, `_backup`, or `_v2` variants.
+- Severity order: SECURITY > CORRECTNESS > INTEGRATION > PERFORMANCE > STYLE.
+- Every PHP file must use `declare(strict_types=1);`.
+- Use `readonly` promoted DTO properties and defensive `fromArray()` parsing.
+- Use fully qualified PHPDoc array shapes such as `array<string, string>`; avoid bare `array` and `mixed` unless justified.
+- `AgentContext` style builders are immutable clone-and-mutate APIs.
+- Use PSR-3 logs with snake_case context arrays.
+- Stream callbacks compare cancellation with `=== false`.
+- Do not add dependencies without updating Composer metadata and docs as needed.
+
+## Key Resources
+
+- Architecture: `.goat-flow/architecture.md`
+- Code map: `.goat-flow/code-map.md`
+- Glossary: `.goat-flow/glossary.md`
+- Learning loop: `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, `.goat-flow/decisions/`
+- Tool playbooks: `.goat-flow/skill-reference/` - read the matching playbook before declaring a tool unavailable.
+- Main docs: `README.md`, `CONTRIBUTING.md`, `docs/usage-guide.md`, `docs/auth.md`, `docs/laravel-config.md`, `docs/symfony-config.md`
+
+## Essential Commands
 
 ```bash
 composer install
+composer test
+composer cs:check
+composer cs:fix
+composer analyse
+composer analyse:messdetector
+composer analyse:complexity
+composer preflight
+vendor/bin/phpunit tests/Unit/StrandsClientTest.php
+vendor/bin/phpunit --filter testInvokeReturnsResponse
 ```
 
-### 2. Making Changes
-
-1. Create feature branch
-2. Implement changes following the patterns below
-3. Run quality checks: `composer preflight`
-4. Commit with concise imperative subjects ("Add", "Fix", "Refactor", "Update")
-5. Push and open PR
-
-### 3. Quality Gates
-
-All checks must pass before merge:
-
-```bash
-composer test                    # PHPUnit - all tests pass
-composer cs:check                # PHP-CS-Fixer - PSR-12 compliance
-composer analyse                 # PHPStan Level 10
-composer analyse:messdetector    # PHPMD
-composer analyse:complexity      # Cyclomatic complexity max 20
-composer mutate                  # Infection - 90% MSI minimum
-```
-
-Run everything at once:
-
-```bash
-composer preflight               # All quality checks
-```
-
-## Coding Patterns and Best Practices
-
-### Strict Types
-
-Every PHP file must declare strict types:
+## Execution Loop
 
-```php
-<?php
+### READ
 
-declare(strict_types=1);
-```
-
-### PHPDoc Style
+MUST read relevant files before changes. Never fabricate codebase facts. Search `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, and `.goat-flow/decisions/` before code changes. Before declaring any tool or capability unavailable, read the matching `.goat-flow/skill-reference/` playbook and run its Availability Check verbatim.
 
-Class-level docblocks are a single concise sentence. Method docblocks follow this format:
+### SCOPE
 
-```php
-/**
- * Send a message to the agent and return the full response.
- *
- * @param string            $message   The user's message.
- * @param AgentContext|null  $context   Optional application context.
- * @param string|null        $sessionId Optional session ID for multi-turn.
- *
- * @return AgentResponse
- *
- * @throws AgentErrorException If the agent returns an HTTP error.
- */
-```
+Declare intent, complexity tier, files allowed to change, non-goals, and blast radius before writes. If scope expands, stop and re-scope.
 
-Use fully qualified array types: `array<string, string>`, `list<array{name: string, duration_ms?: int}>`. No bare `array` or `mixed` without good reason.
+### ACT
 
-### Readonly DTOs
+Declare `State: [MODE] | Goal: [one line] | Exit: [condition]` when using GOAT skills. Match existing patterns, keep edits narrow, and preserve unrelated user changes.
 
-Use `readonly` promoted constructor properties. Hydrate from API responses via static `fromArray()` factory methods with defensive type checking:
+### VERIFY
 
-```php
-public function __construct(
-    public readonly string $text,
-    public readonly ?string $sessionId = null,
-    public readonly Usage $usage = new Usage(),
-    public readonly array $toolsUsed = [],
-) {
-}
-
-public static function fromArray(array $data): self
-{
-    $inputTokens = $data['usage']['input_tokens'] ?? 0;
-    $inputTokens = is_int($inputTokens) ? $inputTokens : 0;
-    // ...
-}
-```
-
-### Immutable Builders
-
-`AgentContext` uses clone-and-mutate. Every `with*()` returns a new instance:
-
-```php
-public function withSystemPrompt(string $prompt): self
-{
-    $clone = clone $this;
-    $clone->systemPrompt = $prompt;
-    return $clone;
-}
-```
-
-### Logging Style
-
-Use PSR-3 with context arrays. Keys are snake_case:
-
-```php
-$this->logger->debug('Strands invoke request', [
-    'url' => $url,
-    'session_id' => $sessionId,
-]);
-
-$this->logger->warning('Strands request failed, retrying', [
-    'attempt' => $attempt,
-    'max_retries' => $maxRetries,
-    'delay_ms' => $delayMs,
-    'error' => $e->getMessage(),
-]);
-```
-
-- `debug` level for request/response details, token counts
-- `warning` level for retry attempts
-
-### Import Organization
-
-Imports are ordered alphabetically. Group by:
-1. PHP built-in classes
-2. Third-party (PSR, Symfony)
-3. Internal (`StrandsPhpClient\...`)
-
-### Code Style (PHP-CS-Fixer)
-
-- PSR-12 base standard
-- Short array syntax: `[]`
-- Single quotes for strings
-- Trailing commas in multiline arrays/arguments/parameters
-- Blank lines before `return` statements
-- No unused imports
-
-Run `composer cs:fix` to auto-format before committing.
-
-### Error Handling
-
-- Use the custom exception hierarchy: `StrandsException` (base), `AgentErrorException` (HTTP errors), `StreamInterruptedException` (incomplete streams)
-- `AgentErrorException` carries `$responseBody` (the full decoded JSON response) for structured error inspection. Pass `responseBody: $errorData ?: null` when throwing.
-- Document exceptions in PHPDoc `@throws` annotations
-- Defensive parsing of API responses with type checks and safe defaults
-
-### Per-Request Timeout Override
-
-Methods that accept `?int $timeout` validate it and thread it through to the transport:
-
-```php
-public function postJson(string $path, array $payload, ?int $timeout = null): array
-{
-    if ($timeout !== null && $timeout < 1) {
-        throw new \InvalidArgumentException('timeout must be at least 1');
-    }
-    // ...
-    $data = $this->postWithRetry($url, $headers, $body, $timeout);
-}
-```
-
-The private `postWithRetry()` resolves the effective timeout: `$timeout ?? $this->config->timeout`.
-
-### Stream Cancellation
-
-Stream callbacks (`stream()` and `streamSse()`) can return `false` to cancel the stream. This triggers a transport-level abort:
-
-```php
-// StrandsClient closure returns bool to propagate cancellation
-function (string $chunk) use (&$cancelled, $onEvent): bool {
-    if ($cancelled) {
-        return false;
-    }
-    // ... process events ...
-    if ($onEvent($event) === false) {
-        $cancelled = true;
-        return false;
-    }
-    return true;
-}
-```
-
-In `SymfonyHttpTransport`, returning `false` calls `$response->cancel()` and breaks the chunk loop, closing the HTTP connection immediately. The `=== false` check preserves backward compatibility with `void` callbacks.
-
-### Usage Factory
-
-`Usage::fromArray()` is the canonical way to create `Usage` from raw API arrays. Both `AgentResponse::parseUsage()` and `StrandsClient::usageFromArray()` delegate to it:
-
-```php
-public static function fromArray(array $data): self
-{
-    return new self(
-        inputTokens: self::intField($data, 'input_tokens'),
-        outputTokens: self::intField($data, 'output_tokens'),
-        // ... other fields
-    );
-}
-
-private static function intField(array $data, string $key): int
-{
-    $value = $data[$key] ?? 0;
-    return is_int($value) ? $value : 0;
-}
-```
-
-## Testing Patterns
-
-### Unit Tests (`tests/Unit/`)
-
-- Mirror the `src/` structure
-- All tests use mocked HTTP responses - no network, no Docker, no API keys
-- Test fixtures in `tests/Fixtures/` (JSON responses, SSE text files)
-
-### Test Naming
-
-Method names describe the feature and scenario:
-
-```php
-public function testInvokeReturnsHydratedResponse(): void
-public function testInvokeWithoutSessionId(): void
-public function testInvokeRetriesOnRetryableStatusCode(): void
-public function testConfigRejectsZeroTimeout(): void
-```
-
-### Test Structure
-
-Arrange-Act-Assert with private helpers for setup:
-
-```php
-public function testInvokeReturnsHydratedResponse(): void
-{
-    // Arrange
-    $fixture = $this->loadFixture('invoke-analyst-response.json');
-    $transport = $this->createMockTransport($fixture);
-    $client = new StrandsClient($this->config, $transport);
-
-    // Act
-    $response = $client->invoke('test message');
-
-    // Assert
-    $this->assertSame('expected text', $response->text);
-}
-```
-
-### Mocking
-
-Use PHPUnit's `createMock()` with method expectations and callbacks:
-
-```php
-$transport = $this->createMock(HttpTransport::class);
-$transport->expects($this->once())
-    ->method('post')
-    ->with(
-        $this->anything(),
-        $this->callback(fn (array $h) => $h['Content-Type'] === 'application/json'),
-        $this->callback(function (string $body) {
-            $decoded = json_decode($body, true);
-            $this->assertSame('test', $decoded['message']);
-            return true;
-        }),
-    )
-    ->willReturn($fixture);
-```
-
-### Running Tests
-
-```bash
-composer test                                           # All tests
-vendor/bin/phpunit tests/Unit/StrandsClientTest.php     # Single file
-vendor/bin/phpunit --filter testInvokeReturnsResponse   # Single method
-composer test:coverage                                  # With coverage report
-```
-
-## Things to Do
-
-- Use `declare(strict_types=1);` in every PHP file
-- Use `readonly` on DTO properties
-- Write fully qualified PHPDoc types (`array<string, string>`, not `array`)
-- Use defensive type checks when parsing API responses
-- Add `@throws` annotations for exceptions
-- Use PSR-3 logging with context arrays
-- Write tests for all new functionality
-- Run `composer preflight` before committing
-- Keep cyclomatic complexity under 20 per method
-
-## Things NOT to Do
-
-- Don't use bare `array` or `mixed` types without good reason
-- Don't skip `declare(strict_types=1);`
-- Don't make network calls in tests - mock everything
-- Don't mutate objects that should be immutable (use clone-and-mutate)
-- Don't use f-string style concatenation in log messages - use context arrays
-- Don't commit without running `composer cs:fix`
-- Don't add dependencies without updating `composer.json` suggest/require appropriately
-
-## Agent-Specific Notes
-
-### Writing Code
-
-- Make the smallest reasonable changes to achieve the desired outcome
-- Prefer simple, clean, maintainable solutions over clever ones
-- Match the style and formatting of surrounding code
-- Fix broken things immediately when you find them
-
-### Code Comments
-
-- Comments should explain WHAT the code does or WHY it exists
-- Never add comments about what used to be there or how something changed
-- Never refer to temporal context ("recently refactored", "moved")
-- Keep comments concise and evergreen
-
-## Additional Resources
-
-- [README.md](./README.md) - Project overview, quick start, architecture
-- [CONTRIBUTING.md](./CONTRIBUTING.md) - Human contributor guidelines
-- [docs/usage-guide.md](./docs/usage-guide.md) - Real-world usage patterns
-- [docs/auth.md](./docs/auth.md) - Authentication strategies
-- [docs/laravel-config.md](./docs/laravel-config.md) - Laravel PHP config reference
-- [docs/symfony-config.md](./docs/symfony-config.md) - Symfony YAML config reference
+Run focused checks for changed files. Do not claim checks passed without the literal pass/fail line from this session. Check cross-references after renames. If verification catches a recurring trap, update the learning loop before DoD.
+
+## Definition of Done
+
+Confirm the relevant gates: tests or focused checks pass, formatting/static analysis is addressed, cross-references resolve, no unapproved boundary changes remain, learning-loop notes are updated when needed, and old patterns are grepped after renames.
+
+## Artifact Routing
+
+| Artifact | Destination |
+| --- | --- |
+| Footgun or code trap | `.goat-flow/footguns/` |
+| Lesson from an agent mistake | `.goat-flow/lessons/` |
+| Architecture or policy decision | `.goat-flow/decisions/` |
+| Reusable implementation or testing pattern | `.goat-flow/patterns/` |
+| Session continuity note | `.goat-flow/logs/sessions/` |
+| Scratch work | `.goat-flow/scratchpad/` |
+
+Read the destination directory's `README.md` before editing GOAT Flow artifacts.
+
+## Router Table
+
+| Surface | Path |
+| --- | --- |
+| Tool playbooks (CLI/MCP availability checks: browser-use, page-capture, skill-* references) | `.goat-flow/skill-reference/` - read BEFORE declaring a tool unavailable |
+| Learning loop | `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, `.goat-flow/decisions/` |
+| Architecture | `.goat-flow/architecture.md` |
+| Code map | `.goat-flow/code-map.md` |
+| Glossary | `.goat-flow/glossary.md` |
+| Agent skills | `.agents/skills/` |
+| Agent hooks | `.codex/hooks/`, `.codex/hooks.json`, `.codex/config.toml` |
+| Source code | `src/` |
+| Tests | `tests/` |
+| Documentation | `README.md`, `CONTRIBUTING.md`, `docs/` |
+
+## PHP Project Patterns
+
+Imports are alphabetical in groups: PHP built-ins, third-party, then `StrandsPhpClient\...`. Code style is PSR-12 with short arrays, single-quoted strings, trailing commas in multiline constructs, blank lines before returns, and no unused imports.
+
+Use custom exceptions: `StrandsException`, `AgentErrorException`, and `StreamInterruptedException`. Pass structured agent error bodies via `responseBody` where available and document thrown exceptions in PHPDoc.
+
+Tests live under `tests/Unit/`, mirror `src/`, use mocked HTTP only, and follow Arrange-Act-Assert. Test names describe feature and scenario, for example `testInvokeRetriesOnRetryableStatusCode`.

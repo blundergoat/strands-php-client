@@ -416,4 +416,162 @@ class AgentInputTest extends TestCase
         $this->assertArrayHasKey('content', $payload);
         $this->assertArrayHasKey('structured_output_prompt', $payload);
     }
+
+    public function testWithImageFromS3(): void
+    {
+        $input = AgentInput::text('Analyse this image')
+            ->withImageFromS3('s3://my-bucket/photo.png', 'png');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('image', $payload['content'][1]['type']);
+        $this->assertSame('s3_location', $payload['content'][1]['source']['type']);
+        $this->assertSame('s3://my-bucket/photo.png', $payload['content'][1]['source']['uri']);
+        $this->assertSame('png', $payload['content'][1]['format']);
+        $this->assertArrayNotHasKey('bucket_owner', $payload['content'][1]['source']);
+    }
+
+    public function testWithImageFromS3WithBucketOwner(): void
+    {
+        $input = AgentInput::text('Test')
+            ->withImageFromS3('s3://b/img.jpg', 'jpeg', '111222333');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('111222333', $payload['content'][1]['source']['bucket_owner']);
+    }
+
+    public function testWithImageFromS3ReturnsNewInstance(): void
+    {
+        $original = AgentInput::text('Hello');
+        $withS3 = $original->withImageFromS3('s3://b/k.png', 'png');
+
+        $this->assertSame('Hello', $original->toPayloadValue());
+        $this->assertIsArray($withS3->toPayloadValue());
+        $this->assertNotSame($original, $withS3);
+    }
+
+    public function testWithVideo(): void
+    {
+        $input = AgentInput::text('What is in this video?')
+            ->withVideo('base64videodata', 'mp4');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('video', $payload['content'][1]['type']);
+        $this->assertSame('base64', $payload['content'][1]['source']['type']);
+        $this->assertSame('video/mp4', $payload['content'][1]['source']['media_type']);
+        $this->assertSame('base64videodata', $payload['content'][1]['source']['data']);
+        $this->assertSame('mp4', $payload['content'][1]['format']);
+    }
+
+    public function testWithVideoReturnsNewInstance(): void
+    {
+        $original = AgentInput::text('Hello');
+        $withVideo = $original->withVideo('data', 'mp4');
+
+        $this->assertSame('Hello', $original->toPayloadValue());
+        $this->assertIsArray($withVideo->toPayloadValue());
+        $this->assertNotSame($original, $withVideo);
+    }
+
+    public function testWithImageFromUrl(): void
+    {
+        $input = AgentInput::text('Analyse')
+            ->withImageFromUrl('https://example.com/photo.png', 'image/png');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('image', $payload['content'][1]['type']);
+        $this->assertSame('url', $payload['content'][1]['source']['type']);
+        $this->assertSame('https://example.com/photo.png', $payload['content'][1]['source']['url']);
+        $this->assertSame('image/png', $payload['content'][1]['source']['media_type']);
+    }
+
+    public function testWithImageFromUrlReturnsNewInstance(): void
+    {
+        $original = AgentInput::text('Hello');
+        $withUrl = $original->withImageFromUrl('https://x/img.png', 'image/png');
+
+        $this->assertSame('Hello', $original->toPayloadValue());
+        $this->assertIsArray($withUrl->toPayloadValue());
+        $this->assertNotSame($original, $withUrl);
+    }
+
+    public function testWithDocumentFromUrl(): void
+    {
+        $input = AgentInput::text('Summarise')
+            ->withDocumentFromUrl('https://example.com/report.pdf', 'pdf', 'report');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('document', $payload['content'][1]['type']);
+        $this->assertSame('url', $payload['content'][1]['source']['type']);
+        $this->assertSame('https://example.com/report.pdf', $payload['content'][1]['source']['url']);
+        $this->assertSame('pdf', $payload['content'][1]['format']);
+        $this->assertSame('report', $payload['content'][1]['name']);
+    }
+
+    public function testWithDocumentFromUrlReturnsNewInstance(): void
+    {
+        $original = AgentInput::text('Hello');
+        $withUrl = $original->withDocumentFromUrl('https://x/doc.pdf', 'pdf', 'doc');
+
+        $this->assertSame('Hello', $original->toPayloadValue());
+        $this->assertIsArray($withUrl->toPayloadValue());
+        $this->assertNotSame($original, $withUrl);
+    }
+
+    public function testWithVideoFromUrl(): void
+    {
+        $input = AgentInput::text('Describe')
+            ->withVideoFromUrl('https://example.com/clip.mp4', 'mp4');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('video', $payload['content'][1]['type']);
+        $this->assertSame('url', $payload['content'][1]['source']['type']);
+        $this->assertSame('https://example.com/clip.mp4', $payload['content'][1]['source']['url']);
+        $this->assertSame('mp4', $payload['content'][1]['format']);
+    }
+
+    public function testWithVideoFromUrlReturnsNewInstance(): void
+    {
+        $original = AgentInput::text('Hello');
+        $withUrl = $original->withVideoFromUrl('https://x/clip.mp4', 'mp4');
+
+        $this->assertSame('Hello', $original->toPayloadValue());
+        $this->assertIsArray($withUrl->toPayloadValue());
+        $this->assertNotSame($original, $withUrl);
+    }
+
+    public function testMixedMediaTypesChaining(): void
+    {
+        $input = AgentInput::text('Analyse all')
+            ->withImage('img1', 'image/png')
+            ->withImageFromS3('s3://b/img2.jpg', 'jpeg')
+            ->withImageFromUrl('https://x/img3.png', 'image/png')
+            ->withVideo('vid1', 'mp4')
+            ->withVideoFromUrl('https://x/clip.mp4', 'mp4')
+            ->withDocumentFromUrl('https://x/doc.pdf', 'pdf', 'doc');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        // 1 text + 6 media blocks = 7
+        $this->assertCount(7, $payload['content']);
+        $this->assertSame('text', $payload['content'][0]['type']);
+        $this->assertSame('image', $payload['content'][1]['type']);
+        $this->assertSame('image', $payload['content'][2]['type']);
+        $this->assertSame('image', $payload['content'][3]['type']);
+        $this->assertSame('video', $payload['content'][4]['type']);
+        $this->assertSame('video', $payload['content'][5]['type']);
+        $this->assertSame('document', $payload['content'][6]['type']);
+    }
 }

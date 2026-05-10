@@ -6,6 +6,7 @@ namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\AgentResponse;
+use StrandsPhpClient\Response\Citation\Citation;
 use StrandsPhpClient\Response\GuardrailTrace;
 use StrandsPhpClient\Response\InterruptDetail;
 use StrandsPhpClient\Response\StopReason;
@@ -342,6 +343,8 @@ class AgentResponseTest extends TestCase
             'content_filtered' => StopReason::ContentFiltered,
             'guardrail_intervened' => StopReason::GuardrailIntervened,
             'interrupt' => StopReason::Interrupt,
+            'cancelled' => StopReason::Cancelled,
+            'checkpoint' => StopReason::Checkpoint,
         ];
 
         foreach ($reasons as $raw => $expected) {
@@ -559,5 +562,160 @@ class AgentResponseTest extends TestCase
         $response = AgentResponse::fromArray($data);
 
         $this->assertSame([], $response->citations);
+    }
+
+    public function testGetCitationObjectsReturnsTypedList(): void
+    {
+        $data = [
+            'text' => 'Test',
+            'message' => [
+                'content' => [
+                    [
+                        'type' => 'citationsContent',
+                        'location' => ['type' => 'WEB', 'url' => 'https://example.com'],
+                        'source_content' => ['text' => 'source text'],
+                    ],
+                ],
+            ],
+        ];
+
+        $response = AgentResponse::fromArray($data);
+        $citations = $response->getCitationObjects();
+
+        $this->assertCount(1, $citations);
+        $this->assertInstanceOf(Citation::class, $citations[0]);
+        $this->assertSame('WEB', $citations[0]->location?->type);
+        $this->assertSame('source text', $citations[0]->sourceContent?->text);
+    }
+
+    public function testGetCitationObjectsPreservesFlatCitationFields(): void
+    {
+        $data = json_decode(
+            file_get_contents(__DIR__ . '/../Fixtures/invoke-response-with-citations.json'),
+            true,
+        );
+
+        $response = AgentResponse::fromArray($data);
+        $citations = $response->getCitationObjects();
+
+        $this->assertCount(1, $citations);
+        $this->assertSame('https://example.com/docs', $citations[0]->source);
+        $this->assertSame('Official Documentation', $citations[0]->title);
+        $this->assertSame('the answer is 42', $citations[0]->text);
+        $this->assertSame('https://example.com/docs', $citations[0]->location?->url);
+        $this->assertSame('the answer is 42', $citations[0]->sourceContent?->text);
+    }
+
+    public function testGetCitationObjectsCachesResult(): void
+    {
+        $data = [
+            'text' => 'Test',
+            'message' => [
+                'content' => [
+                    ['type' => 'citationsContent', 'location' => ['type' => 'WEB']],
+                ],
+            ],
+        ];
+
+        $response = AgentResponse::fromArray($data);
+        $first = $response->getCitationObjects();
+        $second = $response->getCitationObjects();
+
+        $this->assertSame($first, $second);
+    }
+
+    public function testGetCitationObjectsReturnsEmptyForNoCitations(): void
+    {
+        $response = AgentResponse::fromArray(['text' => 'Test']);
+
+        $this->assertSame([], $response->getCitationObjects());
+    }
+
+    public function testStructuredOutputAsWithFromArrayFactory(): void
+    {
+        $data = [
+            'text' => 'Test',
+            'structured_output' => ['name' => 'John', 'age' => 30],
+        ];
+
+        $response = AgentResponse::fromArray($data);
+        $dto = $response->structuredOutputAs(TestStructuredDto::class);
+
+        $this->assertInstanceOf(TestStructuredDto::class, $dto);
+        $this->assertSame('John', $dto->name);
+        $this->assertSame(30, $dto->age);
+    }
+
+    public function testStructuredOutputAsWithConstructor(): void
+    {
+        $data = [
+            'text' => 'Test',
+            'structured_output' => ['name' => 'Jane', 'score' => 95.5],
+        ];
+
+        $response = AgentResponse::fromArray($data);
+        $dto = $response->structuredOutputAs(TestConstructorDto::class);
+
+        $this->assertInstanceOf(TestConstructorDto::class, $dto);
+        $this->assertSame('Jane', $dto->name);
+        $this->assertSame(95.5, $dto->score);
+    }
+
+    public function testStructuredOutputAsThrowsWhenNull(): void
+    {
+        $response = AgentResponse::fromArray(['text' => 'Test']);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('No structured output in response');
+        $response->structuredOutputAs(TestStructuredDto::class);
+    }
+
+    public function testStructuredOutputAsThrowsOnMismatch(): void
+    {
+        $data = [
+            'text' => 'Test',
+            'structured_output' => ['wrong_key' => 'value'],
+        ];
+
+        $response = AgentResponse::fromArray($data);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/Failed to hydrate/');
+        $response->structuredOutputAs(TestConstructorDto::class);
+    }
+}
+
+/**
+ * @internal
+ */
+class TestStructuredDto
+{
+    public function __construct(
+        public readonly string $name = '',
+        public readonly int $age = 0,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            name: is_string($data['name'] ?? null) ? $data['name'] : '',
+            age: is_int($data['age'] ?? null) ? $data['age'] : 0,
+        );
+    }
+}
+
+/**
+ * @internal
+ */
+class TestConstructorDto
+{
+    public function __construct(
+        public readonly string $name,
+        public readonly float $score,
+    ) {
     }
 }

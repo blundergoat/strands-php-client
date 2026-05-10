@@ -1,0 +1,11 @@
+# Codex CLI config template - copy to .codex/config.toml
+#
+# Key differences from Claude Code:
+# - No PreToolUse equivalent for non-shell tools (file writes can't be pre-blocked)
+# - This file only enables the hooks engine
+# - Hook registrations live in .codex/hooks.json
+# - The shipped codex-hooks.json template registers the PreToolUse deny hook
+# - goat-flow does not model a Codex post-turn hook event
+
+[features]
+codex_hooks = true

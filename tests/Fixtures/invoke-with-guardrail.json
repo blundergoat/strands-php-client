@@ -1,0 +1,33 @@
+{
+    "text": "I'm sorry, I can't help with that request.",
+    "agent": "safe-agent",
+    "session_id": "sess-guard-002",
+    "usage": {
+        "input_tokens": 40,
+        "output_tokens": 20
+    },
+    "tools_used": [],
+    "stop_reason": "guardrail_intervened",
+    "guardrail_trace": {
+        "action": "INTERVENED",
+        "assessments": [
+            {
+                "type": "content_filter",
+                "action": "BLOCKED",
+                "content_policy": {
+                    "name": "harmful_content",
+                    "confidence": "HIGH"
+                }
+            },
+            {
+                "type": "topic_filter",
+                "action": "BLOCKED",
+                "topic_policy": {
+                    "name": "restricted_topic",
+                    "type": "DENY"
+                }
+            }
+        ],
+        "model_output": "The original response that was blocked by guardrails."
+    }
+}
