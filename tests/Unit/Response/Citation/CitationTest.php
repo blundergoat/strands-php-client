@@ -73,6 +73,37 @@ class CitationTest extends TestCase
         $this->assertNull($citation->generatedContent);
     }
 
+    public function testFromArrayPreservesFlatCitationData(): void
+    {
+        $data = [
+            'source' => 'https://example.com/docs',
+            'title' => 'Official Documentation',
+            'text' => 'the answer is 42',
+        ];
+
+        $citation = Citation::fromArray($data);
+
+        $this->assertSame('https://example.com/docs', $citation->source);
+        $this->assertSame('Official Documentation', $citation->title);
+        $this->assertSame('the answer is 42', $citation->text);
+        $this->assertSame('https://example.com/docs', $citation->location?->url);
+        $this->assertSame('Official Documentation', $citation->location?->title);
+        $this->assertSame('the answer is 42', $citation->sourceContent?->text);
+    }
+
+    public function testFromArrayMapsFlatDocumentSourceToSourceContent(): void
+    {
+        $citation = Citation::fromArray([
+            'source' => 'doc.pdf',
+            'text' => 'relevant excerpt',
+        ]);
+
+        $this->assertNull($citation->location);
+        $this->assertSame('doc.pdf', $citation->source);
+        $this->assertSame('doc.pdf', $citation->sourceContent?->documentName);
+        $this->assertSame('relevant excerpt', $citation->sourceContent?->text);
+    }
+
     public function testFromArrayWithEmptyData(): void
     {
         $citation = Citation::fromArray([]);
@@ -80,5 +111,8 @@ class CitationTest extends TestCase
         $this->assertNull($citation->location);
         $this->assertNull($citation->sourceContent);
         $this->assertNull($citation->generatedContent);
+        $this->assertNull($citation->source);
+        $this->assertNull($citation->title);
+        $this->assertNull($citation->text);
     }
 }

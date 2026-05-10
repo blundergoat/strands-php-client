@@ -588,6 +588,24 @@ class AgentResponseTest extends TestCase
         $this->assertSame('source text', $citations[0]->sourceContent?->text);
     }
 
+    public function testGetCitationObjectsPreservesFlatCitationFields(): void
+    {
+        $data = json_decode(
+            file_get_contents(__DIR__ . '/../Fixtures/invoke-response-with-citations.json'),
+            true,
+        );
+
+        $response = AgentResponse::fromArray($data);
+        $citations = $response->getCitationObjects();
+
+        $this->assertCount(1, $citations);
+        $this->assertSame('https://example.com/docs', $citations[0]->source);
+        $this->assertSame('Official Documentation', $citations[0]->title);
+        $this->assertSame('the answer is 42', $citations[0]->text);
+        $this->assertSame('https://example.com/docs', $citations[0]->location?->url);
+        $this->assertSame('the answer is 42', $citations[0]->sourceContent?->text);
+    }
+
     public function testGetCitationObjectsCachesResult(): void
     {
         $data = [

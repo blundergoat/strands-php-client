@@ -25,7 +25,7 @@ abstract class StreamCallbackHandler
      */
     public function __invoke(StreamEvent $event): ?bool
     {
-        match ($event->type) {
+        return match ($event->type) {
             StreamEventType::Text => $this->onText($event),
             StreamEventType::ToolUse => $this->onToolUse($event),
             StreamEventType::ToolResult => $this->onToolResult($event),
@@ -36,43 +36,50 @@ abstract class StreamCallbackHandler
             StreamEventType::Complete => $this->onComplete($event),
             StreamEventType::Error => $this->onError($event),
         };
+    }
 
+    protected function onText(StreamEvent $event): ?bool
+    {
         return null;
     }
 
-    protected function onText(StreamEvent $event): void
+    protected function onToolUse(StreamEvent $event): ?bool
     {
+        return null;
     }
 
-    protected function onToolUse(StreamEvent $event): void
+    protected function onToolResult(StreamEvent $event): ?bool
     {
+        return null;
     }
 
-    protected function onToolResult(StreamEvent $event): void
+    protected function onThinking(StreamEvent $event): ?bool
     {
+        return null;
     }
 
-    protected function onThinking(StreamEvent $event): void
+    protected function onCitation(StreamEvent $event): ?bool
     {
+        return null;
     }
 
-    protected function onCitation(StreamEvent $event): void
+    protected function onReasoningSignature(StreamEvent $event): ?bool
     {
+        return null;
     }
 
-    protected function onReasoningSignature(StreamEvent $event): void
+    protected function onReasoningRedacted(StreamEvent $event): ?bool
     {
+        return null;
     }
 
-    protected function onReasoningRedacted(StreamEvent $event): void
+    protected function onComplete(StreamEvent $event): ?bool
     {
+        return null;
     }
 
-    protected function onComplete(StreamEvent $event): void
+    protected function onError(StreamEvent $event): ?bool
     {
-    }
-
-    protected function onError(StreamEvent $event): void
-    {
+        return null;
     }
 }

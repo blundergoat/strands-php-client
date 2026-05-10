@@ -296,14 +296,16 @@ use StrandsPhpClient\Streaming\StreamEvent;
 
 class MyHandler extends StreamCallbackHandler
 {
-    protected function onText(StreamEvent $event): void
+    protected function onText(StreamEvent $event): ?bool
     {
         // handle text tokens
+        return null;
     }
 
-    protected function onToolUse(StreamEvent $event): void
+    protected function onToolUse(StreamEvent $event): ?bool
     {
         // handle tool calls
+        return false; // cancel the stream
     }
 }
 ```

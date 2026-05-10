@@ -55,4 +55,24 @@ class StreamEventCitationTest extends TestCase
         $this->assertNull($citation->sourceContent);
         $this->assertNull($citation->generatedContent);
     }
+
+    public function testGetCitationObjectPreservesFlatCitationData(): void
+    {
+        $event = new StreamEvent(
+            type: StreamEventType::Citation,
+            citation: [
+                'source' => 'doc.pdf',
+                'page' => 3,
+                'text' => 'relevant excerpt',
+            ],
+        );
+
+        $citation = $event->getCitationObject();
+
+        $this->assertInstanceOf(Citation::class, $citation);
+        $this->assertSame('doc.pdf', $citation->source);
+        $this->assertSame('relevant excerpt', $citation->text);
+        $this->assertSame('doc.pdf', $citation->sourceContent?->documentName);
+        $this->assertSame('relevant excerpt', $citation->sourceContent?->text);
+    }
 }

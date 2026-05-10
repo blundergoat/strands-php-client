@@ -18,9 +18,11 @@ class StreamCallbackHandlerTest extends TestCase
             /** @var StreamEvent|null */
             public ?StreamEvent $received = null;
 
-            protected function onText(StreamEvent $event): void
+            protected function onText(StreamEvent $event): ?bool
             {
                 $this->received = $event;
+
+                return null;
             }
         };
 
@@ -35,9 +37,11 @@ class StreamCallbackHandlerTest extends TestCase
         $handler = new class () extends StreamCallbackHandler {
             public bool $called = false;
 
-            protected function onToolUse(StreamEvent $event): void
+            protected function onToolUse(StreamEvent $event): ?bool
             {
                 $this->called = true;
+
+                return null;
             }
         };
 
@@ -51,9 +55,11 @@ class StreamCallbackHandlerTest extends TestCase
         $handler = new class () extends StreamCallbackHandler {
             public bool $called = false;
 
-            protected function onComplete(StreamEvent $event): void
+            protected function onComplete(StreamEvent $event): ?bool
             {
                 $this->called = true;
+
+                return null;
             }
         };
 
@@ -67,9 +73,11 @@ class StreamCallbackHandlerTest extends TestCase
         $handler = new class () extends StreamCallbackHandler {
             public bool $called = false;
 
-            protected function onError(StreamEvent $event): void
+            protected function onError(StreamEvent $event): ?bool
             {
                 $this->called = true;
+
+                return null;
             }
         };
 
@@ -100,14 +108,18 @@ class StreamCallbackHandlerTest extends TestCase
             /** @var list<string> */
             public array $log = [];
 
-            protected function onText(StreamEvent $event): void
+            protected function onText(StreamEvent $event): ?bool
             {
                 $this->log[] = 'text:' . $event->text;
+
+                return null;
             }
 
-            protected function onToolUse(StreamEvent $event): void
+            protected function onToolUse(StreamEvent $event): ?bool
             {
                 $this->log[] = 'tool:' . $event->toolName;
+
+                return null;
             }
         };
 
@@ -126,5 +138,19 @@ class StreamCallbackHandlerTest extends TestCase
             $result = $handler(new StreamEvent(type: $type));
             $this->assertNull($result, "Handler returned non-null for {$type->value}");
         }
+    }
+
+    public function testTypedHandlerCanCancelStream(): void
+    {
+        $handler = new class () extends StreamCallbackHandler {
+            protected function onText(StreamEvent $event): ?bool
+            {
+                return false;
+            }
+        };
+
+        $result = $handler(new StreamEvent(type: StreamEventType::Text, text: 'stop'));
+
+        $this->assertFalse($result);
     }
 }

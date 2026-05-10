@@ -9,18 +9,62 @@ namespace StrandsPhpClient\Streaming;
  */
 class PrintingCallbackHandler extends StreamCallbackHandler
 {
-    protected function onText(StreamEvent $event): void
+    /** @var (\Closure(string): void)|null */
+    private readonly ?\Closure $outputWriter;
+
+    /** @var (\Closure(string): void)|null */
+    private readonly ?\Closure $errorWriter;
+
+    /**
+     * @param callable(string): void|null $outputWriter
+     * @param callable(string): void|null $errorWriter
+     */
+    public function __construct(?callable $outputWriter = null, ?callable $errorWriter = null)
     {
-        echo $event->text;
+        $this->outputWriter = $outputWriter !== null ? \Closure::fromCallable($outputWriter) : null;
+        $this->errorWriter = $errorWriter !== null ? \Closure::fromCallable($errorWriter) : null;
     }
 
-    protected function onComplete(StreamEvent $event): void
+    protected function onText(StreamEvent $event): ?bool
     {
-        echo PHP_EOL;
+        $this->writeOutput($event->text ?? '');
+
+        return null;
     }
 
-    protected function onError(StreamEvent $event): void
+    protected function onComplete(StreamEvent $_event): ?bool
     {
-        fwrite(STDERR, "Error [{$event->errorCode}]: {$event->errorMessage}" . PHP_EOL);
+        $this->writeOutput(PHP_EOL);
+
+        return null;
+    }
+
+    protected function onError(StreamEvent $event): ?bool
+    {
+        $this->writeError("Error [{$event->errorCode}]: {$event->errorMessage}" . PHP_EOL);
+
+        return null;
+    }
+
+    private function writeOutput(string $message): void
+    {
+        if ($this->outputWriter !== null) {
+            ($this->outputWriter)($message);
+
+            return;
+        }
+
+        echo $message;
+    }
+
+    private function writeError(string $message): void
+    {
+        if ($this->errorWriter !== null) {
+            ($this->errorWriter)($message);
+
+            return;
+        }
+
+        file_put_contents('php://stderr', $message, FILE_APPEND);
     }
 }
