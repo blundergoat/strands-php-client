@@ -12,6 +12,11 @@ use StrandsPhpClient\Exceptions\ThrottledException;
 
 class AgentErrorExceptionTest extends TestCase
 {
+    /**
+     * Verifies that from HTTP response returns throttled for 429.
+     *
+     * @return void
+     */
     public function testFromHttpResponseReturnsThrottledFor429(): void
     {
         $e = AgentErrorException::fromHttpResponse(429, 'Rate limited', ['detail' => 'Too many requests']);
@@ -20,6 +25,11 @@ class AgentErrorExceptionTest extends TestCase
         $this->assertSame(429, $e->statusCode);
     }
 
+    /**
+     * Verifies that from HTTP response returns context overflow.
+     *
+     * @return void
+     */
     public function testFromHttpResponseReturnsContextOverflow(): void
     {
         $e = AgentErrorException::fromHttpResponse(400, 'overflow', ['detail' => 'context too large', 'code' => 'context_window_overflow']);
@@ -29,6 +39,11 @@ class AgentErrorExceptionTest extends TestCase
         $this->assertSame('context_window_overflow', $e->errorCode);
     }
 
+    /**
+     * Verifies that from HTTP response returns max tokens.
+     *
+     * @return void
+     */
     public function testFromHttpResponseReturnsMaxTokens(): void
     {
         $e = AgentErrorException::fromHttpResponse(400, 'tokens', ['detail' => 'limit reached', 'code' => 'max_tokens_reached']);
@@ -38,6 +53,11 @@ class AgentErrorExceptionTest extends TestCase
         $this->assertSame('max_tokens_reached', $e->errorCode);
     }
 
+    /**
+     * Verifies that from HTTP response returns generic for other errors.
+     *
+     * @return void
+     */
     public function testFromHttpResponseReturnsGenericForOtherErrors(): void
     {
         $e = AgentErrorException::fromHttpResponse(500, 'Internal error', ['detail' => 'Something broke']);
@@ -49,6 +69,11 @@ class AgentErrorExceptionTest extends TestCase
         $this->assertSame(500, $e->statusCode);
     }
 
+    /**
+     * Verifies that from HTTP response context overflow case insensitive.
+     *
+     * @return void
+     */
     public function testFromHttpResponseContextOverflowCaseInsensitive(): void
     {
         $e = AgentErrorException::fromHttpResponse(400, 'err', ['detail' => 'err', 'error_code' => 'Context_Window_Overflow']);
@@ -56,6 +81,11 @@ class AgentErrorExceptionTest extends TestCase
         $this->assertInstanceOf(ContextOverflowException::class, $e);
     }
 
+    /**
+     * Verifies that from HTTP response max tokens variant.
+     *
+     * @return void
+     */
     public function testFromHttpResponseMaxTokensVariant(): void
     {
         $e = AgentErrorException::fromHttpResponse(400, 'err', ['detail' => 'err', 'code' => 'MAX_TOKENS_EXCEEDED']);
@@ -63,6 +93,11 @@ class AgentErrorExceptionTest extends TestCase
         $this->assertInstanceOf(MaxTokensException::class, $e);
     }
 
+    /**
+     * Verifies that all subclasses caught by parent.
+     *
+     * @return void
+     */
     public function testAllSubclassesCaughtByParent(): void
     {
         $exceptions = [

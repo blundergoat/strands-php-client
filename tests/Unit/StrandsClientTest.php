@@ -19,6 +19,12 @@ use StrandsPhpClient\StrandsClient;
 
 class StrandsClientTest extends TestCase
 {
+    /**
+     * Load fixture for the test scenario.
+     *
+     * @param string $name Fixture name or DTO name under test.
+     * @return array<string, mixed> Decoded fixture or processed configuration array.
+     */
     private function loadFixture(string $name): array
     {
         $path = __DIR__ . '/../Fixtures/' . $name;
@@ -26,6 +32,12 @@ class StrandsClientTest extends TestCase
         return json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
     }
 
+    /**
+     * Create mock transport for the test scenario.
+     *
+     * @param array<string, mixed> $response Parsed response data for the operation.
+     * @return HttpTransport Value produced by the method.
+     */
     private function createMockTransport(array $response): HttpTransport
     {
         $mock = $this->createMock(HttpTransport::class);
@@ -34,6 +46,11 @@ class StrandsClientTest extends TestCase
         return $mock;
     }
 
+    /**
+     * Verifies that invoke returns hydrated response.
+     *
+     * @return void
+     */
     public function testInvokeReturnsHydratedResponse(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -61,6 +78,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame([], $response->toolsUsed);
     }
 
+    /**
+     * Verifies that invoke without session ID.
+     *
+     * @return void
+     */
     public function testInvokeWithoutSessionId(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -77,6 +99,11 @@ class StrandsClientTest extends TestCase
         $this->assertNull($response->sessionId);
     }
 
+    /**
+     * Verifies that invoke without context.
+     *
+     * @return void
+     */
     public function testInvokeWithoutContext(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -92,6 +119,11 @@ class StrandsClientTest extends TestCase
         $this->assertInstanceOf(AgentResponse::class, $response);
     }
 
+    /**
+     * Verifies that invoke sends correct payload.
+     *
+     * @return void
+     */
     public function testInvokeSendsCorrectPayload(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -126,6 +158,11 @@ class StrandsClientTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that invoke strips trailing slash.
+     *
+     * @return void
+     */
     public function testInvokeStripsTrailingSlash(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -144,6 +181,11 @@ class StrandsClientTest extends TestCase
         $client->invoke(message: 'Test');
     }
 
+    /**
+     * Verifies that invoke auth receives invoke URL.
+     *
+     * @return void
+     */
     public function testInvokeAuthReceivesInvokeUrl(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -172,6 +214,11 @@ class StrandsClientTest extends TestCase
         $client->invoke(message: 'Test');
     }
 
+    /**
+     * Verifies that stream auth receives stream URL.
+     *
+     * @return void
+     */
     public function testStreamAuthReceivesStreamUrl(): void
     {
         $auth = $this->createMock(AuthStrategy::class);
@@ -204,6 +251,11 @@ class StrandsClientTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that invoke retries on retryable status code.
+     *
+     * @return void
+     */
     public function testInvokeRetriesOnRetryableStatusCode(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -235,6 +287,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame(2, $callCount);
     }
 
+    /**
+     * Verifies that invoke retries on generic strands exception.
+     *
+     * @return void
+     */
     public function testInvokeRetriesOnGenericStrandsException(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -266,6 +323,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame(2, $callCount);
     }
 
+    /**
+     * Verifies that invoke does not retry non retryable status code.
+     *
+     * @return void
+     */
     public function testInvokeDoesNotRetryNonRetryableStatusCode(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -298,6 +360,11 @@ class StrandsClientTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that invoke throws after max retries.
+     *
+     * @return void
+     */
     public function testInvokeThrowsAfterMaxRetries(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -319,6 +386,11 @@ class StrandsClientTest extends TestCase
         $client->invoke(message: 'Test');
     }
 
+    /**
+     * Verifies that invoke does not retry on 401.
+     *
+     * @return void
+     */
     public function testInvokeDoesNotRetryOn401(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -351,6 +423,11 @@ class StrandsClientTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that config accepts boundary max retries.
+     *
+     * @return void
+     */
     public function testConfigAcceptsBoundaryMaxRetries(): void
     {
         $configZero = new StrandsConfig(endpoint: 'http://localhost:8081', maxRetries: 0);
@@ -360,6 +437,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame(20, $configMax->maxRetries);
     }
 
+    /**
+     * Verifies that config rejects zero timeout.
+     *
+     * @return void
+     */
     public function testConfigRejectsZeroTimeout(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -368,6 +450,11 @@ class StrandsClientTest extends TestCase
         new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 0);
     }
 
+    /**
+     * Verifies that config rejects negative connect timeout.
+     *
+     * @return void
+     */
     public function testConfigRejectsNegativeConnectTimeout(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -376,6 +463,11 @@ class StrandsClientTest extends TestCase
         new StrandsConfig(endpoint: 'http://localhost:8081', connectTimeout: -1);
     }
 
+    /**
+     * Verifies that config rejects zero retry delay ms.
+     *
+     * @return void
+     */
     public function testConfigRejectsZeroRetryDelayMs(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -384,6 +476,11 @@ class StrandsClientTest extends TestCase
         new StrandsConfig(endpoint: 'http://localhost:8081', retryDelayMs: 0);
     }
 
+    /**
+     * Verifies that config rejects invalid endpoint URL.
+     *
+     * @return void
+     */
     public function testConfigRejectsInvalidEndpointUrl(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -392,6 +489,11 @@ class StrandsClientTest extends TestCase
         new StrandsConfig(endpoint: 'not a url');
     }
 
+    /**
+     * Verifies that config rejects max retries above 20.
+     *
+     * @return void
+     */
     public function testConfigRejectsMaxRetriesAbove20(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -400,6 +502,11 @@ class StrandsClientTest extends TestCase
         new StrandsConfig(endpoint: 'http://localhost:8081', maxRetries: 21);
     }
 
+    /**
+     * Verifies that config rejects negative max retries.
+     *
+     * @return void
+     */
     public function testConfigRejectsNegativeMaxRetries(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -408,6 +515,11 @@ class StrandsClientTest extends TestCase
         new StrandsConfig(endpoint: 'http://localhost:8081', maxRetries: -1);
     }
 
+    /**
+     * Verifies that config default values.
+     *
+     * @return void
+     */
     public function testConfigDefaultValues(): void
     {
         $config = new StrandsConfig(endpoint: 'http://localhost:8081');
@@ -419,6 +531,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame([429, 502, 503, 504], $config->retryableStatusCodes);
     }
 
+    /**
+     * Verifies that config accepts timeout boundary.
+     *
+     * @return void
+     */
     public function testConfigAcceptsTimeoutBoundary(): void
     {
         $config = new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 1);
@@ -431,6 +548,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame(1, $config3->retryDelayMs);
     }
 
+    /**
+     * Verifies that invoke logs request and response.
+     *
+     * @return void
+     */
     public function testInvokeLogsRequestAndResponse(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -472,6 +594,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame(0, $debugCalls[1]['context']['tools_used']);
     }
 
+    /**
+     * Verifies that retry logs warning.
+     *
+     * @return void
+     */
     public function testRetryLogsWarning(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -519,6 +646,11 @@ class StrandsClientTest extends TestCase
         $client->invoke(message: 'Test');
     }
 
+    /**
+     * Verifies that invoke with timeout seconds override.
+     *
+     * @return void
+     */
     public function testInvokeWithTimeoutSecondsOverride(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -543,6 +675,11 @@ class StrandsClientTest extends TestCase
         $client->invoke(message: 'Test', timeoutSeconds: 300);
     }
 
+    /**
+     * Verifies that invoke timeout seconds rejects zero.
+     *
+     * @return void
+     */
     public function testInvokeTimeoutSecondsRejectsZero(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -559,6 +696,11 @@ class StrandsClientTest extends TestCase
         $client->invoke(message: 'Test', timeoutSeconds: 0);
     }
 
+    /**
+     * Verifies that invoke timeout seconds null uses default.
+     *
+     * @return void
+     */
     public function testInvokeTimeoutSecondsNullUsesDefault(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -583,6 +725,11 @@ class StrandsClientTest extends TestCase
         $client->invoke(message: 'Test', timeoutSeconds: null);
     }
 
+    /**
+     * Verifies that config rejects retryable status code below 400.
+     *
+     * @return void
+     */
     public function testConfigRejectsRetryableStatusCodeBelow400(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -591,6 +738,11 @@ class StrandsClientTest extends TestCase
         new StrandsConfig(endpoint: 'http://localhost:8081', retryableStatusCodes: [200]);
     }
 
+    /**
+     * Verifies that config rejects retryable status code above 599.
+     *
+     * @return void
+     */
     public function testConfigRejectsRetryableStatusCodeAbove599(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -599,6 +751,11 @@ class StrandsClientTest extends TestCase
         new StrandsConfig(endpoint: 'http://localhost:8081', retryableStatusCodes: [600]);
     }
 
+    /**
+     * Verifies that config accepts valid retryable status codes.
+     *
+     * @return void
+     */
     public function testConfigAcceptsValidRetryableStatusCodes(): void
     {
         $config = new StrandsConfig(
@@ -609,6 +766,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame([429, 500, 502, 503, 504], $config->retryableStatusCodes);
     }
 
+    /**
+     * Verifies that config accepts boundary retryable status codes.
+     *
+     * @return void
+     */
     public function testConfigAcceptsBoundaryRetryableStatusCodes(): void
     {
         $config = new StrandsConfig(
@@ -619,6 +781,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame([400, 599], $config->retryableStatusCodes);
     }
 
+    /**
+     * Verifies that config accepts empty retryable status codes.
+     *
+     * @return void
+     */
     public function testConfigAcceptsEmptyRetryableStatusCodes(): void
     {
         $config = new StrandsConfig(
@@ -629,6 +796,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame([], $config->retryableStatusCodes);
     }
 
+    /**
+     * Verifies that invoke timeout seconds accepts boundary one.
+     *
+     * @return void
+     */
     public function testInvokeTimeoutSecondsAcceptsBoundaryOne(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -653,6 +825,11 @@ class StrandsClientTest extends TestCase
         $client->invoke(message: 'Test', timeoutSeconds: 1);
     }
 
+    /**
+     * Verifies that invoke accepts agent input.
+     *
+     * @return void
+     */
     public function testInvokeAcceptsAgentInput(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -683,6 +860,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame('I see a cat', $response->text);
     }
 
+    /**
+     * Verifies that invoke accepts plain string with agent input signature.
+     *
+     * @return void
+     */
     public function testInvokeAcceptsPlainStringWithAgentInputSignature(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -706,6 +888,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame('Hi', $response->text);
     }
 
+    /**
+     * Verifies that invoke with text only agent input sends string.
+     *
+     * @return void
+     */
     public function testInvokeWithTextOnlyAgentInputSendsString(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -730,6 +917,11 @@ class StrandsClientTest extends TestCase
         $this->assertSame('OK', $response->text);
     }
 
+    /**
+     * Verifies that constructor throws when no transport can be detected.
+     *
+     * @return void
+     */
     public function testConstructorThrowsWhenNoTransportCanBeDetected(): void
     {
         require_once __DIR__ . '/../Support/StrandsFunctionOverrides.php';
@@ -746,6 +938,11 @@ class StrandsClientTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that detect transport error message contains all parts.
+     *
+     * @return void
+     */
     public function testDetectTransportErrorMessageContainsAllParts(): void
     {
         require_once __DIR__ . '/../Support/StrandsFunctionOverrides.php';
@@ -765,17 +962,42 @@ class StrandsClientTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that middleware after response exception logs context.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseExceptionLogsContext(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
         $transport = $this->createMockTransport($fixture);
 
         $mw = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
+            /**
+             * Return request headers and body from the middleware test stub.
+             *
+             * @param string $url Request URL being observed.
+             * @param array<string, string> $headers Request headers supplied to the
+             * middleware stub.
+             * @param string $body Request body supplied to the middleware stub.
+             * @return array{headers: array<string, string>, body: string} Headers and body
+             * returned by the middleware stub.
+             */
             public function beforeRequest(string $url, array $headers, string $body): array
             {
                 return ['headers' => $headers, 'body' => $body];
             }
 
+            /**
+             * Handle after-response middleware calls for the test stub.
+             *
+             * @param string $url Request URL being observed.
+             * @param int $statusCode HTTP status code for the operation.
+             * @param float $durationMs Operation duration in milliseconds.
+             * @param \Throwable|null $error Optional transport or agent error raised by
+             * the operation.
+             * @return void
+             */
             public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
             {
                 throw new \RuntimeException('Middleware boom');
@@ -806,6 +1028,11 @@ class StrandsClientTest extends TestCase
         $client->invoke(message: 'Test');
     }
 
+    /**
+     * Verifies that stream strips trailing slash from endpoint.
+     *
+     * @return void
+     */
     public function testStreamStripsTrailingSlashFromEndpoint(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
@@ -827,6 +1054,11 @@ class StrandsClientTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that invoke rejects empty string.
+     *
+     * @return void
+     */
     public function testInvokeRejectsEmptyString(): void
     {
         $transport = $this->createMockTransport([]);
@@ -842,6 +1074,11 @@ class StrandsClientTest extends TestCase
         $client->invoke(message: '');
     }
 
+    /**
+     * Verifies that stream rejects empty string.
+     *
+     * @return void
+     */
     public function testStreamRejectsEmptyString(): void
     {
         $transport = $this->createMockTransport([]);
@@ -858,6 +1095,11 @@ class StrandsClientTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that invoke accepts interrupt response with empty text.
+     *
+     * @return void
+     */
     public function testInvokeAcceptsInterruptResponseWithEmptyText(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -875,6 +1117,11 @@ class StrandsClientTest extends TestCase
         $this->assertNotEmpty($response->text);
     }
 
+    /**
+     * Verifies that middleware runs before auth so signature covers modified body.
+     *
+     * @return void
+     */
     public function testMiddlewareRunsBeforeAuthSoSignatureCoversModifiedBody(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -895,6 +1142,16 @@ class StrandsClientTest extends TestCase
 
         // Middleware that modifies the body and adds a header
         $mw = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
+            /**
+             * Return request headers and body from the middleware test stub.
+             *
+             * @param string $url Request URL being observed.
+             * @param array<string, string> $headers Request headers supplied to the
+             * middleware stub.
+             * @param string $body Request body supplied to the middleware stub.
+             * @return array{headers: array<string, string>, body: string} Headers and body
+             * returned by the middleware stub.
+             */
             public function beforeRequest(string $url, array $headers, string $body): array
             {
                 $decoded = json_decode($body, true);
@@ -904,6 +1161,16 @@ class StrandsClientTest extends TestCase
                 return ['headers' => $headers, 'body' => json_encode($decoded)];
             }
 
+            /**
+             * Handle after-response middleware calls for the test stub.
+             *
+             * @param string $url Request URL being observed.
+             * @param int $statusCode HTTP status code for the operation.
+             * @param float $durationMs Operation duration in milliseconds.
+             * @param \Throwable|null $error Optional transport or agent error raised by
+             * the operation.
+             * @return void
+             */
             public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
             {
             }

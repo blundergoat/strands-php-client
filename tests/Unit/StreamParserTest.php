@@ -11,11 +11,22 @@ use StrandsPhpClient\Streaming\StreamParser;
 
 class StreamParserTest extends TestCase
 {
+    /**
+     * Load fixture for the test scenario.
+     *
+     * @param string $name Fixture name or DTO name under test.
+     * @return string String value produced by the helper.
+     */
     private function loadFixture(string $name): string
     {
         return file_get_contents(__DIR__ . '/../Fixtures/' . $name);
     }
 
+    /**
+     * Verifies that parse simple text stream.
+     *
+     * @return void
+     */
     public function testParseSimpleTextStream(): void
     {
         $parser = new StreamParser();
@@ -33,6 +44,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('test-001', $events[2]->sessionId);
     }
 
+    /**
+     * Verifies that parse crlf delimited stream.
+     *
+     * @return void
+     */
     public function testParseCrlfDelimitedStream(): void
     {
         $parser = new StreamParser();
@@ -50,6 +66,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('test-crlf', $events[2]->sessionId);
     }
 
+    /**
+     * Verifies that skips heartbeat comments.
+     *
+     * @return void
+     */
     public function testSkipsHeartbeatComments(): void
     {
         $parser = new StreamParser();
@@ -63,6 +84,11 @@ class StreamParserTest extends TestCase
         $this->assertSame(StreamEventType::Complete, $events[1]->type);
     }
 
+    /**
+     * Verifies that error mid stream.
+     *
+     * @return void
+     */
     public function testErrorMidStream(): void
     {
         $parser = new StreamParser();
@@ -77,6 +103,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('Model rate limited', $events[1]->errorMessage);
     }
 
+    /**
+     * Verifies that incremental chunks.
+     *
+     * @return void
+     */
     public function testIncrementalChunks(): void
     {
         $parser = new StreamParser();
@@ -93,6 +124,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('Hi', $events2[0]->text);
     }
 
+    /**
+     * Verifies that terminal event detection.
+     *
+     * @return void
+     */
     public function testTerminalEventDetection(): void
     {
         $parser = new StreamParser();
@@ -105,6 +141,11 @@ class StreamParserTest extends TestCase
         $this->assertTrue($events[2]->isTerminal());
     }
 
+    /**
+     * Verifies that empty chunk returns no events.
+     *
+     * @return void
+     */
     public function testEmptyChunkReturnsNoEvents(): void
     {
         $parser = new StreamParser();
@@ -114,6 +155,11 @@ class StreamParserTest extends TestCase
         $this->assertSame([], $events);
     }
 
+    /**
+     * Verifies that parse tool use event.
+     *
+     * @return void
+     */
     public function testParseToolUseEvent(): void
     {
         $parser = new StreamParser();
@@ -127,6 +173,11 @@ class StreamParserTest extends TestCase
         $this->assertSame(['query' => 'test'], $events[0]->toolInput);
     }
 
+    /**
+     * Verifies that parse tool result event.
+     *
+     * @return void
+     */
     public function testParseToolResultEvent(): void
     {
         $parser = new StreamParser();
@@ -140,6 +191,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('some results', $events[0]->toolResult);
     }
 
+    /**
+     * Verifies that parse thinking event.
+     *
+     * @return void
+     */
     public function testParseThinkingEvent(): void
     {
         $parser = new StreamParser();
@@ -152,6 +208,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('Let me reason about this...', $events[0]->text);
     }
 
+    /**
+     * Verifies that tool use is not terminal.
+     *
+     * @return void
+     */
     public function testToolUseIsNotTerminal(): void
     {
         $parser = new StreamParser();
@@ -162,6 +223,11 @@ class StreamParserTest extends TestCase
         $this->assertFalse($events[0]->isTerminal());
     }
 
+    /**
+     * Verifies that thinking is not terminal.
+     *
+     * @return void
+     */
     public function testThinkingIsNotTerminal(): void
     {
         $parser = new StreamParser();
@@ -172,6 +238,11 @@ class StreamParserTest extends TestCase
         $this->assertFalse($events[0]->isTerminal());
     }
 
+    /**
+     * Verifies that tool result with JSON result.
+     *
+     * @return void
+     */
     public function testToolResultWithJsonResult(): void
     {
         $parser = new StreamParser();
@@ -184,6 +255,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('{"count":42}', $events[0]->toolResult);
     }
 
+    /**
+     * Verifies that skips unknown event types.
+     *
+     * @return void
+     */
     public function testSkipsUnknownEventTypes(): void
     {
         $parser = new StreamParser();
@@ -197,6 +273,11 @@ class StreamParserTest extends TestCase
         $this->assertSame(1, $parser->getSkippedEvents());
     }
 
+    /**
+     * Verifies that stream event from array throws on unknown type.
+     *
+     * @return void
+     */
     public function testStreamEventFromArrayThrowsOnUnknownType(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -205,6 +286,11 @@ class StreamParserTest extends TestCase
         \StrandsPhpClient\Streaming\StreamEvent::fromArray(['type' => 'unknown_type']);
     }
 
+    /**
+     * Verifies that stream event from array throws on missing type.
+     *
+     * @return void
+     */
     public function testStreamEventFromArrayThrowsOnMissingType(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -213,6 +299,11 @@ class StreamParserTest extends TestCase
         \StrandsPhpClient\Streaming\StreamEvent::fromArray(['type' => '']);
     }
 
+    /**
+     * Verifies that skips event with missing type field.
+     *
+     * @return void
+     */
     public function testSkipsEventWithMissingTypeField(): void
     {
         $parser = new StreamParser();
@@ -226,6 +317,11 @@ class StreamParserTest extends TestCase
         $this->assertSame(1, $parser->getSkippedEvents());
     }
 
+    /**
+     * Verifies that skips malformed JSON without corrupting buffer.
+     *
+     * @return void
+     */
     public function testSkipsMalformedJsonWithoutCorruptingBuffer(): void
     {
         $parser = new StreamParser();
@@ -241,6 +337,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('hello', $events[0]->text);
     }
 
+    /**
+     * Verifies that buffer recovery after malformed JSON.
+     *
+     * @return void
+     */
     public function testBufferRecoveryAfterMalformedJson(): void
     {
         $parser = new StreamParser();
@@ -255,6 +356,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('recovered', $events2[0]->text);
     }
 
+    /**
+     * Verifies that complete event with multiple tools used.
+     *
+     * @return void
+     */
     public function testCompleteEventWithMultipleToolsUsed(): void
     {
         $parser = new StreamParser();
@@ -271,6 +377,11 @@ class StreamParserTest extends TestCase
         $this->assertSame(50, $events[0]->toolsUsed[1]['duration_ms']);
     }
 
+    /**
+     * Verifies that multiple data lines joined with newline.
+     *
+     * @return void
+     */
     public function testMultipleDataLinesJoinedWithNewline(): void
     {
         $parser = new StreamParser();
@@ -284,6 +395,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('hello', $events[0]->text);
     }
 
+    /**
+     * Verifies that skipped events counter tracks parse errors.
+     *
+     * @return void
+     */
     public function testSkippedEventsCounterTracksParseErrors(): void
     {
         $parser = new StreamParser();
@@ -300,6 +416,11 @@ class StreamParserTest extends TestCase
         $this->assertSame(2, $parser->getSkippedEvents());
     }
 
+    /**
+     * Verifies that parses has objective flag when true.
+     *
+     * @return void
+     */
     public function testParsesHasObjectiveFlagWhenTrue(): void
     {
         $parser = new StreamParser();
@@ -311,6 +432,11 @@ class StreamParserTest extends TestCase
         $this->assertTrue($events[0]->hasObjective);
     }
 
+    /**
+     * Verifies that has objective defaults false for non boolean values.
+     *
+     * @return void
+     */
     public function testHasObjectiveDefaultsFalseForNonBooleanValues(): void
     {
         $parser = new StreamParser();
@@ -322,6 +448,11 @@ class StreamParserTest extends TestCase
         $this->assertFalse($events[0]->hasObjective);
     }
 
+    /**
+     * Verifies that citation event parsed.
+     *
+     * @return void
+     */
     public function testCitationEventParsed(): void
     {
         $parser = new StreamParser();
@@ -334,6 +465,11 @@ class StreamParserTest extends TestCase
         $this->assertSame(['source' => 'doc.pdf', 'page' => 3, 'text' => 'relevant excerpt'], $events[0]->citation);
     }
 
+    /**
+     * Verifies that reasoning signature event parsed.
+     *
+     * @return void
+     */
     public function testReasoningSignatureEventParsed(): void
     {
         $parser = new StreamParser();
@@ -346,6 +482,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('abc123def456', $events[0]->reasoningSignature);
     }
 
+    /**
+     * Verifies that reasoning redacted event parsed.
+     *
+     * @return void
+     */
     public function testReasoningRedactedEventParsed(): void
     {
         $parser = new StreamParser();
@@ -357,6 +498,11 @@ class StreamParserTest extends TestCase
         $this->assertSame(StreamEventType::ReasoningRedacted, $events[0]->type);
     }
 
+    /**
+     * Verifies that buffer overflow throws stream interrupted exception.
+     *
+     * @return void
+     */
     public function testBufferOverflowThrowsStreamInterruptedException(): void
     {
         $parser = new StreamParser();
@@ -372,6 +518,11 @@ class StreamParserTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that buffer does not throw below limit.
+     *
+     * @return void
+     */
     public function testBufferDoesNotThrowBelowLimit(): void
     {
         $parser = new StreamParser();
@@ -386,6 +537,11 @@ class StreamParserTest extends TestCase
         $this->assertSame(0, $parser->getSkippedEvents());
     }
 
+    /**
+     * Verifies that try from array returns null on unknown type.
+     *
+     * @return void
+     */
     public function testTryFromArrayReturnsNullOnUnknownType(): void
     {
         $result = \StrandsPhpClient\Streaming\StreamEvent::tryFromArray([
@@ -396,6 +552,11 @@ class StreamParserTest extends TestCase
         $this->assertNull($result);
     }
 
+    /**
+     * Verifies that try from array returns null on missing type.
+     *
+     * @return void
+     */
     public function testTryFromArrayReturnsNullOnMissingType(): void
     {
         $result = \StrandsPhpClient\Streaming\StreamEvent::tryFromArray([
@@ -405,6 +566,11 @@ class StreamParserTest extends TestCase
         $this->assertNull($result);
     }
 
+    /**
+     * Verifies that try from array returns null on empty type.
+     *
+     * @return void
+     */
     public function testTryFromArrayReturnsNullOnEmptyType(): void
     {
         $result = \StrandsPhpClient\Streaming\StreamEvent::tryFromArray([
@@ -414,6 +580,11 @@ class StreamParserTest extends TestCase
         $this->assertNull($result);
     }
 
+    /**
+     * Verifies that try from array returns event on known type.
+     *
+     * @return void
+     */
     public function testTryFromArrayReturnsEventOnKnownType(): void
     {
         $result = \StrandsPhpClient\Streaming\StreamEvent::tryFromArray([
@@ -426,6 +597,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('hello', $result->text);
     }
 
+    /**
+     * Verifies that try from array returns complete event.
+     *
+     * @return void
+     */
     public function testTryFromArrayReturnsCompleteEvent(): void
     {
         $result = \StrandsPhpClient\Streaming\StreamEvent::tryFromArray([
@@ -444,6 +620,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('end_turn', $result->stopReason);
     }
 
+    /**
+     * Verifies that skips unknown event in fixture stream.
+     *
+     * @return void
+     */
     public function testSkipsUnknownEventInFixtureStream(): void
     {
         $parser = new StreamParser();
@@ -459,6 +640,11 @@ class StreamParserTest extends TestCase
         $this->assertSame(1, $parser->getSkippedEvents());
     }
 
+    /**
+     * Verifies that complete event parses stop reason.
+     *
+     * @return void
+     */
     public function testCompleteEventParsesStopReason(): void
     {
         $parser = new StreamParser();
@@ -471,6 +657,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('end_turn', $events[0]->stopReason);
     }
 
+    /**
+     * Verifies that complete event parses context size fields.
+     *
+     * @return void
+     */
     public function testCompleteEventParsesContextSizeFields(): void
     {
         $parser = new StreamParser();
@@ -483,6 +674,11 @@ class StreamParserTest extends TestCase
         $this->assertSame(9216, $events[0]->projectedContextSize);
     }
 
+    /**
+     * Verifies that data with space vs without space parses differently.
+     *
+     * @return void
+     */
     public function testDataWithSpaceVsWithoutSpaceParsesDifferently(): void
     {
         $parser = new StreamParser();
@@ -503,6 +699,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('world', $events2[0]->text);
     }
 
+    /**
+     * Verifies that comment line continues parsing remaining lines.
+     *
+     * @return void
+     */
     public function testCommentLineContinuesParsingRemainingLines(): void
     {
         $parser = new StreamParser();
@@ -520,6 +721,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('multi-line', $events[0]->text);
     }
 
+    /**
+     * Verifies that empty data block returns no event.
+     *
+     * @return void
+     */
     public function testEmptyDataBlockReturnsNoEvent(): void
     {
         $parser = new StreamParser();
@@ -535,6 +741,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('after', $events[0]->text);
     }
 
+    /**
+     * Verifies that crlf normalization required.
+     *
+     * @return void
+     */
     public function testCrlfNormalizationRequired(): void
     {
         $parser = new StreamParser();
@@ -555,6 +766,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('cr', $events2[0]->text);
     }
 
+    /**
+     * Verifies that buffer advancement after event parsed.
+     *
+     * @return void
+     */
     public function testBufferAdvancementAfterEventParsed(): void
     {
         $parser = new StreamParser();
@@ -571,6 +787,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('B', $events[1]->text);
     }
 
+    /**
+     * Verifies that has objective defaults false when missing.
+     *
+     * @return void
+     */
     public function testHasObjectiveDefaultsFalseWhenMissing(): void
     {
         $parser = new StreamParser();
@@ -581,6 +802,11 @@ class StreamParserTest extends TestCase
         $this->assertFalse($events[0]->hasObjective);
     }
 
+    /**
+     * Verifies that stream event constructor defaults false for has objective.
+     *
+     * @return void
+     */
     public function testStreamEventConstructorDefaultsFalseForHasObjective(): void
     {
         $event = new \StrandsPhpClient\Streaming\StreamEvent(
@@ -591,6 +817,11 @@ class StreamParserTest extends TestCase
         $this->assertFalse($event->hasObjective);
     }
 
+    /**
+     * Verifies that tools used filters malformed entries.
+     *
+     * @return void
+     */
     public function testToolsUsedFiltersMalformedEntries(): void
     {
         $parser = new StreamParser();
@@ -604,6 +835,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('search', $events[0]->toolsUsed[0]['name']);
     }
 
+    /**
+     * Verifies that multiple interrupts in complete event.
+     *
+     * @return void
+     */
     public function testMultipleInterruptsInCompleteEvent(): void
     {
         $parser = new StreamParser();
@@ -617,6 +853,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('scale', $events[0]->interrupts[1]['tool_name']);
     }
 
+    /**
+     * Verifies that guardrail trace from nested trace key.
+     *
+     * @return void
+     */
     public function testGuardrailTraceFromNestedTraceKey(): void
     {
         $parser = new StreamParser();
@@ -630,6 +871,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('g1', $events[0]->guardrailTrace['guardrail_id']);
     }
 
+    /**
+     * Verifies that guardrail trace top level takes precedence.
+     *
+     * @return void
+     */
     public function testGuardrailTraceTopLevelTakesPrecedence(): void
     {
         $parser = new StreamParser();
@@ -641,6 +887,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('TOP', $events[0]->guardrailTrace['action']);
     }
 
+    /**
+     * Verifies that guardrail trace null when trace key is not array.
+     *
+     * @return void
+     */
     public function testGuardrailTraceNullWhenTraceKeyIsNotArray(): void
     {
         $parser = new StreamParser();
@@ -652,6 +903,11 @@ class StreamParserTest extends TestCase
         $this->assertNull($events[0]->guardrailTrace);
     }
 
+    /**
+     * Verifies that citation event parsed correctly.
+     *
+     * @return void
+     */
     public function testCitationEventParsedCorrectly(): void
     {
         $parser = new StreamParser();
@@ -665,6 +921,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('doc1', $events[0]->citation['source']);
     }
 
+    /**
+     * Verifies that crlf split across chunks.
+     *
+     * @return void
+     */
     public function testCrlfSplitAcrossChunks(): void
     {
         $parser = new StreamParser();
@@ -680,6 +941,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('split', $events2[0]->text);
     }
 
+    /**
+     * Verifies that bare trailing cr normalised without following lf.
+     *
+     * @return void
+     */
     public function testBareTrailingCrNormalisedWithoutFollowingLf(): void
     {
         $parser = new StreamParser();
@@ -694,6 +960,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('bare', $events2[0]->text);
     }
 
+    /**
+     * Verifies that partial event at eof remains in buffer.
+     *
+     * @return void
+     */
     public function testPartialEventAtEofRemainsInBuffer(): void
     {
         $parser = new StreamParser();
@@ -708,6 +979,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('partial', $events2[0]->text);
     }
 
+    /**
+     * Verifies that trailing newline after last event does not create phantom event.
+     *
+     * @return void
+     */
     public function testTrailingNewlineAfterLastEventDoesNotCreatePhantomEvent(): void
     {
         $parser = new StreamParser();
@@ -718,6 +994,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('ok', $events[0]->text);
     }
 
+    /**
+     * Verifies that consecutive empty event boundaries skipped.
+     *
+     * @return void
+     */
     public function testConsecutiveEmptyEventBoundariesSkipped(): void
     {
         $parser = new StreamParser();
@@ -730,6 +1011,11 @@ class StreamParserTest extends TestCase
         $this->assertSame('after', $events[0]->text);
     }
 
+    /**
+     * Verifies that stream SSE eof mid event is discarded.
+     *
+     * @return void
+     */
     public function testStreamSseEofMidEventIsDiscarded(): void
     {
         // Simulates an EOF mid-event in streamSse: the buffer holds an

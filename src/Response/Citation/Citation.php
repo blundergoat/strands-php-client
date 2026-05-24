@@ -9,6 +9,18 @@ namespace StrandsPhpClient\Response\Citation;
  */
 final readonly class Citation
 {
+    /**
+     * Create a normalized citation DTO.
+     *
+     * @param CitationLocation|null $location Structured citation location, when supplied.
+     * @param CitationSourceContent|null $sourceContent Source content associated with the
+     * citation, when supplied.
+     * @param CitationGeneratedContent|null $generatedContent Generated content associated
+     * with the citation, when supplied.
+     * @param string|null $source Raw source string from the wire payload, when supplied.
+     * @param string|null $title Citation title from the wire payload, when supplied.
+     * @param string|null $text Citation text from the wire payload, when supplied.
+     */
     public function __construct(
         public ?CitationLocation $location = null,
         public ?CitationSourceContent $sourceContent = null,
@@ -100,6 +112,12 @@ final readonly class Citation
         return $sourceContent;
     }
 
+    /**
+     * Determine whether a citation source is an absolute URL.
+     *
+     * @param string $value Value supplied to the method.
+     * @return bool True when the value is a valid absolute URL.
+     */
     private static function isUrl(string $value): bool
     {
         return filter_var($value, FILTER_VALIDATE_URL) !== false;

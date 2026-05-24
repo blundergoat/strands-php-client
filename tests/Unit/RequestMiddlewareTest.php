@@ -31,6 +31,11 @@ class RequestMiddlewareTest extends TestCase
         return $data;
     }
 
+    /**
+     * Verifies that middleware before request called on invoke.
+     *
+     * @return void
+     */
     public function testMiddlewareBeforeRequestCalledOnInvoke(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -69,6 +74,11 @@ class RequestMiddlewareTest extends TestCase
         $client->invoke(message: 'Test');
     }
 
+    /**
+     * Verifies that middleware after response called on success.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnSuccess(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -101,6 +111,11 @@ class RequestMiddlewareTest extends TestCase
         $client->invoke(message: 'Test');
     }
 
+    /**
+     * Verifies that middleware after response called onError.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnError(): void
     {
         $error = new AgentErrorException('Bad request', statusCode: 400);
@@ -134,6 +149,11 @@ class RequestMiddlewareTest extends TestCase
         $client->invoke(message: 'Test');
     }
 
+    /**
+     * Verifies that middleware after response exception is logged.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseExceptionIsLogged(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -169,6 +189,11 @@ class RequestMiddlewareTest extends TestCase
         $client->invoke(message: 'Test');
     }
 
+    /**
+     * Verifies that multiple middleware executed in order.
+     *
+     * @return void
+     */
     public function testMultipleMiddlewareExecutedInOrder(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -220,6 +245,11 @@ class RequestMiddlewareTest extends TestCase
         $this->assertSame(['mw1:before', 'mw2:before', 'mw1:after', 'mw2:after'], $callOrder);
     }
 
+    /**
+     * Verifies that middleware called on stream.
+     *
+     * @return void
+     */
     public function testMiddlewareCalledOnStream(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hi\"}\n\n"
@@ -265,6 +295,11 @@ class RequestMiddlewareTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that middleware called on stream error.
+     *
+     * @return void
+     */
     public function testMiddlewareCalledOnStreamError(): void
     {
         $error = new AgentErrorException('Server error', statusCode: 500);
@@ -302,6 +337,11 @@ class RequestMiddlewareTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that middleware called on stream interrupted.
+     *
+     * @return void
+     */
     public function testMiddlewareCalledOnStreamInterrupted(): void
     {
         // Stream with no terminal event
@@ -342,6 +382,11 @@ class RequestMiddlewareTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that middleware applied to post JSON.
+     *
+     * @return void
+     */
     public function testMiddlewareAppliedToPostJson(): void
     {
         $middleware = $this->createMock(RequestMiddleware::class);
@@ -375,6 +420,11 @@ class RequestMiddlewareTest extends TestCase
         $client->postJson('/custom', ['key' => 'value']);
     }
 
+    /**
+     * Verifies that middleware after response called on post JSON success.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnPostJsonSuccess(): void
     {
         $middleware = $this->createMock(RequestMiddleware::class);
@@ -404,6 +454,11 @@ class RequestMiddlewareTest extends TestCase
         $client->postJson('/custom', ['key' => 'value']);
     }
 
+    /**
+     * Verifies that middleware after response called on post JSON error.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnPostJsonError(): void
     {
         $error = new AgentErrorException('Not found', statusCode: 404);
@@ -436,6 +491,11 @@ class RequestMiddlewareTest extends TestCase
         $client->postJson('/custom', ['key' => 'value']);
     }
 
+    /**
+     * Verifies that middleware after response called on stream SSE success.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnStreamSseSuccess(): void
     {
         $sseData = "data: {\"status\": \"ok\"}\n\n";
@@ -471,6 +531,11 @@ class RequestMiddlewareTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that middleware after response called on stream SSE error.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnStreamSseError(): void
     {
         $error = new AgentErrorException('Server error', statusCode: 500);
@@ -504,6 +569,11 @@ class RequestMiddlewareTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that middleware after response called on stream SSE cancelled.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnStreamSseCancelled(): void
     {
         $sseData = "data: {\"status\": \"partial\"}\n\n";
@@ -538,6 +608,11 @@ class RequestMiddlewareTest extends TestCase
         $client->streamSse('/custom-stream', ['key' => 'value'], fn () => false);
     }
 
+    /**
+     * Verifies that cancelled stream reports status zero.
+     *
+     * @return void
+     */
     public function testCancelledStreamReportsStatusZero(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hi\"}\n\n"

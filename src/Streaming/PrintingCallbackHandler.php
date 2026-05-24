@@ -25,6 +25,12 @@ class PrintingCallbackHandler extends StreamCallbackHandler
         $this->errorWriter = $errorWriter !== null ? \Closure::fromCallable($errorWriter) : null;
     }
 
+    /**
+     * Write text event content to the configured output stream.
+     *
+     * @param StreamEvent $event Stream event being handled.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onText(StreamEvent $event): ?bool
     {
         $this->writeOutput($event->text ?? '');
@@ -32,6 +38,13 @@ class PrintingCallbackHandler extends StreamCallbackHandler
         return null;
     }
 
+    /**
+     * Terminate printed stream output when the stream completes.
+     *
+     * @param StreamEvent $_event Unused stream event kept for override signature
+     * compatibility.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onComplete(StreamEvent $_event): ?bool
     {
         $this->writeOutput(PHP_EOL);
@@ -39,6 +52,12 @@ class PrintingCallbackHandler extends StreamCallbackHandler
         return null;
     }
 
+    /**
+     * Write formatted stream errors to the configured error stream.
+     *
+     * @param StreamEvent $event Stream event being handled.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onError(StreamEvent $event): ?bool
     {
         $code = $event->errorCode ?? 'unknown';
@@ -48,6 +67,12 @@ class PrintingCallbackHandler extends StreamCallbackHandler
         return null;
     }
 
+    /**
+     * Write output text through the injected writer or stdout.
+     *
+     * @param string $message Message text to write.
+     * @return void
+     */
     private function writeOutput(string $message): void
     {
         if ($this->outputWriter !== null) {
@@ -59,6 +84,12 @@ class PrintingCallbackHandler extends StreamCallbackHandler
         echo $message;
     }
 
+    /**
+     * Write error text through the injected writer or stderr.
+     *
+     * @param string $message Message text to write.
+     * @return void
+     */
     private function writeError(string $message): void
     {
         if ($this->errorWriter !== null) {

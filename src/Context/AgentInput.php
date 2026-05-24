@@ -24,6 +24,11 @@ class AgentInput
 
     private ?string $structuredOutputPrompt = null;
 
+    /**
+     * Create an input builder with the initial text message.
+     *
+     * @param string $text Initial text message for the input builder.
+     */
     private function __construct(string $text)
     {
         $this->text = $text;

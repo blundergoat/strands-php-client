@@ -10,6 +10,11 @@ use StrandsPhpClient\Exceptions\ContextOverflowException;
 
 class ContextOverflowExceptionTest extends TestCase
 {
+    /**
+     * Verifies that extends agent error exception.
+     *
+     * @return void
+     */
     public function testExtendsAgentErrorException(): void
     {
         $e = new ContextOverflowException('Context too large', statusCode: 400, errorCode: 'context_window_overflow');
@@ -19,6 +24,11 @@ class ContextOverflowExceptionTest extends TestCase
         $this->assertSame('context_window_overflow', $e->errorCode);
     }
 
+    /**
+     * Verifies that caught by agent error exception catch.
+     *
+     * @return void
+     */
     public function testCaughtByAgentErrorExceptionCatch(): void
     {
         $caught = false;

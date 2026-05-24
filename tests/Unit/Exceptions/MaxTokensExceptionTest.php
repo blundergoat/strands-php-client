@@ -10,6 +10,11 @@ use StrandsPhpClient\Exceptions\MaxTokensException;
 
 class MaxTokensExceptionTest extends TestCase
 {
+    /**
+     * Verifies that extends agent error exception.
+     *
+     * @return void
+     */
     public function testExtendsAgentErrorException(): void
     {
         $e = new MaxTokensException('Max tokens reached', statusCode: 400, errorCode: 'max_tokens_reached');
@@ -19,6 +24,11 @@ class MaxTokensExceptionTest extends TestCase
         $this->assertSame('max_tokens_reached', $e->errorCode);
     }
 
+    /**
+     * Verifies that caught by agent error exception catch.
+     *
+     * @return void
+     */
     public function testCaughtByAgentErrorExceptionCatch(): void
     {
         $caught = false;

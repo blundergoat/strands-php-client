@@ -15,6 +15,12 @@ use StrandsPhpClient\StrandsClient;
 
 class StrandsClientPostJsonTest extends TestCase
 {
+    /**
+     * Create mock transport for the test scenario.
+     *
+     * @param array<string, mixed> $response Parsed response data for the operation.
+     * @return HttpTransport Value produced by the method.
+     */
     private function createMockTransport(array $response): HttpTransport
     {
         $mock = $this->createMock(HttpTransport::class);
@@ -23,6 +29,11 @@ class StrandsClientPostJsonTest extends TestCase
         return $mock;
     }
 
+    /**
+     * Verifies that post JSON sends correct URL.
+     *
+     * @return void
+     */
     public function testPostJsonSendsCorrectUrl(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -45,6 +56,11 @@ class StrandsClientPostJsonTest extends TestCase
         $client->postJson('/file-summarise', ['file_base64' => 'abc']);
     }
 
+    /**
+     * Verifies that post JSON sends correct payload.
+     *
+     * @return void
+     */
     public function testPostJsonSendsCorrectPayload(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -78,6 +94,11 @@ class StrandsClientPostJsonTest extends TestCase
         ]);
     }
 
+    /**
+     * Verifies that post JSON applies auth.
+     *
+     * @return void
+     */
     public function testPostJsonAppliesAuth(): void
     {
         $auth = $this->createMock(AuthStrategy::class);
@@ -104,6 +125,11 @@ class StrandsClientPostJsonTest extends TestCase
         $client->postJson('/file-summarise', ['file_base64' => 'abc']);
     }
 
+    /**
+     * Verifies that post JSON returns decoded array.
+     *
+     * @return void
+     */
     public function testPostJsonReturnsDecodedArray(): void
     {
         $expected = [
@@ -124,6 +150,11 @@ class StrandsClientPostJsonTest extends TestCase
         $this->assertSame($expected, $result);
     }
 
+    /**
+     * Verifies that post JSON retries on transient error.
+     *
+     * @return void
+     */
     public function testPostJsonRetriesOnTransientError(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -153,6 +184,11 @@ class StrandsClientPostJsonTest extends TestCase
         $this->assertSame(2, $callCount);
     }
 
+    /**
+     * Verifies that post JSON does not retry on 400.
+     *
+     * @return void
+     */
     public function testPostJsonDoesNotRetryOn400(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -181,6 +217,11 @@ class StrandsClientPostJsonTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that post JSON throws on encoding failure.
+     *
+     * @return void
+     */
     public function testPostJsonThrowsOnEncodingFailure(): void
     {
         $transport = $this->createMockTransport([]);
@@ -200,6 +241,11 @@ class StrandsClientPostJsonTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that post JSON logs debug.
+     *
+     * @return void
+     */
     public function testPostJsonLogsDebug(): void
     {
         $transport = $this->createMockTransport(['summary' => 'test']);
@@ -230,6 +276,11 @@ class StrandsClientPostJsonTest extends TestCase
         $this->assertArrayHasKey('url', $debugCalls[1]['context']);
     }
 
+    /**
+     * Verifies that post JSON uses config timeout by default.
+     *
+     * @return void
+     */
     public function testPostJsonUsesConfigTimeoutByDefault(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -252,6 +303,11 @@ class StrandsClientPostJsonTest extends TestCase
         $client->postJson('/test', ['data' => 'test']);
     }
 
+    /**
+     * Verifies that post JSON uses per request timeout.
+     *
+     * @return void
+     */
     public function testPostJsonUsesPerRequestTimeout(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -274,6 +330,11 @@ class StrandsClientPostJsonTest extends TestCase
         $client->postJson('/file-metadata', ['data' => 'test'], timeout: 30);
     }
 
+    /**
+     * Verifies that post JSON handles empty path.
+     *
+     * @return void
+     */
     public function testPostJsonHandlesEmptyPath(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -298,6 +359,11 @@ class StrandsClientPostJsonTest extends TestCase
         $this->assertSame(['ok' => true], $result);
     }
 
+    /**
+     * Verifies that post JSON rejects zero timeout.
+     *
+     * @return void
+     */
     public function testPostJsonRejectsZeroTimeout(): void
     {
         $transport = $this->createMockTransport([]);
@@ -313,6 +379,11 @@ class StrandsClientPostJsonTest extends TestCase
         $client->postJson('/test', ['data' => 'test'], timeout: 0);
     }
 
+    /**
+     * Verifies that post JSON rejects negative timeout.
+     *
+     * @return void
+     */
     public function testPostJsonRejectsNegativeTimeout(): void
     {
         $transport = $this->createMockTransport([]);
@@ -328,6 +399,11 @@ class StrandsClientPostJsonTest extends TestCase
         $client->postJson('/test', ['data' => 'test'], timeout: -10);
     }
 
+    /**
+     * Verifies that post JSON null timeout uses default.
+     *
+     * @return void
+     */
     public function testPostJsonNullTimeoutUsesDefault(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -350,6 +426,11 @@ class StrandsClientPostJsonTest extends TestCase
         $client->postJson('/test', ['data' => 'test'], timeout: null);
     }
 
+    /**
+     * Verifies that post JSON accepts boundary one timeout.
+     *
+     * @return void
+     */
     public function testPostJsonAcceptsBoundaryOneTimeout(): void
     {
         $transport = $this->createMock(HttpTransport::class);

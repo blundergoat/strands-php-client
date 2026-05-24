@@ -24,6 +24,11 @@ class OtelTracingMiddlewareTest extends TestCase
 
     private OtelTracingMiddleware $middleware;
 
+    /**
+     * Handle set up.
+     *
+     * @return void
+     */
     protected function setUp(): void
     {
         $this->exporter = new InMemoryExporter();
@@ -32,6 +37,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->middleware = OtelTracingMiddleware::create($tracer);
     }
 
+    /**
+     * Handle tear down.
+     *
+     * @return void
+     */
     protected function tearDown(): void
     {
         $this->tracerProvider->shutdown();
@@ -47,6 +57,11 @@ class OtelTracingMiddlewareTest extends TestCase
         return $this->exporter->getSpans();
     }
 
+    /**
+     * Verifies that happy path span attributes.
+     *
+     * @return void
+     */
     public function testHappyPathSpanAttributes(): void
     {
         $result = $this->middleware->beforeRequest(
@@ -75,6 +90,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame(200, $span->getAttributes()->get('http.response.status_code'));
     }
 
+    /**
+     * Verifies that header injection contains traceparent.
+     *
+     * @return void
+     */
     public function testHeaderInjectionContainsTraceparent(): void
     {
         $result = $this->middleware->beforeRequest(
@@ -97,6 +117,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertStringContainsString($traceId, $headers['traceparent']);
     }
 
+    /**
+     * Verifies that HTTP error without exception.
+     *
+     * @return void
+     */
     public function testHttpErrorWithoutException(): void
     {
         $this->middleware->beforeRequest('https://x/invoke', [], '{}');
@@ -110,6 +135,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
     }
 
+    /**
+     * Verifies that thrown exception recorded.
+     *
+     * @return void
+     */
     public function testThrownExceptionRecorded(): void
     {
         $this->middleware->beforeRequest('https://x/invoke', [], '{}');
@@ -134,6 +164,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame('RuntimeException', $exceptionEvent->getAttributes()->get('exception.message'));
     }
 
+    /**
+     * Verifies that agent error exception sets strands status code.
+     *
+     * @return void
+     */
     public function testAgentErrorExceptionSetsStrandsStatusCode(): void
     {
         $error = new AgentErrorException('Bad request', statusCode: 400, errorCode: 'validation');
@@ -147,6 +182,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame('agent_error:validation', $spans[0]->getStatus()->getDescription());
     }
 
+    /**
+     * Verifies that sequential operations on same instance.
+     *
+     * @return void
+     */
     public function testSequentialOperationsOnSameInstance(): void
     {
         $this->middleware->beforeRequest('https://x/invoke', [], '{}');
@@ -161,6 +201,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame('strands.client.stream', $spans[1]->getName());
     }
 
+    /**
+     * Verifies that query string stripping.
+     *
+     * @return void
+     */
     public function testQueryStringStripping(): void
     {
         $this->middleware->beforeRequest('https://x/y?secret=abc&token=xyz', [], '{}');
@@ -170,6 +215,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame('https://x/y', $spans[0]->getAttributes()->get('url.full'));
     }
 
+    /**
+     * Verifies that path segment span naming.
+     *
+     * @return void
+     */
     public function testPathSegmentSpanNaming(): void
     {
         $urls = [
@@ -194,6 +244,11 @@ class OtelTracingMiddlewareTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that after response on empty stack does not throw.
+     *
+     * @return void
+     */
     public function testAfterResponseOnEmptyStackDoesNotThrow(): void
     {
         // afterResponse called without a matching beforeRequest should not throw
@@ -203,6 +258,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertCount(0, $spans);
     }
 
+    /**
+     * Verifies that server address and port attributes.
+     *
+     * @return void
+     */
     public function testServerAddressAndPortAttributes(): void
     {
         $this->middleware->beforeRequest('https://agent.example.com:8443/invoke', [], '{}');
@@ -214,6 +274,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame('https://agent.example.com:8443/invoke', $spans[0]->getAttributes()->get('url.full'));
     }
 
+    /**
+     * Verifies that dynamic path segments are sanitized.
+     *
+     * @return void
+     */
     public function testDynamicPathSegmentsAreSanitized(): void
     {
         $this->middleware->beforeRequest('https://agent.example.com/session/sess-secret-123/history?token=abc', [], '{}');
@@ -225,6 +290,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame('https://agent.example.com/session/{id}/history', $spans[0]->getAttributes()->get('url.full'));
     }
 
+    /**
+     * Verifies that response observer adds invoke attributes before span ends.
+     *
+     * @return void
+     */
     public function testResponseObserverAddsInvokeAttributesBeforeSpanEnds(): void
     {
         $this->middleware->beforeRequest('https://agent.example.com/invoke', [], '{}');
@@ -258,6 +328,11 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame(1, $span->getAttributes()->get('strands.tools.count'));
     }
 
+    /**
+     * Verifies that stream SSE observer adds sanitized summary attributes.
+     *
+     * @return void
+     */
     public function testStreamSseObserverAddsSanitizedSummaryAttributes(): void
     {
         $this->middleware->beforeRequest('https://agent.example.com/file-summarise-stream', ['Accept' => 'text/event-stream'], '{}');

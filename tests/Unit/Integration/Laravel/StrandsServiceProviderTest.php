@@ -17,6 +17,11 @@ use StrandsPhpClient\StrandsClient;
 
 class StrandsServiceProviderTest extends TestCase
 {
+    /**
+     * Verifies that config file exists.
+     *
+     * @return void
+     */
     public function testConfigFileExists(): void
     {
         $configPath = __DIR__ . '/../../../../src/Integration/Laravel/config/strands.php';
@@ -24,6 +29,11 @@ class StrandsServiceProviderTest extends TestCase
         $this->assertFileExists($configPath);
     }
 
+    /**
+     * Verifies that config returns array.
+     *
+     * @return void
+     */
     public function testConfigReturnsArray(): void
     {
         $config = require __DIR__ . '/../../../../src/Integration/Laravel/config/strands.php';
@@ -31,6 +41,11 @@ class StrandsServiceProviderTest extends TestCase
         $this->assertIsArray($config);
     }
 
+    /**
+     * Verifies that config has default key.
+     *
+     * @return void
+     */
     public function testConfigHasDefaultKey(): void
     {
         $config = require __DIR__ . '/../../../../src/Integration/Laravel/config/strands.php';
@@ -38,6 +53,11 @@ class StrandsServiceProviderTest extends TestCase
         $this->assertArrayHasKey('default', $config);
     }
 
+    /**
+     * Verifies that config has agents key.
+     *
+     * @return void
+     */
     public function testConfigHasAgentsKey(): void
     {
         $config = require __DIR__ . '/../../../../src/Integration/Laravel/config/strands.php';
@@ -46,6 +66,11 @@ class StrandsServiceProviderTest extends TestCase
         $this->assertIsArray($config['agents']);
     }
 
+    /**
+     * Verifies that config default agent has required keys.
+     *
+     * @return void
+     */
     public function testConfigDefaultAgentHasRequiredKeys(): void
     {
         $config = require __DIR__ . '/../../../../src/Integration/Laravel/config/strands.php';
@@ -60,6 +85,11 @@ class StrandsServiceProviderTest extends TestCase
         $this->assertArrayHasKey('retry_delay_ms', $agent);
     }
 
+    /**
+     * Verifies that config auth has required keys.
+     *
+     * @return void
+     */
     public function testConfigAuthHasRequiredKeys(): void
     {
         $config = require __DIR__ . '/../../../../src/Integration/Laravel/config/strands.php';
@@ -72,6 +102,11 @@ class StrandsServiceProviderTest extends TestCase
         $this->assertArrayHasKey('value_prefix', $auth);
     }
 
+    /**
+     * Verifies that config defaults.
+     *
+     * @return void
+     */
     public function testConfigDefaults(): void
     {
         $config = require __DIR__ . '/../../../../src/Integration/Laravel/config/strands.php';
@@ -86,6 +121,11 @@ class StrandsServiceProviderTest extends TestCase
         $this->assertSame('Bearer ', $agent['auth']['value_prefix']);
     }
 
+    /**
+     * Verifies that factory receives tagged middleware.
+     *
+     * @return void
+     */
     public function testFactoryReceivesTaggedMiddleware(): void
     {
         $mw = $this->createMock(RequestMiddleware::class);
@@ -113,6 +153,11 @@ class StrandsServiceProviderTest extends TestCase
         $this->assertSame($mw, $middleware[0]);
     }
 
+    /**
+     * Verifies that register resolves factory default and named client bindings.
+     *
+     * @return void
+     */
     public function testRegisterResolvesFactoryDefaultAndNamedClientBindings(): void
     {
         $app = $this->createRegisteredApplication([
@@ -304,6 +349,12 @@ class StrandsServiceProviderTest extends TestCase
         $node[$last] = $value;
     }
 
+    /**
+     * Extract endpoint for assertions.
+     *
+     * @param StrandsClient $client Client instance inspected by the test helper.
+     * @return string String value produced by the helper.
+     */
     private function extractEndpoint(StrandsClient $client): string
     {
         $reflection = new \ReflectionProperty(StrandsClient::class, 'config');

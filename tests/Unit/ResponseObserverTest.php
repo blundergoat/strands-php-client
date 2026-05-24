@@ -15,6 +15,11 @@ use StrandsPhpClient\Streaming\StreamSseSummary;
 
 final class ResponseObserverTest extends TestCase
 {
+    /**
+     * Verifies that invoke notifies response observer with parsed response.
+     *
+     * @return void
+     */
     public function testInvokeNotifiesResponseObserverWithParsedResponse(): void
     {
         $observer = $this->createMock(ResponseObserver::class);
@@ -38,6 +43,11 @@ final class ResponseObserverTest extends TestCase
         $client->invoke('hello');
     }
 
+    /**
+     * Verifies that stream notifies response observer with parsed result.
+     *
+     * @return void
+     */
     public function testStreamNotifiesResponseObserverWithParsedResult(): void
     {
         $observer = $this->createMock(ResponseObserver::class);
@@ -66,6 +76,11 @@ final class ResponseObserverTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that post JSON notifies response observer with raw response.
+     *
+     * @return void
+     */
     public function testPostJsonNotifiesResponseObserverWithRawResponse(): void
     {
         $observer = $this->createMock(ResponseObserver::class);
@@ -89,6 +104,11 @@ final class ResponseObserverTest extends TestCase
         $client->postJson('/custom', ['message' => 'hello']);
     }
 
+    /**
+     * Verifies that stream SSE notifies response observer with sanitized summary.
+     *
+     * @return void
+     */
     public function testStreamSseNotifiesResponseObserverWithSanitizedSummary(): void
     {
         $observer = $this->createMock(ResponseObserver::class);

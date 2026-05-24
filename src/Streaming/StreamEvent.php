@@ -271,6 +271,13 @@ class StreamEvent
         return null;
     }
 
+    /**
+     * Normalize raw tool result data into a string for the event DTO.
+     *
+     * @param mixed $raw Raw tool result payload; mixed is required because the wire
+     * contract allows scalar, array, or null tool results.
+     * @return string|null Stringified result, or null when no result exists.
+     */
     private static function encodeResult(mixed $raw): ?string
     {
         if (is_string($raw)) {

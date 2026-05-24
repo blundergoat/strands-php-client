@@ -10,6 +10,11 @@ use StrandsPhpClient\StrandsClient;
 
 class StrandsClientFactoryTest extends TestCase
 {
+    /**
+     * Verifies that create returns client.
+     *
+     * @return void
+     */
     public function testCreateReturnsClient(): void
     {
         $factory = new StrandsClientFactory([
@@ -25,6 +30,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create throws for unknown agent.
+     *
+     * @return void
+     */
     public function testCreateThrowsForUnknownAgent(): void
     {
         $factory = new StrandsClientFactory([
@@ -41,6 +51,11 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('nonexistent');
     }
 
+    /**
+     * Verifies that create throws for unsupported auth driver.
+     *
+     * @return void
+     */
     public function testCreateThrowsForUnsupportedAuthDriver(): void
     {
         $factory = new StrandsClientFactory([
@@ -57,6 +72,11 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('test');
     }
 
+    /**
+     * Verifies that create with api key auth.
+     *
+     * @return void
+     */
     public function testCreateWithApiKeyAuth(): void
     {
         $factory = new StrandsClientFactory([
@@ -75,6 +95,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create with api key auth throws when missing key.
+     *
+     * @return void
+     */
     public function testCreateWithApiKeyAuthThrowsWhenMissingKey(): void
     {
         $factory = new StrandsClientFactory([
@@ -91,6 +116,11 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('test');
     }
 
+    /**
+     * Verifies that create with retry config.
+     *
+     * @return void
+     */
     public function testCreateWithRetryConfig(): void
     {
         $factory = new StrandsClientFactory([
@@ -109,6 +139,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create with api key auth custom header.
+     *
+     * @return void
+     */
     public function testCreateWithApiKeyAuthCustomHeader(): void
     {
         $factory = new StrandsClientFactory([
@@ -129,6 +164,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create with empty api key throws.
+     *
+     * @return void
+     */
     public function testCreateWithEmptyApiKeyThrows(): void
     {
         $factory = new StrandsClientFactory([
@@ -148,6 +188,11 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('test');
     }
 
+    /**
+     * Verifies that create uses defaults when retry fields missing.
+     *
+     * @return void
+     */
     public function testCreateUsesDefaultsWhenRetryFieldsMissing(): void
     {
         // When connect_timeout, max_retries, retry_delay_ms are NOT in config,
@@ -165,6 +210,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that unknown agent lists configured agents.
+     *
+     * @return void
+     */
     public function testUnknownAgentListsConfiguredAgents(): void
     {
         $factory = new StrandsClientFactory([

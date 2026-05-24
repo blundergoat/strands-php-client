@@ -11,6 +11,11 @@ use StrandsPhpClient\Streaming\StreamEventType;
 
 class PrintingCallbackHandlerTest extends TestCase
 {
+    /**
+     * Verifies that text event writes text.
+     *
+     * @return void
+     */
     public function testTextEventWritesText(): void
     {
         $output = '';
@@ -23,6 +28,11 @@ class PrintingCallbackHandlerTest extends TestCase
         $this->assertSame('Hello world', $output);
     }
 
+    /**
+     * Verifies that complete event writes newline.
+     *
+     * @return void
+     */
     public function testCompleteEventWritesNewline(): void
     {
         $output = '';
@@ -35,6 +45,11 @@ class PrintingCallbackHandlerTest extends TestCase
         $this->assertSame(PHP_EOL, $output);
     }
 
+    /**
+     * Verifies that error event writes to stderr.
+     *
+     * @return void
+     */
     public function testErrorEventWritesToStderr(): void
     {
         $errorOutput = '';
@@ -53,6 +68,11 @@ class PrintingCallbackHandlerTest extends TestCase
         $this->assertSame('Error [ERR_001]: Something failed' . PHP_EOL, $errorOutput);
     }
 
+    /**
+     * Verifies that nonText events produce no output.
+     *
+     * @return void
+     */
     public function testNonTextEventsProduceNoOutput(): void
     {
         $output = '';
@@ -75,6 +95,11 @@ class PrintingCallbackHandlerTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that multiple text events concatenate.
+     *
+     * @return void
+     */
     public function testMultipleTextEventsConcatenate(): void
     {
         $output = '';

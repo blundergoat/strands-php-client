@@ -75,6 +75,12 @@ final class WireContractFixtureTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that invoke response fixtures parse as agent responses.
+     *
+     * @param string $path Fixture path supplied by the data provider.
+     * @return void
+     */
     #[DataProvider('invokeResponseFixtureProvider')]
     public function testInvokeResponseFixturesParseAsAgentResponses(string $path): void
     {
@@ -86,6 +92,12 @@ final class WireContractFixtureTest extends TestCase
         $this->assertSame($data['text'], $response->text, basename($path));
     }
 
+    /**
+     * Verifies that invoke request fixtures are valid request envelopes.
+     *
+     * @param string $path Fixture path supplied by the data provider.
+     * @return void
+     */
     #[DataProvider('invokeRequestFixtureProvider')]
     public function testInvokeRequestFixturesAreValidRequestEnvelopes(string $path): void
     {
@@ -106,6 +118,11 @@ final class WireContractFixtureTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that error response fixture is structured JSON.
+     *
+     * @return void
+     */
     public function testErrorResponseFixtureIsStructuredJson(): void
     {
         $data = self::jsonFixture(self::FIXTURE_DIR . '/error-response.json');
@@ -122,6 +139,12 @@ final class WireContractFixtureTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that other JSON fixtures are structured objects.
+     *
+     * @param string $path Fixture path supplied by the data provider.
+     * @return void
+     */
     #[DataProvider('nonInvokeJsonFixtureProvider')]
     public function testOtherJsonFixturesAreStructuredObjects(string $path): void
     {
@@ -130,6 +153,12 @@ final class WireContractFixtureTest extends TestCase
         $this->assertNotSame([], $data, basename($path));
     }
 
+    /**
+     * Verifies that stream fixtures parse to terminal events.
+     *
+     * @param string $path Fixture path supplied by the data provider.
+     * @return void
+     */
     #[DataProvider('streamFixtureProvider')]
     public function testStreamFixturesParseToTerminalEvents(string $path): void
     {
@@ -162,6 +191,12 @@ final class WireContractFixtureTest extends TestCase
         return $decoded;
     }
 
+    /**
+     * Handle text fixture.
+     *
+     * @param string $path Fixture path supplied by the data provider.
+     * @return string String value produced by the helper.
+     */
     private static function textFixture(string $path): string
     {
         $raw = file_get_contents($path);

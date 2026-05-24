@@ -17,6 +17,12 @@ use StrandsPhpClient\Http\PsrHttpTransport;
 
 class PsrHttpTransportTest extends TestCase
 {
+    /**
+     * Create transport for the test scenario.
+     *
+     * @param ResponseInterface $response Parsed response data for the operation.
+     * @return PsrHttpTransport Value produced by the method.
+     */
     private function createTransport(
         ResponseInterface $response,
     ): PsrHttpTransport {
@@ -38,6 +44,13 @@ class PsrHttpTransportTest extends TestCase
         return new PsrHttpTransport($httpClient, $requestFactory, $streamFactory);
     }
 
+    /**
+     * Create response for the test scenario.
+     *
+     * @param int $statusCode HTTP status code for the operation.
+     * @param string $body Request or response body used by the scenario.
+     * @return ResponseInterface Value produced by the method.
+     */
     private function createResponse(int $statusCode, string $body): ResponseInterface
     {
         $bodyStream = $this->createMock(StreamInterface::class);
@@ -50,6 +63,11 @@ class PsrHttpTransportTest extends TestCase
         return $response;
     }
 
+    /**
+     * Verifies that post returns decoded JSON.
+     *
+     * @return void
+     */
     public function testPostReturnsDecodedJson(): void
     {
         $response = $this->createResponse(200, '{"text":"hello","session_id":"s1"}');
@@ -61,6 +79,11 @@ class PsrHttpTransportTest extends TestCase
         $this->assertSame('s1', $result['session_id']);
     }
 
+    /**
+     * Verifies that post throws agent error on HTTP error.
+     *
+     * @return void
+     */
     public function testPostThrowsAgentErrorOnHttpError(): void
     {
         $response = $this->createResponse(422, '{"detail":"Something went wrong"}');
@@ -72,6 +95,11 @@ class PsrHttpTransportTest extends TestCase
         $transport->post('http://example.com/invoke', [], '{}', 30, 10);
     }
 
+    /**
+     * Verifies that post throws agent error with error key.
+     *
+     * @return void
+     */
     public function testPostThrowsAgentErrorWithErrorKey(): void
     {
         $response = $this->createResponse(400, '{"error":"Bad request"}');
@@ -83,6 +111,11 @@ class PsrHttpTransportTest extends TestCase
         $transport->post('http://example.com/invoke', [], '{}', 30, 10);
     }
 
+    /**
+     * Verifies that post throws agent error with plain text body.
+     *
+     * @return void
+     */
     public function testPostThrowsAgentErrorWithPlainTextBody(): void
     {
         $response = $this->createResponse(500, 'Internal Server Error');
@@ -94,6 +127,11 @@ class PsrHttpTransportTest extends TestCase
         $transport->post('http://example.com/invoke', [], '{}', 30, 10);
     }
 
+    /**
+     * Verifies that post throws strands exception on invalid JSON.
+     *
+     * @return void
+     */
     public function testPostThrowsStrandsExceptionOnInvalidJson(): void
     {
         $response = $this->createResponse(200, 'not json at all');
@@ -107,6 +145,11 @@ class PsrHttpTransportTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that post wraps client exception.
+     *
+     * @return void
+     */
     public function testPostWrapsClientException(): void
     {
         $request = $this->createMock(RequestInterface::class);
@@ -132,6 +175,11 @@ class PsrHttpTransportTest extends TestCase
         $transport->post('http://example.com/invoke', [], '{}', 30, 10);
     }
 
+    /**
+     * Verifies that post sends headers.
+     *
+     * @return void
+     */
     public function testPostSendsHeaders(): void
     {
         $request = $this->createMock(RequestInterface::class);
@@ -166,6 +214,11 @@ class PsrHttpTransportTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that stream throws strands exception.
+     *
+     * @return void
+     */
     public function testStreamThrowsStrandsException(): void
     {
         $response = $this->createResponse(200, '{}');
@@ -183,6 +236,11 @@ class PsrHttpTransportTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that timeout warning logged once with context.
+     *
+     * @return void
+     */
     public function testTimeoutWarningLoggedOnceWithContext(): void
     {
         $response = $this->createResponse(200, '{"text":"ok"}');
@@ -226,6 +284,11 @@ class PsrHttpTransportTest extends TestCase
         $transport->post('http://example.com/invoke', [], '{}', 60, 20);
     }
 
+    /**
+     * Verifies that post error prefers detail over error.
+     *
+     * @return void
+     */
     public function testPostErrorPrefersDetailOverError(): void
     {
         $response = $this->createResponse(422, '{"detail":"Specific detail","error":"General error"}');
@@ -240,6 +303,11 @@ class PsrHttpTransportTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that post error handles array detail.
+     *
+     * @return void
+     */
     public function testPostErrorHandlesArrayDetail(): void
     {
         $response = $this->createResponse(422, '{"detail":["Error 1","Error 2"]}');
@@ -253,6 +321,11 @@ class PsrHttpTransportTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that post error falls back to content when no detail or error.
+     *
+     * @return void
+     */
     public function testPostErrorFallsBackToContentWhenNoDetailOrError(): void
     {
         $response = $this->createResponse(500, '{"some_key":"value"}');
@@ -266,6 +339,11 @@ class PsrHttpTransportTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that post does not throw on 399 status code.
+     *
+     * @return void
+     */
     public function testPostDoesNotThrowOn399StatusCode(): void
     {
         $response = $this->createResponse(399, '{"text":"ok"}');
@@ -276,6 +354,11 @@ class PsrHttpTransportTest extends TestCase
         $this->assertSame('ok', $result['text']);
     }
 
+    /**
+     * Verifies that post error includes response body.
+     *
+     * @return void
+     */
     public function testPostErrorIncludesResponseBody(): void
     {
         $response = $this->createResponse(422, '{"detail":"Validation failed","errors":[{"field":"name","msg":"required"}]}');
@@ -292,6 +375,11 @@ class PsrHttpTransportTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that post error response body null for plain text.
+     *
+     * @return void
+     */
     public function testPostErrorResponseBodyNullForPlainText(): void
     {
         $response = $this->createResponse(500, 'Internal Server Error');
@@ -305,6 +393,11 @@ class PsrHttpTransportTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that post does not double wrap strands exception.
+     *
+     * @return void
+     */
     public function testPostDoesNotDoubleWrapStrandsException(): void
     {
         $response = $this->createResponse(200, 'not json');

@@ -20,6 +20,11 @@ class SymfonyHttpTransport implements HttpTransport
 {
     private HttpClientInterface $httpClient;
 
+    /**
+     * Create a Symfony transport, using the default HTTP client when none is supplied.
+     *
+     * @param HttpClientInterface|null $httpClient Optional Symfony HTTP client instance.
+     */
     public function __construct(?HttpClientInterface $httpClient = null)
     {
         $this->httpClient = $httpClient ?? HttpClient::create();

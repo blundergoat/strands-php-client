@@ -13,6 +13,11 @@ use StrandsPhpClient\Response\StopReason;
 
 class AgentResponseTest extends TestCase
 {
+    /**
+     * Verifies that from array hydrates all fields.
+     *
+     * @return void
+     */
     public function testFromArrayHydratesAllFields(): void
     {
         $data = [
@@ -41,6 +46,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('search', $response->toolsUsed[0]['name']);
     }
 
+    /**
+     * Verifies that from array handles missing fields.
+     *
+     * @return void
+     */
     public function testFromArrayHandlesMissingFields(): void
     {
         $data = ['text' => 'Minimal response'];
@@ -56,6 +66,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame([], $response->toolsUsed);
     }
 
+    /**
+     * Verifies that from array handles empty usage.
+     *
+     * @return void
+     */
     public function testFromArrayHandlesEmptyUsage(): void
     {
         $data = [
@@ -69,6 +84,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(0, $response->usage->outputTokens);
     }
 
+    /**
+     * Verifies that from array filters malformed tools used.
+     *
+     * @return void
+     */
     public function testFromArrayFiltersMalformedToolsUsed(): void
     {
         $data = [
@@ -89,6 +109,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('calculator', $response->toolsUsed[1]['name']);
     }
 
+    /**
+     * Verifies that usage default values.
+     *
+     * @return void
+     */
     public function testUsageDefaultValues(): void
     {
         $usage = new \StrandsPhpClient\Response\Usage();
@@ -101,6 +126,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(0, $usage->timeToFirstByteMs);
     }
 
+    /**
+     * Verifies that from array handles non int usage values.
+     *
+     * @return void
+     */
     public function testFromArrayHandlesNonIntUsageValues(): void
     {
         $data = [
@@ -117,6 +147,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(42, $response->usage->outputTokens);
     }
 
+    /**
+     * Verifies that from array has objective requires strict true.
+     *
+     * @return void
+     */
     public function testFromArrayHasObjectiveRequiresStrictTrue(): void
     {
         $data = [
@@ -129,6 +164,11 @@ class AgentResponseTest extends TestCase
         $this->assertFalse($response->hasObjective);
     }
 
+    /**
+     * Verifies that from array strips non int duration ms.
+     *
+     * @return void
+     */
     public function testFromArrayStripsNonIntDurationMs(): void
     {
         $data = [
@@ -146,6 +186,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(42, $response->toolsUsed[1]['duration_ms']);
     }
 
+    /**
+     * Verifies that from array strips extra keys from tools used.
+     *
+     * @return void
+     */
     public function testFromArrayStripsExtraKeysFromToolsUsed(): void
     {
         $data = [
@@ -163,6 +208,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(['name' => 'calc'], $response->toolsUsed[1]);
     }
 
+    /**
+     * Verifies that from array parses safe tool summaries.
+     *
+     * @return void
+     */
     public function testFromArrayParsesSafeToolSummaries(): void
     {
         $data = json_decode(
@@ -178,6 +228,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(['summary' => 'slot available'], $response->toolsUsed[0]['result']);
     }
 
+    /**
+     * Verifies that from array hydrates stop reason.
+     *
+     * @return void
+     */
     public function testFromArrayHydratesStopReason(): void
     {
         $data = [
@@ -190,6 +245,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(StopReason::EndTurn, $response->stopReason);
     }
 
+    /**
+     * Verifies that from array handles unknown stop reason.
+     *
+     * @return void
+     */
     public function testFromArrayHandlesUnknownStopReason(): void
     {
         $data = [
@@ -203,6 +263,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('unknown_future_reason', $response->rawStopReason);
     }
 
+    /**
+     * Verifies that from array defaults stop reason to null.
+     *
+     * @return void
+     */
     public function testFromArrayDefaultsStopReasonToNull(): void
     {
         $data = ['text' => 'Test'];
@@ -212,6 +277,11 @@ class AgentResponseTest extends TestCase
         $this->assertNull($response->stopReason);
     }
 
+    /**
+     * Verifies that from array hydrates structured output.
+     *
+     * @return void
+     */
     public function testFromArrayHydratesStructuredOutput(): void
     {
         $structured = ['name' => 'John', 'age' => 30, 'active' => true];
@@ -225,6 +295,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame($structured, $response->structuredOutput);
     }
 
+    /**
+     * Verifies that from array defaults structured output to null.
+     *
+     * @return void
+     */
     public function testFromArrayDefaultsStructuredOutputToNull(): void
     {
         $data = ['text' => 'Test'];
@@ -234,6 +309,11 @@ class AgentResponseTest extends TestCase
         $this->assertNull($response->structuredOutput);
     }
 
+    /**
+     * Verifies that from array hydrates cache tokens.
+     *
+     * @return void
+     */
     public function testFromArrayHydratesCacheTokens(): void
     {
         $data = [
@@ -258,6 +338,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(200, $response->usage->timeToFirstByteMs);
     }
 
+    /**
+     * Verifies that from array parses usage camel case and float latency.
+     *
+     * @return void
+     */
     public function testFromArrayParsesUsageCamelCaseAndFloatLatency(): void
     {
         $response = AgentResponse::fromArray([
@@ -282,6 +367,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(210, $response->usage->timeToFirstByteMs);
     }
 
+    /**
+     * Verifies that snake case usage wins over camel case.
+     *
+     * @return void
+     */
     public function testSnakeCaseUsageWinsOverCamelCase(): void
     {
         $response = AgentResponse::fromArray([
@@ -295,6 +385,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(10, $response->usage->inputTokens);
     }
 
+    /**
+     * Verifies that usage defaults to zero for missing cache fields.
+     *
+     * @return void
+     */
     public function testUsageDefaultsToZeroForMissingCacheFields(): void
     {
         $data = [
@@ -313,6 +408,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(0, $response->usage->timeToFirstByteMs);
     }
 
+    /**
+     * Verifies that total tokens returns sum.
+     *
+     * @return void
+     */
     public function testTotalTokensReturnsSum(): void
     {
         $usage = new \StrandsPhpClient\Response\Usage(inputTokens: 100, outputTokens: 50);
@@ -320,6 +420,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(150, $usage->totalTokens());
     }
 
+    /**
+     * Verifies that total tokens uses wire value when present.
+     *
+     * @return void
+     */
     public function testTotalTokensUsesWireValueWhenPresent(): void
     {
         $usage = new \StrandsPhpClient\Response\Usage(inputTokens: 100, outputTokens: 50, totalTokens: 160);
@@ -327,6 +432,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(160, $usage->totalTokens());
     }
 
+    /**
+     * Verifies that total tokens defaults to zero.
+     *
+     * @return void
+     */
     public function testTotalTokensDefaultsToZero(): void
     {
         $usage = new \StrandsPhpClient\Response\Usage();
@@ -334,6 +444,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(0, $usage->totalTokens());
     }
 
+    /**
+     * Verifies that from array captures unknown keys as metadata.
+     *
+     * @return void
+     */
     public function testFromArrayCapturesUnknownKeysAsMetadata(): void
     {
         $data = json_decode(
@@ -358,6 +473,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('req-456', $response->metadata['request_id']);
     }
 
+    /**
+     * Verifies that from array preserves top level wrapper metadata separately.
+     *
+     * @return void
+     */
     public function testFromArrayPreservesTopLevelWrapperMetadataSeparately(): void
     {
         $data = json_decode(
@@ -371,6 +491,11 @@ class AgentResponseTest extends TestCase
         $this->assertArrayHasKey('metadata', $response->metadata);
     }
 
+    /**
+     * Verifies that from array preserves nested message metadata.
+     *
+     * @return void
+     */
     public function testFromArrayPreservesNestedMessageMetadata(): void
     {
         $data = json_decode(
@@ -388,6 +513,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('referral', $response->message->metadata->custom['document_type']);
     }
 
+    /**
+     * Verifies that from array parses context size fields.
+     *
+     * @return void
+     */
     public function testFromArrayParsesContextSizeFields(): void
     {
         $data = json_decode(
@@ -401,6 +531,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(9216, $response->projectedContextSize);
     }
 
+    /**
+     * Verifies that from array metadata empty when no unknown keys.
+     *
+     * @return void
+     */
     public function testFromArrayMetadataEmptyWhenNoUnknownKeys(): void
     {
         $data = [
@@ -419,6 +554,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame([], $response->metadata);
     }
 
+    /**
+     * Verifies that from array metadata excludes known keys.
+     *
+     * @return void
+     */
     public function testFromArrayMetadataExcludesKnownKeys(): void
     {
         $data = [
@@ -436,6 +576,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('custom_value', $response->metadata['custom_field']);
     }
 
+    /**
+     * Verifies that from array handles all stop reasons.
+     *
+     * @return void
+     */
     public function testFromArrayHandlesAllStopReasons(): void
     {
         $reasons = [
@@ -456,6 +601,11 @@ class AgentResponseTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that from array parses interrupts.
+     *
+     * @return void
+     */
     public function testFromArrayParsesInterrupts(): void
     {
         $data = json_decode(
@@ -476,6 +626,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(StopReason::Interrupt, $response->stopReason);
     }
 
+    /**
+     * Verifies that from array no interrupts defaults empty.
+     *
+     * @return void
+     */
     public function testFromArrayNoInterruptsDefaultsEmpty(): void
     {
         $response = AgentResponse::fromArray(['text' => 'Test']);
@@ -484,6 +639,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame([], $response->interrupts);
     }
 
+    /**
+     * Verifies that from array parses guardrail trace.
+     *
+     * @return void
+     */
     public function testFromArrayParsesGuardrailTrace(): void
     {
         $data = json_decode(
@@ -502,6 +662,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(StopReason::GuardrailIntervened, $response->stopReason);
     }
 
+    /**
+     * Verifies that from array guardrail trace from nested trace.
+     *
+     * @return void
+     */
     public function testFromArrayGuardrailTraceFromNestedTrace(): void
     {
         $data = [
@@ -520,6 +685,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('INTERVENED', $response->guardrailTrace->action);
     }
 
+    /**
+     * Verifies that from array guardrail trace defaults to null.
+     *
+     * @return void
+     */
     public function testFromArrayGuardrailTraceDefaultsToNull(): void
     {
         $response = AgentResponse::fromArray(['text' => 'Test']);
@@ -527,6 +697,11 @@ class AgentResponseTest extends TestCase
         $this->assertNull($response->guardrailTrace);
     }
 
+    /**
+     * Verifies that from array parses citations.
+     *
+     * @return void
+     */
     public function testFromArrayParsesCitations(): void
     {
         $data = json_decode(
@@ -542,6 +717,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('Official Documentation', $response->citations[0]['title']);
     }
 
+    /**
+     * Verifies that from array citations defaults to empty.
+     *
+     * @return void
+     */
     public function testFromArrayCitationsDefaultsToEmpty(): void
     {
         $response = AgentResponse::fromArray(['text' => 'Test']);
@@ -549,6 +729,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame([], $response->citations);
     }
 
+    /**
+     * Verifies that from array citations ignores non citation blocks.
+     *
+     * @return void
+     */
     public function testFromArrayCitationsIgnoresNonCitationBlocks(): void
     {
         $data = [
@@ -568,6 +753,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('citationsContent', $response->citations[0]['type']);
     }
 
+    /**
+     * Verifies that interrupts excluded from metadata.
+     *
+     * @return void
+     */
     public function testInterruptsExcludedFromMetadata(): void
     {
         $data = [
@@ -582,6 +772,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('value', $response->metadata['custom']);
     }
 
+    /**
+     * Verifies that guardrail trace excluded from metadata.
+     *
+     * @return void
+     */
     public function testGuardrailTraceExcludedFromMetadata(): void
     {
         $data = [
@@ -598,6 +793,11 @@ class AgentResponseTest extends TestCase
         $this->assertArrayNotHasKey('message', $response->metadata);
     }
 
+    /**
+     * Verifies that has objective default value.
+     *
+     * @return void
+     */
     public function testHasObjectiveDefaultValue(): void
     {
         $response = new AgentResponse(text: 'Test');
@@ -605,6 +805,11 @@ class AgentResponseTest extends TestCase
         $this->assertFalse($response->hasObjective);
     }
 
+    /**
+     * Verifies that multiple interrupts all returned.
+     *
+     * @return void
+     */
     public function testMultipleInterruptsAllReturned(): void
     {
         $data = [
@@ -635,6 +840,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('scale', $response->interrupts[1]->toolName);
     }
 
+    /**
+     * Verifies that multiple citations all returned.
+     *
+     * @return void
+     */
     public function testMultipleCitationsAllReturned(): void
     {
         $data = [
@@ -655,6 +865,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('url2', $response->citations[1]['source']);
     }
 
+    /**
+     * Verifies that citations returns empty when message not array.
+     *
+     * @return void
+     */
     public function testCitationsReturnsEmptyWhenMessageNotArray(): void
     {
         $data = [
@@ -667,6 +882,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame([], $response->citations);
     }
 
+    /**
+     * Verifies that get citation objects returns typed list.
+     *
+     * @return void
+     */
     public function testGetCitationObjectsReturnsTypedList(): void
     {
         $data = [
@@ -691,6 +911,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('source text', $citations[0]->sourceContent?->text);
     }
 
+    /**
+     * Verifies that get citation objects preserves flat citation fields.
+     *
+     * @return void
+     */
     public function testGetCitationObjectsPreservesFlatCitationFields(): void
     {
         $data = json_decode(
@@ -709,6 +934,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame('the answer is 42', $citations[0]->sourceContent?->text);
     }
 
+    /**
+     * Verifies that get citation objects caches result.
+     *
+     * @return void
+     */
     public function testGetCitationObjectsCachesResult(): void
     {
         $data = [
@@ -727,6 +957,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame($first, $second);
     }
 
+    /**
+     * Verifies that get citation objects returns empty for no citations.
+     *
+     * @return void
+     */
     public function testGetCitationObjectsReturnsEmptyForNoCitations(): void
     {
         $response = AgentResponse::fromArray(['text' => 'Test']);
@@ -734,6 +969,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame([], $response->getCitationObjects());
     }
 
+    /**
+     * Verifies that structured output as with from array factory.
+     *
+     * @return void
+     */
     public function testStructuredOutputAsWithFromArrayFactory(): void
     {
         $data = [
@@ -749,6 +989,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(30, $dto->age);
     }
 
+    /**
+     * Verifies that structured output as with constructor.
+     *
+     * @return void
+     */
     public function testStructuredOutputAsWithConstructor(): void
     {
         $data = [
@@ -764,6 +1009,11 @@ class AgentResponseTest extends TestCase
         $this->assertSame(95.5, $dto->score);
     }
 
+    /**
+     * Verifies that structured output as throws when null.
+     *
+     * @return void
+     */
     public function testStructuredOutputAsThrowsWhenNull(): void
     {
         $response = AgentResponse::fromArray(['text' => 'Test']);
@@ -773,6 +1023,11 @@ class AgentResponseTest extends TestCase
         $response->structuredOutputAs(TestStructuredDto::class);
     }
 
+    /**
+     * Verifies that structured output as throws on mismatch.
+     *
+     * @return void
+     */
     public function testStructuredOutputAsThrowsOnMismatch(): void
     {
         $data = [
@@ -793,6 +1048,12 @@ class AgentResponseTest extends TestCase
  */
 class TestStructuredDto
 {
+    /**
+     * Create a test fixture DTO.
+     *
+     * @param string $name Fixture name or DTO name under test.
+     * @param int $age DTO age value used by the fixture.
+     */
     public function __construct(
         public readonly string $name = '',
         public readonly int $age = 0,
@@ -816,6 +1077,12 @@ class TestStructuredDto
  */
 class TestConstructorDto
 {
+    /**
+     * Create a test fixture DTO.
+     *
+     * @param string $name Fixture name or DTO name under test.
+     * @param float $score DTO score value used by the fixture.
+     */
     public function __construct(
         public readonly string $name,
         public readonly float $score,

@@ -9,6 +9,11 @@ use StrandsPhpClient\Response\InterruptDetail;
 
 class InterruptDetailTest extends TestCase
 {
+    /**
+     * Verifies that from array hydrates all fields.
+     *
+     * @return void
+     */
     public function testFromArrayHydratesAllFields(): void
     {
         $data = [
@@ -28,6 +33,11 @@ class InterruptDetailTest extends TestCase
         $this->assertSame('Requires approval', $detail->reason);
     }
 
+    /**
+     * Verifies that from array handles missing fields.
+     *
+     * @return void
+     */
     public function testFromArrayHandlesMissingFields(): void
     {
         $detail = InterruptDetail::fromArray([]);
@@ -39,6 +49,11 @@ class InterruptDetailTest extends TestCase
         $this->assertNull($detail->reason);
     }
 
+    /**
+     * Verifies that from array handles non string values.
+     *
+     * @return void
+     */
     public function testFromArrayHandlesNonStringValues(): void
     {
         $data = [
@@ -58,6 +73,11 @@ class InterruptDetailTest extends TestCase
         $this->assertNull($detail->reason);
     }
 
+    /**
+     * Verifies that constructor direct instantiation.
+     *
+     * @return void
+     */
     public function testConstructorDirectInstantiation(): void
     {
         $detail = new InterruptDetail(
@@ -73,6 +93,11 @@ class InterruptDetailTest extends TestCase
         $this->assertNull($detail->reason);
     }
 
+    /**
+     * Verifies that to resume input uses interrupt ID.
+     *
+     * @return void
+     */
     public function testToResumeInputUsesInterruptId(): void
     {
         $detail = new InterruptDetail(
@@ -90,6 +115,11 @@ class InterruptDetailTest extends TestCase
         $this->assertSame('Approved', $payload['content'][0]['response']);
     }
 
+    /**
+     * Verifies that to resume input falls back to tool use ID.
+     *
+     * @return void
+     */
     public function testToResumeInputFallsBackToToolUseId(): void
     {
         $detail = new InterruptDetail(
@@ -105,6 +135,11 @@ class InterruptDetailTest extends TestCase
         $this->assertSame(['action' => 'allow'], $payload['content'][0]['response']);
     }
 
+    /**
+     * Verifies that to resume input throws when no identifier.
+     *
+     * @return void
+     */
     public function testToResumeInputThrowsWhenNoIdentifier(): void
     {
         $detail = new InterruptDetail(
@@ -117,6 +152,11 @@ class InterruptDetailTest extends TestCase
         $detail->toResumeInput('Approved');
     }
 
+    /**
+     * Verifies that from array with neither ID produces detail.
+     *
+     * @return void
+     */
     public function testFromArrayWithNeitherIdProducesDetail(): void
     {
         // fromArray() itself should not throw - only toResumeInput() should

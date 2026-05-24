@@ -10,6 +10,11 @@ use StrandsPhpClient\Response\GuardrailTrace;
 
 class GuardrailTraceTest extends TestCase
 {
+    /**
+     * Verifies that from array hydrates all fields.
+     *
+     * @return void
+     */
     public function testFromArrayHydratesAllFields(): void
     {
         $data = [
@@ -30,6 +35,11 @@ class GuardrailTraceTest extends TestCase
         $this->assertSame('The original unsafe response', $trace->modelOutput);
     }
 
+    /**
+     * Verifies that from array handles missing fields.
+     *
+     * @return void
+     */
     public function testFromArrayHandlesMissingFields(): void
     {
         $trace = GuardrailTrace::fromArray([]);
@@ -39,6 +49,11 @@ class GuardrailTraceTest extends TestCase
         $this->assertNull($trace->modelOutput);
     }
 
+    /**
+     * Verifies that from array filters non array assessments.
+     *
+     * @return void
+     */
     public function testFromArrayFiltersNonArrayAssessments(): void
     {
         $data = [
@@ -58,6 +73,11 @@ class GuardrailTraceTest extends TestCase
         $this->assertSame('also_valid', $trace->assessments[1]['type']);
     }
 
+    /**
+     * Verifies that from array handles non array assessments.
+     *
+     * @return void
+     */
     public function testFromArrayHandlesNonArrayAssessments(): void
     {
         $data = [
@@ -70,6 +90,11 @@ class GuardrailTraceTest extends TestCase
         $this->assertSame([], $trace->assessments);
     }
 
+    /**
+     * Verifies that from array handles non string model output.
+     *
+     * @return void
+     */
     public function testFromArrayHandlesNonStringModelOutput(): void
     {
         $data = [
@@ -82,6 +107,11 @@ class GuardrailTraceTest extends TestCase
         $this->assertNull($trace->modelOutput);
     }
 
+    /**
+     * Verifies that get assessment objects returns typed list.
+     *
+     * @return void
+     */
     public function testGetAssessmentObjectsReturnsTypedList(): void
     {
         $data = [
@@ -103,6 +133,11 @@ class GuardrailTraceTest extends TestCase
         $this->assertSame('topic_filter', $objects[1]->type);
     }
 
+    /**
+     * Verifies that get assessment objects caches result.
+     *
+     * @return void
+     */
     public function testGetAssessmentObjectsCachesResult(): void
     {
         $data = [
@@ -119,6 +154,11 @@ class GuardrailTraceTest extends TestCase
         $this->assertSame($first, $second);
     }
 
+    /**
+     * Verifies that get assessment objects returns empty for no assessments.
+     *
+     * @return void
+     */
     public function testGetAssessmentObjectsReturnsEmptyForNoAssessments(): void
     {
         $trace = GuardrailTrace::fromArray(['action' => 'NONE']);

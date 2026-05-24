@@ -3,6 +3,13 @@ category: verification
 last_reviewed: 2026-05-24
 ---
 
+## Lesson: Verify Generated PHPDoc Formatting And Phrasing
+
+**Created:** 2026-05-24
+**What happened:** While fixing Gruff `docs.missing-public-phpdoc` findings, the first automated PHPDoc insertion pass left double-indented docblocks and awkward summaries such as "Create create mock transport" before a grep and snippet review caught it.
+**Evidence:** Generated docblocks in `tests/Unit/Streaming/StreamCallbackHandlerTest.php` (search: `Verifies that text event dispatches to onText`) and `tests/Unit/StrandsClientPostJsonTest.php` (search: `Create mock transport for the test scenario`) were re-generated after the bad phrasing/indentation was found.
+**Prevention:** After bulk-generating comments, grep for repeated verb patterns (`Create create`, `Load load`, `No value is returned`) and open representative source/test snippets before trusting the analyzer count alone. When replacing an existing docblock, replace from the line start and derive indentation from the following declaration line, not from the doc comment start.
+
 ## Lesson: Patch Repeated Assertions By Semantic Context
 
 **Created:** 2026-05-24

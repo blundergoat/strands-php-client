@@ -19,6 +19,11 @@ final class OtelTracingPhiSafetyTest extends TestCase
 
     private OtelTracingMiddleware $middleware;
 
+    /**
+     * Handle set up.
+     *
+     * @return void
+     */
     protected function setUp(): void
     {
         $this->exporter = new InMemoryExporter();
@@ -26,11 +31,21 @@ final class OtelTracingPhiSafetyTest extends TestCase
         $this->middleware = OtelTracingMiddleware::create($this->tracerProvider->getTracer('test'));
     }
 
+    /**
+     * Handle tear down.
+     *
+     * @return void
+     */
     protected function tearDown(): void
     {
         $this->tracerProvider->shutdown();
     }
 
+    /**
+     * Verifies that span attributes do not contain sensitive payload values.
+     *
+     * @return void
+     */
     public function testSpanAttributesDoNotContainSensitivePayloadValues(): void
     {
         $sessionId = 'session-secret-123';
@@ -87,6 +102,11 @@ final class OtelTracingPhiSafetyTest extends TestCase
         $this->assertTrue($span->getAttributes()->get('strands.session.present'));
     }
 
+    /**
+     * Handle get only span.
+     *
+     * @return ImmutableSpan Value produced by the method.
+     */
     private function getOnlySpan(): ImmutableSpan
     {
         $this->tracerProvider->forceFlush();

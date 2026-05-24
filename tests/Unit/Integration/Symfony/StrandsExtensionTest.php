@@ -14,6 +14,12 @@ use Symfony\Component\DependencyInjection\Definition;
 
 class StrandsExtensionTest extends TestCase
 {
+    /**
+     * Load extension for the test scenario.
+     *
+     * @param array<string, mixed> $config Configuration values passed to the helper.
+     * @return ContainerBuilder Value produced by the method.
+     */
     private function loadExtension(array $config): ContainerBuilder
     {
         $container = new ContainerBuilder();
@@ -24,6 +30,11 @@ class StrandsExtensionTest extends TestCase
         return $container;
     }
 
+    /**
+     * Verifies that registers factory service.
+     *
+     * @return void
+     */
     public function testRegistersFactoryService(): void
     {
         $container = $this->loadExtension([
@@ -38,6 +49,11 @@ class StrandsExtensionTest extends TestCase
         $this->assertSame(StrandsClientFactory::class, $factoryDef->getClass());
     }
 
+    /**
+     * Verifies that registers named agent services.
+     *
+     * @return void
+     */
     public function testRegistersNamedAgentServices(): void
     {
         $container = $this->loadExtension([
@@ -53,6 +69,11 @@ class StrandsExtensionTest extends TestCase
         $this->assertTrue($container->hasDefinition('strands.client.strategist'));
     }
 
+    /**
+     * Verifies that first agent is default alias.
+     *
+     * @return void
+     */
     public function testFirstAgentIsDefaultAlias(): void
     {
         $container = $this->loadExtension([
@@ -67,6 +88,11 @@ class StrandsExtensionTest extends TestCase
         $this->assertSame('strands.client.analyst', (string) $alias);
     }
 
+    /**
+     * Verifies that empty agents registers nothing.
+     *
+     * @return void
+     */
     public function testEmptyAgentsRegistersNothing(): void
     {
         $container = $this->loadExtension([
@@ -76,6 +102,11 @@ class StrandsExtensionTest extends TestCase
         $this->assertFalse($container->hasDefinition('strands.client_factory'));
     }
 
+    /**
+     * Verifies that agent service uses factory.
+     *
+     * @return void
+     */
     public function testAgentServiceUsesFactory(): void
     {
         $container = $this->loadExtension([
@@ -91,6 +122,11 @@ class StrandsExtensionTest extends TestCase
         $this->assertSame('create', $factory[1]);
     }
 
+    /**
+     * Verifies that factory receives agents argument.
+     *
+     * @return void
+     */
     public function testFactoryReceivesAgentsArgument(): void
     {
         $container = $this->loadExtension([
@@ -107,6 +143,11 @@ class StrandsExtensionTest extends TestCase
         $this->assertSame('http://agent:8000', $agentsArg['analyst']['endpoint']);
     }
 
+    /**
+     * Verifies that factory receives logger argument.
+     *
+     * @return void
+     */
     public function testFactoryReceivesLoggerArgument(): void
     {
         $container = $this->loadExtension([
@@ -122,6 +163,11 @@ class StrandsExtensionTest extends TestCase
         $this->assertSame('logger', (string) $loggerArg);
     }
 
+    /**
+     * Verifies that agent service receives name argument.
+     *
+     * @return void
+     */
     public function testAgentServiceReceivesNameArgument(): void
     {
         $container = $this->loadExtension([
@@ -134,6 +180,11 @@ class StrandsExtensionTest extends TestCase
         $this->assertSame('analyst', $def->getArgument(0));
     }
 
+    /**
+     * Verifies that factory receives middleware argument.
+     *
+     * @return void
+     */
     public function testFactoryReceivesMiddlewareArgument(): void
     {
         $container = $this->loadExtension([
@@ -148,6 +199,11 @@ class StrandsExtensionTest extends TestCase
         $this->assertInstanceOf(\Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument::class, $middlewareArg);
     }
 
+    /**
+     * Verifies that request middleware autoconfigured.
+     *
+     * @return void
+     */
     public function testRequestMiddlewareAutoconfigured(): void
     {
         $container = $this->loadExtension([
@@ -160,6 +216,11 @@ class StrandsExtensionTest extends TestCase
         $this->assertArrayHasKey(\StrandsPhpClient\Http\RequestMiddleware::class, $autoconfigured);
     }
 
+    /**
+     * Verifies that multiple agents each get correct name.
+     *
+     * @return void
+     */
     public function testMultipleAgentsEachGetCorrectName(): void
     {
         $container = $this->loadExtension([

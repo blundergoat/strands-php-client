@@ -9,6 +9,11 @@ use StrandsPhpClient\Context\AgentInput;
 
 class AgentInputTest extends TestCase
 {
+    /**
+     * Verifies that text only returns string.
+     *
+     * @return void
+     */
     public function testTextOnlyReturnsString(): void
     {
         $input = AgentInput::text('Hello, agent!');
@@ -17,6 +22,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('Hello, agent!', $input->getText());
     }
 
+    /**
+     * Verifies that with image returns content blocks.
+     *
+     * @return void
+     */
     public function testWithImageReturnsContentBlocks(): void
     {
         $input = AgentInput::text("What's in this image?")
@@ -38,6 +48,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('base64data', $payload['content'][1]['source']['data']);
     }
 
+    /**
+     * Verifies that with document returns content blocks.
+     *
+     * @return void
+     */
     public function testWithDocumentReturnsContentBlocks(): void
     {
         $input = AgentInput::text('Summarise this')
@@ -53,6 +68,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('report.pdf', $payload['content'][1]['name']);
     }
 
+    /**
+     * Verifies that with document from s 3.
+     *
+     * @return void
+     */
     public function testWithDocumentFromS3(): void
     {
         $input = AgentInput::text('Summarise')
@@ -69,6 +89,11 @@ class AgentInputTest extends TestCase
         $this->assertArrayNotHasKey('bucket_owner', $payload['content'][1]['source']);
     }
 
+    /**
+     * Verifies that with document from s 3 with bucket owner.
+     *
+     * @return void
+     */
     public function testWithDocumentFromS3WithBucketOwner(): void
     {
         $input = AgentInput::text('Summarise')
@@ -80,6 +105,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('123456789', $payload['content'][1]['source']['bucket_owner']);
     }
 
+    /**
+     * Verifies that with video from s 3.
+     *
+     * @return void
+     */
     public function testWithVideoFromS3(): void
     {
         $input = AgentInput::text('What is this video about?')
@@ -94,6 +124,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('mp4', $payload['content'][1]['format']);
     }
 
+    /**
+     * Verifies that with structured output prompt.
+     *
+     * @return void
+     */
     public function testWithStructuredOutputPrompt(): void
     {
         $input = AgentInput::text('Extract entities')
@@ -105,6 +140,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('Return JSON with key "entities"', $payload['structured_output_prompt']);
     }
 
+    /**
+     * Verifies that immutability.
+     *
+     * @return void
+     */
     public function testImmutability(): void
     {
         $original = AgentInput::text('Hello');
@@ -119,6 +159,11 @@ class AgentInputTest extends TestCase
         $this->assertNotSame($original, $withImage);
     }
 
+    /**
+     * Verifies that with document returns new instance.
+     *
+     * @return void
+     */
     public function testWithDocumentReturnsNewInstance(): void
     {
         $original = AgentInput::text('Hello');
@@ -129,6 +174,11 @@ class AgentInputTest extends TestCase
         $this->assertNotSame($original, $withDoc);
     }
 
+    /**
+     * Verifies that with document from s 3 returns new instance.
+     *
+     * @return void
+     */
     public function testWithDocumentFromS3ReturnsNewInstance(): void
     {
         $original = AgentInput::text('Hello');
@@ -139,6 +189,11 @@ class AgentInputTest extends TestCase
         $this->assertNotSame($original, $withS3);
     }
 
+    /**
+     * Verifies that with video from s 3 returns new instance.
+     *
+     * @return void
+     */
     public function testWithVideoFromS3ReturnsNewInstance(): void
     {
         $original = AgentInput::text('Hello');
@@ -149,6 +204,11 @@ class AgentInputTest extends TestCase
         $this->assertNotSame($original, $withVideo);
     }
 
+    /**
+     * Verifies that with structured output prompt returns new instance.
+     *
+     * @return void
+     */
     public function testWithStructuredOutputPromptReturnsNewInstance(): void
     {
         $original = AgentInput::text('Hello');
@@ -159,6 +219,11 @@ class AgentInputTest extends TestCase
         $this->assertNotSame($original, $withPrompt);
     }
 
+    /**
+     * Verifies that with document from s 3 bucket owner condition.
+     *
+     * @return void
+     */
     public function testWithDocumentFromS3BucketOwnerCondition(): void
     {
         // Without bucket owner
@@ -174,6 +239,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('123', $payload2['content'][1]['source']['bucket_owner']);
     }
 
+    /**
+     * Verifies that with video from s 3 bucket owner condition.
+     *
+     * @return void
+     */
     public function testWithVideoFromS3BucketOwnerCondition(): void
     {
         // Without bucket owner
@@ -189,6 +259,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('999', $payload2['content'][1]['source']['bucket_owner']);
     }
 
+    /**
+     * Verifies that with document txt format.
+     *
+     * @return void
+     */
     public function testWithDocumentTxtFormat(): void
     {
         $input = AgentInput::text('Read this')
@@ -200,6 +275,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('text/plain', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with document csv format.
+     *
+     * @return void
+     */
     public function testWithDocumentCsvFormat(): void
     {
         $input = AgentInput::text('Analyse')
@@ -211,6 +291,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('text/csv', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with document html format.
+     *
+     * @return void
+     */
     public function testWithDocumentHtmlFormat(): void
     {
         $input = AgentInput::text('Parse')
@@ -222,6 +307,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('text/html', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with document docx format.
+     *
+     * @return void
+     */
     public function testWithDocumentDocxFormat(): void
     {
         $input = AgentInput::text('Summarise')
@@ -236,6 +326,11 @@ class AgentInputTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that multiple content blocks.
+     *
+     * @return void
+     */
     public function testMultipleContentBlocks(): void
     {
         $input = AgentInput::text('Analyse all of these')
@@ -254,6 +349,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('document', $payload['content'][3]['type']);
     }
 
+    /**
+     * Verifies that interrupt response.
+     *
+     * @return void
+     */
     public function testInterruptResponse(): void
     {
         $input = AgentInput::interruptResponse('int-abc-123', 'Approved');
@@ -268,6 +368,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('Approved', $payload['content'][0]['response']);
     }
 
+    /**
+     * Verifies that with document JSON format.
+     *
+     * @return void
+     */
     public function testWithDocumentJsonFormat(): void
     {
         $input = AgentInput::text('Parse')
@@ -279,6 +384,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('application/json', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with document yaml format.
+     *
+     * @return void
+     */
     public function testWithDocumentYamlFormat(): void
     {
         $input = AgentInput::text('Parse')
@@ -290,6 +400,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('application/yaml', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with document yml format.
+     *
+     * @return void
+     */
     public function testWithDocumentYmlFormat(): void
     {
         $input = AgentInput::text('Parse')
@@ -301,6 +416,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('application/yaml', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with document xlsx format.
+     *
+     * @return void
+     */
     public function testWithDocumentXlsxFormat(): void
     {
         $input = AgentInput::text('Analyse')
@@ -315,6 +435,11 @@ class AgentInputTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that with document xls format.
+     *
+     * @return void
+     */
     public function testWithDocumentXlsFormat(): void
     {
         $input = AgentInput::text('Analyse')
@@ -326,6 +451,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('application/vnd.ms-excel', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with document pptx format.
+     *
+     * @return void
+     */
     public function testWithDocumentPptxFormat(): void
     {
         $input = AgentInput::text('Summarise')
@@ -340,6 +470,11 @@ class AgentInputTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that with document ppt format.
+     *
+     * @return void
+     */
     public function testWithDocumentPptFormat(): void
     {
         $input = AgentInput::text('Summarise')
@@ -351,6 +486,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('application/vnd.ms-powerpoint', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with document doc format.
+     *
+     * @return void
+     */
     public function testWithDocumentDocFormat(): void
     {
         $input = AgentInput::text('Read')
@@ -362,6 +502,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('application/msword', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with document rtf format.
+     *
+     * @return void
+     */
     public function testWithDocumentRtfFormat(): void
     {
         $input = AgentInput::text('Read')
@@ -373,6 +518,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('application/rtf', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with document md format.
+     *
+     * @return void
+     */
     public function testWithDocumentMdFormat(): void
     {
         $input = AgentInput::text('Read')
@@ -384,6 +534,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('text/markdown', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with document XML format.
+     *
+     * @return void
+     */
     public function testWithDocumentXmlFormat(): void
     {
         $input = AgentInput::text('Parse')
@@ -395,6 +550,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('application/xml', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that unknown format falls back to application prefix.
+     *
+     * @return void
+     */
     public function testUnknownFormatFallsBackToApplicationPrefix(): void
     {
         $input = AgentInput::text('Process')
@@ -406,6 +566,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('application/parquet', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that structured output prompt only makes array.
+     *
+     * @return void
+     */
     public function testStructuredOutputPromptOnlyMakesArray(): void
     {
         $input = AgentInput::text('Extract')
@@ -418,6 +583,11 @@ class AgentInputTest extends TestCase
         $this->assertArrayHasKey('structured_output_prompt', $payload);
     }
 
+    /**
+     * Verifies that with image from s 3.
+     *
+     * @return void
+     */
     public function testWithImageFromS3(): void
     {
         $input = AgentInput::text('Analyse this image')
@@ -433,6 +603,11 @@ class AgentInputTest extends TestCase
         $this->assertArrayNotHasKey('bucket_owner', $payload['content'][1]['source']);
     }
 
+    /**
+     * Verifies that with image from s 3 with bucket owner.
+     *
+     * @return void
+     */
     public function testWithImageFromS3WithBucketOwner(): void
     {
         $input = AgentInput::text('Test')
@@ -444,6 +619,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('111222333', $payload['content'][1]['source']['bucket_owner']);
     }
 
+    /**
+     * Verifies that with image from s 3 returns new instance.
+     *
+     * @return void
+     */
     public function testWithImageFromS3ReturnsNewInstance(): void
     {
         $original = AgentInput::text('Hello');
@@ -454,6 +634,11 @@ class AgentInputTest extends TestCase
         $this->assertNotSame($original, $withS3);
     }
 
+    /**
+     * Verifies that with video.
+     *
+     * @return void
+     */
     public function testWithVideo(): void
     {
         $input = AgentInput::text('What is in this video?')
@@ -469,6 +654,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('mp4', $payload['content'][1]['format']);
     }
 
+    /**
+     * Verifies that with video returns new instance.
+     *
+     * @return void
+     */
     public function testWithVideoReturnsNewInstance(): void
     {
         $original = AgentInput::text('Hello');
@@ -479,6 +669,11 @@ class AgentInputTest extends TestCase
         $this->assertNotSame($original, $withVideo);
     }
 
+    /**
+     * Verifies that with image from URL.
+     *
+     * @return void
+     */
     public function testWithImageFromUrl(): void
     {
         $input = AgentInput::text('Analyse')
@@ -494,6 +689,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('image/png', $payload['content'][1]['source']['media_type']);
     }
 
+    /**
+     * Verifies that with image from URL returns new instance.
+     *
+     * @return void
+     */
     public function testWithImageFromUrlReturnsNewInstance(): void
     {
         $original = AgentInput::text('Hello');
@@ -504,6 +704,11 @@ class AgentInputTest extends TestCase
         $this->assertNotSame($original, $withUrl);
     }
 
+    /**
+     * Verifies that with document from URL.
+     *
+     * @return void
+     */
     public function testWithDocumentFromUrl(): void
     {
         $input = AgentInput::text('Summarise')
@@ -519,6 +724,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('report', $payload['content'][1]['name']);
     }
 
+    /**
+     * Verifies that with document from URL returns new instance.
+     *
+     * @return void
+     */
     public function testWithDocumentFromUrlReturnsNewInstance(): void
     {
         $original = AgentInput::text('Hello');
@@ -529,6 +739,11 @@ class AgentInputTest extends TestCase
         $this->assertNotSame($original, $withUrl);
     }
 
+    /**
+     * Verifies that with document supports context and citation options.
+     *
+     * @return void
+     */
     public function testWithDocumentSupportsContextAndCitationOptions(): void
     {
         $input = AgentInput::text('Summarise')
@@ -541,6 +756,11 @@ class AgentInputTest extends TestCase
         $this->assertSame(['enabled' => true], $payload['content'][1]['citations']);
     }
 
+    /**
+     * Verifies that with document from URL supports context and citation options.
+     *
+     * @return void
+     */
     public function testWithDocumentFromUrlSupportsContextAndCitationOptions(): void
     {
         $input = AgentInput::text('Summarise')
@@ -553,6 +773,11 @@ class AgentInputTest extends TestCase
         $this->assertSame(['enabled' => true], $payload['content'][1]['citations']);
     }
 
+    /**
+     * Verifies that with cache point adds cache point block.
+     *
+     * @return void
+     */
     public function testWithCachePointAddsCachePointBlock(): void
     {
         $input = AgentInput::text('Remember this')
@@ -566,6 +791,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('5m', $payload['content'][1]['ttl']);
     }
 
+    /**
+     * Verifies that with cache point returns new instance.
+     *
+     * @return void
+     */
     public function testWithCachePointReturnsNewInstance(): void
     {
         $original = AgentInput::text('Hello');
@@ -582,6 +812,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('cache_point', $cachedPayload['content'][1]['type']);
     }
 
+    /**
+     * Verifies that with video from URL.
+     *
+     * @return void
+     */
     public function testWithVideoFromUrl(): void
     {
         $input = AgentInput::text('Describe')
@@ -596,6 +831,11 @@ class AgentInputTest extends TestCase
         $this->assertSame('mp4', $payload['content'][1]['format']);
     }
 
+    /**
+     * Verifies that with video from URL returns new instance.
+     *
+     * @return void
+     */
     public function testWithVideoFromUrlReturnsNewInstance(): void
     {
         $original = AgentInput::text('Hello');
@@ -606,6 +846,11 @@ class AgentInputTest extends TestCase
         $this->assertNotSame($original, $withUrl);
     }
 
+    /**
+     * Verifies that mixed media types chaining.
+     *
+     * @return void
+     */
     public function testMixedMediaTypesChaining(): void
     {
         $input = AgentInput::text('Analyse all')

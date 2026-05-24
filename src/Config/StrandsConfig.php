@@ -41,39 +41,98 @@ class StrandsConfig
         public readonly int $retryDelayMs = 500,
         public readonly array $retryableStatusCodes = [429, 502, 503, 504],
     ) {
+        self::assertValidEndpoint($endpoint);
+        self::assertMinimum('timeout', $timeout, 1);
+        self::assertMinimum('connectTimeout', $connectTimeout, 1);
+        self::assertRange('maxRetries', $maxRetries, 0, 20);
+        self::assertMinimum('retryDelayMs', $retryDelayMs, 1);
+        self::assertRetryableStatusCodes($retryableStatusCodes);
+    }
+
+    /**
+     * Validate that the endpoint is an absolute HTTP(S) URL.
+     *
+     * @param string $endpoint Endpoint URL supplied by the caller.
+     *
+     * @return void
+     *
+     * @throws \InvalidArgumentException If the endpoint is not an HTTP(S) URL.
+     */
+    private static function assertValidEndpoint(string $endpoint): void
+    {
         $parts = parse_url($endpoint);
-        if (
-            $parts === false
-            || !isset($parts['scheme'], $parts['host'])
-            || !in_array($parts['scheme'], ['http', 'https'], true)
-        ) {
-            throw new \InvalidArgumentException(sprintf('Invalid endpoint URL: "%s"', $endpoint));
+        $scheme = is_array($parts) ? ($parts['scheme'] ?? null) : null;
+
+        if (is_array($parts) && isset($parts['host']) && in_array($scheme, ['http', 'https'], true)) {
+            return;
         }
 
-        if ($timeout < 1) {
-            throw new \InvalidArgumentException('timeout must be at least 1');
+        throw new \InvalidArgumentException(sprintf('Invalid endpoint URL: "%s"', $endpoint));
+    }
+
+    /**
+     * Validate that an integer option is at least the configured minimum.
+     *
+     * @param string $name  Option name used in exception messages.
+     * @param int    $value Option value supplied by the caller.
+     * @param int    $min   Inclusive minimum value.
+     *
+     * @return void
+     *
+     * @throws \InvalidArgumentException If the value is below the minimum.
+     */
+    private static function assertMinimum(string $name, int $value, int $min): void
+    {
+        if ($value >= $min) {
+            return;
         }
 
-        if ($connectTimeout < 1) {
-            throw new \InvalidArgumentException('connectTimeout must be at least 1');
+        throw new \InvalidArgumentException(sprintf('%s must be at least %d', $name, $min));
+    }
+
+    /**
+     * Validate that an integer option falls inside an inclusive range.
+     *
+     * @param string $name  Option name used in exception messages.
+     * @param int    $value Option value supplied by the caller.
+     * @param int    $min   Inclusive minimum value.
+     * @param int    $max   Inclusive maximum value.
+     *
+     * @return void
+     *
+     * @throws \InvalidArgumentException If the value falls outside the range.
+     */
+    private static function assertRange(string $name, int $value, int $min, int $max): void
+    {
+        if ($value >= $min && $value <= $max) {
+            return;
         }
 
-        if ($maxRetries < 0 || $maxRetries > 20) {
-            throw new \InvalidArgumentException('maxRetries must be between 0 and 20');
-        }
+        throw new \InvalidArgumentException(sprintf('%s must be between %d and %d', $name, $min, $max));
+    }
 
-        if ($retryDelayMs < 1) {
-            throw new \InvalidArgumentException('retryDelayMs must be at least 1');
-        }
-
-        // Only 4xx/5xx codes make sense for retry - retrying on 2xx/3xx
-        // would mask successful responses as errors.
-        foreach ($retryableStatusCodes as $code) {
-            if ($code < 400 || $code > 599) {
-                throw new \InvalidArgumentException(
-                    sprintf('All retryableStatusCodes must be HTTP error codes (400-599), but got: %s', (string) $code),
-                );
+    /**
+     * Validate retryable HTTP status codes.
+     *
+     * Only 4xx/5xx codes make sense for retry; retrying on 2xx/3xx would mask
+     * successful responses as errors.
+     *
+     * @param list<int> $retryableStatusCodes HTTP status codes that trigger a retry.
+     *
+     * @return void
+     *
+     * @throws \InvalidArgumentException If any code is outside the 400-599 range.
+     */
+    private static function assertRetryableStatusCodes(array $retryableStatusCodes): void
+    {
+        foreach ($retryableStatusCodes as $statusCode) {
+            if ($statusCode >= 400 && $statusCode <= 599) {
+                continue;
             }
+
+            throw new \InvalidArgumentException(
+                sprintf('All retryableStatusCodes must be HTTP error codes (400-599), but got: %s', (string) $statusCode),
+            );
         }
     }
 }

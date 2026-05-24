@@ -40,6 +40,14 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     /** @var \SplStack<array{0: SpanInterface, 1: ScopeInterface}> */
     private \SplStack $spanStack;
 
+    /**
+     * Create tracing middleware with explicit tracing collaborators.
+     *
+     * @param TracerInterface $tracer Tracer used to create client spans.
+     * @param TextMapPropagatorInterface $propagator Propagator used to inject trace
+     * context headers.
+     * @param string $spanNamePrefix Prefix used when naming generated spans.
+     */
     public function __construct(
         private readonly TracerInterface $tracer,
         private readonly TextMapPropagatorInterface $propagator,
@@ -50,6 +58,12 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         $this->spanStack = $stack;
     }
 
+    /**
+     * Create tracing middleware with the default W3C trace-context propagator.
+     *
+     * @param TracerInterface $tracer Tracer used to create client spans.
+     * @return self Middleware configured with the default trace-context propagator.
+     */
     public static function create(TracerInterface $tracer): self
     {
         return new self($tracer, TraceContextPropagator::getInstance());
@@ -118,6 +132,16 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         return ['headers' => $injectedHeaders, 'body' => $body];
     }
 
+    /**
+     * Close the active span and record HTTP status or error metadata.
+     *
+     * @param string $url Request URL being observed.
+     * @param int $statusCode HTTP status code for the operation.
+     * @param float $durationMs Operation duration in milliseconds.
+     * @param \Throwable|null $error Optional transport or agent error raised by the
+     * operation.
+     * @return void
+     */
     public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
     {
         try {
@@ -160,6 +184,14 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         }
     }
 
+    /**
+     * Record invoke-specific response metadata on the active span.
+     *
+     * @param string $url Request URL being observed.
+     * @param AgentResponse $response Parsed response data for the operation.
+     * @param float $durationMs Operation duration in milliseconds.
+     * @return void
+     */
     public function afterInvoke(string $url, AgentResponse $response, float $durationMs): void
     {
         $span = $this->currentSpan();
@@ -181,6 +213,14 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         }
     }
 
+    /**
+     * Record typed stream result metadata on the active span.
+     *
+     * @param string $url Request URL being observed.
+     * @param StreamResult $result Parsed stream result for the operation.
+     * @param float $durationMs Operation duration in milliseconds.
+     * @return void
+     */
     public function afterStream(string $url, StreamResult $result, float $durationMs): void
     {
         $span = $this->currentSpan();
@@ -217,6 +257,14 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         self::setRawResponseSummaryAttributes($span, $response);
     }
 
+    /**
+     * Record raw SSE stream summary metadata on the active span.
+     *
+     * @param string $url Request URL being observed.
+     * @param StreamSseSummary $summary Sanitized raw SSE stream summary.
+     * @param float $durationMs Operation duration in milliseconds.
+     * @return void
+     */
     public function afterStreamSse(string $url, StreamSseSummary $summary, float $durationMs): void
     {
         $span = $this->currentSpan();
@@ -278,6 +326,11 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             : 'post_json';
     }
 
+    /**
+     * Return the currently active span without mutating the span stack.
+     *
+     * @return SpanInterface|null Active span, or null when no request span is open.
+     */
     private function currentSpan(): ?SpanInterface
     {
         if ($this->spanStack->isEmpty()) {
@@ -289,6 +342,11 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         return $span;
     }
 
+    /**
+     * Close spans left open by failed request setup before starting a new span.
+     *
+     * @return void
+     */
     private function endOrphanedSpans(): void
     {
         while (!$this->spanStack->isEmpty()) {
@@ -299,6 +357,12 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         }
     }
 
+    /**
+     * Return a telemetry-safe URL without query strings or fragments.
+     *
+     * @param string $url Request URL being observed.
+     * @return string Telemetry-safe URL value.
+     */
     private static function sanitizeUrl(string $url): string
     {
         $parts = parse_url($url);
@@ -321,6 +385,12 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         return $result;
     }
 
+    /**
+     * Return a telemetry-safe route with dynamic identifiers collapsed.
+     *
+     * @param string $url Request URL being observed.
+     * @return string Telemetry-safe route value.
+     */
     private static function sanitizeRoute(string $url): string
     {
         $path = parse_url($url, PHP_URL_PATH);
@@ -343,6 +413,13 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         return '/' . implode('/', $sanitized);
     }
 
+    /**
+     * Determine whether a route segment should be hidden as an identifier.
+     *
+     * @param string $segment Route segment being evaluated.
+     * @param string|null $previous Previous sanitized route segment, when present.
+     * @return bool True when the segment should be replaced with a placeholder.
+     */
     private static function isDynamicRouteSegment(string $segment, ?string $previous): bool
     {
         if ($segment === '') {
@@ -377,6 +454,13 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         ], true);
     }
 
+    /**
+     * Record token usage metrics on a span.
+     *
+     * @param SpanInterface $span Span receiving telemetry attributes.
+     * @param Usage $usage Token usage values to record.
+     * @return void
+     */
     private static function setUsageAttributes(SpanInterface $span, Usage $usage): void
     {
         $span->setAttribute('gen_ai.usage.input_tokens', $usage->inputTokens);
@@ -385,6 +469,14 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         $span->setAttribute('gen_ai.usage.cache_write_input_tokens', $usage->cacheWriteInputTokens);
     }
 
+    /**
+     * Record agent and session metadata on a span.
+     *
+     * @param SpanInterface $span Span receiving telemetry attributes.
+     * @param string|null $agent Agent name from the response, when present.
+     * @param string|null $sessionId Session identifier from the response, when present.
+     * @return void
+     */
     private static function setAgentAttributes(SpanInterface $span, ?string $agent, ?string $sessionId): void
     {
         if ($agent !== null) {
@@ -450,6 +542,12 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         }
     }
 
+    /**
+     * Return a low-cardinality error description safe for span status fields.
+     *
+     * @param \Throwable $error Optional transport or agent error raised by the operation.
+     * @return string Safe, low-cardinality error description.
+     */
     private static function safeErrorDescription(\Throwable $error): string
     {
         if ($error instanceof AgentErrorException) {

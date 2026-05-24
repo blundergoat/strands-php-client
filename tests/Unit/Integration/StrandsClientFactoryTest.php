@@ -11,6 +11,11 @@ use StrandsPhpClient\StrandsClient;
 
 class StrandsClientFactoryTest extends TestCase
 {
+    /**
+     * Verifies that create returns client.
+     *
+     * @return void
+     */
     public function testCreateReturnsClient(): void
     {
         $factory = new StrandsClientFactory([
@@ -26,6 +31,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create throws for unknown agent.
+     *
+     * @return void
+     */
     public function testCreateThrowsForUnknownAgent(): void
     {
         $factory = new StrandsClientFactory([
@@ -42,6 +52,11 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('nonexistent');
     }
 
+    /**
+     * Verifies that create throws for unsupported auth driver.
+     *
+     * @return void
+     */
     public function testCreateThrowsForUnsupportedAuthDriver(): void
     {
         $factory = new StrandsClientFactory([
@@ -58,6 +73,11 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('test');
     }
 
+    /**
+     * Verifies that create with api key auth.
+     *
+     * @return void
+     */
     public function testCreateWithApiKeyAuth(): void
     {
         $factory = new StrandsClientFactory([
@@ -76,6 +96,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create with api key auth throws when missing key.
+     *
+     * @return void
+     */
     public function testCreateWithApiKeyAuthThrowsWhenMissingKey(): void
     {
         $factory = new StrandsClientFactory([
@@ -92,6 +117,11 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('test');
     }
 
+    /**
+     * Verifies that create with empty api key throws.
+     *
+     * @return void
+     */
     public function testCreateWithEmptyApiKeyThrows(): void
     {
         $factory = new StrandsClientFactory([
@@ -111,6 +141,11 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('test');
     }
 
+    /**
+     * Verifies that create with api key auth custom header.
+     *
+     * @return void
+     */
     public function testCreateWithApiKeyAuthCustomHeader(): void
     {
         $factory = new StrandsClientFactory([
@@ -131,6 +166,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create with retry config.
+     *
+     * @return void
+     */
     public function testCreateWithRetryConfig(): void
     {
         $factory = new StrandsClientFactory([
@@ -149,6 +189,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create uses defaults when retry fields missing.
+     *
+     * @return void
+     */
     public function testCreateUsesDefaultsWhenRetryFieldsMissing(): void
     {
         $factory = new StrandsClientFactory([
@@ -168,6 +213,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertSame([429, 502, 503, 504], $config->retryableStatusCodes);
     }
 
+    /**
+     * Verifies that create propagates explicit config values.
+     *
+     * @return void
+     */
     public function testCreatePropagatesExplicitConfigValues(): void
     {
         $factory = new StrandsClientFactory([
@@ -192,6 +242,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertSame([429, 500], $config->retryableStatusCodes);
     }
 
+    /**
+     * Verifies that unknown agent lists configured agents.
+     *
+     * @return void
+     */
     public function testUnknownAgentListsConfiguredAgents(): void
     {
         $factory = new StrandsClientFactory([
@@ -216,6 +271,11 @@ class StrandsClientFactoryTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that create with sigv 4 auth.
+     *
+     * @return void
+     */
     public function testCreateWithSigv4Auth(): void
     {
         $factory = new StrandsClientFactory([
@@ -235,6 +295,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create with api key custom header and prefix.
+     *
+     * @return void
+     */
     public function testCreateWithApiKeyCustomHeaderAndPrefix(): void
     {
         $factory = new StrandsClientFactory([
@@ -254,6 +319,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create with api key default header and prefix.
+     *
+     * @return void
+     */
     public function testCreateWithApiKeyDefaultHeaderAndPrefix(): void
     {
         // When header_name and value_prefix are not provided, defaults should apply
@@ -272,14 +342,39 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create with traversable middleware.
+     *
+     * @return void
+     */
     public function testCreateWithTraversableMiddleware(): void
     {
         $mw = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
+            /**
+             * Return request headers and body from the middleware test stub.
+             *
+             * @param string $url Request URL being observed.
+             * @param array<string, string> $headers Request headers supplied to the
+             * middleware stub.
+             * @param string $body Request body supplied to the middleware stub.
+             * @return array{headers: array<string, string>, body: string} Headers and body
+             * returned by the middleware stub.
+             */
             public function beforeRequest(string $url, array $headers, string $body): array
             {
                 return ['headers' => $headers, 'body' => $body];
             }
 
+            /**
+             * Handle after-response middleware calls for the test stub.
+             *
+             * @param string $url Request URL being observed.
+             * @param int $statusCode HTTP status code for the operation.
+             * @param float $durationMs Operation duration in milliseconds.
+             * @param \Throwable|null $error Optional transport or agent error raised by
+             * the operation.
+             * @return void
+             */
             public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
             {
             }
@@ -303,6 +398,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create sigv 4 throws when missing region.
+     *
+     * @return void
+     */
     public function testCreateSigv4ThrowsWhenMissingRegion(): void
     {
         $factory = new StrandsClientFactory([
@@ -323,6 +423,11 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('test');
     }
 
+    /**
+     * Verifies that create sigv 4 throws on partial credentials.
+     *
+     * @return void
+     */
     public function testCreateSigv4ThrowsOnPartialCredentials(): void
     {
         $factory = new StrandsClientFactory([
@@ -344,6 +449,11 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('test');
     }
 
+    /**
+     * Verifies that create sigv 4 throws on partial credentials reverse.
+     *
+     * @return void
+     */
     public function testCreateSigv4ThrowsOnPartialCredentialsReverse(): void
     {
         $factory = new StrandsClientFactory([
@@ -365,6 +475,11 @@ class StrandsClientFactoryTest extends TestCase
         $factory->create('test');
     }
 
+    /**
+     * Verifies that create sigv 4 with session token.
+     *
+     * @return void
+     */
     public function testCreateSigv4WithSessionToken(): void
     {
         $factory = new StrandsClientFactory([
@@ -385,6 +500,11 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Verifies that create sigv 4 with custom service.
+     *
+     * @return void
+     */
     public function testCreateSigv4WithCustomService(): void
     {
         $factory = new StrandsClientFactory([
@@ -405,6 +525,12 @@ class StrandsClientFactoryTest extends TestCase
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
 
+    /**
+     * Extract config for assertions.
+     *
+     * @param StrandsClient $client Client instance inspected by the test helper.
+     * @return StrandsConfig Value produced by the method.
+     */
     private function extractConfig(StrandsClient $client): StrandsConfig
     {
         $reflection = new \ReflectionProperty(StrandsClient::class, 'config');

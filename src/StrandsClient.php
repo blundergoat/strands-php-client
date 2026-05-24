@@ -550,6 +550,12 @@ class StrandsClient
         );
     }
 
+    /**
+     * Log stream parser events skipped for forward compatibility.
+     *
+     * @param StreamParser $parser Parser that tracked skipped stream events.
+     * @return void
+     */
     private function logSkippedEvents(StreamParser $parser): void
     {
         $skippedEvents = $parser->getSkippedEvents();
@@ -788,6 +794,14 @@ class StrandsClient
         ));
     }
 
+    /**
+     * Notify response observers after an invoke call completes.
+     *
+     * @param string $url Request URL being observed.
+     * @param AgentResponse $response Parsed response data for the operation.
+     * @param float $durationMs Operation duration in milliseconds.
+     * @return void
+     */
     private function notifyAfterInvoke(string $url, AgentResponse $response, float $durationMs): void
     {
         $this->notifyResponseObservers(
@@ -798,6 +812,14 @@ class StrandsClient
         );
     }
 
+    /**
+     * Notify response observers after a typed stream call completes.
+     *
+     * @param string $url Request URL being observed.
+     * @param StreamResult $result Parsed stream result for the operation.
+     * @param float $durationMs Operation duration in milliseconds.
+     * @return void
+     */
     private function notifyAfterStream(string $url, StreamResult $result, float $durationMs): void
     {
         $this->notifyResponseObservers(
@@ -821,6 +843,14 @@ class StrandsClient
         );
     }
 
+    /**
+     * Notify response observers after a raw SSE stream call completes.
+     *
+     * @param string $url Request URL being observed.
+     * @param StreamSseSummary $summary Sanitized raw SSE stream summary.
+     * @param float $durationMs Operation duration in milliseconds.
+     * @return void
+     */
     private function notifyAfterStreamSse(string $url, StreamSseSummary $summary, float $durationMs): void
     {
         $this->notifyResponseObservers(

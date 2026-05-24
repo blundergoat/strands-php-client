@@ -14,6 +14,12 @@ use StrandsPhpClient\StrandsClient;
 
 class StrandsClientStreamSseTest extends TestCase
 {
+    /**
+     * Create streaming transport for the test scenario.
+     *
+     * @param string $sseData SSE fixture data yielded by the mock transport.
+     * @return HttpTransport Value produced by the method.
+     */
     private function createStreamingTransport(string $sseData): HttpTransport
     {
         $mock = $this->createMock(HttpTransport::class);
@@ -25,6 +31,11 @@ class StrandsClientStreamSseTest extends TestCase
         return $mock;
     }
 
+    /**
+     * Verifies that stream SSE sends correct URL.
+     *
+     * @return void
+     */
     public function testStreamSseSendsCorrectUrl(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -51,6 +62,11 @@ class StrandsClientStreamSseTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that stream SSE sends correct payload.
+     *
+     * @return void
+     */
     public function testStreamSseSendsCorrectPayload(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -86,6 +102,11 @@ class StrandsClientStreamSseTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that stream SSE applies auth.
+     *
+     * @return void
+     */
     public function testStreamSseAppliesAuth(): void
     {
         $auth = $this->createMock(AuthStrategy::class);
@@ -114,6 +135,11 @@ class StrandsClientStreamSseTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that stream SSE parses events.
+     *
+     * @return void
+     */
     public function testStreamSseParsesEvents(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
@@ -141,6 +167,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('Hello world', $events[2]['text']);
     }
 
+    /**
+     * Verifies that stream SSE preserves unknown fields.
+     *
+     * @return void
+     */
     public function testStreamSsePreservesUnknownFields(): void
     {
         $sseData = "data: {\"type\": \"complete\", \"text\": \"done\", \"verification\": {\"score\": 95}, \"model\": \"claude-3\", \"metadata\": {\"custom\": true}}\n\n";
@@ -164,6 +195,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame(['custom' => true], $events[0]['metadata']);
     }
 
+    /**
+     * Verifies that stream SSE skips malformed JSON.
+     *
+     * @return void
+     */
     public function testStreamSseSkipsMalformedJson(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"first\"}\n\n"
@@ -187,6 +223,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('third', $events[1]['content']);
     }
 
+    /**
+     * Verifies that stream SSE handles multi line data.
+     *
+     * @return void
+     */
     public function testStreamSseHandlesMultiLineData(): void
     {
         $sseData = "data: {\"type\": \"text\",\ndata:  \"content\": \"hello\"}\n\n";
@@ -208,6 +249,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('hello', $events[0]['content']);
     }
 
+    /**
+     * Verifies that stream SSE skips heartbeat comments.
+     *
+     * @return void
+     */
     public function testStreamSseSkipsHeartbeatComments(): void
     {
         $sseData = ": heartbeat\n\n"
@@ -230,6 +276,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('hello', $events[0]['content']);
     }
 
+    /**
+     * Verifies that stream SSE uses config timeout by default.
+     *
+     * @return void
+     */
     public function testStreamSseUsesConfigTimeoutByDefault(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -256,6 +307,11 @@ class StrandsClientStreamSseTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that stream SSE uses per request timeout.
+     *
+     * @return void
+     */
     public function testStreamSseUsesPerRequestTimeout(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -282,6 +338,11 @@ class StrandsClientStreamSseTest extends TestCase
         }, timeout: 15);
     }
 
+    /**
+     * Verifies that stream SSE cancels on false return.
+     *
+     * @return void
+     */
     public function testStreamSseCancelsOnFalseReturn(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"first\"}\n\n"
@@ -307,6 +368,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('second', $events[1]['content']);
     }
 
+    /**
+     * Verifies that stream SSE void callback continues.
+     *
+     * @return void
+     */
     public function testStreamSseVoidCallbackContinues(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"first\"}\n\n"
@@ -328,6 +394,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertCount(3, $events);
     }
 
+    /**
+     * Verifies that stream SSE cancels across chunks.
+     *
+     * @return void
+     */
     public function testStreamSseCancelsAcrossChunks(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -355,6 +426,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('first', $events[0]['content']);
     }
 
+    /**
+     * Verifies that stream SSE handles crlf line endings.
+     *
+     * @return void
+     */
     public function testStreamSseHandlesCrlfLineEndings(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"hello\"}\r\n\r\n"
@@ -377,6 +453,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('complete', $events[1]['type']);
     }
 
+    /**
+     * Verifies that stream SSE handles chunked delivery.
+     *
+     * @return void
+     */
     public function testStreamSseHandlesChunkedDelivery(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -405,6 +486,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('complete', $events[1]['type']);
     }
 
+    /**
+     * Verifies that stream SSE propagates transport error.
+     *
+     * @return void
+     */
     public function testStreamSsePropagatesTransportError(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -423,6 +509,11 @@ class StrandsClientStreamSseTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that stream SSE throws on encoding failure.
+     *
+     * @return void
+     */
     public function testStreamSseThrowsOnEncodingFailure(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -442,6 +533,11 @@ class StrandsClientStreamSseTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that stream SSE rejects zero timeout.
+     *
+     * @return void
+     */
     public function testStreamSseRejectsZeroTimeout(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -458,6 +554,11 @@ class StrandsClientStreamSseTest extends TestCase
         }, timeout: 0);
     }
 
+    /**
+     * Verifies that stream SSE rejects negative timeout.
+     *
+     * @return void
+     */
     public function testStreamSseRejectsNegativeTimeout(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -474,6 +575,11 @@ class StrandsClientStreamSseTest extends TestCase
         }, timeout: -5);
     }
 
+    /**
+     * Verifies that stream SSE accepts boundary one timeout.
+     *
+     * @return void
+     */
     public function testStreamSseAcceptsBoundaryOneTimeout(): void
     {
         $sseData = "data: {\"status\": \"ok\"}\n\n";
@@ -502,6 +608,11 @@ class StrandsClientStreamSseTest extends TestCase
         }, timeout: 1);
     }
 
+    /**
+     * Verifies that stream SSE logs request and completion context.
+     *
+     * @return void
+     */
     public function testStreamSseLogsRequestAndCompletionContext(): void
     {
         $sseData = "data: {\"type\": \"complete\"}\n\n";
@@ -534,6 +645,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertArrayHasKey('url', $debugCalls[1]['context']);
     }
 
+    /**
+     * Verifies that stream SSE data without space parses correctly.
+     *
+     * @return void
+     */
     public function testStreamSseDataWithoutSpaceParsesCorrectly(): void
     {
         // SSE with "data:" (no space) — should still parse correctly
@@ -554,6 +670,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('hello', $events[0]['content']);
     }
 
+    /**
+     * Verifies that stream SSE crlf in middle of event block.
+     *
+     * @return void
+     */
     public function testStreamSseCrlfInMiddleOfEventBlock(): void
     {
         // CRLF line endings must be normalized to LF so "data:...\r\ndata:...\r\n\r\n"
@@ -583,6 +704,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('hello', $events[0]['content']);
     }
 
+    /**
+     * Verifies that stream SSE comment lines between data lines.
+     *
+     * @return void
+     */
     public function testStreamSseCommentLinesBetweenDataLines(): void
     {
         // Comments between data lines should be skipped, not break the event

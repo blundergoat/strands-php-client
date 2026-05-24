@@ -21,6 +21,12 @@ use StrandsPhpClient\Streaming\StreamResult;
 
 class StrandsClientStreamTest extends TestCase
 {
+    /**
+     * Create streaming transport for the test scenario.
+     *
+     * @param string $sseFixture SSE fixture data yielded by the mock transport.
+     * @return HttpTransport Value produced by the method.
+     */
     private function createStreamingTransport(string $sseFixture): HttpTransport
     {
         $mock = $this->createMock(HttpTransport::class);
@@ -32,6 +38,11 @@ class StrandsClientStreamTest extends TestCase
         return $mock;
     }
 
+    /**
+     * Verifies that stream calls on event for each event.
+     *
+     * @return void
+     */
     public function testStreamCallsOnEventForEachEvent(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
@@ -66,6 +77,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(5, $result->usage->outputTokens);
     }
 
+    /**
+     * Verifies that stream sends correct URL.
+     *
+     * @return void
+     */
     public function testStreamSendsCorrectUrl(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
@@ -97,6 +113,11 @@ class StrandsClientStreamTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that stream returns stream result.
+     *
+     * @return void
+     */
     public function testStreamReturnsStreamResult(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
@@ -125,6 +146,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(9216, $result->projectedContextSize);
     }
 
+    /**
+     * Verifies that stream throws on missing terminal event.
+     *
+     * @return void
+     */
     public function testStreamThrowsOnMissingTerminalEvent(): void
     {
         $incompleteSSE = "data: {\"type\": \"text\", \"content\": \"partial...\"}\n\n";
@@ -145,6 +171,11 @@ class StrandsClientStreamTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that stream accepts error as terminal event.
+     *
+     * @return void
+     */
     public function testStreamAcceptsErrorAsTerminalEvent(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-error-mid-stream.txt');
@@ -167,6 +198,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(StreamEventType::Error, $events[1]->type);
     }
 
+    /**
+     * Verifies that stream parses tool use events.
+     *
+     * @return void
+     */
     public function testStreamParsesToolUseEvents(): void
     {
         $sseData = "data: {\"type\": \"tool_use\", \"tool_name\": \"search_kb\", \"tool_input\": {\"query\": \"test\"}}\n\n"
@@ -199,6 +235,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(StreamEventType::Complete, $events[3]->type);
     }
 
+    /**
+     * Verifies that stream result default values.
+     *
+     * @return void
+     */
     public function testStreamResultDefaultValues(): void
     {
         $result = new StreamResult(text: '');
@@ -213,6 +254,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertFalse($result->cancelled);
     }
 
+    /**
+     * Verifies that stream logs debug messages.
+     *
+     * @return void
+     */
     public function testStreamLogsDebugMessages(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
@@ -254,6 +300,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertArrayHasKey('ttft_ms', $debugCalls[1]['context']);
     }
 
+    /**
+     * Verifies that stream tools used passed from complete event.
+     *
+     * @return void
+     */
     public function testStreamToolsUsedPassedFromCompleteEvent(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Done\"}\n\n"
@@ -277,6 +328,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame('calc', $result->toolsUsed[1]['name']);
     }
 
+    /**
+     * Verifies that stream with no text events.
+     *
+     * @return void
+     */
     public function testStreamWithNoTextEvents(): void
     {
         $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
@@ -298,6 +354,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(1, $result->totalEvents);
     }
 
+    /**
+     * Verifies that stream falls back to complete full text.
+     *
+     * @return void
+     */
     public function testStreamFallsBackToCompleteFullText(): void
     {
         // Complete event has fullText but no Text events preceded it
@@ -319,6 +380,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(0, $result->textEvents);
     }
 
+    /**
+     * Verifies that stream prefers accumulated text over full text.
+     *
+     * @return void
+     */
     public function testStreamPrefersAccumulatedTextOverFullText(): void
     {
         // Both Text events and Complete.fullText present - accumulated text wins
@@ -341,6 +407,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(1, $result->textEvents);
     }
 
+    /**
+     * Verifies that stream usage handles non int tokens.
+     *
+     * @return void
+     */
     public function testStreamUsageHandlesNonIntTokens(): void
     {
         $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {\"input_tokens\": \"not_int\", \"output_tokens\": \"also_not\"}, \"tools_used\": []}\n\n";
@@ -361,6 +432,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(0, $result->usage->outputTokens);
     }
 
+    /**
+     * Verifies that stream complete event has stop reason.
+     *
+     * @return void
+     */
     public function testStreamCompleteEventHasStopReason(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Done\"}\n\n"
@@ -381,6 +457,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(StopReason::EndTurn, $result->stopReason);
     }
 
+    /**
+     * Verifies that stream stop reason defaults to null.
+     *
+     * @return void
+     */
     public function testStreamStopReasonDefaultsToNull(): void
     {
         $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
@@ -400,6 +481,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertNull($result->stopReason);
     }
 
+    /**
+     * Verifies that stream cancels on false return.
+     *
+     * @return void
+     */
     public function testStreamCancelsOnFalseReturn(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
@@ -428,6 +514,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame('Hello', $result->text);
     }
 
+    /**
+     * Verifies that stream cancel does not throw interrupted exception.
+     *
+     * @return void
+     */
     public function testStreamCancelDoesNotThrowInterruptedException(): void
     {
         // Stream with no terminal event — but cancelled, so no exception
@@ -449,6 +540,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame('partial', $result->text);
     }
 
+    /**
+     * Verifies that stream void callback continues.
+     *
+     * @return void
+     */
     public function testStreamVoidCallbackContinues(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
@@ -472,6 +568,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame('Hello', $result->text);
     }
 
+    /**
+     * Verifies that stream cancels across chunks.
+     *
+     * @return void
+     */
     public function testStreamCancelsAcrossChunks(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -501,6 +602,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame('first', $result->text);
     }
 
+    /**
+     * Verifies that stream with timeout seconds override.
+     *
+     * @return void
+     */
     public function testStreamWithTimeoutSecondsOverride(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
@@ -533,6 +639,11 @@ class StrandsClientStreamTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that stream timeout seconds rejects zero.
+     *
+     * @return void
+     */
     public function testStreamTimeoutSecondsRejectsZero(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
@@ -554,6 +665,11 @@ class StrandsClientStreamTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that stream timeout seconds null uses default.
+     *
+     * @return void
+     */
     public function testStreamTimeoutSecondsNullUsesDefault(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
@@ -586,6 +702,11 @@ class StrandsClientStreamTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that stream timeout seconds accepts boundary one.
+     *
+     * @return void
+     */
     public function testStreamTimeoutSecondsAcceptsBoundaryOne(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
@@ -618,6 +739,11 @@ class StrandsClientStreamTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that stream result defaults time to first text token to null.
+     *
+     * @return void
+     */
     public function testStreamResultDefaultsTimeToFirstTextTokenToNull(): void
     {
         $result = new StreamResult(text: '');
@@ -625,6 +751,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertNull($result->timeToFirstTextTokenMs);
     }
 
+    /**
+     * Verifies that stream records TTFT when text events present.
+     *
+     * @return void
+     */
     public function testStreamRecordsTtftWhenTextEventsPresent(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
@@ -648,6 +779,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertGreaterThanOrEqual(0.0, $result->timeToFirstTextTokenMs);
     }
 
+    /**
+     * Verifies that stream TTFT null when no text events.
+     *
+     * @return void
+     */
     public function testStreamTtftNullWhenNoTextEvents(): void
     {
         $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
@@ -667,6 +803,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertNull($result->timeToFirstTextTokenMs);
     }
 
+    /**
+     * Verifies that stream logs skipped events.
+     *
+     * @return void
+     */
     public function testStreamLogsSkippedEvents(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-with-unknown-event.txt');
@@ -698,6 +839,11 @@ class StrandsClientStreamTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that stream does not log when no skipped events.
+     *
+     * @return void
+     */
     public function testStreamDoesNotLogWhenNoSkippedEvents(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
@@ -722,6 +868,11 @@ class StrandsClientStreamTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that stream TTFT included in debug log.
+     *
+     * @return void
+     */
     public function testStreamTtftIncludedInDebugLog(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
@@ -753,6 +904,11 @@ class StrandsClientStreamTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that stream usage hydrates cache tokens.
+     *
+     * @return void
+     */
     public function testStreamUsageHydratesCacheTokens(): void
     {
         $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {\"input_tokens\": 100, \"output_tokens\": 50, \"cache_read_input_tokens\": 80, \"cache_write_input_tokens\": 20, \"latency_ms\": 1500, \"time_to_first_byte_ms\": 200}, \"tools_used\": []}\n\n";
@@ -775,6 +931,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(200, $result->usage->timeToFirstByteMs);
     }
 
+    /**
+     * Verifies that stream parses interrupts from complete event.
+     *
+     * @return void
+     */
     public function testStreamParsesInterruptsFromCompleteEvent(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-interrupt-complete.txt');
@@ -800,6 +961,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(StopReason::Interrupt, $result->stopReason);
     }
 
+    /**
+     * Verifies that stream no interrupts defaults empty.
+     *
+     * @return void
+     */
     public function testStreamNoInterruptsDefaultsEmpty(): void
     {
         $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
@@ -820,6 +986,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame([], $result->interrupts);
     }
 
+    /**
+     * Verifies that stream parses guardrail trace from complete event.
+     *
+     * @return void
+     */
     public function testStreamParsesGuardrailTraceFromCompleteEvent(): void
     {
         $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-guardrail-complete.txt');
@@ -844,6 +1015,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(StopReason::GuardrailIntervened, $result->stopReason);
     }
 
+    /**
+     * Verifies that stream guardrail trace defaults to null.
+     *
+     * @return void
+     */
     public function testStreamGuardrailTraceDefaultsToNull(): void
     {
         $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
@@ -863,6 +1039,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertNull($result->guardrailTrace);
     }
 
+    /**
+     * Verifies that stream accepts agent input.
+     *
+     * @return void
+     */
     public function testStreamAcceptsAgentInput(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"I see an image\"}\n\n"
@@ -896,6 +1077,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame('I see an image', $result->text);
     }
 
+    /**
+     * Verifies that stream result defaults for new fields.
+     *
+     * @return void
+     */
     public function testStreamResultDefaultsForNewFields(): void
     {
         $result = new StreamResult(text: '');
@@ -905,6 +1091,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertNull($result->guardrailTrace);
     }
 
+    /**
+     * Verifies that stream logs debug on request and completion.
+     *
+     * @return void
+     */
     public function testStreamLogsDebugOnRequestAndCompletion(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
@@ -942,6 +1133,11 @@ class StrandsClientStreamTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that stream TTFT is positive when text events exist.
+     *
+     * @return void
+     */
     public function testStreamTtftIsPositiveWhenTextEventsExist(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
@@ -963,6 +1159,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertGreaterThanOrEqual(0, $result->timeToFirstTextTokenMs);
     }
 
+    /**
+     * Verifies that stream extracts session ID from complete event.
+     *
+     * @return void
+     */
     public function testStreamExtractsSessionIdFromCompleteEvent(): void
     {
         $sseData = "data: {\"type\": \"complete\", \"text\": \"Hi\", \"session_id\": \"sess-xyz\", \"usage\": {\"input_tokens\": 5}, \"tools_used\": [{\"name\": \"calc\", \"duration_ms\": 100}], \"stop_reason\": \"end_turn\"}\n\n";
@@ -987,6 +1188,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(StopReason::EndTurn, $result->stopReason);
     }
 
+    /**
+     * Verifies that stream cancellation callback returns false.
+     *
+     * @return void
+     */
     public function testStreamCancellationCallbackReturnsFalse(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"A\"}\n\n"
@@ -1027,6 +1233,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertTrue($result->cancelled);
     }
 
+    /**
+     * Verifies that stream callback return true continues stream.
+     *
+     * @return void
+     */
     public function testStreamCallbackReturnTrueContinuesStream(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
@@ -1049,6 +1260,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame('Hello', $result->text);
     }
 
+    /**
+     * Verifies that stream does not accumulate thinking text as text events.
+     *
+     * @return void
+     */
     public function testStreamDoesNotAccumulateThinkingTextAsTextEvents(): void
     {
         // Thinking events have text but type !== Text.
@@ -1075,6 +1291,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(3, $result->totalEvents);
     }
 
+    /**
+     * Verifies that stream result cancelled status is correct.
+     *
+     * @return void
+     */
     public function testStreamResultCancelledStatusIsCorrect(): void
     {
         // Stream that completes normally should not be cancelled
@@ -1096,6 +1317,11 @@ class StrandsClientStreamTest extends TestCase
         $this->assertFalse($result->cancelled);
     }
 
+    /**
+     * Verifies that stream retry exhausts max retries exactly.
+     *
+     * @return void
+     */
     public function testStreamRetryExhaustsMaxRetriesExactly(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -1124,6 +1350,11 @@ class StrandsClientStreamTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that stream empty stream throws interrupted.
+     *
+     * @return void
+     */
     public function testStreamEmptyStreamThrowsInterrupted(): void
     {
         // Transport streams nothing — no events at all
@@ -1145,6 +1376,11 @@ class StrandsClientStreamTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that stream only heartbeats throws interrupted.
+     *
+     * @return void
+     */
     public function testStreamOnlyHeartbeatsThrowsInterrupted(): void
     {
         // Stream contains only SSE comments (heartbeats) — no real events
@@ -1165,6 +1401,11 @@ class StrandsClientStreamTest extends TestCase
         });
     }
 
+    /**
+     * Verifies that stream partial event at eof throws interrupted.
+     *
+     * @return void
+     */
     public function testStreamPartialEventAtEofThrowsInterrupted(): void
     {
         // Stream ends with an incomplete event (no \n\n terminator)

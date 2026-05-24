@@ -12,6 +12,11 @@ use StrandsPhpClient\Response\Citation\CitationSourceContent;
 
 class CitationTest extends TestCase
 {
+    /**
+     * Verifies that from array with full data.
+     *
+     * @return void
+     */
     public function testFromArrayWithFullData(): void
     {
         $data = [
@@ -54,6 +59,11 @@ class CitationTest extends TestCase
         $this->assertSame('The generated text', $citation->generatedContent->text);
     }
 
+    /**
+     * Verifies that from array with partial data.
+     *
+     * @return void
+     */
     public function testFromArrayWithPartialData(): void
     {
         $data = [
@@ -73,6 +83,11 @@ class CitationTest extends TestCase
         $this->assertNull($citation->generatedContent);
     }
 
+    /**
+     * Verifies that from array preserves flat citation data.
+     *
+     * @return void
+     */
     public function testFromArrayPreservesFlatCitationData(): void
     {
         $data = [
@@ -91,6 +106,11 @@ class CitationTest extends TestCase
         $this->assertSame('the answer is 42', $citation->sourceContent?->text);
     }
 
+    /**
+     * Verifies that from array maps flat document source to source content.
+     *
+     * @return void
+     */
     public function testFromArrayMapsFlatDocumentSourceToSourceContent(): void
     {
         $citation = Citation::fromArray([
@@ -104,6 +124,11 @@ class CitationTest extends TestCase
         $this->assertSame('relevant excerpt', $citation->sourceContent?->text);
     }
 
+    /**
+     * Verifies that from array with empty data.
+     *
+     * @return void
+     */
     public function testFromArrayWithEmptyData(): void
     {
         $citation = Citation::fromArray([]);

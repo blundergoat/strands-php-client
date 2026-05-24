@@ -11,6 +11,11 @@ use StrandsPhpClient\Streaming\StreamEventType;
 
 class StreamEventCitationTest extends TestCase
 {
+    /**
+     * Verifies that get citation object returns typed citation.
+     *
+     * @return void
+     */
     public function testGetCitationObjectReturnsTypedCitation(): void
     {
         $event = new StreamEvent(
@@ -31,6 +36,11 @@ class StreamEventCitationTest extends TestCase
         $this->assertSame('generated text', $citation->generatedContent?->text);
     }
 
+    /**
+     * Verifies that get citation object returns null when no citation.
+     *
+     * @return void
+     */
     public function testGetCitationObjectReturnsNullWhenNoCitation(): void
     {
         $event = new StreamEvent(type: StreamEventType::Text, text: 'hello');
@@ -38,6 +48,11 @@ class StreamEventCitationTest extends TestCase
         $this->assertNull($event->getCitationObject());
     }
 
+    /**
+     * Verifies that get citation object handles partial data.
+     *
+     * @return void
+     */
     public function testGetCitationObjectHandlesPartialData(): void
     {
         $event = new StreamEvent(
@@ -56,6 +71,11 @@ class StreamEventCitationTest extends TestCase
         $this->assertNull($citation->generatedContent);
     }
 
+    /**
+     * Verifies that get citation object preserves flat citation data.
+     *
+     * @return void
+     */
     public function testGetCitationObjectPreservesFlatCitationData(): void
     {
         $event = new StreamEvent(

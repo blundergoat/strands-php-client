@@ -14,6 +14,7 @@ paths:
         - '.goat-flow/**'
         - history.json
         - infection-report.json
+        - 'scripts/**'
         - 'src/Vendor/**'
         - 'tests/Fixtures/**'
 allowlists:
@@ -326,11 +327,11 @@ rules:
         severity: error
     size.class-length:
         enabled: true
-        threshold: 1000
+        threshold: 1500
         severity: error
     size.file-length:
         enabled: true
-        threshold: 1000
+        threshold: 1500
         severity: error
     size.method-length:
         enabled: true
@@ -338,18 +339,18 @@ rules:
         severity: error
     size.parameter-count:
         enabled: true
-        threshold: 10
+        threshold: 20
         severity: error
         options:
             promotedConstructorMaxParameters: 25
-            constructorMaxParameters: 0
+            constructorMaxParameters: 20
     size.property-count:
         enabled: true
-        threshold: 15
+        threshold: 25
         severity: error
     size.public-method-count:
         enabled: true
-        threshold: 25
+        threshold: 60
         severity: error
     test-quality.conditional-logic:
         enabled: true

@@ -9,6 +9,11 @@ use StrandsPhpClient\Auth\NullAuth;
 
 class NullAuthTest extends TestCase
 {
+    /**
+     * Verifies that returns headers unmodified.
+     *
+     * @return void
+     */
     public function testReturnsHeadersUnmodified(): void
     {
         $auth = new NullAuth();
@@ -19,6 +24,11 @@ class NullAuthTest extends TestCase
         $this->assertSame($headers, $result);
     }
 
+    /**
+     * Verifies that preserves all multiple headers.
+     *
+     * @return void
+     */
     public function testPreservesAllMultipleHeaders(): void
     {
         $auth = new NullAuth();

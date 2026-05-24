@@ -9,6 +9,11 @@ use StrandsPhpClient\Auth\ApiKeyAuth;
 
 class ApiKeyAuthTest extends TestCase
 {
+    /**
+     * Verifies that default bearer auth.
+     *
+     * @return void
+     */
     public function testDefaultBearerAuth(): void
     {
         $auth = new ApiKeyAuth('sk-abc123');
@@ -20,6 +25,11 @@ class ApiKeyAuthTest extends TestCase
         $this->assertSame('application/json', $result['Content-Type']);
     }
 
+    /**
+     * Verifies that custom header name.
+     *
+     * @return void
+     */
     public function testCustomHeaderName(): void
     {
         $auth = new ApiKeyAuth('my-key', headerName: 'X-API-Key', valuePrefix: '');
@@ -31,6 +41,11 @@ class ApiKeyAuthTest extends TestCase
         $this->assertArrayNotHasKey('Authorization', $result);
     }
 
+    /**
+     * Verifies that custom prefix.
+     *
+     * @return void
+     */
     public function testCustomPrefix(): void
     {
         $auth = new ApiKeyAuth('token123', valuePrefix: 'Token ');
@@ -40,6 +55,11 @@ class ApiKeyAuthTest extends TestCase
         $this->assertSame('Token token123', $result['Authorization']);
     }
 
+    /**
+     * Verifies that preserves existing headers.
+     *
+     * @return void
+     */
     public function testPreservesExistingHeaders(): void
     {
         $auth = new ApiKeyAuth('key');

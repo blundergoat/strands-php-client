@@ -22,6 +22,11 @@ class StreamParser
 
     private int $skippedEvents = 0;
 
+    /**
+     * Return the number of malformed or unknown events skipped by the parser.
+     *
+     * @return int Count of skipped stream events.
+     */
     public function getSkippedEvents(): int
     {
         return $this->skippedEvents;

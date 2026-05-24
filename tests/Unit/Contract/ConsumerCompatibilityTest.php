@@ -14,6 +14,11 @@ use StrandsPhpClient\Streaming\StreamEventType;
 
 class ConsumerCompatibilityTest extends TestCase
 {
+    /**
+     * Verifies that summit chatroom standard stream profile still parses typed events.
+     *
+     * @return void
+     */
     public function testSummitChatroomStandardStreamProfileStillParsesTypedEvents(): void
     {
         $client = new StrandsClient(
@@ -45,6 +50,11 @@ class ConsumerCompatibilityTest extends TestCase
         $this->assertSame(32, $result->usage->inputTokens);
     }
 
+    /**
+     * Verifies that ambient scribe custom post JSON profiles preserve raw arrays.
+     *
+     * @return void
+     */
     public function testAmbientScribeCustomPostJsonProfilesPreserveRawArrays(): void
     {
         $responses = [
@@ -66,6 +76,11 @@ class ConsumerCompatibilityTest extends TestCase
         $this->assertSame(0.97, $roles['roles'][0]['confidence']);
     }
 
+    /**
+     * Verifies that halaxy custom post JSON profiles preserve raw arrays.
+     *
+     * @return void
+     */
     public function testHalaxyCustomPostJsonProfilesPreserveRawArrays(): void
     {
         $responses = [
@@ -93,6 +108,11 @@ class ConsumerCompatibilityTest extends TestCase
         $this->assertSame(220, $analysis['usage']['input_tokens']);
     }
 
+    /**
+     * Verifies that healthkit custom post JSON profiles preserve raw arrays.
+     *
+     * @return void
+     */
     public function testHealthkitCustomPostJsonProfilesPreserveRawArrays(): void
     {
         $responses = [
@@ -114,6 +134,11 @@ class ConsumerCompatibilityTest extends TestCase
         $this->assertSame('consultation', $intent['entities']['appointment_type']);
     }
 
+    /**
+     * Verifies that custom stream SSE profiles preserve unknown fields for callbacks.
+     *
+     * @return void
+     */
     public function testCustomStreamSseProfilesPreserveUnknownFieldsForCallbacks(): void
     {
         $client = new StrandsClient(
@@ -136,6 +161,11 @@ class ConsumerCompatibilityTest extends TestCase
         $this->assertSame(810.4, $events[2]['usage']['latency_ms']);
     }
 
+    /**
+     * Verifies that healthkit booking stream SSE profile preserves domain events.
+     *
+     * @return void
+     */
     public function testHealthkitBookingStreamSseProfilePreservesDomainEvents(): void
     {
         $client = new StrandsClient(
@@ -173,6 +203,12 @@ class ConsumerCompatibilityTest extends TestCase
         return $transport;
     }
 
+    /**
+     * Create a streaming transport for the supplied SSE fixture data.
+     *
+     * @param string $sseData SSE fixture data yielded by the mock transport.
+     * @return HttpTransport Value produced by the method.
+     */
     private function streamingTransport(string $sseData): HttpTransport
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -184,6 +220,12 @@ class ConsumerCompatibilityTest extends TestCase
         return $transport;
     }
 
+    /**
+     * Handle fixture.
+     *
+     * @param string $filename Fixture filename to load.
+     * @return string String value produced by the helper.
+     */
     private function fixture(string $filename): string
     {
         $contents = file_get_contents(__DIR__ . '/../../Fixtures/wire-contract/' . $filename);

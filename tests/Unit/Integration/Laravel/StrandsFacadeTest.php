@@ -10,6 +10,11 @@ use StrandsPhpClient\StrandsClient;
 
 class StrandsFacadeTest extends TestCase
 {
+    /**
+     * Verifies that facade accessor returns strands client class.
+     *
+     * @return void
+     */
     public function testFacadeAccessorReturnsStrandsClientClass(): void
     {
         $reflection = new \ReflectionMethod(Strands::class, 'getFacadeAccessor');

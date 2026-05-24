@@ -10,6 +10,11 @@ use StrandsPhpClient\Exceptions\ThrottledException;
 
 class ThrottledExceptionTest extends TestCase
 {
+    /**
+     * Verifies that extends agent error exception.
+     *
+     * @return void
+     */
     public function testExtendsAgentErrorException(): void
     {
         $e = new ThrottledException('Rate limited', statusCode: 429);
@@ -18,6 +23,11 @@ class ThrottledExceptionTest extends TestCase
         $this->assertSame(429, $e->statusCode);
     }
 
+    /**
+     * Verifies that caught by agent error exception catch.
+     *
+     * @return void
+     */
     public function testCaughtByAgentErrorExceptionCatch(): void
     {
         $caught = false;

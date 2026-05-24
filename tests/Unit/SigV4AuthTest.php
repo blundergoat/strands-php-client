@@ -9,6 +9,11 @@ use StrandsPhpClient\Auth\SigV4Auth;
 
 class SigV4AuthTest extends TestCase
 {
+    /**
+     * Verifies that authenticate adds required headers.
+     *
+     * @return void
+     */
     public function testAuthenticateAddsRequiredHeaders(): void
     {
         $auth = new SigV4Auth(
@@ -28,6 +33,11 @@ class SigV4AuthTest extends TestCase
         $this->assertStringContainsString('Signature=', $result['Authorization']);
     }
 
+    /**
+     * Verifies that authenticate includes session token.
+     *
+     * @return void
+     */
     public function testAuthenticateIncludesSessionToken(): void
     {
         $auth = new SigV4Auth(
@@ -44,6 +54,11 @@ class SigV4AuthTest extends TestCase
         $this->assertStringContainsString('x-amz-security-token', $result['Authorization']);
     }
 
+    /**
+     * Verifies that authenticate omits security token when null.
+     *
+     * @return void
+     */
     public function testAuthenticateOmitsSecurityTokenWhenNull(): void
     {
         $auth = new SigV4Auth(
@@ -58,6 +73,11 @@ class SigV4AuthTest extends TestCase
         $this->assertStringNotContainsString('x-amz-security-token', $result['Authorization']);
     }
 
+    /**
+     * Verifies that authenticate includes correct region and service.
+     *
+     * @return void
+     */
     public function testAuthenticateIncludesCorrectRegionAndService(): void
     {
         $auth = new SigV4Auth(
@@ -72,6 +92,11 @@ class SigV4AuthTest extends TestCase
         $this->assertStringContainsString('ap-southeast-1/lambda/aws4_request', $result['Authorization']);
     }
 
+    /**
+     * Verifies that authenticate default service is execute api.
+     *
+     * @return void
+     */
     public function testAuthenticateDefaultServiceIsExecuteApi(): void
     {
         $auth = new SigV4Auth(
@@ -85,6 +110,11 @@ class SigV4AuthTest extends TestCase
         $this->assertStringContainsString('execute-api/aws4_request', $result['Authorization']);
     }
 
+    /**
+     * Verifies that authenticate preserves existing headers.
+     *
+     * @return void
+     */
     public function testAuthenticatePreservesExistingHeaders(): void
     {
         $auth = new SigV4Auth(
@@ -104,6 +134,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame('text/event-stream', $result['Accept']);
     }
 
+    /**
+     * Verifies that authenticate payload hash is correct.
+     *
+     * @return void
+     */
     public function testAuthenticatePayloadHashIsCorrect(): void
     {
         $auth = new SigV4Auth(
@@ -120,6 +155,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame($expectedHash, $result['X-Amz-Content-Sha256']);
     }
 
+    /**
+     * Verifies that authenticate handles URL with query string.
+     *
+     * @return void
+     */
     public function testAuthenticateHandlesUrlWithQueryString(): void
     {
         $auth = new SigV4Auth(
@@ -133,6 +173,11 @@ class SigV4AuthTest extends TestCase
         $this->assertArrayHasKey('Authorization', $result);
     }
 
+    /**
+     * Verifies that authenticate handles URL with non standard port.
+     *
+     * @return void
+     */
     public function testAuthenticateHandlesUrlWithNonStandardPort(): void
     {
         $auth = new SigV4Auth(
@@ -152,6 +197,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sigWithPort, $sigWithoutPort, 'Non-standard port must affect signature');
     }
 
+    /**
+     * Verifies that authenticate ignores default https port.
+     *
+     * @return void
+     */
     public function testAuthenticateIgnoresDefaultHttpsPort(): void
     {
         $auth = new SigV4Auth(
@@ -169,6 +219,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame($sigWithPort, $sigWithoutPort, 'Default HTTPS port should not affect signature');
     }
 
+    /**
+     * Verifies that authenticate ignores default HTTP port.
+     *
+     * @return void
+     */
     public function testAuthenticateIgnoresDefaultHttpPort(): void
     {
         $auth = new SigV4Auth(
@@ -185,6 +240,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame($sigWithPort, $sigWithoutPort, 'Default HTTP port should not affect signature');
     }
 
+    /**
+     * Verifies that from environment throws on missing access key.
+     *
+     * @return void
+     */
     public function testFromEnvironmentThrowsOnMissingAccessKey(): void
     {
         putenv('AWS_ACCESS_KEY_ID=');
@@ -201,6 +261,11 @@ class SigV4AuthTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that from environment throws on missing secret key.
+     *
+     * @return void
+     */
     public function testFromEnvironmentThrowsOnMissingSecretKey(): void
     {
         putenv('AWS_ACCESS_KEY_ID=akid');
@@ -217,6 +282,11 @@ class SigV4AuthTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that from environment creates auth.
+     *
+     * @return void
+     */
     public function testFromEnvironmentCreatesAuth(): void
     {
         putenv('AWS_ACCESS_KEY_ID=AKID_TEST');
@@ -237,6 +307,11 @@ class SigV4AuthTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that signature is deterministic for same inputs.
+     *
+     * @return void
+     */
     public function testSignatureIsDeterministicForSameInputs(): void
     {
         $auth = new SigV4Auth(
@@ -260,6 +335,11 @@ class SigV4AuthTest extends TestCase
         $this->fail('Could not get two calls within the same second after 3 attempts');
     }
 
+    /**
+     * Verifies that content type is included in signed headers.
+     *
+     * @return void
+     */
     public function testContentTypeIsIncludedInSignedHeaders(): void
     {
         $auth = new SigV4Auth(
@@ -278,6 +358,11 @@ class SigV4AuthTest extends TestCase
         $this->assertStringContainsString('content-type', $result['Authorization']);
     }
 
+    /**
+     * Verifies that different bodies produce different signatures.
+     *
+     * @return void
+     */
     public function testDifferentBodiesProduceDifferentSignatures(): void
     {
         $auth = new SigV4Auth(
@@ -293,6 +378,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($r1['X-Amz-Content-Sha256'], $r2['X-Amz-Content-Sha256']);
     }
 
+    /**
+     * Verifies that different paths produce different signatures.
+     *
+     * @return void
+     */
     public function testDifferentPathsProduceDifferentSignatures(): void
     {
         $auth = new SigV4Auth(
@@ -309,6 +399,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that different methods produce different signatures.
+     *
+     * @return void
+     */
     public function testDifferentMethodsProduceDifferentSignatures(): void
     {
         $auth = new SigV4Auth(
@@ -325,6 +420,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that different regions produce different signatures.
+     *
+     * @return void
+     */
     public function testDifferentRegionsProduceDifferentSignatures(): void
     {
         $auth1 = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -338,6 +438,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that different services produce different signatures.
+     *
+     * @return void
+     */
     public function testDifferentServicesProduceDifferentSignatures(): void
     {
         $auth1 = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
@@ -351,6 +456,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that different keys produce different signatures.
+     *
+     * @return void
+     */
     public function testDifferentKeysProduceDifferentSignatures(): void
     {
         $auth1 = new SigV4Auth('AKID1', 'SECRET1', 'us-east-1');
@@ -364,6 +474,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that authorization header format.
+     *
+     * @return void
+     */
     public function testAuthorizationHeaderFormat(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
@@ -384,6 +499,11 @@ class SigV4AuthTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that signed headers are sorted.
+     *
+     * @return void
+     */
     public function testSignedHeadersAreSorted(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -411,6 +531,11 @@ class SigV4AuthTest extends TestCase
         $this->assertContains('content-type', $signedHeaders);
     }
 
+    /**
+     * Verifies that amz date format is correct.
+     *
+     * @return void
+     */
     public function testAmzDateFormatIsCorrect(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -421,6 +546,11 @@ class SigV4AuthTest extends TestCase
         $this->assertMatchesRegularExpression('/^\d{8}T\d{6}Z$/', $result['X-Amz-Date']);
     }
 
+    /**
+     * Verifies that credential scope contains date region service suffix.
+     *
+     * @return void
+     */
     public function testCredentialScopeContainsDateRegionServiceSuffix(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'ap-northeast-1', 'lambda');
@@ -438,6 +568,11 @@ class SigV4AuthTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that query string parameters affect signature.
+     *
+     * @return void
+     */
     public function testQueryStringParametersAffectSignature(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -450,6 +585,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that query string parameters are sorted.
+     *
+     * @return void
+     */
     public function testQueryStringParametersAreSorted(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -463,6 +603,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that path normalization.
+     *
+     * @return void
+     */
     public function testPathNormalization(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -481,6 +626,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that host is included in signature.
+     *
+     * @return void
+     */
     public function testHostIsIncludedInSignature(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -494,6 +644,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that session token affects signature.
+     *
+     * @return void
+     */
     public function testSessionTokenAffectsSignature(): void
     {
         $authWithToken = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api', 'TOKEN');
@@ -507,6 +662,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that from environment ignores empty session token.
+     *
+     * @return void
+     */
     public function testFromEnvironmentIgnoresEmptySessionToken(): void
     {
         putenv('AWS_ACCESS_KEY_ID=AKID');
@@ -524,6 +684,11 @@ class SigV4AuthTest extends TestCase
         }
     }
 
+    /**
+     * Verifies that signature is 64 char hex.
+     *
+     * @return void
+     */
     public function testSignatureIs64CharHex(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -533,6 +698,11 @@ class SigV4AuthTest extends TestCase
         $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $sig);
     }
 
+    /**
+     * Verifies that content hash is 64 char hex.
+     *
+     * @return void
+     */
     public function testContentHashIs64CharHex(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -541,6 +711,11 @@ class SigV4AuthTest extends TestCase
         $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $result['X-Amz-Content-Sha256']);
     }
 
+    /**
+     * Verifies that canonical header format is correct.
+     *
+     * @return void
+     */
     public function testCanonicalHeaderFormatIsCorrect(): void
     {
         // Verifies the "key:value\n" format of canonical headers
@@ -572,6 +747,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame('content-type;host;x-amz-content-sha256;x-amz-date', $signedHeaders);
     }
 
+    /**
+     * Verifies that signing key prefix is AWS 4.
+     *
+     * @return void
+     */
     public function testSigningKeyPrefixIsAWS4(): void
     {
         // The signing key derivation uses 'AWS4' + secretAccessKey as the initial HMAC key.
@@ -590,6 +770,11 @@ class SigV4AuthTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that query string value with equals sign.
+     *
+     * @return void
+     */
     public function testQueryStringValueWithEqualsSign(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -603,6 +788,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig1, $sig2, 'Query value with = must produce different signature');
     }
 
+    /**
+     * Verifies that query string key and value order.
+     *
+     * @return void
+     */
     public function testQueryStringKeyAndValueOrder(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -616,6 +806,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that normalize path returns slash for root.
+     *
+     * @return void
+     */
     public function testNormalizePathReturnsSlashForRoot(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -629,6 +824,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame($sig1, $sig2, 'Root path and empty path must produce same signature');
     }
 
+    /**
+     * Verifies that empty query string does not affect signature.
+     *
+     * @return void
+     */
     public function testEmptyQueryStringDoesNotAffectSignature(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -644,6 +844,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame($sig1, $sig2);
     }
 
+    /**
+     * Verifies that string to sign includes algorithm prefix.
+     *
+     * @return void
+     */
     public function testStringToSignIncludesAlgorithmPrefix(): void
     {
         // The string to sign starts with 'AWS4-HMAC-SHA256'. Removing this first
@@ -662,6 +867,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame(64, strlen($sig));
     }
 
+    /**
+     * Verifies that port host format includes colon.
+     *
+     * @return void
+     */
     public function testPortHostFormatIncludesColon(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -679,6 +889,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNotSame($sig8443, $sig9443);
     }
 
+    /**
+     * Verifies that debug info masks secrets.
+     *
+     * @return void
+     */
     public function testDebugInfoMasksSecrets(): void
     {
         $auth = new SigV4Auth(
@@ -696,6 +911,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame('us-east-1', $debugInfo['region']);
     }
 
+    /**
+     * Verifies that debug info shows null session token as null.
+     *
+     * @return void
+     */
     public function testDebugInfoShowsNullSessionTokenAsNull(): void
     {
         $auth = new SigV4Auth(
@@ -709,6 +929,11 @@ class SigV4AuthTest extends TestCase
         $this->assertNull($debugInfo['sessionToken']);
     }
 
+    /**
+     * Verifies that debug info contains service key.
+     *
+     * @return void
+     */
     public function testDebugInfoContainsServiceKey(): void
     {
         $auth = new SigV4Auth(
@@ -724,6 +949,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame('lambda', $debugInfo['service']);
     }
 
+    /**
+     * Verifies that signature matches manual computation.
+     *
+     * @return void
+     */
     public function testSignatureMatchesManualComputation(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
@@ -778,6 +1008,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame($expectedSignature, $this->extractSignature($result['Authorization']));
     }
 
+    /**
+     * Verifies that signature with non standard port matches manual computation.
+     *
+     * @return void
+     */
     public function testSignatureWithNonStandardPortMatchesManualComputation(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
@@ -825,6 +1060,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame($expectedSignature, $this->extractSignature($result['Authorization']));
     }
 
+    /**
+     * Verifies that signature with query string matches manual computation.
+     *
+     * @return void
+     */
     public function testSignatureWithQueryStringMatchesManualComputation(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
@@ -872,6 +1112,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame($expectedSignature, $this->extractSignature($result['Authorization']));
     }
 
+    /**
+     * Verifies that normalize path directly.
+     *
+     * @return void
+     */
     public function testNormalizePathDirectly(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -883,6 +1128,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame('/foo%20bar/baz', $method->invoke($auth, '/foo bar/baz'));
     }
 
+    /**
+     * Verifies that canonicalize query string directly.
+     *
+     * @return void
+     */
     public function testCanonicalizeQueryStringDirectly(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -897,6 +1147,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame('flag=', $method->invoke($auth, 'flag'));
     }
 
+    /**
+     * Verifies that derive signing key directly.
+     *
+     * @return void
+     */
     public function testDeriveSigningKeyDirectly(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
@@ -922,6 +1177,11 @@ class SigV4AuthTest extends TestCase
         $this->assertSame($expected, $key);
     }
 
+    /**
+     * Verifies that canonical header trim is applied.
+     *
+     * @return void
+     */
     public function testCanonicalHeaderTrimIsApplied(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -947,6 +1207,11 @@ class SigV4AuthTest extends TestCase
         );
     }
 
+    /**
+     * Verifies that signature with session token matches manual computation.
+     *
+     * @return void
+     */
     public function testSignatureWithSessionTokenMatchesManualComputation(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api', 'MY_SESSION_TOKEN');
@@ -1003,6 +1268,11 @@ class SigV4AuthTest extends TestCase
         $this->assertStringContainsString('x-amz-security-token', $result['Authorization']);
     }
 
+    /**
+     * Verifies that pre encoded percent in path not double encoded.
+     *
+     * @return void
+     */
     public function testPreEncodedPercentInPathNotDoubleEncoded(): void
     {
         $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
@@ -1020,6 +1290,12 @@ class SigV4AuthTest extends TestCase
         );
     }
 
+    /**
+     * Extract signature for assertions.
+     *
+     * @param string $authHeader Authorization header generated by SigV4 signing.
+     * @return string String value produced by the helper.
+     */
     private function extractSignature(string $authHeader): string
     {
         preg_match('/Signature=([a-f0-9]+)$/', $authHeader, $matches);

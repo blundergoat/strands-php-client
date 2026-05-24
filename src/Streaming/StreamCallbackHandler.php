@@ -38,46 +38,100 @@ abstract class StreamCallbackHandler
         };
     }
 
+    /**
+     * Handle a text token event when subclasses opt in.
+     *
+     * @param StreamEvent $event Stream event being handled.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onText(StreamEvent $event): ?bool
     {
         return null;
     }
 
+    /**
+     * Handle a tool-use event when subclasses opt in.
+     *
+     * @param StreamEvent $event Stream event being handled.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onToolUse(StreamEvent $event): ?bool
     {
         return null;
     }
 
+    /**
+     * Handle a tool-result event when subclasses opt in.
+     *
+     * @param StreamEvent $event Stream event being handled.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onToolResult(StreamEvent $event): ?bool
     {
         return null;
     }
 
+    /**
+     * Handle a reasoning text event when subclasses opt in.
+     *
+     * @param StreamEvent $event Stream event being handled.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onThinking(StreamEvent $event): ?bool
     {
         return null;
     }
 
+    /**
+     * Handle a citation event when subclasses opt in.
+     *
+     * @param StreamEvent $event Stream event being handled.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onCitation(StreamEvent $event): ?bool
     {
         return null;
     }
 
+    /**
+     * Handle a reasoning signature event when subclasses opt in.
+     *
+     * @param StreamEvent $event Stream event being handled.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onReasoningSignature(StreamEvent $event): ?bool
     {
         return null;
     }
 
+    /**
+     * Handle a redacted reasoning event when subclasses opt in.
+     *
+     * @param StreamEvent $event Stream event being handled.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onReasoningRedacted(StreamEvent $event): ?bool
     {
         return null;
     }
 
+    /**
+     * Handle a terminal completion event when subclasses opt in.
+     *
+     * @param StreamEvent $event Stream event being handled.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onComplete(StreamEvent $event): ?bool
     {
         return null;
     }
 
+    /**
+     * Handle a terminal error event when subclasses opt in.
+     *
+     * @param StreamEvent $event Stream event being handled.
+     * @return bool|null False cancels the stream; null continues it.
+     */
     protected function onError(StreamEvent $event): ?bool
     {
         return null;

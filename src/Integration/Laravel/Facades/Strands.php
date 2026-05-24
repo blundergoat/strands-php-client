@@ -20,6 +20,11 @@ use StrandsPhpClient\StrandsClient;
 
 class Strands extends Facade
 {
+    /**
+     * Return the container binding resolved by the Laravel facade.
+     *
+     * @return string Service container key for the default client binding.
+     */
     protected static function getFacadeAccessor(): string
     {
         return StrandsClient::class;

@@ -9,6 +9,11 @@ use StrandsPhpClient\Response\GuardrailAssessment;
 
 class GuardrailAssessmentTest extends TestCase
 {
+    /**
+     * Verifies that from array with all policies.
+     *
+     * @return void
+     */
     public function testFromArrayWithAllPolicies(): void
     {
         $data = [
@@ -32,6 +37,11 @@ class GuardrailAssessmentTest extends TestCase
         $this->assertSame(['threshold' => 0.7], $assessment->contextualGroundingPolicy);
     }
 
+    /**
+     * Verifies that from array with minimal data.
+     *
+     * @return void
+     */
     public function testFromArrayWithMinimalData(): void
     {
         $data = [
@@ -50,6 +60,11 @@ class GuardrailAssessmentTest extends TestCase
         $this->assertNull($assessment->contextualGroundingPolicy);
     }
 
+    /**
+     * Verifies that from array with empty data.
+     *
+     * @return void
+     */
     public function testFromArrayWithEmptyData(): void
     {
         $assessment = GuardrailAssessment::fromArray([]);
@@ -58,6 +73,11 @@ class GuardrailAssessmentTest extends TestCase
         $this->assertNull($assessment->action);
     }
 
+    /**
+     * Verifies that from array ignores non array policies.
+     *
+     * @return void
+     */
     public function testFromArrayIgnoresNonArrayPolicies(): void
     {
         $data = [

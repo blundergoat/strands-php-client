@@ -25,10 +25,18 @@ class AgentContext
     /** @var array<string, mixed> */
     private array $structuredData = [];
 
+    /**
+     * Create an empty immutable context builder.
+     */
     private function __construct()
     {
     }
 
+    /**
+     * Create an empty immutable context builder.
+     *
+     * @return self New empty context builder.
+     */
     public static function create(): self
     {
         return new self();

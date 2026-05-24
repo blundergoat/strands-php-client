@@ -9,6 +9,11 @@ use StrandsPhpClient\Response\Citation\CitationLocation;
 
 class CitationLocationTest extends TestCase
 {
+    /**
+     * Verifies that from array document location.
+     *
+     * @return void
+     */
     public function testFromArrayDocumentLocation(): void
     {
         $data = [
@@ -29,6 +34,11 @@ class CitationLocationTest extends TestCase
         $this->assertNull($location->url);
     }
 
+    /**
+     * Verifies that from array web location.
+     *
+     * @return void
+     */
     public function testFromArrayWebLocation(): void
     {
         $data = [
@@ -44,6 +54,11 @@ class CitationLocationTest extends TestCase
         $this->assertSame('Article Title', $location->title);
     }
 
+    /**
+     * Verifies that from array search result location.
+     *
+     * @return void
+     */
     public function testFromArraySearchResultLocation(): void
     {
         $data = [
@@ -60,6 +75,11 @@ class CitationLocationTest extends TestCase
         $this->assertSame(3, $location->searchResultRank);
     }
 
+    /**
+     * Verifies that from array chunk location.
+     *
+     * @return void
+     */
     public function testFromArrayChunkLocation(): void
     {
         $data = [
@@ -74,6 +94,11 @@ class CitationLocationTest extends TestCase
         $this->assertSame(2, $location->endChunkIndex);
     }
 
+    /**
+     * Verifies that from array rejects non numeric strings.
+     *
+     * @return void
+     */
     public function testFromArrayRejectsNonNumericStrings(): void
     {
         $data = [
@@ -85,6 +110,11 @@ class CitationLocationTest extends TestCase
         $this->assertNull($location->startCharacterIndex);
     }
 
+    /**
+     * Verifies that from array accepts numeric strings and floats.
+     *
+     * @return void
+     */
     public function testFromArrayAcceptsNumericStringsAndFloats(): void
     {
         $data = [
@@ -100,6 +130,11 @@ class CitationLocationTest extends TestCase
         $this->assertSame(4, $location->endPageIndex);
     }
 
+    /**
+     * Verifies that from array empty data.
+     *
+     * @return void
+     */
     public function testFromArrayEmptyData(): void
     {
         $location = CitationLocation::fromArray([]);
