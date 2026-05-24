@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.0] - Unreleased
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Fixed
+
+## [1.5.0] - 2026-05-24
 
 ### Added
 
@@ -28,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Project workflow scaffolding** — GOAT Flow workspace files, architecture/code-map docs, decisions/footguns/lessons/patterns directories, skill references, agent skill bundles, Codex/Claude hooks, and repository agent instructions for structured implementation/review/debug/QA/security workflows.
 - **Dependency and version scripts** — `scripts/dependencies-install.sh`, `scripts/dependencies-update.sh`, and `scripts/bump-version.sh` cover Composer/npm installs and updates plus changelog-driven version bumping.
 - **npm-based goat-flow tooling** — `package.json` and `package-lock.json` add `@blundergoat/goat-flow` as the project workflow dev dependency.
-- 591 tests, 1817 assertions.
+- 593 tests, 1827 assertions.
 
 ### Changed
 
@@ -207,7 +215,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI matrix: PHP 8.2/8.3/8.4, Symfony 6.4/7.0.
 - 100+ unit tests with fixture-based mocks (no network calls).
 
-[Unreleased]: https://github.com/blundergoat/strands-php-client/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/blundergoat/strands-php-client/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/blundergoat/strands-php-client/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/blundergoat/strands-php-client/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/blundergoat/strands-php-client/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/blundergoat/strands-php-client/compare/v1.1.0...v1.2.0
