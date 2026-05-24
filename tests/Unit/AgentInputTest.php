@@ -32,6 +32,7 @@ class AgentInputTest extends TestCase
         $this->assertSame("What's in this image?", $payload['content'][0]['text']);
 
         $this->assertSame('image', $payload['content'][1]['type']);
+        $this->assertSame('png', $payload['content'][1]['format']);
         $this->assertSame('base64', $payload['content'][1]['source']['type']);
         $this->assertSame('image/png', $payload['content'][1]['source']['media_type']);
         $this->assertSame('base64data', $payload['content'][1]['source']['data']);
@@ -487,6 +488,7 @@ class AgentInputTest extends TestCase
 
         $this->assertIsArray($payload);
         $this->assertSame('image', $payload['content'][1]['type']);
+        $this->assertSame('png', $payload['content'][1]['format']);
         $this->assertSame('url', $payload['content'][1]['source']['type']);
         $this->assertSame('https://example.com/photo.png', $payload['content'][1]['source']['url']);
         $this->assertSame('image/png', $payload['content'][1]['source']['media_type']);
@@ -562,6 +564,16 @@ class AgentInputTest extends TestCase
         $this->assertSame('cache_point', $payload['content'][1]['type']);
         $this->assertSame('default', $payload['content'][1]['cache_type']);
         $this->assertSame('5m', $payload['content'][1]['ttl']);
+    }
+
+    public function testWithCachePointReturnsNewInstance(): void
+    {
+        $original = AgentInput::text('Hello');
+        $withCache = $original->withCachePoint(ttl: '5m');
+
+        $this->assertSame('Hello', $original->toPayloadValue());
+        $this->assertIsArray($withCache->toPayloadValue());
+        $this->assertNotSame($original, $withCache);
     }
 
     public function testWithVideoFromUrl(): void

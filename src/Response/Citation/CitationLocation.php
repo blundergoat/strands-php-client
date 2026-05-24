@@ -74,6 +74,18 @@ final readonly class CitationLocation
     {
         $value = $data[$key] ?? null;
 
-        return is_int($value) ? $value : null;
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value)) {
+            return (int) round($value);
+        }
+
+        if (is_string($value) && is_numeric($value)) {
+            return (int) round((float) $value);
+        }
+
+        return null;
     }
 }

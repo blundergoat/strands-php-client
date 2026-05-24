@@ -62,7 +62,6 @@ class StreamEventCitationTest extends TestCase
             type: StreamEventType::Citation,
             citation: [
                 'source' => 'doc.pdf',
-                'page' => 3,
                 'text' => 'relevant excerpt',
             ],
         );

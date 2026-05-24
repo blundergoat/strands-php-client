@@ -74,17 +74,30 @@ class CitationLocationTest extends TestCase
         $this->assertSame(2, $location->endChunkIndex);
     }
 
-    public function testFromArrayHandlesNonIntValues(): void
+    public function testFromArrayRejectsNonNumericStrings(): void
     {
         $data = [
             'start_character_index' => 'not_an_int',
-            'search_result_rank' => '5',
         ];
 
         $location = CitationLocation::fromArray($data);
 
         $this->assertNull($location->startCharacterIndex);
-        $this->assertNull($location->searchResultRank);
+    }
+
+    public function testFromArrayAcceptsNumericStringsAndFloats(): void
+    {
+        $data = [
+            'search_result_rank' => '5',
+            'start_page_index' => 2.0,
+            'end_page_index' => 3.7,
+        ];
+
+        $location = CitationLocation::fromArray($data);
+
+        $this->assertSame(5, $location->searchResultRank);
+        $this->assertSame(2, $location->startPageIndex);
+        $this->assertSame(4, $location->endPageIndex);
     }
 
     public function testFromArrayEmptyData(): void

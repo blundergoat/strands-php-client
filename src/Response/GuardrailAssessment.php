@@ -17,6 +17,9 @@ final readonly class GuardrailAssessment
      * @param array<string, mixed>|null $wordPolicy                   Word policy details.
      * @param array<string, mixed>|null $sensitiveInformationPolicy   Sensitive information policy details.
      * @param array<string, mixed>|null $contextualGroundingPolicy    Contextual grounding policy details.
+     * @param string|null               $name                         Normalized assessment name (e.g. 'safety').
+     * @param string|null               $result                       Normalized result (e.g. 'blocked', 'allowed').
+     * @param float|null                $confidence                   Confidence score from 0.0 to 1.0.
      */
     public function __construct(
         public ?string $type = null,
@@ -26,6 +29,9 @@ final readonly class GuardrailAssessment
         public ?array $wordPolicy = null,
         public ?array $sensitiveInformationPolicy = null,
         public ?array $contextualGroundingPolicy = null,
+        public ?string $name = null,
+        public ?string $result = null,
+        public ?float $confidence = null,
     ) {
     }
 
@@ -53,6 +59,27 @@ final readonly class GuardrailAssessment
             wordPolicy: $wordPolicy,
             sensitiveInformationPolicy: $sensitiveInformationPolicy,
             contextualGroundingPolicy: $contextualGroundingPolicy,
+            name: is_string($data['name'] ?? null) ? $data['name'] : null,
+            result: is_string($data['result'] ?? null) ? $data['result'] : null,
+            confidence: self::float($data, 'confidence'),
         );
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private static function float(array $data, string $key): ?float
+    {
+        $value = $data[$key] ?? null;
+
+        if (is_float($value) || is_int($value)) {
+            return (float) $value;
+        }
+
+        if (is_string($value) && is_numeric($value)) {
+            return (float) $value;
+        }
+
+        return null;
     }
 }

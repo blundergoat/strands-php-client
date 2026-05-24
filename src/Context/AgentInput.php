@@ -68,6 +68,7 @@ class AgentInput
         $clone = clone $this;
         $clone->contentBlocks[] = [
             'type' => 'image',
+            'format' => self::deriveImageFormat($mediaType),
             'source' => [
                 'type' => 'base64',
                 'media_type' => $mediaType,
@@ -216,6 +217,7 @@ class AgentInput
         $clone = clone $this;
         $clone->contentBlocks[] = [
             'type' => 'image',
+            'format' => self::deriveImageFormat($mediaType),
             'source' => [
                 'type' => 'url',
                 'url' => $url,
@@ -392,6 +394,19 @@ class AgentInput
         }
 
         return $payload;
+    }
+
+    /**
+     * Derive the wire-contract image `format` from a MIME type.
+     *
+     * "image/png" -> "png", "image/jpeg" -> "jpeg". Unknown media types
+     * fall back to the input unchanged.
+     */
+    private static function deriveImageFormat(string $mediaType): string
+    {
+        $parts = explode('/', $mediaType, 2);
+
+        return $parts[1] ?? $mediaType;
     }
 
     /**

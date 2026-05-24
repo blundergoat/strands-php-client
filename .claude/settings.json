@@ -11,10 +11,20 @@
       "Edit(**/.env*)",
       "Write(**/.env*)",
       "Read(**/*.pem)",
+      "Edit(**/*.pem)",
+      "Write(**/*.pem)",
       "Read(**/*.key)",
+      "Edit(**/*.key)",
+      "Write(**/*.key)",
       "Read(**/.ssh/**)",
+      "Edit(**/.ssh/**)",
+      "Write(**/.ssh/**)",
       "Read(**/.aws/**)",
-      "Read(**/credentials*)"
+      "Edit(**/.aws/**)",
+      "Write(**/.aws/**)",
+      "Read(**/credentials*)",
+      "Edit(**/credentials*)",
+      "Write(**/credentials*)"
     ]
   },
   "hooks": {

@@ -770,7 +770,22 @@ class StrandsClient
             static fn (RequestMiddleware $mw): bool => $mw instanceof ResponseObserver,
         ));
 
-        return [...$observerMiddleware, ...$responseObservers];
+        // Dedupe by object identity. A class implementing both RequestMiddleware
+        // and ResponseObserver is auto-tagged into both lists under Symfony's
+        // registerForAutoconfiguration, so without dedup each afterInvoke /
+        // afterStream / afterResponse would fire twice for the same observer.
+        $seen = [];
+
+        return array_values(array_filter(
+            [...$observerMiddleware, ...$responseObservers],
+            static function (ResponseObserver $observer) use (&$seen): bool {
+                $id = spl_object_id($observer);
+                $isNew = !isset($seen[$id]);
+                $seen[$id] = true;
+
+                return $isNew;
+            },
+        ));
     }
 
     private function notifyAfterInvoke(string $url, AgentResponse $response, float $durationMs): void

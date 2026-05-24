@@ -55,7 +55,7 @@ Before touching these boundaries, state: boundary touched, related code read, fo
 ## Essential Commands
 
 ```bash
-composer test                    # PHPUnit (477 tests)
+composer test                    # PHPUnit
 composer analyse                 # PHPStan Level 10
 composer cs:check                # PHP-CS-Fixer dry-run (PSR-12)
 composer cs:fix                  # Auto-format

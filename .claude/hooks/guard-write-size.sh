@@ -21,13 +21,25 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
+# If jq is unavailable we can't safely parse the hook input, so fail open.
+command -v jq >/dev/null 2>&1 || exit 0
+
 # --- JSON Input Parsing ------------------------------------------------------
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
-NEW_CONTENT=$(echo "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null)
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)
 
-# If we can't parse the input, allow (fail open)
-[[ -z "$FILE_PATH" || -z "$NEW_CONTENT" ]] && exit 0
+# Distinguish "content field absent" (parse failure -> allow) from
+# "content is the empty string" (caller is asking to truncate -> still guard).
+if printf '%s' "$INPUT" | jq -e '.tool_input | has("content")' >/dev/null 2>&1; then
+  HAS_CONTENT=1
+  NEW_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // ""' 2>/dev/null || true)
+else
+  HAS_CONTENT=0
+  NEW_CONTENT=""
+fi
+
+# If we can't identify the file or the content field is missing, allow (fail open).
+[[ -z "$FILE_PATH" || "$HAS_CONTENT" -eq 0 ]] && exit 0
 
 # Resolve relative paths to absolute
 [[ "$FILE_PATH" != /* ]] && FILE_PATH="$ROOT/$FILE_PATH"
@@ -38,7 +50,8 @@ NEW_CONTENT=$(echo "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null)
 [[ ! -f "$FILE_PATH" ]] && exit 0
 
 OLD_SIZE=$(wc -c < "$FILE_PATH")
-NEW_SIZE=${#NEW_CONTENT}
+# Measure both sides in bytes so multibyte content isn't undercounted.
+NEW_SIZE=$(printf '%s' "$NEW_CONTENT" | wc -c)
 
 # Skip tiny files (under 100 bytes) - not worth guarding
 (( OLD_SIZE < 100 )) && exit 0

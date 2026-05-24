@@ -41,7 +41,9 @@ class PrintingCallbackHandler extends StreamCallbackHandler
 
     protected function onError(StreamEvent $event): ?bool
     {
-        $this->writeError("Error [{$event->errorCode}]: {$event->errorMessage}" . PHP_EOL);
+        $code = $event->errorCode ?? 'unknown';
+        $message = $event->errorMessage ?? '(no message)';
+        $this->writeError("Error [{$code}]: {$message}" . PHP_EOL);
 
         return null;
     }

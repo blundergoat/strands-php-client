@@ -401,6 +401,8 @@ run_self_test() {
   run_case "escaped semicolon literal rm" 'echo foo\; rm -rf /' 0
   run_case "semicolon chained rm" 'true; rm -rf /' 2
   run_case "and chained rm" 'true && rm -rf /' 2
+  run_case "ampersand chained rm" 'echo ok & rm -rf /' 2
+  run_case "ampersand chained git push" 'echo ok & git push origin main' 2
   # Safe sh -c / bash -c wrappers around read-only commands should pass; dangerous ones still block.
   run_case "xargs sh -c safe" "xargs -I {} sh -c 'echo {}'" 0
   run_case "bash -c safe" 'bash -c "echo hello"' 0
@@ -1524,7 +1526,7 @@ check_segment() {
   fi
 
   # 11. Lockfile direct modifications (must go through package manager)
-  if [[ "$cmd" =~ (\>|\>\>|tee|sed[[:space:]]+-i)[[:space:]]+.*(package-lock\.json|composer\.lock|Cargo\.lock|yarn\.lock) ]]; then
+  if [[ "$cmd" =~ (\>\>|\>\||\>|tee|sed[[:space:]]+-i)[[:space:]]*.*(package-lock\.json|pnpm-lock\.yaml|composer\.lock|Cargo\.lock|yarn\.lock|bun\.lockb) ]]; then
     block "Direct lockfile modification. Use the package manager (npm install, composer update, etc.)."
   fi
 
@@ -1634,6 +1636,14 @@ split_command_segments() {
         split_segments+=("$current")
         current=""
         i=$((i + 1))
+        continue
+      fi
+      # Bare & (background/job control) - split so trailing commands are also checked.
+      # Without this, "echo ok & rm -rf /" stays one segment and the verb-whitelist
+      # in check_segment() returns early on `echo` before the rm part is inspected.
+      if [[ "$char" == "&" && "$next" != "&" ]]; then
+        split_segments+=("$current")
+        current=""
         continue
       fi
       if [[ "$char" == ";" || "$char" == $'\n' ]]; then

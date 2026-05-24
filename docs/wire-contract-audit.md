@@ -6,12 +6,14 @@ The result: the PHP client is a custom-wrapper client. The active services expos
 
 ## Audited Projects
 
+Evidence paths are relative to each project's repository root, not this client. Searches resolve against the wrapper repos listed in the first column.
+
 | Project | Contract usage | Evidence |
 | --- | --- | --- |
-| `the-summit-chatroom` | Uses standard `/invoke` and `/stream` endpoints with `message`, `session_id`, and `context`. Emits canonical SSE event types such as `text`, `thinking`, `tool_use`, `tool_result`, `complete`, and `error`. | `/home/devgoat/projects/the-summit-chatroom/strands_agents/api/server.py` (search: `InvokeRequest`, `stream_response`, `event_data`) |
-| `ambient-scribe` | Uses custom endpoints through `postJson()` and wrapper-specific Pydantic schemas. Project docs explicitly treat PHP/Python request models as coupled contracts. | `/home/devgoat/projects/ambient-scribe/docs/workflow.md` (search: `contracts are tightly coupled`), `/home/devgoat/projects/ambient-scribe/src/Controller/ScribeController.php` (search: `postJson`) |
-| `halaxy-agents-lab` | Uses custom file metadata endpoints and stream endpoints. Shared schemas emit snake_case `AgentUsage`; helpers normalize sdk-python usage counters before PHP receives them. | `/home/devgoat/projects/halaxy-agents-lab/strands_agents/api/schemas/shared.py` (search: `AgentUsage`), `/home/devgoat/projects/halaxy-agents-lab/strands_agents/api/helpers.py` (search: `_extract_usage`) |
-| `healthkit` | Uses several custom endpoints for chat, intent, metadata, summarise, and suggested actions. Shared wrapper helpers normalize usage and stream `complete` payloads before PHP consumption. | `/home/devgoat/projects/healthkit/strands_agents/api/helpers.py` (search: `_extract_usage`), `/home/devgoat/projects/healthkit/src/App/ExternalProvider/AI/StrandsAgents/FileSummariserStreamOrchestrator.php` (search: `streamSse`) |
+| `the-summit-chatroom` | Uses standard `/invoke` and `/stream` endpoints with `message`, `session_id`, and `context`. Emits canonical SSE event types such as `text`, `thinking`, `tool_use`, `tool_result`, `complete`, and `error`. | `strands_agents/api/server.py` (search: `InvokeRequest`, `stream_response`, `event_data`) |
+| `ambient-scribe` | Uses custom endpoints through `postJson()` and wrapper-specific Pydantic schemas. Project docs explicitly treat PHP/Python request models as coupled contracts. | `docs/workflow.md` (search: `contracts are tightly coupled`), `src/Controller/ScribeController.php` (search: `postJson`) |
+| `halaxy-agents-lab` | Uses custom file metadata endpoints and stream endpoints. Shared schemas emit snake_case `AgentUsage`; helpers normalize sdk-python usage counters before PHP receives them. | `strands_agents/api/schemas/shared.py` (search: `AgentUsage`), `strands_agents/api/helpers.py` (search: `_extract_usage`) |
+| `healthkit` | Uses several custom endpoints for chat, intent, metadata, summarise, and suggested actions. Shared wrapper helpers normalize usage and stream `complete` payloads before PHP consumption. | `strands_agents/api/helpers.py` (search: `_extract_usage`), `src/App/ExternalProvider/AI/StrandsAgents/FileSummariserStreamOrchestrator.php` (search: `streamSse`) |
 
 ## Shared Signals
 

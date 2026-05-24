@@ -67,13 +67,13 @@ fi
 
 # ── npm ──────────────────────────────────────────────────────────
 if [[ "$RUN_NPM" == "true" ]]; then
-    if ! command -v npm &>/dev/null; then
-        err "npm not found in PATH"
-        exit 1
-    fi
     if [[ ! -f package.json ]]; then
         warn "No package.json found - skipping npm update"
     else
+        if ! command -v npm &>/dev/null; then
+            err "npm not found in PATH"
+            exit 1
+        fi
         if [[ "$DRY_RUN" == "true" ]]; then
             info "npm outdated (preview of available updates)"
             npm outdated || true

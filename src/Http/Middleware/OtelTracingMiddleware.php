@@ -62,6 +62,12 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
      */
     public function beforeRequest(string $url, array $headers, string $body): array
     {
+        // Drain any spans left over from a previous request whose afterResponse()
+        // never fired (e.g. buildRequest() failed before the try/catch in
+        // StrandsClient::invoke()). Without this, the active scope leaks into
+        // subsequent operations and produces incorrect parent-child traces.
+        $this->endOrphanedSpans();
+
         $route = self::sanitizeRoute($url);
         $operation = self::deriveOperationName($route, $headers);
         $spanName = $this->deriveSpanName($route, $operation);
@@ -89,14 +95,22 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         }
 
         $scope = $span->activate();
-        $this->spanStack->push([$span, $scope]);
 
-        $carrier = $headers;
-        $this->propagator->inject(
-            $carrier,
-            ArrayAccessGetterSetter::getInstance(),
-            Context::getCurrent(),
-        );
+        try {
+            $carrier = $headers;
+            $this->propagator->inject(
+                $carrier,
+                ArrayAccessGetterSetter::getInstance(),
+                Context::getCurrent(),
+            );
+        } catch (\Throwable $e) {
+            $scope->detach();
+            $span->end();
+
+            throw $e;
+        }
+
+        $this->spanStack->push([$span, $scope]);
 
         /** @var array<string, string> $injectedHeaders */
         $injectedHeaders = $carrier;
@@ -273,6 +287,16 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         [$span] = $this->spanStack->top();
 
         return $span;
+    }
+
+    private function endOrphanedSpans(): void
+    {
+        while (!$this->spanStack->isEmpty()) {
+            [$span, $scope] = $this->spanStack->pop();
+            $span->setStatus(StatusCode::STATUS_ERROR, 'orphaned span: setup failed before afterResponse');
+            $scope->detach();
+            $span->end();
+        }
     }
 
     private static function sanitizeUrl(string $url): string

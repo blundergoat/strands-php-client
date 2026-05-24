@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Response;
 
+use StrandsPhpClient\Exceptions\StrandsException;
+
 /**
  * Represents the complete response from a synchronous invoke() call.
  *
@@ -93,12 +95,12 @@ class AgentResponse
      *
      * @return T
      *
-     * @throws \RuntimeException If no structured output is available or hydration fails.
+     * @throws StrandsException If no structured output is available or hydration fails.
      */
     public function structuredOutputAs(string $class): object
     {
         if ($this->structuredOutput === null) {
-            throw new \RuntimeException('No structured output in response');
+            throw new StrandsException('No structured output in response');
         }
 
         try {
@@ -114,8 +116,10 @@ class AgentResponse
 
             /** @var T */
             return new $class(...$this->structuredOutput);
+        } catch (StrandsException $e) {
+            throw $e;
         } catch (\Throwable $e) {
-            throw new \RuntimeException(
+            throw new StrandsException(
                 sprintf('Failed to hydrate structured output into %s: %s', $class, $e->getMessage()),
                 previous: $e,
             );
