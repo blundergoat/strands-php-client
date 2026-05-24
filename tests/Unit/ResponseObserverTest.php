@@ -31,16 +31,16 @@ final class ResponseObserverTest extends TestCase
                 $this->greaterThan(0),
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('post')->willReturn(['text' => 'ok']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             responseObservers: [$observer],
         );
 
-        $client->invoke('hello');
+        $strandsClient->invoke('hello');
     }
 
     /**
@@ -59,20 +59,20 @@ final class ResponseObserverTest extends TestCase
                 $this->greaterThan(0),
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk): void {
                 $onChunk("data: {\"type\":\"text\",\"content\":\"done\"}\n\n"
                     . "data: {\"type\":\"complete\",\"text\":\"done\",\"usage\":{},\"tools_used\":[]}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             responseObservers: [$observer],
         );
 
-        $client->stream('hello', static function (): void {
+        $strandsClient->stream('hello', static function (): void {
         });
     }
 
@@ -92,16 +92,16 @@ final class ResponseObserverTest extends TestCase
                 $this->greaterThan(0),
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('post')->willReturn(['status' => 'ok']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             responseObservers: [$observer],
         );
 
-        $client->postJson('/custom', ['message' => 'hello']);
+        $strandsClient->postJson('/custom', ['message' => 'hello']);
     }
 
     /**
@@ -125,20 +125,20 @@ final class ResponseObserverTest extends TestCase
                 $this->greaterThan(0),
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk): void {
                 $onChunk("data: {\"type\":\"text\",\"content\":\"secret response text\"}\n\n"
                     . "data: {\"type\":\"complete\",\"usage\":{\"input_tokens\":11,\"output_tokens\":3},\"stop_reason\":\"end_turn\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             responseObservers: [$observer],
         );
 
-        $client->streamSse('/custom-stream', ['message' => 'hello'], static function (): void {
+        $strandsClient->streamSse('/custom-stream', ['message' => 'hello'], static function (): void {
         });
     }
 }

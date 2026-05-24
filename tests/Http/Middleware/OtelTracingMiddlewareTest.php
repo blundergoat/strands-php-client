@@ -152,16 +152,12 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame('RuntimeException', $span->getAttributes()->get('error.type'));
         $this->assertSame('RuntimeException', $span->getStatus()->getDescription());
 
-        $events = $span->getEvents();
-        $this->assertNotEmpty($events);
-        $exceptionEvent = null;
-        foreach ($events as $event) {
-            if ($event->getName() === 'exception') {
-                $exceptionEvent = $event;
-            }
-        }
-        $this->assertNotNull($exceptionEvent);
-        $this->assertSame('RuntimeException', $exceptionEvent->getAttributes()->get('exception.message'));
+        $exceptionEvents = array_values(array_filter(
+            $span->getEvents(),
+            static fn ($event): bool => $event->getName() === 'exception',
+        ));
+        $this->assertNotEmpty($exceptionEvents, 'Span must record an "exception" event');
+        $this->assertSame('RuntimeException', $exceptionEvents[0]->getAttributes()->get('exception.message'));
     }
 
     /**
@@ -171,10 +167,10 @@ class OtelTracingMiddlewareTest extends TestCase
      */
     public function testAgentErrorExceptionSetsStrandsStatusCode(): void
     {
-        $error = new AgentErrorException('Bad request', statusCode: 400, errorCode: 'validation');
+        $agentErrorException = new AgentErrorException('Bad request', statusCode: 400, errorCode: 'validation');
 
         $this->middleware->beforeRequest('https://x/invoke', [], '{}');
-        $this->middleware->afterResponse('https://x/invoke', 400, 50.0, $error);
+        $this->middleware->afterResponse('https://x/invoke', 400, 50.0, $agentErrorException);
 
         $spans = $this->getSpans();
         $this->assertSame(400, $spans[0]->getAttributes()->get('strands.error.status_code'));

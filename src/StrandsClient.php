@@ -159,7 +159,7 @@ class StrandsClient
             'session_id' => $sessionId,
         ]);
 
-        $parser = new StreamParser();
+        $streamParser = new StreamParser();
         $receivedTerminal = false;
         $accumulatedText = '';
         $textEvents = 0;
@@ -175,12 +175,12 @@ class StrandsClient
         $startTime = hrtime(true);
 
         try {
-            $this->transport->stream($url, $headers, $body, $timeout, $this->config->connectTimeout, function (string $chunk) use ($parser, $onEvent, &$receivedTerminal, &$cancelled, &$accumulatedText, &$textEvents, &$totalEvents, &$firstTextTokenTime, &$completeEvent, &$citations): bool {
+            $this->transport->stream($url, $headers, $body, $timeout, $this->config->connectTimeout, function (string $chunk) use ($streamParser, $onEvent, &$receivedTerminal, &$cancelled, &$accumulatedText, &$textEvents, &$totalEvents, &$firstTextTokenTime, &$completeEvent, &$citations): bool {
                 if ($cancelled) {
                     return false;
                 }
 
-                $events = $parser->feed($chunk);
+                $events = $streamParser->feed($chunk);
 
                 foreach ($events as $event) {
                     $totalEvents++;
@@ -225,16 +225,16 @@ class StrandsClient
         $durationMs = (hrtime(true) - $startTime) / 1e6;
 
         if (!$receivedTerminal && !$cancelled) {
-            $interrupted = new Exceptions\StreamInterruptedException(
+            $streamInterruptedException = new Exceptions\StreamInterruptedException(
                 sprintf(
                     'Stream to %s ended without a terminal event (complete or error). '
                 . 'The connection may have dropped or the server closed the stream prematurely.',
                     $url,
                 ),
             );
-            $this->notifyAfterResponse($url, 0, $durationMs, $interrupted);
+            $this->notifyAfterResponse($url, 0, $durationMs, $streamInterruptedException);
 
-            throw $interrupted;
+            throw $streamInterruptedException;
         }
 
         /** @var int|null $firstTextTokenTime */
@@ -252,7 +252,7 @@ class StrandsClient
 
         $this->notifyAfterStream($url, $result, $durationMs);
         $this->notifyAfterResponse($url, $cancelled ? 0 : 200, $durationMs);
-        $this->logSkippedEvents($parser);
+        $this->logSkippedEvents($streamParser);
 
         $this->logger->debug('Strands stream complete', [
             'session_id' => $result->sessionId,
@@ -369,9 +369,9 @@ class StrandsClient
                 // Normalise line endings on the new chunk only.
                 $buffer .= str_replace(["\r\n", "\r"], "\n", $chunk);
 
-                while (($pos = strpos($buffer, "\n\n")) !== false) {
-                    $rawEvent = substr($buffer, 0, $pos);
-                    $buffer = substr($buffer, $pos + 2);
+                while (($position = strpos($buffer, "\n\n")) !== false) {
+                    $rawEvent = substr($buffer, 0, $position);
+                    $buffer = substr($buffer, $position + 2);
 
                     $decoded = self::extractSseData($rawEvent);
 
@@ -406,7 +406,7 @@ class StrandsClient
         // Status 0 for cancelled streams (user returned false from onEvent),
         // 200 for streams that ran to natural completion.
         $durationMs = (hrtime(true) - $startTime) / 1e6;
-        $summary = new StreamSseSummary(
+        $streamSseSummary = new StreamSseSummary(
             totalEvents: $totalEvents,
             textEvents: $textEvents,
             cancelled: $cancelled,
@@ -414,7 +414,7 @@ class StrandsClient
             usage: $usage,
             stopReason: $stopReason,
         );
-        $this->notifyAfterStreamSse($url, $summary, $durationMs);
+        $this->notifyAfterStreamSse($url, $streamSseSummary, $durationMs);
         $this->notifyAfterResponse($url, $cancelled ? 0 : 200, $durationMs);
 
         $this->logger->debug('Strands streamSse complete', [
@@ -553,12 +553,12 @@ class StrandsClient
     /**
      * Log stream parser events skipped for forward compatibility.
      *
-     * @param StreamParser $parser Parser that tracked skipped stream events.
+     * @param StreamParser $streamParser Parser that tracked skipped stream events.
      * @return void
      */
-    private function logSkippedEvents(StreamParser $parser): void
+    private function logSkippedEvents(StreamParser $streamParser): void
     {
-        $skippedEvents = $parser->getSkippedEvents();
+        $skippedEvents = $streamParser->getSkippedEvents();
         if ($skippedEvents > 0) {
             $this->logger->info('strands.stream.skipped_events', [
                 'count' => $skippedEvents,
@@ -773,7 +773,7 @@ class StrandsClient
         /** @var list<ResponseObserver> $observerMiddleware */
         $observerMiddleware = array_values(array_filter(
             $middleware,
-            static fn (RequestMiddleware $mw): bool => $mw instanceof ResponseObserver,
+            static fn (RequestMiddleware $requestMiddleware): bool => $requestMiddleware instanceof ResponseObserver,
         ));
 
         // Dedupe by object identity. A class implementing both RequestMiddleware
@@ -784,8 +784,8 @@ class StrandsClient
 
         return array_values(array_filter(
             [...$observerMiddleware, ...$responseObservers],
-            static function (ResponseObserver $observer) use (&$seen): bool {
-                $id = spl_object_id($observer);
+            static function (ResponseObserver $responseObserver) use (&$seen): bool {
+                $id = spl_object_id($responseObserver);
                 $isNew = !isset($seen[$id]);
                 $seen[$id] = true;
 
@@ -805,8 +805,8 @@ class StrandsClient
     private function notifyAfterInvoke(string $url, AgentResponse $response, float $durationMs): void
     {
         $this->notifyResponseObservers(
-            static function (ResponseObserver $observer) use ($url, $response, $durationMs): void {
-                $observer->afterInvoke($url, $response, $durationMs);
+            static function (ResponseObserver $responseObserver) use ($url, $response, $durationMs): void {
+                $responseObserver->afterInvoke($url, $response, $durationMs);
             },
             'afterInvoke',
         );
@@ -823,8 +823,8 @@ class StrandsClient
     private function notifyAfterStream(string $url, StreamResult $result, float $durationMs): void
     {
         $this->notifyResponseObservers(
-            static function (ResponseObserver $observer) use ($url, $result, $durationMs): void {
-                $observer->afterStream($url, $result, $durationMs);
+            static function (ResponseObserver $responseObserver) use ($url, $result, $durationMs): void {
+                $responseObserver->afterStream($url, $result, $durationMs);
             },
             'afterStream',
         );
@@ -836,8 +836,8 @@ class StrandsClient
     private function notifyAfterPostJson(string $url, array $response, float $durationMs): void
     {
         $this->notifyResponseObservers(
-            static function (ResponseObserver $observer) use ($url, $response, $durationMs): void {
-                $observer->afterPostJson($url, $response, $durationMs);
+            static function (ResponseObserver $responseObserver) use ($url, $response, $durationMs): void {
+                $responseObserver->afterPostJson($url, $response, $durationMs);
             },
             'afterPostJson',
         );
@@ -854,8 +854,8 @@ class StrandsClient
     private function notifyAfterStreamSse(string $url, StreamSseSummary $summary, float $durationMs): void
     {
         $this->notifyResponseObservers(
-            static function (ResponseObserver $observer) use ($url, $summary, $durationMs): void {
-                $observer->afterStreamSse($url, $summary, $durationMs);
+            static function (ResponseObserver $responseObserver) use ($url, $summary, $durationMs): void {
+                $responseObserver->afterStreamSse($url, $summary, $durationMs);
             },
             'afterStreamSse',
         );

@@ -16,10 +16,10 @@ class NullAuthTest extends TestCase
      */
     public function testReturnsHeadersUnmodified(): void
     {
-        $auth = new NullAuth();
+        $nullAuth = new NullAuth();
         $headers = ['Content-Type' => 'application/json'];
 
-        $result = $auth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
+        $result = $nullAuth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
 
         $this->assertSame($headers, $result);
     }
@@ -31,13 +31,13 @@ class NullAuthTest extends TestCase
      */
     public function testPreservesAllMultipleHeaders(): void
     {
-        $auth = new NullAuth();
+        $nullAuth = new NullAuth();
         $headers = [
             'Content-Type' => 'application/json',
             'Accept' => 'text/event-stream',
         ];
 
-        $result = $auth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
+        $result = $nullAuth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
 
         $this->assertCount(2, $result);
         $this->assertSame('application/json', $result['Content-Type']);

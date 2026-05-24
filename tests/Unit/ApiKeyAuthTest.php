@@ -16,10 +16,10 @@ class ApiKeyAuthTest extends TestCase
      */
     public function testDefaultBearerAuth(): void
     {
-        $auth = new ApiKeyAuth('sk-abc123');
+        $apiKeyAuth = new ApiKeyAuth('sk-abc123');
         $headers = ['Content-Type' => 'application/json'];
 
-        $result = $auth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
+        $result = $apiKeyAuth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
 
         $this->assertSame('Bearer sk-abc123', $result['Authorization']);
         $this->assertSame('application/json', $result['Content-Type']);
@@ -32,10 +32,10 @@ class ApiKeyAuthTest extends TestCase
      */
     public function testCustomHeaderName(): void
     {
-        $auth = new ApiKeyAuth('my-key', headerName: 'X-API-Key', valuePrefix: '');
+        $apiKeyAuth = new ApiKeyAuth('my-key', headerName: 'X-API-Key', valuePrefix: '');
         $headers = [];
 
-        $result = $auth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
+        $result = $apiKeyAuth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
 
         $this->assertSame('my-key', $result['X-API-Key']);
         $this->assertArrayNotHasKey('Authorization', $result);
@@ -48,9 +48,9 @@ class ApiKeyAuthTest extends TestCase
      */
     public function testCustomPrefix(): void
     {
-        $auth = new ApiKeyAuth('token123', valuePrefix: 'Token ');
+        $apiKeyAuth = new ApiKeyAuth('token123', valuePrefix: 'Token ');
 
-        $result = $auth->authenticate([], 'POST', 'http://example.com', '');
+        $result = $apiKeyAuth->authenticate([], 'POST', 'http://example.com', '');
 
         $this->assertSame('Token token123', $result['Authorization']);
     }
@@ -62,13 +62,13 @@ class ApiKeyAuthTest extends TestCase
      */
     public function testPreservesExistingHeaders(): void
     {
-        $auth = new ApiKeyAuth('key');
+        $apiKeyAuth = new ApiKeyAuth('key');
         $headers = [
             'Content-Type' => 'application/json',
             'Accept' => 'text/event-stream',
         ];
 
-        $result = $auth->authenticate($headers, 'POST', 'http://localhost', '{}');
+        $result = $apiKeyAuth->authenticate($headers, 'POST', 'http://localhost', '{}');
 
         $this->assertCount(3, $result);
         $this->assertSame('application/json', $result['Content-Type']);

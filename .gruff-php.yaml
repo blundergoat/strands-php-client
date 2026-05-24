@@ -18,7 +18,20 @@ paths:
         - 'src/Vendor/**'
         - 'tests/Fixtures/**'
 allowlists:
-    acceptedAbbreviations: []
+    acceptedAbbreviations:
+        # Universal short identifiers / common nouns used throughout the project
+        - url    # request URL string (HttpTransport, AuthStrategy, StrandsClient)
+        - raw    # raw SSE bytes / unparsed event data (StreamEvent, StreamParser)
+        - key    # hashmap key (array iteration, request signing key parts)
+        - id     # identifier (object ids, interrupt detail ids)
+        - min    # minimum (StrandsConfig retry bounds)
+        - max    # maximum (StrandsConfig retry bounds)
+        - app    # Laravel Application (closure parameter convention)
+        - ttl    # time-to-live (AgentInput cache-point ttl)
+        # Common short nouns on test fixtures and Laravel container tags
+        - age    # DTO fixture property
+        - tag    # Laravel container tag
+        - log    # log accumulator on a test fake
     secretPreviews: []
 selection:
     tiers: []
@@ -245,7 +258,34 @@ rules:
         options:
             typeSuffixesToTrim:
                 - Interface
-            ignoredParameterNames: []
+            ignoredParameterNames:
+                # PHP standard conventions
+                - previous   # \Exception::__construct ($previous Throwable)
+                - now        # idiomatic for "current moment" DateTimeImmutable
+                # BC-sensitive: published constructor / method parameters
+                # (renaming would break callers using named arguments)
+                - config         # StrandsClient::__construct
+                - transport      # StrandsClient::__construct
+                - context        # StrandsClient::invoke / ::stream
+                - auth           # StrandsConfig::__construct
+                - propagator     # OtelTracingMiddleware::__construct
+                - httpClient     # PsrHttpTransport::__construct
+                - container      # Symfony Extension::load() contract
+                - location       # Citation::__construct
+                - sourceContent  # Citation::__construct
+                - generatedContent # Citation::__construct
+                - metadata       # Message::__construct
+                - type           # StreamEvent::__construct
+                # Observer / middleware interface method parameters
+                - response       # ResponseObserver::afterInvoke
+                - result         # ResponseObserver::afterStream
+                - summary        # ResponseObserver::afterStreamSse
+                - error          # RequestMiddleware::afterResponse
+                # StreamCallbackHandler abstract protected methods (consumer override surface)
+                - event
+                - _event         # PrintingCallbackHandler::onComplete - intentional unused-param marker
+                # Private-method parameters where the semantic name is richer than the type mirror
+                - completeEvent  # StrandsClient::buildStreamResult - "the terminal complete event" specifically
     naming.short-variable:
         enabled: true
     naming.suffix-hungarian:
@@ -355,7 +395,10 @@ rules:
     test-quality.conditional-logic:
         enabled: true
         options:
-            ignoredPathPatterns: []
+            ignoredPathPatterns:
+                # Wire-contract fixture validation legitimately needs `if (isset($data['optional']))`
+                # for optional schema fields. The contract IS the conditional shape.
+                - 'tests/Unit/Contract/*'
     test-quality.data-provider-annotation:
         enabled: true
     test-quality.eager-test:

@@ -104,10 +104,10 @@ class AgentResponse
         }
 
         try {
-            $reflection = new \ReflectionClass($class);
+            $reflectionClass = new \ReflectionClass($class);
 
-            if ($reflection->hasMethod('fromArray')) {
-                $method = $reflection->getMethod('fromArray');
+            if ($reflectionClass->hasMethod('fromArray')) {
+                $method = $reflectionClass->getMethod('fromArray');
                 if ($method->isStatic() && $method->isPublic()) {
                     /** @var T */
                     return $method->invoke(null, $this->structuredOutput);

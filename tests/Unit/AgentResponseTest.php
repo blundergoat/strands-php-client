@@ -14,6 +14,22 @@ use StrandsPhpClient\Response\StopReason;
 class AgentResponseTest extends TestCase
 {
     /**
+     * Load and JSON-decode a fixture file under tests/Fixtures/.
+     *
+     * @param string $relativePath Path relative to tests/Fixtures/.
+     * @return array<string, mixed> Decoded JSON fixture.
+     */
+    private function loadJsonFixture(string $relativePath): array
+    {
+        return json_decode(
+            file_get_contents(__DIR__ . '/../Fixtures/' . $relativePath),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+    }
+
+    /**
      * Verifies that from array hydrates all fields.
      *
      * @return void
@@ -34,16 +50,16 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame('Hello, world!', $response->text);
-        $this->assertSame('analyst', $response->agent);
-        $this->assertSame('sess-001', $response->sessionId);
-        $this->assertTrue($response->hasObjective);
-        $this->assertSame(100, $response->usage->inputTokens);
-        $this->assertSame(50, $response->usage->outputTokens);
-        $this->assertCount(1, $response->toolsUsed);
-        $this->assertSame('search', $response->toolsUsed[0]['name']);
+        $this->assertSame('Hello, world!', $agentResponse->text);
+        $this->assertSame('analyst', $agentResponse->agent);
+        $this->assertSame('sess-001', $agentResponse->sessionId);
+        $this->assertTrue($agentResponse->hasObjective);
+        $this->assertSame(100, $agentResponse->usage->inputTokens);
+        $this->assertSame(50, $agentResponse->usage->outputTokens);
+        $this->assertCount(1, $agentResponse->toolsUsed);
+        $this->assertSame('search', $agentResponse->toolsUsed[0]['name']);
     }
 
     /**
@@ -55,15 +71,15 @@ class AgentResponseTest extends TestCase
     {
         $data = ['text' => 'Minimal response'];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame('Minimal response', $response->text);
-        $this->assertNull($response->agent);
-        $this->assertNull($response->sessionId);
-        $this->assertFalse($response->hasObjective);
-        $this->assertSame(0, $response->usage->inputTokens);
-        $this->assertSame(0, $response->usage->outputTokens);
-        $this->assertSame([], $response->toolsUsed);
+        $this->assertSame('Minimal response', $agentResponse->text);
+        $this->assertNull($agentResponse->agent);
+        $this->assertNull($agentResponse->sessionId);
+        $this->assertFalse($agentResponse->hasObjective);
+        $this->assertSame(0, $agentResponse->usage->inputTokens);
+        $this->assertSame(0, $agentResponse->usage->outputTokens);
+        $this->assertSame([], $agentResponse->toolsUsed);
     }
 
     /**
@@ -78,10 +94,10 @@ class AgentResponseTest extends TestCase
             'usage' => [],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame(0, $response->usage->inputTokens);
-        $this->assertSame(0, $response->usage->outputTokens);
+        $this->assertSame(0, $agentResponse->usage->inputTokens);
+        $this->assertSame(0, $agentResponse->usage->outputTokens);
     }
 
     /**
@@ -102,11 +118,11 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertCount(2, $response->toolsUsed);
-        $this->assertSame('search', $response->toolsUsed[0]['name']);
-        $this->assertSame('calculator', $response->toolsUsed[1]['name']);
+        $this->assertCount(2, $agentResponse->toolsUsed);
+        $this->assertSame('search', $agentResponse->toolsUsed[0]['name']);
+        $this->assertSame('calculator', $agentResponse->toolsUsed[1]['name']);
     }
 
     /**
@@ -141,10 +157,10 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame(0, $response->usage->inputTokens);
-        $this->assertSame(42, $response->usage->outputTokens);
+        $this->assertSame(0, $agentResponse->usage->inputTokens);
+        $this->assertSame(42, $agentResponse->usage->outputTokens);
     }
 
     /**
@@ -159,9 +175,9 @@ class AgentResponseTest extends TestCase
             'has_objective' => 'true',
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertFalse($response->hasObjective);
+        $this->assertFalse($agentResponse->hasObjective);
     }
 
     /**
@@ -179,11 +195,11 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertCount(2, $response->toolsUsed);
-        $this->assertArrayNotHasKey('duration_ms', $response->toolsUsed[0]);
-        $this->assertSame(42, $response->toolsUsed[1]['duration_ms']);
+        $this->assertCount(2, $agentResponse->toolsUsed);
+        $this->assertArrayNotHasKey('duration_ms', $agentResponse->toolsUsed[0]);
+        $this->assertSame(42, $agentResponse->toolsUsed[1]['duration_ms']);
     }
 
     /**
@@ -201,11 +217,11 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertCount(2, $response->toolsUsed);
-        $this->assertSame(['name' => 'search', 'duration_ms' => 100], $response->toolsUsed[0]);
-        $this->assertSame(['name' => 'calc'], $response->toolsUsed[1]);
+        $this->assertCount(2, $agentResponse->toolsUsed);
+        $this->assertSame(['name' => 'search', 'duration_ms' => 100], $agentResponse->toolsUsed[0]);
+        $this->assertSame(['name' => 'calc'], $agentResponse->toolsUsed[1]);
     }
 
     /**
@@ -215,17 +231,14 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayParsesSafeToolSummaries(): void
     {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/wire-contract/invoke-response-tools-full.json'),
-            true,
-        );
+        $data = $this->loadJsonFixture('wire-contract/invoke-response-tools-full.json');
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame('availability_lookup', $response->toolsUsed[0]['name']);
-        $this->assertSame(114, $response->toolsUsed[0]['duration_ms']);
-        $this->assertSame(['summary' => 'date lookup'], $response->toolsUsed[0]['input']);
-        $this->assertSame(['summary' => 'slot available'], $response->toolsUsed[0]['result']);
+        $this->assertSame('availability_lookup', $agentResponse->toolsUsed[0]['name']);
+        $this->assertSame(114, $agentResponse->toolsUsed[0]['duration_ms']);
+        $this->assertSame(['summary' => 'date lookup'], $agentResponse->toolsUsed[0]['input']);
+        $this->assertSame(['summary' => 'slot available'], $agentResponse->toolsUsed[0]['result']);
     }
 
     /**
@@ -240,9 +253,9 @@ class AgentResponseTest extends TestCase
             'stop_reason' => 'end_turn',
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame(StopReason::EndTurn, $response->stopReason);
+        $this->assertSame(StopReason::EndTurn, $agentResponse->stopReason);
     }
 
     /**
@@ -257,10 +270,10 @@ class AgentResponseTest extends TestCase
             'stop_reason' => 'unknown_future_reason',
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertNull($response->stopReason);
-        $this->assertSame('unknown_future_reason', $response->rawStopReason);
+        $this->assertNull($agentResponse->stopReason);
+        $this->assertSame('unknown_future_reason', $agentResponse->rawStopReason);
     }
 
     /**
@@ -272,9 +285,9 @@ class AgentResponseTest extends TestCase
     {
         $data = ['text' => 'Test'];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertNull($response->stopReason);
+        $this->assertNull($agentResponse->stopReason);
     }
 
     /**
@@ -290,9 +303,9 @@ class AgentResponseTest extends TestCase
             'structured_output' => $structured,
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame($structured, $response->structuredOutput);
+        $this->assertSame($structured, $agentResponse->structuredOutput);
     }
 
     /**
@@ -304,9 +317,9 @@ class AgentResponseTest extends TestCase
     {
         $data = ['text' => 'Test'];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertNull($response->structuredOutput);
+        $this->assertNull($agentResponse->structuredOutput);
     }
 
     /**
@@ -328,14 +341,14 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame(100, $response->usage->inputTokens);
-        $this->assertSame(50, $response->usage->outputTokens);
-        $this->assertSame(80, $response->usage->cacheReadInputTokens);
-        $this->assertSame(20, $response->usage->cacheWriteInputTokens);
-        $this->assertSame(1500, $response->usage->latencyMs);
-        $this->assertSame(200, $response->usage->timeToFirstByteMs);
+        $this->assertSame(100, $agentResponse->usage->inputTokens);
+        $this->assertSame(50, $agentResponse->usage->outputTokens);
+        $this->assertSame(80, $agentResponse->usage->cacheReadInputTokens);
+        $this->assertSame(20, $agentResponse->usage->cacheWriteInputTokens);
+        $this->assertSame(1500, $agentResponse->usage->latencyMs);
+        $this->assertSame(200, $agentResponse->usage->timeToFirstByteMs);
     }
 
     /**
@@ -345,7 +358,7 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayParsesUsageCamelCaseAndFloatLatency(): void
     {
-        $response = AgentResponse::fromArray([
+        $agentResponse = AgentResponse::fromArray([
             'text' => 'Test',
             'usage' => [
                 'inputTokens' => 100,
@@ -358,13 +371,13 @@ class AgentResponseTest extends TestCase
             ],
         ]);
 
-        $this->assertSame(100, $response->usage->inputTokens);
-        $this->assertSame(50, $response->usage->outputTokens);
-        $this->assertSame(151, $response->usage->totalTokens());
-        $this->assertSame(10, $response->usage->cacheReadInputTokens);
-        $this->assertSame(5, $response->usage->cacheWriteInputTokens);
-        $this->assertSame(843, $response->usage->latencyMs);
-        $this->assertSame(210, $response->usage->timeToFirstByteMs);
+        $this->assertSame(100, $agentResponse->usage->inputTokens);
+        $this->assertSame(50, $agentResponse->usage->outputTokens);
+        $this->assertSame(151, $agentResponse->usage->totalTokens());
+        $this->assertSame(10, $agentResponse->usage->cacheReadInputTokens);
+        $this->assertSame(5, $agentResponse->usage->cacheWriteInputTokens);
+        $this->assertSame(843, $agentResponse->usage->latencyMs);
+        $this->assertSame(210, $agentResponse->usage->timeToFirstByteMs);
     }
 
     /**
@@ -374,7 +387,7 @@ class AgentResponseTest extends TestCase
      */
     public function testSnakeCaseUsageWinsOverCamelCase(): void
     {
-        $response = AgentResponse::fromArray([
+        $agentResponse = AgentResponse::fromArray([
             'text' => 'Test',
             'usage' => [
                 'input_tokens' => 10,
@@ -382,7 +395,7 @@ class AgentResponseTest extends TestCase
             ],
         ]);
 
-        $this->assertSame(10, $response->usage->inputTokens);
+        $this->assertSame(10, $agentResponse->usage->inputTokens);
     }
 
     /**
@@ -400,12 +413,12 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame(0, $response->usage->cacheReadInputTokens);
-        $this->assertSame(0, $response->usage->cacheWriteInputTokens);
-        $this->assertSame(0, $response->usage->latencyMs);
-        $this->assertSame(0, $response->usage->timeToFirstByteMs);
+        $this->assertSame(0, $agentResponse->usage->cacheReadInputTokens);
+        $this->assertSame(0, $agentResponse->usage->cacheWriteInputTokens);
+        $this->assertSame(0, $agentResponse->usage->latencyMs);
+        $this->assertSame(0, $agentResponse->usage->timeToFirstByteMs);
     }
 
     /**
@@ -451,26 +464,23 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayCapturesUnknownKeysAsMetadata(): void
     {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/invoke-response-with-metadata.json'),
-            true,
-        );
+        $data = $this->loadJsonFixture('invoke-response-with-metadata.json');
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame('Response text', $response->text);
-        $this->assertSame('test-agent', $response->agent);
-        $this->assertSame('test-session-002', $response->sessionId);
-        $this->assertSame(100, $response->usage->inputTokens);
-        $this->assertSame(50, $response->usage->outputTokens);
+        $this->assertSame('Response text', $agentResponse->text);
+        $this->assertSame('test-agent', $agentResponse->agent);
+        $this->assertSame('test-session-002', $agentResponse->sessionId);
+        $this->assertSame(100, $agentResponse->usage->inputTokens);
+        $this->assertSame(50, $agentResponse->usage->outputTokens);
 
         // Unknown keys should be captured in metadata
-        $this->assertArrayHasKey('trace_id', $response->metadata);
-        $this->assertSame('abc-123-def', $response->metadata['trace_id']);
-        $this->assertArrayHasKey('model_id', $response->metadata);
-        $this->assertSame('claude-3-sonnet', $response->metadata['model_id']);
-        $this->assertArrayHasKey('request_id', $response->metadata);
-        $this->assertSame('req-456', $response->metadata['request_id']);
+        $this->assertArrayHasKey('trace_id', $agentResponse->metadata);
+        $this->assertSame('abc-123-def', $agentResponse->metadata['trace_id']);
+        $this->assertArrayHasKey('model_id', $agentResponse->metadata);
+        $this->assertSame('claude-3-sonnet', $agentResponse->metadata['model_id']);
+        $this->assertArrayHasKey('request_id', $agentResponse->metadata);
+        $this->assertSame('req-456', $agentResponse->metadata['request_id']);
     }
 
     /**
@@ -480,15 +490,12 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayPreservesTopLevelWrapperMetadataSeparately(): void
     {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/wire-contract/invoke-response-metadata.json'),
-            true,
-        );
+        $data = $this->loadJsonFixture('wire-contract/invoke-response-metadata.json');
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame(['document_type' => 'referral', 'confidence' => 0.91], $response->wrapperMetadata);
-        $this->assertArrayHasKey('metadata', $response->metadata);
+        $this->assertSame(['document_type' => 'referral', 'confidence' => 0.91], $agentResponse->wrapperMetadata);
+        $this->assertArrayHasKey('metadata', $agentResponse->metadata);
     }
 
     /**
@@ -498,19 +505,16 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayPreservesNestedMessageMetadata(): void
     {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/wire-contract/invoke-response-message-metadata.json'),
-            true,
-        );
+        $data = $this->loadJsonFixture('wire-contract/invoke-response-message-metadata.json');
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertNotNull($response->message);
-        $this->assertSame('assistant', $response->message->role);
-        $this->assertNotNull($response->message->metadata);
-        $this->assertSame(410, $response->message->metadata->usage?->inputTokens);
-        $this->assertSame(842.5, $response->message->metadata->metrics['latency_ms']);
-        $this->assertSame('referral', $response->message->metadata->custom['document_type']);
+        $this->assertNotNull($agentResponse->message);
+        $this->assertSame('assistant', $agentResponse->message->role);
+        $this->assertNotNull($agentResponse->message->metadata);
+        $this->assertSame(410, $agentResponse->message->metadata->usage?->inputTokens);
+        $this->assertSame(842.5, $agentResponse->message->metadata->metrics['latency_ms']);
+        $this->assertSame('referral', $agentResponse->message->metadata->custom['document_type']);
     }
 
     /**
@@ -520,15 +524,12 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayParsesContextSizeFields(): void
     {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/wire-contract/invoke-response-context-size.json'),
-            true,
-        );
+        $data = $this->loadJsonFixture('wire-contract/invoke-response-context-size.json');
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame(8192, $response->contextSize);
-        $this->assertSame(9216, $response->projectedContextSize);
+        $this->assertSame(8192, $agentResponse->contextSize);
+        $this->assertSame(9216, $agentResponse->projectedContextSize);
     }
 
     /**
@@ -549,9 +550,9 @@ class AgentResponseTest extends TestCase
             'structured_output' => null,
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame([], $response->metadata);
+        $this->assertSame([], $agentResponse->metadata);
     }
 
     /**
@@ -567,13 +568,13 @@ class AgentResponseTest extends TestCase
             'custom_field' => 'custom_value',
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
         // 'text' and 'session_id' should NOT be in metadata
-        $this->assertArrayNotHasKey('text', $response->metadata);
-        $this->assertArrayNotHasKey('session_id', $response->metadata);
+        $this->assertArrayNotHasKey('text', $agentResponse->metadata);
+        $this->assertArrayNotHasKey('session_id', $agentResponse->metadata);
         // 'custom_field' should be in metadata
-        $this->assertSame('custom_value', $response->metadata['custom_field']);
+        $this->assertSame('custom_value', $agentResponse->metadata['custom_field']);
     }
 
     /**
@@ -596,8 +597,8 @@ class AgentResponseTest extends TestCase
         ];
 
         foreach ($reasons as $raw => $expected) {
-            $response = AgentResponse::fromArray(['text' => 'Test', 'stop_reason' => $raw]);
-            $this->assertSame($expected, $response->stopReason, "Failed for stop_reason: $raw");
+            $agentResponse = AgentResponse::fromArray(['text' => 'Test', 'stop_reason' => $raw]);
+            $this->assertSame($expected, $agentResponse->stopReason, "Failed for stop_reason: $raw");
         }
     }
 
@@ -608,22 +609,19 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayParsesInterrupts(): void
     {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/invoke-interrupt-response.json'),
-            true,
-        );
+        $data = $this->loadJsonFixture('invoke-interrupt-response.json');
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertTrue($response->isInterrupted());
-        $this->assertCount(1, $response->interrupts);
-        $this->assertInstanceOf(InterruptDetail::class, $response->interrupts[0]);
-        $this->assertSame('deploy', $response->interrupts[0]->toolName);
-        $this->assertSame(['environment' => 'production', 'version' => '2.0.0'], $response->interrupts[0]->toolInput);
-        $this->assertSame('tu-001', $response->interrupts[0]->toolUseId);
-        $this->assertSame('int-abc-123', $response->interrupts[0]->interruptId);
-        $this->assertSame('Production deployment requires approval', $response->interrupts[0]->reason);
-        $this->assertSame(StopReason::Interrupt, $response->stopReason);
+        $this->assertTrue($agentResponse->isInterrupted());
+        $this->assertCount(1, $agentResponse->interrupts);
+        $this->assertInstanceOf(InterruptDetail::class, $agentResponse->interrupts[0]);
+        $this->assertSame('deploy', $agentResponse->interrupts[0]->toolName);
+        $this->assertSame(['environment' => 'production', 'version' => '2.0.0'], $agentResponse->interrupts[0]->toolInput);
+        $this->assertSame('tu-001', $agentResponse->interrupts[0]->toolUseId);
+        $this->assertSame('int-abc-123', $agentResponse->interrupts[0]->interruptId);
+        $this->assertSame('Production deployment requires approval', $agentResponse->interrupts[0]->reason);
+        $this->assertSame(StopReason::Interrupt, $agentResponse->stopReason);
     }
 
     /**
@@ -633,10 +631,10 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayNoInterruptsDefaultsEmpty(): void
     {
-        $response = AgentResponse::fromArray(['text' => 'Test']);
+        $agentResponse = AgentResponse::fromArray(['text' => 'Test']);
 
-        $this->assertFalse($response->isInterrupted());
-        $this->assertSame([], $response->interrupts);
+        $this->assertFalse($agentResponse->isInterrupted());
+        $this->assertSame([], $agentResponse->interrupts);
     }
 
     /**
@@ -646,20 +644,17 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayParsesGuardrailTrace(): void
     {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/invoke-guardrail-response.json'),
-            true,
-        );
+        $data = $this->loadJsonFixture('invoke-guardrail-response.json');
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertNotNull($response->guardrailTrace);
-        $this->assertInstanceOf(GuardrailTrace::class, $response->guardrailTrace);
-        $this->assertSame('INTERVENED', $response->guardrailTrace->action);
-        $this->assertCount(1, $response->guardrailTrace->assessments);
-        $this->assertSame('content_filter', $response->guardrailTrace->assessments[0]['type']);
-        $this->assertSame('The original unsafe response text', $response->guardrailTrace->modelOutput);
-        $this->assertSame(StopReason::GuardrailIntervened, $response->stopReason);
+        $this->assertNotNull($agentResponse->guardrailTrace);
+        $this->assertInstanceOf(GuardrailTrace::class, $agentResponse->guardrailTrace);
+        $this->assertSame('INTERVENED', $agentResponse->guardrailTrace->action);
+        $this->assertCount(1, $agentResponse->guardrailTrace->assessments);
+        $this->assertSame('content_filter', $agentResponse->guardrailTrace->assessments[0]['type']);
+        $this->assertSame('The original unsafe response text', $agentResponse->guardrailTrace->modelOutput);
+        $this->assertSame(StopReason::GuardrailIntervened, $agentResponse->stopReason);
     }
 
     /**
@@ -679,10 +674,10 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertNotNull($response->guardrailTrace);
-        $this->assertSame('INTERVENED', $response->guardrailTrace->action);
+        $this->assertNotNull($agentResponse->guardrailTrace);
+        $this->assertSame('INTERVENED', $agentResponse->guardrailTrace->action);
     }
 
     /**
@@ -692,9 +687,9 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayGuardrailTraceDefaultsToNull(): void
     {
-        $response = AgentResponse::fromArray(['text' => 'Test']);
+        $agentResponse = AgentResponse::fromArray(['text' => 'Test']);
 
-        $this->assertNull($response->guardrailTrace);
+        $this->assertNull($agentResponse->guardrailTrace);
     }
 
     /**
@@ -704,17 +699,14 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayParsesCitations(): void
     {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/invoke-response-with-citations.json'),
-            true,
-        );
+        $data = $this->loadJsonFixture('invoke-response-with-citations.json');
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertCount(1, $response->citations);
-        $this->assertSame('citationsContent', $response->citations[0]['type']);
-        $this->assertSame('https://example.com/docs', $response->citations[0]['source']);
-        $this->assertSame('Official Documentation', $response->citations[0]['title']);
+        $this->assertCount(1, $agentResponse->citations);
+        $this->assertSame('citationsContent', $agentResponse->citations[0]['type']);
+        $this->assertSame('https://example.com/docs', $agentResponse->citations[0]['source']);
+        $this->assertSame('Official Documentation', $agentResponse->citations[0]['title']);
     }
 
     /**
@@ -724,9 +716,9 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayCitationsDefaultsToEmpty(): void
     {
-        $response = AgentResponse::fromArray(['text' => 'Test']);
+        $agentResponse = AgentResponse::fromArray(['text' => 'Test']);
 
-        $this->assertSame([], $response->citations);
+        $this->assertSame([], $agentResponse->citations);
     }
 
     /**
@@ -747,10 +739,10 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertCount(1, $response->citations);
-        $this->assertSame('citationsContent', $response->citations[0]['type']);
+        $this->assertCount(1, $agentResponse->citations);
+        $this->assertSame('citationsContent', $agentResponse->citations[0]['type']);
     }
 
     /**
@@ -766,10 +758,10 @@ class AgentResponseTest extends TestCase
             'custom' => 'value',
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertArrayNotHasKey('interrupts', $response->metadata);
-        $this->assertSame('value', $response->metadata['custom']);
+        $this->assertArrayNotHasKey('interrupts', $agentResponse->metadata);
+        $this->assertSame('value', $agentResponse->metadata['custom']);
     }
 
     /**
@@ -786,11 +778,11 @@ class AgentResponseTest extends TestCase
             'message' => ['content' => []],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertArrayNotHasKey('guardrail_trace', $response->metadata);
-        $this->assertArrayNotHasKey('trace', $response->metadata);
-        $this->assertArrayNotHasKey('message', $response->metadata);
+        $this->assertArrayNotHasKey('guardrail_trace', $agentResponse->metadata);
+        $this->assertArrayNotHasKey('trace', $agentResponse->metadata);
+        $this->assertArrayNotHasKey('message', $agentResponse->metadata);
     }
 
     /**
@@ -800,9 +792,9 @@ class AgentResponseTest extends TestCase
      */
     public function testHasObjectiveDefaultValue(): void
     {
-        $response = new AgentResponse(text: 'Test');
+        $agentResponse = new AgentResponse(text: 'Test');
 
-        $this->assertFalse($response->hasObjective);
+        $this->assertFalse($agentResponse->hasObjective);
     }
 
     /**
@@ -833,11 +825,11 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertCount(2, $response->interrupts);
-        $this->assertSame('deploy', $response->interrupts[0]->toolName);
-        $this->assertSame('scale', $response->interrupts[1]->toolName);
+        $this->assertCount(2, $agentResponse->interrupts);
+        $this->assertSame('deploy', $agentResponse->interrupts[0]->toolName);
+        $this->assertSame('scale', $agentResponse->interrupts[1]->toolName);
     }
 
     /**
@@ -858,11 +850,11 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertCount(2, $response->citations);
-        $this->assertSame('url1', $response->citations[0]['source']);
-        $this->assertSame('url2', $response->citations[1]['source']);
+        $this->assertCount(2, $agentResponse->citations);
+        $this->assertSame('url1', $agentResponse->citations[0]['source']);
+        $this->assertSame('url2', $agentResponse->citations[1]['source']);
     }
 
     /**
@@ -877,9 +869,9 @@ class AgentResponseTest extends TestCase
             'message' => 'not an array',
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame([], $response->citations);
+        $this->assertSame([], $agentResponse->citations);
     }
 
     /**
@@ -902,8 +894,8 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
-        $citations = $response->getCitationObjects();
+        $agentResponse = AgentResponse::fromArray($data);
+        $citations = $agentResponse->getCitationObjects();
 
         $this->assertCount(1, $citations);
         $this->assertInstanceOf(Citation::class, $citations[0]);
@@ -918,13 +910,10 @@ class AgentResponseTest extends TestCase
      */
     public function testGetCitationObjectsPreservesFlatCitationFields(): void
     {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/invoke-response-with-citations.json'),
-            true,
-        );
+        $data = $this->loadJsonFixture('invoke-response-with-citations.json');
 
-        $response = AgentResponse::fromArray($data);
-        $citations = $response->getCitationObjects();
+        $agentResponse = AgentResponse::fromArray($data);
+        $citations = $agentResponse->getCitationObjects();
 
         $this->assertCount(1, $citations);
         $this->assertSame('https://example.com/docs', $citations[0]->source);
@@ -950,9 +939,9 @@ class AgentResponseTest extends TestCase
             ],
         ];
 
-        $response = AgentResponse::fromArray($data);
-        $first = $response->getCitationObjects();
-        $second = $response->getCitationObjects();
+        $agentResponse = AgentResponse::fromArray($data);
+        $first = $agentResponse->getCitationObjects();
+        $second = $agentResponse->getCitationObjects();
 
         $this->assertSame($first, $second);
     }
@@ -964,9 +953,9 @@ class AgentResponseTest extends TestCase
      */
     public function testGetCitationObjectsReturnsEmptyForNoCitations(): void
     {
-        $response = AgentResponse::fromArray(['text' => 'Test']);
+        $agentResponse = AgentResponse::fromArray(['text' => 'Test']);
 
-        $this->assertSame([], $response->getCitationObjects());
+        $this->assertSame([], $agentResponse->getCitationObjects());
     }
 
     /**
@@ -981,12 +970,12 @@ class AgentResponseTest extends TestCase
             'structured_output' => ['name' => 'John', 'age' => 30],
         ];
 
-        $response = AgentResponse::fromArray($data);
-        $dto = $response->structuredOutputAs(TestStructuredDto::class);
+        $agentResponse = AgentResponse::fromArray($data);
+        $structuredOutput = $agentResponse->structuredOutputAs(TestStructuredDto::class);
 
-        $this->assertInstanceOf(TestStructuredDto::class, $dto);
-        $this->assertSame('John', $dto->name);
-        $this->assertSame(30, $dto->age);
+        $this->assertInstanceOf(TestStructuredDto::class, $structuredOutput);
+        $this->assertSame('John', $structuredOutput->name);
+        $this->assertSame(30, $structuredOutput->age);
     }
 
     /**
@@ -1001,12 +990,12 @@ class AgentResponseTest extends TestCase
             'structured_output' => ['name' => 'Jane', 'score' => 95.5],
         ];
 
-        $response = AgentResponse::fromArray($data);
-        $dto = $response->structuredOutputAs(TestConstructorDto::class);
+        $agentResponse = AgentResponse::fromArray($data);
+        $structuredOutput = $agentResponse->structuredOutputAs(TestConstructorDto::class);
 
-        $this->assertInstanceOf(TestConstructorDto::class, $dto);
-        $this->assertSame('Jane', $dto->name);
-        $this->assertSame(95.5, $dto->score);
+        $this->assertInstanceOf(TestConstructorDto::class, $structuredOutput);
+        $this->assertSame('Jane', $structuredOutput->name);
+        $this->assertSame(95.5, $structuredOutput->score);
     }
 
     /**
@@ -1016,11 +1005,11 @@ class AgentResponseTest extends TestCase
      */
     public function testStructuredOutputAsThrowsWhenNull(): void
     {
-        $response = AgentResponse::fromArray(['text' => 'Test']);
+        $agentResponse = AgentResponse::fromArray(['text' => 'Test']);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('No structured output in response');
-        $response->structuredOutputAs(TestStructuredDto::class);
+        $agentResponse->structuredOutputAs(TestStructuredDto::class);
     }
 
     /**
@@ -1035,11 +1024,11 @@ class AgentResponseTest extends TestCase
             'structured_output' => ['wrong_key' => 'value'],
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($data);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/Failed to hydrate/');
-        $response->structuredOutputAs(TestConstructorDto::class);
+        $agentResponse->structuredOutputAs(TestConstructorDto::class);
     }
 }
 

@@ -17,10 +17,10 @@ class ThrottledExceptionTest extends TestCase
      */
     public function testExtendsAgentErrorException(): void
     {
-        $e = new ThrottledException('Rate limited', statusCode: 429);
+        $throttledException = new ThrottledException('Rate limited', statusCode: 429);
 
-        $this->assertInstanceOf(AgentErrorException::class, $e);
-        $this->assertSame(429, $e->statusCode);
+        $this->assertInstanceOf(AgentErrorException::class, $throttledException);
+        $this->assertSame(429, $throttledException->statusCode);
     }
 
     /**
@@ -34,9 +34,9 @@ class ThrottledExceptionTest extends TestCase
 
         try {
             throw new ThrottledException('Rate limited', statusCode: 429);
-        } catch (AgentErrorException $e) {
+        } catch (AgentErrorException $throttledException) {
             $caught = true;
-            $this->assertSame(429, $e->statusCode);
+            $this->assertSame(429, $throttledException->statusCode);
         }
 
         $this->assertTrue($caught);

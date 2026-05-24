@@ -17,8 +17,8 @@ class StrandsFacadeTest extends TestCase
      */
     public function testFacadeAccessorReturnsStrandsClientClass(): void
     {
-        $reflection = new \ReflectionMethod(Strands::class, 'getFacadeAccessor');
+        $reflectionMethod = new \ReflectionMethod(Strands::class, 'getFacadeAccessor');
 
-        $this->assertSame(StrandsClient::class, $reflection->invoke(null));
+        $this->assertSame(StrandsClient::class, $reflectionMethod->invoke(null));
     }
 }

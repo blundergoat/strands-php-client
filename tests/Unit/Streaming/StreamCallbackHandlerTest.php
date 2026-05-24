@@ -26,21 +26,21 @@ class StreamCallbackHandlerTest extends TestCase
             /**
              * Handle a text event in the anonymous test handler.
              *
-             * @param StreamEvent $event Stream event being handled.
+             * @param StreamEvent $streamEvent Stream event being handled.
              * @return bool|null False cancels the stream; null continues it.
              */
-            protected function onText(StreamEvent $event): ?bool
+            protected function onText(StreamEvent $streamEvent): ?bool
             {
-                $this->received = $event;
+                $this->received = $streamEvent;
 
                 return null;
             }
         };
 
-        $event = new StreamEvent(type: StreamEventType::Text, text: 'hello');
-        $handler($event);
+        $streamEvent = new StreamEvent(type: StreamEventType::Text, text: 'hello');
+        $handler($streamEvent);
 
-        $this->assertSame($event, $handler->received);
+        $this->assertSame($streamEvent, $handler->received);
     }
 
     /**
@@ -56,10 +56,10 @@ class StreamCallbackHandlerTest extends TestCase
             /**
              * Handle a tool-use event in the anonymous test handler.
              *
-             * @param StreamEvent $event Stream event being handled.
+             * @param StreamEvent $streamEvent Stream event being handled.
              * @return bool|null False cancels the stream; null continues it.
              */
-            protected function onToolUse(StreamEvent $event): ?bool
+            protected function onToolUse(StreamEvent $streamEvent): ?bool
             {
                 $this->called = true;
 
@@ -85,10 +85,10 @@ class StreamCallbackHandlerTest extends TestCase
             /**
              * Handle a completion event in the anonymous test handler.
              *
-             * @param StreamEvent $event Stream event being handled.
+             * @param StreamEvent $streamEvent Stream event being handled.
              * @return bool|null False cancels the stream; null continues it.
              */
-            protected function onComplete(StreamEvent $event): ?bool
+            protected function onComplete(StreamEvent $streamEvent): ?bool
             {
                 $this->called = true;
 
@@ -114,10 +114,10 @@ class StreamCallbackHandlerTest extends TestCase
             /**
              * Handle an error event in the anonymous test handler.
              *
-             * @param StreamEvent $event Stream event being handled.
+             * @param StreamEvent $streamEvent Stream event being handled.
              * @return bool|null False cancels the stream; null continues it.
              */
-            protected function onError(StreamEvent $event): ?bool
+            protected function onError(StreamEvent $streamEvent): ?bool
             {
                 $this->called = true;
 
@@ -170,12 +170,12 @@ class StreamCallbackHandlerTest extends TestCase
             /**
              * Handle a text event in the anonymous test handler.
              *
-             * @param StreamEvent $event Stream event being handled.
+             * @param StreamEvent $streamEvent Stream event being handled.
              * @return bool|null False cancels the stream; null continues it.
              */
-            protected function onText(StreamEvent $event): ?bool
+            protected function onText(StreamEvent $streamEvent): ?bool
             {
-                $this->log[] = 'text:' . $event->text;
+                $this->log[] = 'text:' . $streamEvent->text;
 
                 return null;
             }
@@ -183,12 +183,12 @@ class StreamCallbackHandlerTest extends TestCase
             /**
              * Handle a tool-use event in the anonymous test handler.
              *
-             * @param StreamEvent $event Stream event being handled.
+             * @param StreamEvent $streamEvent Stream event being handled.
              * @return bool|null False cancels the stream; null continues it.
              */
-            protected function onToolUse(StreamEvent $event): ?bool
+            protected function onToolUse(StreamEvent $streamEvent): ?bool
             {
-                $this->log[] = 'tool:' . $event->toolName;
+                $this->log[] = 'tool:' . $streamEvent->toolName;
 
                 return null;
             }
@@ -227,10 +227,10 @@ class StreamCallbackHandlerTest extends TestCase
             /**
              * Handle a text event in the anonymous test handler.
              *
-             * @param StreamEvent $event Stream event being handled.
+             * @param StreamEvent $streamEvent Stream event being handled.
              * @return bool|null False cancels the stream; null continues it.
              */
-            protected function onText(StreamEvent $event): ?bool
+            protected function onText(StreamEvent $streamEvent): ?bool
             {
                 return false;
             }

@@ -17,11 +17,11 @@ class ContextOverflowExceptionTest extends TestCase
      */
     public function testExtendsAgentErrorException(): void
     {
-        $e = new ContextOverflowException('Context too large', statusCode: 400, errorCode: 'context_window_overflow');
+        $contextOverflowException = new ContextOverflowException('Context too large', statusCode: 400, errorCode: 'context_window_overflow');
 
-        $this->assertInstanceOf(AgentErrorException::class, $e);
-        $this->assertSame(400, $e->statusCode);
-        $this->assertSame('context_window_overflow', $e->errorCode);
+        $this->assertInstanceOf(AgentErrorException::class, $contextOverflowException);
+        $this->assertSame(400, $contextOverflowException->statusCode);
+        $this->assertSame('context_window_overflow', $contextOverflowException->errorCode);
     }
 
     /**
@@ -35,7 +35,7 @@ class ContextOverflowExceptionTest extends TestCase
 
         try {
             throw new ContextOverflowException('Overflow', statusCode: 400);
-        } catch (AgentErrorException $e) {
+        } catch (AgentErrorException $contextOverflowException) {
             $caught = true;
         }
 

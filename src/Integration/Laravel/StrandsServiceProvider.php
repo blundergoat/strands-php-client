@@ -32,39 +32,39 @@ class StrandsServiceProvider extends ServiceProvider
             'strands',
         );
 
-        $this->app->singleton(StrandsClientFactory::class, function (Application $app): StrandsClientFactory {
+        $this->app->singleton(StrandsClientFactory::class, function (Application $application): StrandsClientFactory {
             /** @var ConfigRepository $config */
-            $config = $app->make('config');
+            $config = $application->make('config');
 
             /** @var array<string, array{endpoint: string, auth: array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string, region?: string|null, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null}, timeout: int, connect_timeout?: int, max_retries?: int, retry_delay_ms?: int}> $agents */
             $agents = $config->get('strands.agents', []);
 
             /** @var LoggerInterface $logger */
-            $logger = $app->make(LoggerInterface::class);
+            $logger = $application->make(LoggerInterface::class);
 
             // Resolve any middleware tagged with 'strands.middleware'.
             // To register middleware in your app:
             //   $this->app->tag([MyTracingMiddleware::class], 'strands.middleware');
             /** @var list<RequestMiddleware> $middleware */
-            $middleware = $app->tagged('strands.middleware');
+            $middleware = $application->tagged('strands.middleware');
 
             // Response observers receive parsed terminal data for metrics/tracing.
             // Middleware that implements ResponseObserver is also auto-detected by
             // StrandsClient, so existing strands.middleware registrations keep working.
             /** @var list<ResponseObserver> $responseObservers */
-            $responseObservers = $app->tagged('strands.response_observer');
+            $responseObservers = $application->tagged('strands.response_observer');
 
             return new StrandsClientFactory($agents, $logger, $middleware, $responseObservers);
         });
 
-        $this->app->singleton(StrandsClient::class, function (Application $app): StrandsClient {
+        $this->app->singleton(StrandsClient::class, function (Application $application): StrandsClient {
             /** @var ConfigRepository $config */
-            $config = $app->make('config');
+            $config = $application->make('config');
 
             /** @var string $default */
             $default = $config->get('strands.default', 'default');
 
-            return $app->make(StrandsClientFactory::class)->create($default);
+            return $application->make(StrandsClientFactory::class)->create($default);
         });
 
         /** @var ConfigRepository $config */
@@ -75,8 +75,8 @@ class StrandsServiceProvider extends ServiceProvider
 
         foreach (array_keys($agents) as $name) {
             $binding = 'strands.client.' . $name;
-            $this->app->singleton($binding, function (Application $app) use ($name): StrandsClient {
-                return $app->make(StrandsClientFactory::class)->create($name);
+            $this->app->singleton($binding, function (Application $application) use ($name): StrandsClient {
+                return $application->make(StrandsClientFactory::class)->create($name);
             });
         }
     }

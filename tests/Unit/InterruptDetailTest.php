@@ -24,13 +24,13 @@ class InterruptDetailTest extends TestCase
             'reason' => 'Requires approval',
         ];
 
-        $detail = InterruptDetail::fromArray($data);
+        $interruptDetail = InterruptDetail::fromArray($data);
 
-        $this->assertSame('deploy', $detail->toolName);
-        $this->assertSame(['environment' => 'production'], $detail->toolInput);
-        $this->assertSame('tu-001', $detail->toolUseId);
-        $this->assertSame('int-abc', $detail->interruptId);
-        $this->assertSame('Requires approval', $detail->reason);
+        $this->assertSame('deploy', $interruptDetail->toolName);
+        $this->assertSame(['environment' => 'production'], $interruptDetail->toolInput);
+        $this->assertSame('tu-001', $interruptDetail->toolUseId);
+        $this->assertSame('int-abc', $interruptDetail->interruptId);
+        $this->assertSame('Requires approval', $interruptDetail->reason);
     }
 
     /**
@@ -40,13 +40,13 @@ class InterruptDetailTest extends TestCase
      */
     public function testFromArrayHandlesMissingFields(): void
     {
-        $detail = InterruptDetail::fromArray([]);
+        $interruptDetail = InterruptDetail::fromArray([]);
 
-        $this->assertSame('', $detail->toolName);
-        $this->assertSame([], $detail->toolInput);
-        $this->assertNull($detail->toolUseId);
-        $this->assertNull($detail->interruptId);
-        $this->assertNull($detail->reason);
+        $this->assertSame('', $interruptDetail->toolName);
+        $this->assertSame([], $interruptDetail->toolInput);
+        $this->assertNull($interruptDetail->toolUseId);
+        $this->assertNull($interruptDetail->interruptId);
+        $this->assertNull($interruptDetail->reason);
     }
 
     /**
@@ -64,13 +64,13 @@ class InterruptDetailTest extends TestCase
             'reason' => [],
         ];
 
-        $detail = InterruptDetail::fromArray($data);
+        $interruptDetail = InterruptDetail::fromArray($data);
 
-        $this->assertSame('', $detail->toolName);
-        $this->assertSame([], $detail->toolInput);
-        $this->assertNull($detail->toolUseId);
-        $this->assertNull($detail->interruptId);
-        $this->assertNull($detail->reason);
+        $this->assertSame('', $interruptDetail->toolName);
+        $this->assertSame([], $interruptDetail->toolInput);
+        $this->assertNull($interruptDetail->toolUseId);
+        $this->assertNull($interruptDetail->interruptId);
+        $this->assertNull($interruptDetail->reason);
     }
 
     /**
@@ -80,17 +80,17 @@ class InterruptDetailTest extends TestCase
      */
     public function testConstructorDirectInstantiation(): void
     {
-        $detail = new InterruptDetail(
+        $interruptDetail = new InterruptDetail(
             toolName: 'review',
             toolInput: ['pr' => 42],
             interruptId: 'int-999',
         );
 
-        $this->assertSame('review', $detail->toolName);
-        $this->assertSame(['pr' => 42], $detail->toolInput);
-        $this->assertSame('int-999', $detail->interruptId);
-        $this->assertNull($detail->toolUseId);
-        $this->assertNull($detail->reason);
+        $this->assertSame('review', $interruptDetail->toolName);
+        $this->assertSame(['pr' => 42], $interruptDetail->toolInput);
+        $this->assertSame('int-999', $interruptDetail->interruptId);
+        $this->assertNull($interruptDetail->toolUseId);
+        $this->assertNull($interruptDetail->reason);
     }
 
     /**
@@ -100,13 +100,13 @@ class InterruptDetailTest extends TestCase
      */
     public function testToResumeInputUsesInterruptId(): void
     {
-        $detail = new InterruptDetail(
+        $interruptDetail = new InterruptDetail(
             toolName: 'deploy',
             interruptId: 'int-abc-123',
             toolUseId: 'tu-001',
         );
 
-        $input = $detail->toResumeInput('Approved');
+        $input = $interruptDetail->toResumeInput('Approved');
         $payload = $input->toPayloadValue();
 
         $this->assertIsArray($payload);
@@ -122,12 +122,12 @@ class InterruptDetailTest extends TestCase
      */
     public function testToResumeInputFallsBackToToolUseId(): void
     {
-        $detail = new InterruptDetail(
+        $interruptDetail = new InterruptDetail(
             toolName: 'deploy',
             toolUseId: 'tu-001',
         );
 
-        $input = $detail->toResumeInput(['action' => 'allow']);
+        $input = $interruptDetail->toResumeInput(['action' => 'allow']);
         $payload = $input->toPayloadValue();
 
         $this->assertIsArray($payload);
@@ -142,14 +142,14 @@ class InterruptDetailTest extends TestCase
      */
     public function testToResumeInputThrowsWhenNoIdentifier(): void
     {
-        $detail = new InterruptDetail(
+        $interruptDetail = new InterruptDetail(
             toolName: 'deploy',
         );
 
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('neither interruptId nor toolUseId');
 
-        $detail->toResumeInput('Approved');
+        $interruptDetail->toResumeInput('Approved');
     }
 
     /**
@@ -160,10 +160,10 @@ class InterruptDetailTest extends TestCase
     public function testFromArrayWithNeitherIdProducesDetail(): void
     {
         // fromArray() itself should not throw - only toResumeInput() should
-        $detail = InterruptDetail::fromArray(['tool_name' => 'deploy']);
+        $interruptDetail = InterruptDetail::fromArray(['tool_name' => 'deploy']);
 
-        $this->assertSame('deploy', $detail->toolName);
-        $this->assertNull($detail->interruptId);
-        $this->assertNull($detail->toolUseId);
+        $this->assertSame('deploy', $interruptDetail->toolName);
+        $this->assertNull($interruptDetail->interruptId);
+        $this->assertNull($interruptDetail->toolUseId);
     }
 }

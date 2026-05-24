@@ -53,9 +53,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         private readonly TextMapPropagatorInterface $propagator,
         private readonly string $spanNamePrefix = 'strands.client',
     ) {
-        /** @var \SplStack<array{0: SpanInterface, 1: ScopeInterface}> $stack */
-        $stack = new \SplStack();
-        $this->spanStack = $stack;
+        $this->spanStack = new \SplStack();
     }
 
     /**

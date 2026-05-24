@@ -162,11 +162,11 @@ final class WireContractFixtureTest extends TestCase
     #[DataProvider('streamFixtureProvider')]
     public function testStreamFixturesParseToTerminalEvents(string $path): void
     {
-        $parser = new StreamParser();
-        $events = $parser->feed(self::textFixture($path));
+        $streamParser = new StreamParser();
+        $events = $streamParser->feed(self::textFixture($path));
 
         $this->assertNotSame([], $events, basename($path));
-        $this->assertSame(0, $parser->getSkippedEvents(), basename($path));
+        $this->assertSame(0, $streamParser->getSkippedEvents(), basename($path));
 
         $lastEvent = $events[array_key_last($events)];
         $this->assertTrue($lastEvent->isTerminal(), basename($path));

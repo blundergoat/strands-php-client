@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Integration\Symfony\DependencyInjection\Configuration;
 use Symfony\Component\Config\Definition\Processor;
@@ -173,18 +174,41 @@ class ConfigurationTest extends TestCase
      *
      * @return void
      */
-    public function testRejectsUnsupportedAuthDriver(): void
+    /**
+     * Each invalid-agent-config case must surface an InvalidConfigurationException whose
+     * message identifies the offending field so consumers can act on it.
+     *
+     * @param array<string, mixed> $primaryOverrides Overrides merged into the 'primary' agent block.
+     * @param string $expectedMessagePattern Regex the exception message must match.
+     * @return void
+     */
+    #[DataProvider('invalidAgentConfigProvider')]
+    public function testInvalidAgentConfigRejectedWithIdentifyingMessage(array $primaryOverrides, string $expectedMessagePattern): void
     {
         $this->expectException(\Symfony\Component\Config\Definition\Exception\InvalidConfigurationException::class);
+        $this->expectExceptionMessageMatches($expectedMessagePattern);
 
         $this->processConfig([
             'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                    'auth' => ['driver' => 'oauth2'],
-                ],
+                'primary' => array_merge(['endpoint' => 'http://agent:8000'], $primaryOverrides),
             ],
         ]);
+    }
+
+    /**
+     * Invalid-agent-config cases for testInvalidAgentConfigRejectedWithIdentifyingMessage().
+     *
+     * @return iterable<string, array{0: array<string, mixed>, 1: string}>
+     */
+    public static function invalidAgentConfigProvider(): iterable
+    {
+        yield 'unsupported auth driver' => [['auth' => ['driver' => 'oauth2']], '/oauth2/'];
+        yield 'zero timeout' => [['timeout' => 0], '/timeout/'];
+        yield 'negative connect_timeout' => [['connect_timeout' => -1], '/connect_timeout/'];
+        yield 'max_retries above upper bound' => [['max_retries' => 21], '/max_retries/'];
+        yield 'zero retry_delay_ms' => [['retry_delay_ms' => 0], '/retry_delay_ms/'];
+        yield 'negative max_retries' => [['max_retries' => -1], '/max_retries/'];
+        yield 'negative retry_delay_ms' => [['retry_delay_ms' => -1], '/retry_delay_ms/'];
     }
 
     /**
@@ -237,76 +261,12 @@ class ConfigurationTest extends TestCase
      *
      * @return void
      */
-    public function testRejectsZeroTimeout(): void
-    {
-        $this->expectException(\Symfony\Component\Config\Definition\Exception\InvalidConfigurationException::class);
-
-        $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                    'timeout' => 0,
-                ],
-            ],
-        ]);
-    }
-
-    /**
-     * Verifies that rejects negative connect timeout.
-     *
-     * @return void
-     */
-    public function testRejectsNegativeConnectTimeout(): void
-    {
-        $this->expectException(\Symfony\Component\Config\Definition\Exception\InvalidConfigurationException::class);
-
-        $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                    'connect_timeout' => -1,
-                ],
-            ],
-        ]);
-    }
 
     /**
      * Verifies that rejects max retries above 20.
      *
      * @return void
      */
-    public function testRejectsMaxRetriesAbove20(): void
-    {
-        $this->expectException(\Symfony\Component\Config\Definition\Exception\InvalidConfigurationException::class);
-
-        $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                    'max_retries' => 21,
-                ],
-            ],
-        ]);
-    }
-
-    /**
-     * Verifies that rejects zero retry delay ms.
-     *
-     * @return void
-     */
-    public function testRejectsZeroRetryDelayMs(): void
-    {
-        $this->expectException(\Symfony\Component\Config\Definition\Exception\InvalidConfigurationException::class);
-
-        $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                    'retry_delay_ms' => 0,
-                ],
-            ],
-        ]);
-    }
 
     /**
      * Verifies that accepts boundary max retries.
@@ -365,38 +325,6 @@ class ConfigurationTest extends TestCase
      *
      * @return void
      */
-    public function testRejectsNegativeMaxRetries(): void
-    {
-        $this->expectException(\Symfony\Component\Config\Definition\Exception\InvalidConfigurationException::class);
-
-        $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                    'max_retries' => -1,
-                ],
-            ],
-        ]);
-    }
-
-    /**
-     * Verifies that rejects negative retry delay ms.
-     *
-     * @return void
-     */
-    public function testRejectsNegativeRetryDelayMs(): void
-    {
-        $this->expectException(\Symfony\Component\Config\Definition\Exception\InvalidConfigurationException::class);
-
-        $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                    'retry_delay_ms' => -1,
-                ],
-            ],
-        ]);
-    }
 
     /**
      * Verifies that default retryable status codes.

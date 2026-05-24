@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit;
 
+use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -71,9 +72,9 @@ class PsrHttpTransportTest extends TestCase
     public function testPostReturnsDecodedJson(): void
     {
         $response = $this->createResponse(200, '{"text":"hello","session_id":"s1"}');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
-        $result = $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+        $result = $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
 
         $this->assertSame('hello', $result['text']);
         $this->assertSame('s1', $result['session_id']);
@@ -87,12 +88,12 @@ class PsrHttpTransportTest extends TestCase
     public function testPostThrowsAgentErrorOnHttpError(): void
     {
         $response = $this->createResponse(422, '{"detail":"Something went wrong"}');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessage('Something went wrong');
 
-        $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+        $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
     }
 
     /**
@@ -103,12 +104,12 @@ class PsrHttpTransportTest extends TestCase
     public function testPostThrowsAgentErrorWithErrorKey(): void
     {
         $response = $this->createResponse(400, '{"error":"Bad request"}');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessage('Bad request');
 
-        $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+        $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
     }
 
     /**
@@ -119,12 +120,12 @@ class PsrHttpTransportTest extends TestCase
     public function testPostThrowsAgentErrorWithPlainTextBody(): void
     {
         $response = $this->createResponse(500, 'Internal Server Error');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessage('Internal Server Error');
 
-        $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+        $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
     }
 
     /**
@@ -135,10 +136,10 @@ class PsrHttpTransportTest extends TestCase
     public function testPostThrowsStrandsExceptionOnInvalidJson(): void
     {
         $response = $this->createResponse(200, 'not json at all');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
         try {
-            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected StrandsException was not thrown');
         } catch (StrandsException $e) {
             $this->assertSame('Expected JSON object from http://example.com/invoke, got null', $e->getMessage());
@@ -152,27 +153,17 @@ class PsrHttpTransportTest extends TestCase
      */
     public function testPostWrapsClientException(): void
     {
-        $request = $this->createMock(RequestInterface::class);
-        $request->method('withHeader')->willReturnSelf();
-        $request->method('withBody')->willReturnSelf();
-
-        $requestFactory = $this->createMock(RequestFactoryInterface::class);
-        $requestFactory->method('createRequest')->willReturn($request);
-
-        $stream = $this->createMock(StreamInterface::class);
-        $streamFactory = $this->createMock(StreamFactoryInterface::class);
-        $streamFactory->method('createStream')->willReturn($stream);
-
-        $httpClient = $this->createMock(ClientInterface::class);
+        $psr17Factory = new Psr17Factory();
+        $httpClient = $this->createStub(ClientInterface::class);
         $httpClient->method('sendRequest')
             ->willThrowException(new \RuntimeException('Connection refused'));
 
-        $transport = new PsrHttpTransport($httpClient, $requestFactory, $streamFactory);
+        $psrHttpTransport = new PsrHttpTransport($httpClient, $psr17Factory, $psr17Factory);
 
         $this->expectException(StrandsException::class);
         $this->expectExceptionMessage('HTTP request to agent failed: Connection refused');
 
-        $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+        $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
     }
 
     /**
@@ -182,36 +173,31 @@ class PsrHttpTransportTest extends TestCase
      */
     public function testPostSendsHeaders(): void
     {
-        $request = $this->createMock(RequestInterface::class);
-        $request->expects($this->exactly(2))
-            ->method('withHeader')
-            ->willReturnCallback(function (string $name, string $value) use ($request) {
-                $this->assertContains($name, ['Content-Type', 'Accept']);
-
-                return $request;
-            });
-        $request->method('withBody')->willReturnSelf();
-
-        $requestFactory = $this->createMock(RequestFactoryInterface::class);
-        $requestFactory->method('createRequest')->willReturn($request);
-
-        $stream = $this->createMock(StreamInterface::class);
-        $streamFactory = $this->createMock(StreamFactoryInterface::class);
-        $streamFactory->method('createStream')->willReturn($stream);
-
+        $psr17Factory = new Psr17Factory();
         $response = $this->createResponse(200, '{"text":"ok"}');
-        $httpClient = $this->createMock(ClientInterface::class);
-        $httpClient->method('sendRequest')->willReturn($response);
 
-        $transport = new PsrHttpTransport($httpClient, $requestFactory, $streamFactory);
+        $capturedRequest = null;
+        $httpClient = $this->createStub(ClientInterface::class);
+        $httpClient->method('sendRequest')
+            ->willReturnCallback(function (RequestInterface $request) use (&$capturedRequest, $response): ResponseInterface {
+                $capturedRequest = $request;
 
-        $transport->post(
+                return $response;
+            });
+
+        $psrHttpTransport = new PsrHttpTransport($httpClient, $psr17Factory, $psr17Factory);
+
+        $psrHttpTransport->post(
             'http://example.com/invoke',
             ['Content-Type' => 'application/json', 'Accept' => 'application/json'],
             '{}',
             30,
             10,
         );
+
+        $this->assertInstanceOf(RequestInterface::class, $capturedRequest);
+        $this->assertSame('application/json', $capturedRequest->getHeaderLine('Content-Type'));
+        $this->assertSame('application/json', $capturedRequest->getHeaderLine('Accept'));
     }
 
     /**
@@ -222,10 +208,10 @@ class PsrHttpTransportTest extends TestCase
     public function testStreamThrowsStrandsException(): void
     {
         $response = $this->createResponse(200, '{}');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
         try {
-            $transport->stream('http://example.com/stream', [], '{}', 30, 10, function () {
+            $psrHttpTransport->stream('http://example.com/stream', [], '{}', 30, 10, function () {
             });
             $this->fail('Expected StrandsException');
         } catch (StrandsException $e) {
@@ -243,20 +229,10 @@ class PsrHttpTransportTest extends TestCase
      */
     public function testTimeoutWarningLoggedOnceWithContext(): void
     {
+        $psr17Factory = new Psr17Factory();
         $response = $this->createResponse(200, '{"text":"ok"}');
 
-        $stream = $this->createMock(StreamInterface::class);
-        $request = $this->createMock(RequestInterface::class);
-        $request->method('withHeader')->willReturnSelf();
-        $request->method('withBody')->willReturnSelf();
-
-        $requestFactory = $this->createMock(RequestFactoryInterface::class);
-        $requestFactory->method('createRequest')->willReturn($request);
-
-        $streamFactory = $this->createMock(StreamFactoryInterface::class);
-        $streamFactory->method('createStream')->willReturn($stream);
-
-        $httpClient = $this->createMock(ClientInterface::class);
+        $httpClient = $this->createStub(ClientInterface::class);
         $httpClient->method('sendRequest')->willReturn($response);
 
         $logger = $this->createMock(\Psr\Log\LoggerInterface::class);
@@ -276,12 +252,12 @@ class PsrHttpTransportTest extends TestCase
                 }),
             );
 
-        $transport = new PsrHttpTransport($httpClient, $requestFactory, $streamFactory, $logger);
+        $psrHttpTransport = new PsrHttpTransport($httpClient, $psr17Factory, $psr17Factory, $logger);
 
         // First call should log
-        $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+        $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
         // Second call should NOT log again (once-only)
-        $transport->post('http://example.com/invoke', [], '{}', 60, 20);
+        $psrHttpTransport->post('http://example.com/invoke', [], '{}', 60, 20);
     }
 
     /**
@@ -292,10 +268,10 @@ class PsrHttpTransportTest extends TestCase
     public function testPostErrorPrefersDetailOverError(): void
     {
         $response = $this->createResponse(422, '{"detail":"Specific detail","error":"General error"}');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
         try {
-            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
             $this->assertSame('Agent returned HTTP 422: Specific detail', $e->getMessage());
@@ -311,10 +287,10 @@ class PsrHttpTransportTest extends TestCase
     public function testPostErrorHandlesArrayDetail(): void
     {
         $response = $this->createResponse(422, '{"detail":["Error 1","Error 2"]}');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
         try {
-            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
             $this->assertSame('Agent returned HTTP 422: ["Error 1","Error 2"]', $e->getMessage());
@@ -329,10 +305,10 @@ class PsrHttpTransportTest extends TestCase
     public function testPostErrorFallsBackToContentWhenNoDetailOrError(): void
     {
         $response = $this->createResponse(500, '{"some_key":"value"}');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
         try {
-            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
             $this->assertSame('Agent returned HTTP 500: {"some_key":"value"}', $e->getMessage());
@@ -347,9 +323,9 @@ class PsrHttpTransportTest extends TestCase
     public function testPostDoesNotThrowOn399StatusCode(): void
     {
         $response = $this->createResponse(399, '{"text":"ok"}');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
-        $result = $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+        $result = $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
 
         $this->assertSame('ok', $result['text']);
     }
@@ -362,10 +338,10 @@ class PsrHttpTransportTest extends TestCase
     public function testPostErrorIncludesResponseBody(): void
     {
         $response = $this->createResponse(422, '{"detail":"Validation failed","errors":[{"field":"name","msg":"required"}]}');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
         try {
-            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
             $this->assertSame(422, $e->statusCode);
@@ -383,10 +359,10 @@ class PsrHttpTransportTest extends TestCase
     public function testPostErrorResponseBodyNullForPlainText(): void
     {
         $response = $this->createResponse(500, 'Internal Server Error');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
         try {
-            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
             $this->assertNull($e->responseBody);
@@ -401,10 +377,10 @@ class PsrHttpTransportTest extends TestCase
     public function testPostDoesNotDoubleWrapStrandsException(): void
     {
         $response = $this->createResponse(200, 'not json');
-        $transport = $this->createTransport($response);
+        $psrHttpTransport = $this->createTransport($response);
 
         try {
-            $transport->post('http://example.com/invoke', [], '{}', 30, 10);
+            $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected StrandsException');
         } catch (StrandsException $e) {
             $this->assertSame('Expected JSON object from http://example.com/invoke, got null', $e->getMessage());

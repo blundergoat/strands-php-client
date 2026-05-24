@@ -65,13 +65,13 @@ class RequestMiddlewareTest extends TestCase
             )
             ->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->invoke(message: 'Test');
+        $strandsClient->invoke(message: 'Test');
     }
 
     /**
@@ -99,16 +99,16 @@ class RequestMiddlewareTest extends TestCase
                 null,
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('post')->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->invoke(message: 'Test');
+        $strandsClient->invoke(message: 'Test');
     }
 
     /**
@@ -118,7 +118,7 @@ class RequestMiddlewareTest extends TestCase
      */
     public function testMiddlewareAfterResponseCalledOnError(): void
     {
-        $error = new AgentErrorException('Bad request', statusCode: 400);
+        $agentErrorException = new AgentErrorException('Bad request', statusCode: 400);
 
         $middleware = $this->createMock(RequestMiddleware::class);
         $middleware->expects($this->once())
@@ -133,20 +133,21 @@ class RequestMiddlewareTest extends TestCase
                 'http://localhost:8081/invoke',
                 400,
                 $this->greaterThan(0),
-                $this->identicalTo($error),
+                $this->identicalTo($agentErrorException),
             );
 
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->method('post')->willThrowException($error);
+        $transport = $this->createStub(HttpTransport::class);
+        $transport->method('post')->willThrowException($agentErrorException);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         $this->expectException(AgentErrorException::class);
-        $client->invoke(message: 'Test');
+        $this->expectExceptionMessage('Bad request');
+        $strandsClient->invoke(message: 'Test');
     }
 
     /**
@@ -158,7 +159,7 @@ class RequestMiddlewareTest extends TestCase
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
 
-        $middleware = $this->createMock(RequestMiddleware::class);
+        $middleware = $this->createStub(RequestMiddleware::class);
         $middleware->method('beforeRequest')
             ->willReturnCallback(fn (string $url, array $headers, string $body) => [
                 'headers' => $headers,
@@ -172,13 +173,13 @@ class RequestMiddlewareTest extends TestCase
             ->method('warning')
             ->with(
                 'Middleware afterResponse threw an exception',
-                $this->callback(fn (array $ctx) => is_string($ctx['error'] ?? null) && str_contains($ctx['error'], 'middleware broke')),
+                $this->callback(fn (array $context) => is_string($context['error'] ?? null) && str_contains($context['error'], 'middleware broke')),
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('post')->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             logger: $logger,
@@ -186,7 +187,7 @@ class RequestMiddlewareTest extends TestCase
         );
 
         // Should NOT throw — middleware exceptions are caught
-        $client->invoke(message: 'Test');
+        $strandsClient->invoke(message: 'Test');
     }
 
     /**
@@ -199,7 +200,7 @@ class RequestMiddlewareTest extends TestCase
         $fixture = $this->loadFixture('invoke-analyst-response.json');
         $callOrder = [];
 
-        $mw1 = $this->createMock(RequestMiddleware::class);
+        $mw1 = $this->createStub(RequestMiddleware::class);
         $mw1->method('beforeRequest')
             ->willReturnCallback(function (string $url, array $headers, string $body) use (&$callOrder) {
                 $callOrder[] = 'mw1:before';
@@ -211,7 +212,7 @@ class RequestMiddlewareTest extends TestCase
                 $callOrder[] = 'mw1:after';
             });
 
-        $mw2 = $this->createMock(RequestMiddleware::class);
+        $mw2 = $this->createStub(RequestMiddleware::class);
         $mw2->method('beforeRequest')
             ->willReturnCallback(function (string $url, array $headers, string $body) use (&$callOrder) {
                 $callOrder[] = 'mw2:before';
@@ -223,7 +224,7 @@ class RequestMiddlewareTest extends TestCase
                 $callOrder[] = 'mw2:after';
             });
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('post')
             ->with(
                 $this->anything(),
@@ -234,13 +235,13 @@ class RequestMiddlewareTest extends TestCase
             )
             ->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$mw1, $mw2],
         );
 
-        $client->invoke(message: 'Test');
+        $strandsClient->invoke(message: 'Test');
 
         $this->assertSame(['mw1:before', 'mw2:before', 'mw1:after', 'mw2:after'], $callOrder);
     }
@@ -276,19 +277,19 @@ class RequestMiddlewareTest extends TestCase
                 null,
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
                 $onChunk($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->stream(
+        $strandsClient->stream(
             message: 'Test',
             onEvent: function (): void {
             },
@@ -302,7 +303,7 @@ class RequestMiddlewareTest extends TestCase
      */
     public function testMiddlewareCalledOnStreamError(): void
     {
-        $error = new AgentErrorException('Server error', statusCode: 500);
+        $agentErrorException = new AgentErrorException('Server error', statusCode: 500);
 
         $middleware = $this->createMock(RequestMiddleware::class);
         $middleware->method('beforeRequest')
@@ -316,21 +317,22 @@ class RequestMiddlewareTest extends TestCase
                 'http://localhost:8081/stream',
                 500,
                 $this->greaterThan(0),
-                $this->identicalTo($error),
+                $this->identicalTo($agentErrorException),
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
-            ->willThrowException($error);
+            ->willThrowException($agentErrorException);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         $this->expectException(AgentErrorException::class);
-        $client->stream(
+        $this->expectExceptionMessage('Server error');
+        $strandsClient->stream(
             message: 'Test',
             onEvent: function (): void {
             },
@@ -362,20 +364,21 @@ class RequestMiddlewareTest extends TestCase
                 $this->isInstanceOf(\StrandsPhpClient\Exceptions\StreamInterruptedException::class),
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
                 $onChunk($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         $this->expectException(\StrandsPhpClient\Exceptions\StreamInterruptedException::class);
-        $client->stream(
+        $this->expectExceptionMessageMatches('/ended without a terminal event/');
+        $strandsClient->stream(
             message: 'Test',
             onEvent: function (): void {
             },
@@ -411,13 +414,13 @@ class RequestMiddlewareTest extends TestCase
             )
             ->willReturn(['result' => 'ok']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->postJson('/custom', ['key' => 'value']);
+        $strandsClient->postJson('/custom', ['key' => 'value']);
     }
 
     /**
@@ -442,16 +445,16 @@ class RequestMiddlewareTest extends TestCase
                 null,
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('post')->willReturn(['result' => 'ok']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->postJson('/custom', ['key' => 'value']);
+        $strandsClient->postJson('/custom', ['key' => 'value']);
     }
 
     /**
@@ -461,7 +464,7 @@ class RequestMiddlewareTest extends TestCase
      */
     public function testMiddlewareAfterResponseCalledOnPostJsonError(): void
     {
-        $error = new AgentErrorException('Not found', statusCode: 404);
+        $agentErrorException = new AgentErrorException('Not found', statusCode: 404);
 
         $middleware = $this->createMock(RequestMiddleware::class);
         $middleware->method('beforeRequest')
@@ -475,20 +478,21 @@ class RequestMiddlewareTest extends TestCase
                 $this->stringContains('/custom'),
                 404,
                 $this->greaterThan(0),
-                $this->identicalTo($error),
+                $this->identicalTo($agentErrorException),
             );
 
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->method('post')->willThrowException($error);
+        $transport = $this->createStub(HttpTransport::class);
+        $transport->method('post')->willThrowException($agentErrorException);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         $this->expectException(AgentErrorException::class);
-        $client->postJson('/custom', ['key' => 'value']);
+        $this->expectExceptionMessage('Not found');
+        $strandsClient->postJson('/custom', ['key' => 'value']);
     }
 
     /**
@@ -515,19 +519,19 @@ class RequestMiddlewareTest extends TestCase
                 null,
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
                 $onChunk($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->streamSse('/custom-stream', ['key' => 'value'], function (): void {
+        $strandsClient->streamSse('/custom-stream', ['key' => 'value'], function (): void {
         });
     }
 
@@ -538,7 +542,7 @@ class RequestMiddlewareTest extends TestCase
      */
     public function testMiddlewareAfterResponseCalledOnStreamSseError(): void
     {
-        $error = new AgentErrorException('Server error', statusCode: 500);
+        $agentErrorException = new AgentErrorException('Server error', statusCode: 500);
 
         $middleware = $this->createMock(RequestMiddleware::class);
         $middleware->method('beforeRequest')
@@ -552,20 +556,21 @@ class RequestMiddlewareTest extends TestCase
                 $this->stringContains('/custom-stream'),
                 500,
                 $this->greaterThan(0),
-                $this->identicalTo($error),
+                $this->identicalTo($agentErrorException),
             );
 
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')->willThrowException($error);
+        $transport = $this->createStub(HttpTransport::class);
+        $transport->method('stream')->willThrowException($agentErrorException);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         $this->expectException(AgentErrorException::class);
-        $client->streamSse('/custom-stream', ['key' => 'value'], function (): void {
+        $this->expectExceptionMessage('Server error');
+        $strandsClient->streamSse('/custom-stream', ['key' => 'value'], function (): void {
         });
     }
 
@@ -593,19 +598,19 @@ class RequestMiddlewareTest extends TestCase
                 null,
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
                 $onChunk($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->streamSse('/custom-stream', ['key' => 'value'], fn () => false);
+        $strandsClient->streamSse('/custom-stream', ['key' => 'value'], fn () => false);
     }
 
     /**
@@ -633,20 +638,20 @@ class RequestMiddlewareTest extends TestCase
                 null,
             );
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
                 $onChunk($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         // Cancel on first event
-        $client->stream(
+        $strandsClient->stream(
             message: 'Test',
             onEvent: fn () => false,
         );

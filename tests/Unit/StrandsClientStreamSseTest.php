@@ -53,12 +53,12 @@ class StrandsClientStreamSseTest extends TestCase
                 $onChunk("data: {\"type\": \"complete\", \"text\": \"done\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081/'),
             transport: $transport,
         );
 
-        $client->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () {
+        $strandsClient->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () {
         });
     }
 
@@ -90,12 +90,12 @@ class StrandsClientStreamSseTest extends TestCase
                 $onChunk("data: {\"type\": \"complete\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $client->streamSse('/file-summarise-stream', [
+        $strandsClient->streamSse('/file-summarise-stream', [
             'file_base64' => 'abc',
             'template' => 'default',
         ], function () {
@@ -123,7 +123,7 @@ class StrandsClientStreamSseTest extends TestCase
         $sseData = "data: {\"type\": \"complete\"}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 auth: $auth,
@@ -131,7 +131,7 @@ class StrandsClientStreamSseTest extends TestCase
             transport: $transport,
         );
 
-        $client->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () {
+        $strandsClient->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () {
         });
     }
 
@@ -148,13 +148,13 @@ class StrandsClientStreamSseTest extends TestCase
 
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
             $events[] = $event;
         });
 
@@ -178,13 +178,13 @@ class StrandsClientStreamSseTest extends TestCase
 
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
             $events[] = $event;
         });
 
@@ -208,13 +208,13 @@ class StrandsClientStreamSseTest extends TestCase
 
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
             $events[] = $event;
         });
 
@@ -234,13 +234,13 @@ class StrandsClientStreamSseTest extends TestCase
 
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
             $events[] = $event;
         });
 
@@ -262,13 +262,13 @@ class StrandsClientStreamSseTest extends TestCase
 
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
             $events[] = $event;
         });
 
@@ -298,12 +298,12 @@ class StrandsClientStreamSseTest extends TestCase
                 $onChunk("data: {\"type\": \"complete\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
             transport: $transport,
         );
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () {
         });
     }
 
@@ -329,12 +329,12 @@ class StrandsClientStreamSseTest extends TestCase
                 $onChunk("data: {\"type\": \"complete\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
             transport: $transport,
         );
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () {
         }, timeout: 15);
     }
 
@@ -351,13 +351,13 @@ class StrandsClientStreamSseTest extends TestCase
 
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
             $events[] = $event;
 
             return count($events) < 2;  // cancel after 2nd event
@@ -381,13 +381,13 @@ class StrandsClientStreamSseTest extends TestCase
 
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): void {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): void {
             $events[] = $event;
         });
 
@@ -401,7 +401,7 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSseCancelsAcrossChunks(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 // First chunk delivers one event
@@ -410,13 +410,13 @@ class StrandsClientStreamSseTest extends TestCase
                 $onChunk("data: {\"type\": \"text\", \"content\": \"second\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
             $events[] = $event;
 
             return false;  // cancel immediately
@@ -438,13 +438,13 @@ class StrandsClientStreamSseTest extends TestCase
 
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
             $events[] = $event;
         });
 
@@ -460,7 +460,7 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSseHandlesChunkedDelivery(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 // SSE event split across two TCP chunks
@@ -470,13 +470,13 @@ class StrandsClientStreamSseTest extends TestCase
                 $onChunk("data: {\"type\": \"complete\", \"text\": \"hello\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
             $events[] = $event;
         });
 
@@ -493,11 +493,11 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSsePropagatesTransportError(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willThrowException(new AgentErrorException('Internal Server Error', statusCode: 500));
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -505,7 +505,7 @@ class StrandsClientStreamSseTest extends TestCase
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessage('Internal Server Error');
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () {
         });
     }
 
@@ -516,15 +516,15 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSseThrowsOnEncodingFailure(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         try {
-            $client->streamSse('/test-stream', ['bad_value' => NAN], function () {
+            $strandsClient->streamSse('/test-stream', ['bad_value' => NAN], function () {
             });
             $this->fail('Expected StrandsException');
         } catch (StrandsException $e) {
@@ -540,9 +540,9 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSseRejectsZeroTimeout(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -550,7 +550,7 @@ class StrandsClientStreamSseTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('timeout must be at least 1');
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () {
         }, timeout: 0);
     }
 
@@ -561,9 +561,9 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSseRejectsNegativeTimeout(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -571,7 +571,7 @@ class StrandsClientStreamSseTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('timeout must be at least 1');
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () {
         }, timeout: -5);
     }
 
@@ -599,12 +599,12 @@ class StrandsClientStreamSseTest extends TestCase
                 $onChunk($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function (): void {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (): void {
         }, timeout: 1);
     }
 
@@ -626,13 +626,13 @@ class StrandsClientStreamSseTest extends TestCase
                 $debugCalls[] = ['message' => $message, 'context' => $context];
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             logger: $logger,
         );
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function (): void {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (): void {
         });
 
         // Request log must include url and path
@@ -656,13 +656,13 @@ class StrandsClientStreamSseTest extends TestCase
         $sseData = "data:{\"type\": \"text\", \"content\": \"hello\"}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
+        $strandsClient->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
             $events[] = $event;
         });
 
@@ -681,20 +681,20 @@ class StrandsClientStreamSseTest extends TestCase
         // is parsed as one event (two data lines), not split into separate events.
         // If \r\n normalization is removed, the \r\n\r\n becomes a double-newline
         // before the second data line, incorrectly splitting it into two events.
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 // Two data lines with CRLF endings in the same event block
                 $onChunk("data: {\"type\": \"text\",\r\ndata:  \"content\": \"hello\"}\r\n\r\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
+        $strandsClient->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
             $events[] = $event;
         });
 
@@ -720,13 +720,13 @@ class StrandsClientStreamSseTest extends TestCase
 
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
+        $strandsClient->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
             $events[] = $event;
         });
 

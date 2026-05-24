@@ -17,7 +17,7 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testCreateReturnsClient(): void
     {
-        $factory = new StrandsClientFactory([
+        $strandsClientFactory = new StrandsClientFactory([
             'analyst' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => ['driver' => 'null'],
@@ -25,7 +25,7 @@ class StrandsClientFactoryTest extends TestCase
             ],
         ]);
 
-        $client = $factory->create('analyst');
+        $client = $strandsClientFactory->create('analyst');
 
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
@@ -37,7 +37,7 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testCreateThrowsForUnknownAgent(): void
     {
-        $factory = new StrandsClientFactory([
+        $strandsClientFactory = new StrandsClientFactory([
             'analyst' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => ['driver' => 'null'],
@@ -48,7 +48,7 @@ class StrandsClientFactoryTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unknown Strands agent "nonexistent"');
 
-        $factory->create('nonexistent');
+        $strandsClientFactory->create('nonexistent');
     }
 
     /**
@@ -58,7 +58,7 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testCreateThrowsForUnsupportedAuthDriver(): void
     {
-        $factory = new StrandsClientFactory([
+        $strandsClientFactory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => ['driver' => 'oauth2'],
@@ -69,7 +69,7 @@ class StrandsClientFactoryTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unsupported auth driver "oauth2"');
 
-        $factory->create('test');
+        $strandsClientFactory->create('test');
     }
 
     /**
@@ -79,7 +79,7 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testCreateWithApiKeyAuth(): void
     {
-        $factory = new StrandsClientFactory([
+        $strandsClientFactory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -90,7 +90,7 @@ class StrandsClientFactoryTest extends TestCase
             ],
         ]);
 
-        $client = $factory->create('test');
+        $client = $strandsClientFactory->create('test');
 
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
@@ -102,7 +102,7 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testCreateWithApiKeyAuthThrowsWhenMissingKey(): void
     {
-        $factory = new StrandsClientFactory([
+        $strandsClientFactory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => ['driver' => 'api_key'],
@@ -113,7 +113,7 @@ class StrandsClientFactoryTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('api_key" option is required');
 
-        $factory->create('test');
+        $strandsClientFactory->create('test');
     }
 
     /**
@@ -123,7 +123,7 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testCreateWithRetryConfig(): void
     {
-        $factory = new StrandsClientFactory([
+        $strandsClientFactory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => ['driver' => 'null'],
@@ -134,7 +134,7 @@ class StrandsClientFactoryTest extends TestCase
             ],
         ]);
 
-        $client = $factory->create('test');
+        $client = $strandsClientFactory->create('test');
 
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
@@ -146,7 +146,7 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testCreateWithApiKeyAuthCustomHeader(): void
     {
-        $factory = new StrandsClientFactory([
+        $strandsClientFactory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -159,7 +159,7 @@ class StrandsClientFactoryTest extends TestCase
             ],
         ]);
 
-        $client = $factory->create('test');
+        $client = $strandsClientFactory->create('test');
 
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
@@ -171,7 +171,7 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testCreateWithEmptyApiKeyThrows(): void
     {
-        $factory = new StrandsClientFactory([
+        $strandsClientFactory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -185,7 +185,7 @@ class StrandsClientFactoryTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('api_key" option is required');
 
-        $factory->create('test');
+        $strandsClientFactory->create('test');
     }
 
     /**
@@ -197,7 +197,7 @@ class StrandsClientFactoryTest extends TestCase
     {
         // When connect_timeout, max_retries, retry_delay_ms are NOT in config,
         // the factory should use defaults without error
-        $factory = new StrandsClientFactory([
+        $strandsClientFactory = new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => ['driver' => 'null'],
@@ -205,7 +205,7 @@ class StrandsClientFactoryTest extends TestCase
             ],
         ]);
 
-        $client = $factory->create('test');
+        $client = $strandsClientFactory->create('test');
 
         $this->assertInstanceOf(StrandsClient::class, $client);
     }
@@ -217,7 +217,7 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testUnknownAgentListsConfiguredAgents(): void
     {
-        $factory = new StrandsClientFactory([
+        $strandsClientFactory = new StrandsClientFactory([
             'analyst' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => ['driver' => 'null'],
@@ -231,7 +231,7 @@ class StrandsClientFactoryTest extends TestCase
         ]);
 
         try {
-            $factory->create('missing');
+            $strandsClientFactory->create('missing');
             $this->fail('Expected InvalidArgumentException');
         } catch (\InvalidArgumentException $e) {
             $this->assertStringContainsString('analyst', $e->getMessage());

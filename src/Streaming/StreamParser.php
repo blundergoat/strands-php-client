@@ -57,9 +57,9 @@ class StreamParser
 
         $events = [];
 
-        while (($pos = strpos($this->buffer, "\n\n")) !== false) {
-            $rawEvent = substr($this->buffer, 0, $pos);
-            $this->buffer = substr($this->buffer, $pos + 2);
+        while (($position = strpos($this->buffer, "\n\n")) !== false) {
+            $rawEvent = substr($this->buffer, 0, $position);
+            $this->buffer = substr($this->buffer, $position + 2);
 
             $event = $this->parseEvent($rawEvent);
 

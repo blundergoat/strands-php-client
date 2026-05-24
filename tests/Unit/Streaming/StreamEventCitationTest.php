@@ -18,7 +18,7 @@ class StreamEventCitationTest extends TestCase
      */
     public function testGetCitationObjectReturnsTypedCitation(): void
     {
-        $event = new StreamEvent(
+        $streamEvent = new StreamEvent(
             type: StreamEventType::Citation,
             citation: [
                 'location' => ['type' => 'WEB', 'url' => 'https://example.com'],
@@ -27,7 +27,7 @@ class StreamEventCitationTest extends TestCase
             ],
         );
 
-        $citation = $event->getCitationObject();
+        $citation = $streamEvent->getCitationObject();
 
         $this->assertInstanceOf(Citation::class, $citation);
         $this->assertSame('WEB', $citation->location?->type);
@@ -43,9 +43,9 @@ class StreamEventCitationTest extends TestCase
      */
     public function testGetCitationObjectReturnsNullWhenNoCitation(): void
     {
-        $event = new StreamEvent(type: StreamEventType::Text, text: 'hello');
+        $streamEvent = new StreamEvent(type: StreamEventType::Text, text: 'hello');
 
-        $this->assertNull($event->getCitationObject());
+        $this->assertNull($streamEvent->getCitationObject());
     }
 
     /**
@@ -55,14 +55,14 @@ class StreamEventCitationTest extends TestCase
      */
     public function testGetCitationObjectHandlesPartialData(): void
     {
-        $event = new StreamEvent(
+        $streamEvent = new StreamEvent(
             type: StreamEventType::Citation,
             citation: [
                 'location' => ['type' => 'DOCUMENT', 'start_page_index' => 3],
             ],
         );
 
-        $citation = $event->getCitationObject();
+        $citation = $streamEvent->getCitationObject();
 
         $this->assertInstanceOf(Citation::class, $citation);
         $this->assertSame('DOCUMENT', $citation->location?->type);
@@ -78,7 +78,7 @@ class StreamEventCitationTest extends TestCase
      */
     public function testGetCitationObjectPreservesFlatCitationData(): void
     {
-        $event = new StreamEvent(
+        $streamEvent = new StreamEvent(
             type: StreamEventType::Citation,
             citation: [
                 'source' => 'doc.pdf',
@@ -86,7 +86,7 @@ class StreamEventCitationTest extends TestCase
             ],
         );
 
-        $citation = $event->getCitationObject();
+        $citation = $streamEvent->getCitationObject();
 
         $this->assertInstanceOf(Citation::class, $citation);
         $this->assertSame('doc.pdf', $citation->source);

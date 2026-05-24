@@ -21,13 +21,13 @@ class ConsumerCompatibilityTest extends TestCase
      */
     public function testSummitChatroomStandardStreamProfileStillParsesTypedEvents(): void
     {
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
             transport: $this->streamingTransport($this->fixture('consumer-summit-stream.sse')),
         );
 
         $events = [];
-        $result = $client->stream(
+        $result = $strandsClient->stream(
             message: 'Start a summit turn',
             onEvent: function (StreamEvent $event) use (&$events): void {
                 $events[] = $event;
@@ -62,13 +62,13 @@ class ConsumerCompatibilityTest extends TestCase
             'http://wrapper.test/session/session-001/roles' => $this->jsonFixture('custom-ambient-roles-response.json'),
         ];
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
             transport: $this->postTransport($responses),
         );
 
-        $history = $client->postJson('/session/session-001/history', [], timeout: 10);
-        $roles = $client->postJson('/session/session-001/roles', [], timeout: 5);
+        $history = $strandsClient->postJson('/session/session-001/history', [], timeout: 10);
+        $roles = $strandsClient->postJson('/session/session-001/roles', [], timeout: 5);
 
         $this->assertSame('session-001', $history['session_id']);
         $this->assertCount(2, $history['turns']);
@@ -88,17 +88,17 @@ class ConsumerCompatibilityTest extends TestCase
             'http://wrapper.test/suggested-actions/analyse' => $this->jsonFixture('custom-halaxy-suggested-actions-analysis-response.json'),
         ];
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
             transport: $this->postTransport($responses),
         );
 
-        $metadata = $client->postJson('/file-metadata', [
+        $metadata = $strandsClient->postJson('/file-metadata', [
             'file_base64' => 'redacted-base64',
             'file_name' => 'referral.pdf',
             'mime_type' => 'application/pdf',
         ], timeout: 120);
-        $analysis = $client->postJson('/suggested-actions/analyse', [
+        $analysis = $strandsClient->postJson('/suggested-actions/analyse', [
             'conversation_id' => 'conv-001',
         ], timeout: 60);
 
@@ -120,13 +120,13 @@ class ConsumerCompatibilityTest extends TestCase
             'http://wrapper.test/intent' => $this->jsonFixture('custom-healthkit-intent-response.json'),
         ];
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
             transport: $this->postTransport($responses),
         );
 
-        $chat = $client->postJson('/chat', ['message' => 'Hi'], timeout: 45);
-        $intent = $client->postJson('/intent', ['message' => 'Book appointment'], timeout: 15);
+        $chat = $strandsClient->postJson('/chat', ['message' => 'Hi'], timeout: 45);
+        $intent = $strandsClient->postJson('/intent', ['message' => 'Book appointment'], timeout: 15);
 
         $this->assertSame('I can help with that.', $chat['message']);
         $this->assertSame('show_booking_options', $chat['actions'][0]['type']);
@@ -141,13 +141,13 @@ class ConsumerCompatibilityTest extends TestCase
      */
     public function testCustomStreamSseProfilesPreserveUnknownFieldsForCallbacks(): void
     {
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
             transport: $this->streamingTransport($this->fixture('custom-halaxy-file-summarise-stream.sse')),
         );
 
         $events = [];
-        $client->streamSse('/file-summarise-stream', [
+        $strandsClient->streamSse('/file-summarise-stream', [
             'file_base64' => 'redacted-base64',
             'file_name' => 'referral.pdf',
         ], function (array $event) use (&$events): void {
@@ -168,13 +168,13 @@ class ConsumerCompatibilityTest extends TestCase
      */
     public function testHealthkitBookingStreamSseProfilePreservesDomainEvents(): void
     {
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
             transport: $this->streamingTransport($this->fixture('custom-healthkit-booking-respond-stream.sse')),
         );
 
         $events = [];
-        $client->streamSse('/respond-stream', [
+        $strandsClient->streamSse('/respond-stream', [
             'message' => 'Need an appointment',
             'session_id' => 'booking-session-001',
         ], function (array $event) use (&$events): void {

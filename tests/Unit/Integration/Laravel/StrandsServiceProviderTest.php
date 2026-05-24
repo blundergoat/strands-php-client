@@ -128,7 +128,7 @@ class StrandsServiceProviderTest extends TestCase
      */
     public function testFactoryReceivesTaggedMiddleware(): void
     {
-        $mw = $this->createMock(RequestMiddleware::class);
+        $requestMiddleware = $this->createStub(RequestMiddleware::class);
 
         $app = $this->createRegisteredApplication([
             'default' => 'primary',
@@ -139,18 +139,18 @@ class StrandsServiceProviderTest extends TestCase
                     'timeout' => 120,
                 ],
             ],
-        ], [$mw]);
+        ], [$requestMiddleware]);
 
         $factory = $app->make(StrandsClientFactory::class);
         $this->assertInstanceOf(StrandsClientFactory::class, $factory);
 
         // Verify middleware was passed by checking the factory's private property
-        $reflection = new \ReflectionProperty(StrandsClientFactory::class, 'middleware');
-        $reflection->setAccessible(true);
-        $middleware = $reflection->getValue($factory);
+        $reflectionProperty = new \ReflectionProperty(StrandsClientFactory::class, 'middleware');
+        $reflectionProperty->setAccessible(true);
+        $middleware = $reflectionProperty->getValue($factory);
 
         $this->assertCount(1, $middleware);
-        $this->assertSame($mw, $middleware[0]);
+        $this->assertSame($requestMiddleware, $middleware[0]);
     }
 
     /**
@@ -299,8 +299,8 @@ class StrandsServiceProviderTest extends TestCase
             },
         );
 
-        $provider = new StrandsServiceProvider($app);
-        $provider->register();
+        $strandsServiceProvider = new StrandsServiceProvider($app);
+        $strandsServiceProvider->register();
 
         return $app;
     }
@@ -352,15 +352,15 @@ class StrandsServiceProviderTest extends TestCase
     /**
      * Extract endpoint for assertions.
      *
-     * @param StrandsClient $client Client instance inspected by the test helper.
+     * @param StrandsClient $strandsClient Client instance inspected by the test helper.
      * @return string String value produced by the helper.
      */
-    private function extractEndpoint(StrandsClient $client): string
+    private function extractEndpoint(StrandsClient $strandsClient): string
     {
-        $reflection = new \ReflectionProperty(StrandsClient::class, 'config');
-        $reflection->setAccessible(true);
+        $reflectionProperty = new \ReflectionProperty(StrandsClient::class, 'config');
+        $reflectionProperty->setAccessible(true);
 
-        $config = $reflection->getValue($client);
+        $config = $reflectionProperty->getValue($strandsClient);
         $this->assertInstanceOf(StrandsConfig::class, $config);
 
         return $config->endpoint;

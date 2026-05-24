@@ -30,6 +30,31 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
+     * Build a transport whose post() throws once and then returns the given payload on every subsequent call.
+     * Keeps retry-counting state out of test bodies so each retry test reads linearly.
+     *
+     * @param \Throwable $throwOnce Exception thrown by the first call to post().
+     * @param array<string, mixed> $thenReturn Payload returned by every call after the first.
+     * @return HttpTransport Mocked transport with the throw-then-return sequence wired up.
+     */
+    private function transportThrowsOnceThenReturns(\Throwable $throwOnce, array $thenReturn): HttpTransport
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $callCount = 0;
+        $transport->method('post')
+            ->willReturnCallback(function () use (&$callCount, $throwOnce, $thenReturn): array {
+                $callCount++;
+                if ($callCount === 1) {
+                    throw $throwOnce;
+                }
+
+                return $thenReturn;
+            });
+
+        return $transport;
+    }
+
+    /**
      * Verifies that post JSON sends correct URL.
      *
      * @return void
@@ -48,12 +73,12 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['summary' => 'test']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081/'),
             transport: $transport,
         );
 
-        $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
     }
 
     /**
@@ -82,12 +107,12 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['summary' => 'test']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $client->postJson('/file-summarise', [
+        $strandsClient->postJson('/file-summarise', [
             'file_base64' => 'abc',
             'file_name' => 'test.pdf',
             'mime_type' => 'application/pdf',
@@ -114,7 +139,7 @@ class StrandsClientPostJsonTest extends TestCase
 
         $transport = $this->createMockTransport(['summary' => 'test']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 auth: $auth,
@@ -122,7 +147,7 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
     }
 
     /**
@@ -140,12 +165,12 @@ class StrandsClientPostJsonTest extends TestCase
 
         $transport = $this->createMockTransport($expected);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $result = $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $result = $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
 
         $this->assertSame($expected, $result);
     }
@@ -157,19 +182,12 @@ class StrandsClientPostJsonTest extends TestCase
      */
     public function testPostJsonRetriesOnTransientError(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
-        $callCount = 0;
-        $transport->method('post')
-            ->willReturnCallback(function () use (&$callCount) {
-                $callCount++;
-                if ($callCount === 1) {
-                    throw new AgentErrorException('Service unavailable', statusCode: 503);
-                }
+        $transport = $this->transportThrowsOnceThenReturns(
+            new AgentErrorException('Service unavailable', statusCode: 503),
+            ['summary' => 'test'],
+        );
 
-                return ['summary' => 'test'];
-            });
-
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 maxRetries: 2,
@@ -178,10 +196,9 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $result = $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $result = $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
 
         $this->assertSame('test', $result['summary']);
-        $this->assertSame(2, $callCount);
     }
 
     /**
@@ -189,9 +206,9 @@ class StrandsClientPostJsonTest extends TestCase
      *
      * @return void
      */
-    public function testPostJsonDoesNotRetryOn400(): void
+    public function testPostJsonDoesNotRetryOnBadRequest(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $callCount = 0;
         $transport->method('post')
             ->willReturnCallback(function () use (&$callCount) {
@@ -199,7 +216,7 @@ class StrandsClientPostJsonTest extends TestCase
                 throw new AgentErrorException('Bad request', statusCode: 400);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 maxRetries: 3,
@@ -209,7 +226,7 @@ class StrandsClientPostJsonTest extends TestCase
         );
 
         try {
-            $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+            $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $e) {
             $this->assertSame(400, $e->statusCode);
@@ -226,13 +243,13 @@ class StrandsClientPostJsonTest extends TestCase
     {
         $transport = $this->createMockTransport([]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         try {
-            $client->postJson('/file-summarise', ['bad_value' => NAN]);
+            $strandsClient->postJson('/file-summarise', ['bad_value' => NAN]);
             $this->fail('Expected StrandsException');
         } catch (StrandsException $e) {
             // Verify the message contains BOTH the prefix AND the original exception message
@@ -258,13 +275,13 @@ class StrandsClientPostJsonTest extends TestCase
                 $debugCalls[] = ['message' => $message, 'context' => $context];
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             logger: $logger,
         );
 
-        $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
 
         // Request log must include url and path
         $this->assertSame('Strands postJson request', $debugCalls[0]['message']);
@@ -295,12 +312,12 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['ok' => true]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
             transport: $transport,
         );
 
-        $client->postJson('/test', ['data' => 'test']);
+        $strandsClient->postJson('/test', ['data' => 'test']);
     }
 
     /**
@@ -322,12 +339,12 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['ok' => true]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
             transport: $transport,
         );
 
-        $client->postJson('/file-metadata', ['data' => 'test'], timeout: 30);
+        $strandsClient->postJson('/file-metadata', ['data' => 'test'], timeout: 30);
     }
 
     /**
@@ -349,12 +366,12 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['ok' => true]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $result = $client->postJson('', ['data' => 'test']);
+        $result = $strandsClient->postJson('', ['data' => 'test']);
 
         $this->assertSame(['ok' => true], $result);
     }
@@ -368,7 +385,7 @@ class StrandsClientPostJsonTest extends TestCase
     {
         $transport = $this->createMockTransport([]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -376,7 +393,7 @@ class StrandsClientPostJsonTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('timeout must be at least 1');
 
-        $client->postJson('/test', ['data' => 'test'], timeout: 0);
+        $strandsClient->postJson('/test', ['data' => 'test'], timeout: 0);
     }
 
     /**
@@ -388,7 +405,7 @@ class StrandsClientPostJsonTest extends TestCase
     {
         $transport = $this->createMockTransport([]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -396,7 +413,7 @@ class StrandsClientPostJsonTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('timeout must be at least 1');
 
-        $client->postJson('/test', ['data' => 'test'], timeout: -10);
+        $strandsClient->postJson('/test', ['data' => 'test'], timeout: -10);
     }
 
     /**
@@ -418,12 +435,12 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['ok' => true]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120),
             transport: $transport,
         );
 
-        $client->postJson('/test', ['data' => 'test'], timeout: null);
+        $strandsClient->postJson('/test', ['data' => 'test'], timeout: null);
     }
 
     /**
@@ -445,11 +462,11 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['ok' => true]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $client->postJson('/test', ['data' => 'test'], timeout: 1);
+        $strandsClient->postJson('/test', ['data' => 'test'], timeout: 1);
     }
 }

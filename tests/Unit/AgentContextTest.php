@@ -54,11 +54,11 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that immutability.
+     * Verifies that withMetadata returns a new instance and leaves the original unchanged.
      *
      * @return void
      */
-    public function testImmutability(): void
+    public function testWithMetadataReturnsNewInstanceAndPreservesOriginal(): void
     {
         $original = AgentContext::create();
         $withMeta = $original->withMetadata('key', 'value');

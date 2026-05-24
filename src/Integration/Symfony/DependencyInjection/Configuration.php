@@ -70,9 +70,9 @@ class Configuration implements ConfigurationInterface
      */
     private function authNode(): ArrayNodeDefinition
     {
-        $builder = new TreeBuilder('auth');
+        $treeBuilder = new TreeBuilder('auth');
         /** @var ArrayNodeDefinition $node */
-        $node = $builder->getRootNode();
+        $node = $treeBuilder->getRootNode();
 
         $node
             ->addDefaultsIfNotSet()
@@ -130,9 +130,9 @@ class Configuration implements ConfigurationInterface
      */
     private function timeoutNode(string $name, int $default, string $description): \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition
     {
-        $builder = new TreeBuilder($name, 'integer');
+        $treeBuilder = new TreeBuilder($name, 'integer');
         /** @var \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition $node */
-        $node = $builder->getRootNode();
+        $node = $treeBuilder->getRootNode();
 
         $node
             ->defaultValue($default)

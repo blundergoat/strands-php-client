@@ -17,7 +17,7 @@ class AgentErrorExceptionTest extends TestCase
      *
      * @return void
      */
-    public function testFromHttpResponseReturnsThrottledFor429(): void
+    public function testFromHttpResponseReturnsThrottledForTooManyRequests(): void
     {
         $e = AgentErrorException::fromHttpResponse(429, 'Rate limited', ['detail' => 'Too many requests']);
 

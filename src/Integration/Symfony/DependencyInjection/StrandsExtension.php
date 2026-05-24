@@ -38,23 +38,23 @@ class StrandsExtension extends Extension
         $container->registerForAutoconfiguration(ResponseObserver::class)
             ->addTag('strands.response_observer');
 
-        $factoryDef = new Definition(StrandsClientFactory::class);
-        $factoryDef->setArgument('$agents', $agents);
-        $factoryDef->setArgument('$logger', new Reference('logger'));
-        $factoryDef->setArgument('$middleware', new TaggedIteratorArgument('strands.middleware'));
-        $factoryDef->setArgument('$responseObservers', new TaggedIteratorArgument('strands.response_observer'));
-        $container->setDefinition('strands.client_factory', $factoryDef);
+        $factoryDefinition = new Definition(StrandsClientFactory::class);
+        $factoryDefinition->setArgument('$agents', $agents);
+        $factoryDefinition->setArgument('$logger', new Reference('logger'));
+        $factoryDefinition->setArgument('$middleware', new TaggedIteratorArgument('strands.middleware'));
+        $factoryDefinition->setArgument('$responseObservers', new TaggedIteratorArgument('strands.response_observer'));
+        $container->setDefinition('strands.client_factory', $factoryDefinition);
 
         $firstServiceId = null;
 
         foreach (array_keys($agents) as $name) {
             $serviceId = 'strands.client.' . (string) $name;
 
-            $def = new Definition(StrandsClient::class);
-            $def->setFactory([new Reference('strands.client_factory'), 'create']);
-            $def->setArgument(0, $name);
+            $definition = new Definition(StrandsClient::class);
+            $definition->setFactory([new Reference('strands.client_factory'), 'create']);
+            $definition->setArgument(0, $name);
 
-            $container->setDefinition($serviceId, $def);
+            $container->setDefinition($serviceId, $definition);
 
             $firstServiceId ??= $serviceId;
         }

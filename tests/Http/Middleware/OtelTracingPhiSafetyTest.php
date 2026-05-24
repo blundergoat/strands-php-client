@@ -91,15 +91,19 @@ final class OtelTracingPhiSafetyTest extends TestCase
             25.0,
         );
 
-        $span = $this->getOnlySpan();
-        $serializedAttributes = json_encode($this->spanAttributes($span), JSON_THROW_ON_ERROR);
+        $immutableSpan = $this->getOnlySpan();
+        $serializedAttributes = json_encode($this->spanAttributes($immutableSpan), JSON_THROW_ON_ERROR);
 
         foreach ([$sessionId, $prompt, $responseText, $documentBase64, $filename, $toolInput, $citationSource, 'private context', 'secret'] as $forbidden) {
-            $this->assertStringNotContainsString($forbidden, $serializedAttributes);
+            $this->assertStringNotContainsString(
+                $forbidden,
+                $serializedAttributes,
+                sprintf('Sensitive payload value %s leaked into span attributes', var_export($forbidden, true)),
+            );
         }
 
-        $this->assertSame('/session/{id}/history', $span->getAttributes()->get('strands.endpoint.route'));
-        $this->assertTrue($span->getAttributes()->get('strands.session.present'));
+        $this->assertSame('/session/{id}/history', $immutableSpan->getAttributes()->get('strands.endpoint.route'));
+        $this->assertTrue($immutableSpan->getAttributes()->get('strands.session.present'));
     }
 
     /**
@@ -119,10 +123,10 @@ final class OtelTracingPhiSafetyTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function spanAttributes(ImmutableSpan $span): array
+    private function spanAttributes(ImmutableSpan $immutableSpan): array
     {
         $attributes = [];
-        foreach ($span->getAttributes() as $key => $value) {
+        foreach ($immutableSpan->getAttributes() as $key => $value) {
             if (is_string($key)) {
                 $attributes[$key] = $value;
             }

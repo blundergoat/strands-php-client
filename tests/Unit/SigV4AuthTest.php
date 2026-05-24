@@ -16,14 +16,14 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateAddsRequiredHeaders(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
             secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
             region: 'us-east-1',
         );
 
         $headers = ['Content-Type' => 'application/json'];
-        $result = $auth->authenticate($headers, 'POST', 'https://api.example.com/invoke', '{"message":"hi"}');
+        $result = $sigV4Auth->authenticate($headers, 'POST', 'https://api.example.com/invoke', '{"message":"hi"}');
 
         $this->assertArrayHasKey('Authorization', $result);
         $this->assertArrayHasKey('X-Amz-Date', $result);
@@ -40,14 +40,14 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateIncludesSessionToken(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'eu-west-1',
             sessionToken: 'SESSION_TOKEN',
         );
 
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         $this->assertArrayHasKey('X-Amz-Security-Token', $result);
         $this->assertSame('SESSION_TOKEN', $result['X-Amz-Security-Token']);
@@ -61,13 +61,13 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateOmitsSecurityTokenWhenNull(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-west-2',
         );
 
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         $this->assertArrayNotHasKey('X-Amz-Security-Token', $result);
         $this->assertStringNotContainsString('x-amz-security-token', $result['Authorization']);
@@ -80,14 +80,14 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateIncludesCorrectRegionAndService(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'ap-southeast-1',
             service: 'lambda',
         );
 
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         $this->assertStringContainsString('ap-southeast-1/lambda/aws4_request', $result['Authorization']);
     }
@@ -99,13 +99,13 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateDefaultServiceIsExecuteApi(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
         );
 
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         $this->assertStringContainsString('execute-api/aws4_request', $result['Authorization']);
     }
@@ -117,7 +117,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticatePreservesExistingHeaders(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
@@ -128,7 +128,7 @@ class SigV4AuthTest extends TestCase
             'Accept' => 'text/event-stream',
         ];
 
-        $result = $auth->authenticate($headers, 'POST', 'https://api.example.com/invoke', '{}');
+        $result = $sigV4Auth->authenticate($headers, 'POST', 'https://api.example.com/invoke', '{}');
 
         $this->assertSame('application/json', $result['Content-Type']);
         $this->assertSame('text/event-stream', $result['Accept']);
@@ -141,7 +141,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticatePayloadHashIsCorrect(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
@@ -150,7 +150,7 @@ class SigV4AuthTest extends TestCase
         $body = '{"message":"hello"}';
         $expectedHash = hash('sha256', $body);
 
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', $body);
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', $body);
 
         $this->assertSame($expectedHash, $result['X-Amz-Content-Sha256']);
     }
@@ -162,13 +162,13 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateHandlesUrlWithQueryString(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
         );
 
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=bar&baz=qux', '{}');
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=bar&baz=qux', '{}');
 
         $this->assertArrayHasKey('Authorization', $result);
     }
@@ -180,7 +180,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateHandlesUrlWithNonStandardPort(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
@@ -188,8 +188,8 @@ class SigV4AuthTest extends TestCase
 
         // Non-standard port must be included in the signed host header,
         // producing a different signature than the default-port version.
-        $withPort = $auth->authenticate([], 'POST', 'https://api.example.com:8443/invoke', '{}');
-        $withoutPort = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $withPort = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com:8443/invoke', '{}');
+        $withoutPort = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         $this->assertArrayHasKey('Authorization', $withPort);
         $sigWithPort = $this->extractSignature($withPort['Authorization']);
@@ -204,15 +204,15 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateIgnoresDefaultHttpsPort(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
         );
 
         // Default port 443 for https should not change the signature
-        $withPort = $auth->authenticate([], 'POST', 'https://api.example.com:443/invoke', '{}');
-        $withoutPort = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $withPort = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com:443/invoke', '{}');
+        $withoutPort = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         $sigWithPort = $this->extractSignature($withPort['Authorization']);
         $sigWithoutPort = $this->extractSignature($withoutPort['Authorization']);
@@ -226,14 +226,14 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateIgnoresDefaultHttpPort(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
         );
 
-        $withPort = $auth->authenticate([], 'POST', 'http://api.example.com:80/invoke', '{}');
-        $withoutPort = $auth->authenticate([], 'POST', 'http://api.example.com/invoke', '{}');
+        $withPort = $sigV4Auth->authenticate([], 'POST', 'http://api.example.com:80/invoke', '{}');
+        $withoutPort = $sigV4Auth->authenticate([], 'POST', 'http://api.example.com/invoke', '{}');
 
         $sigWithPort = $this->extractSignature($withPort['Authorization']);
         $sigWithoutPort = $this->extractSignature($withoutPort['Authorization']);
@@ -294,8 +294,8 @@ class SigV4AuthTest extends TestCase
         putenv('AWS_SESSION_TOKEN=TOKEN_TEST');
 
         try {
-            $auth = SigV4Auth::fromEnvironment('us-west-2', 'lambda');
-            $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+            $sigV4Auth = SigV4Auth::fromEnvironment('us-west-2', 'lambda');
+            $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
             $this->assertStringContainsString('AKID_TEST', $result['Authorization']);
             $this->assertStringContainsString('us-west-2/lambda', $result['Authorization']);
@@ -314,25 +314,47 @@ class SigV4AuthTest extends TestCase
      */
     public function testSignatureIsDeterministicForSameInputs(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
         );
 
-        // Retry if call spans a second boundary (different X-Amz-Date → different signature).
+        [$firstHeaders, $secondHeaders] = $this->authenticatePairInSameSecond(
+            $sigV4Auth,
+            'POST',
+            'https://api.example.com/invoke',
+            '{"a":1}',
+        );
+
+        $this->assertSame(
+            $firstHeaders['Authorization'],
+            $secondHeaders['Authorization'],
+            'Same inputs within the same second must produce the same Authorization header',
+        );
+    }
+
+    /**
+     * Run authenticate() twice in a tight loop until both calls fall in the same second,
+     * so callers can assert deterministic signing without flaking on second-boundary timing.
+     *
+     * @param string $method HTTP method to sign.
+     * @param string $url Request URL to sign.
+     * @param string $body Request body to sign.
+     * @return array{0: array<string, string>, 1: array<string, string>} Two header arrays from calls in the same UTC second.
+     */
+    private function authenticatePairInSameSecond(SigV4Auth $sigV4Auth, string $method, string $url, string $body): array
+    {
         for ($attempt = 0; $attempt < 3; $attempt++) {
-            $r1 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{"a":1}');
-            $r2 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{"a":1}');
+            $firstHeaders = $sigV4Auth->authenticate([], $method, $url, $body);
+            $secondHeaders = $sigV4Auth->authenticate([], $method, $url, $body);
 
-            if ($r1['X-Amz-Date'] === $r2['X-Amz-Date']) {
-                $this->assertSame($r1['Authorization'], $r2['Authorization']);
-
-                return;
+            if ($firstHeaders['X-Amz-Date'] === $secondHeaders['X-Amz-Date']) {
+                return [$firstHeaders, $secondHeaders];
             }
         }
 
-        $this->fail('Could not get two calls within the same second after 3 attempts');
+        $this->fail('Could not get two SigV4Auth::authenticate() calls within the same UTC second after 3 attempts');
     }
 
     /**
@@ -342,13 +364,13 @@ class SigV4AuthTest extends TestCase
      */
     public function testContentTypeIsIncludedInSignedHeaders(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
         );
 
-        $result = $auth->authenticate(
+        $result = $sigV4Auth->authenticate(
             ['Content-Type' => 'application/json'],
             'POST',
             'https://api.example.com/invoke',
@@ -365,14 +387,14 @@ class SigV4AuthTest extends TestCase
      */
     public function testDifferentBodiesProduceDifferentSignatures(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
         );
 
-        $r1 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{"a":1}');
-        $r2 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{"a":2}');
+        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{"a":1}');
+        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{"a":2}');
 
         $this->assertNotSame($r1['Authorization'], $r2['Authorization']);
         $this->assertNotSame($r1['X-Amz-Content-Sha256'], $r2['X-Amz-Content-Sha256']);
@@ -385,14 +407,14 @@ class SigV4AuthTest extends TestCase
      */
     public function testDifferentPathsProduceDifferentSignatures(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
         );
 
-        $r1 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $auth->authenticate([], 'POST', 'https://api.example.com/stream', '{}');
+        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/stream', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -406,14 +428,14 @@ class SigV4AuthTest extends TestCase
      */
     public function testDifferentMethodsProduceDifferentSignatures(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
         );
 
-        $r1 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $auth->authenticate([], 'GET', 'https://api.example.com/invoke', '{}');
+        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r2 = $sigV4Auth->authenticate([], 'GET', 'https://api.example.com/invoke', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -427,11 +449,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testDifferentRegionsProduceDifferentSignatures(): void
     {
-        $auth1 = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
-        $auth2 = new SigV4Auth('AKID', 'SECRET', 'eu-west-1');
+        $sigV4AuthUsEast = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4AuthEuWest = new SigV4Auth('AKID', 'SECRET', 'eu-west-1');
 
-        $r1 = $auth1->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $auth2->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r1 = $sigV4AuthUsEast->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r2 = $sigV4AuthEuWest->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -445,11 +467,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testDifferentServicesProduceDifferentSignatures(): void
     {
-        $auth1 = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
-        $auth2 = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'lambda');
+        $sigV4AuthExecuteApi = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
+        $sigV4AuthLambda = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'lambda');
 
-        $r1 = $auth1->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $auth2->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r1 = $sigV4AuthExecuteApi->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r2 = $sigV4AuthLambda->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -463,11 +485,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testDifferentKeysProduceDifferentSignatures(): void
     {
-        $auth1 = new SigV4Auth('AKID1', 'SECRET1', 'us-east-1');
-        $auth2 = new SigV4Auth('AKID2', 'SECRET2', 'us-east-1');
+        $sigV4AuthFirstKey = new SigV4Auth('AKID1', 'SECRET1', 'us-east-1');
+        $sigV4AuthSecondKey = new SigV4Auth('AKID2', 'SECRET2', 'us-east-1');
 
-        $r1 = $auth1->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $auth2->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r1 = $sigV4AuthFirstKey->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r2 = $sigV4AuthSecondKey->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -481,9 +503,9 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthorizationHeaderFormat(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
 
-        $result = $auth->authenticate(
+        $result = $sigV4Auth->authenticate(
             ['Content-Type' => 'application/json'],
             'POST',
             'https://api.example.com/invoke',
@@ -506,9 +528,9 @@ class SigV4AuthTest extends TestCase
      */
     public function testSignedHeadersAreSorted(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
-        $result = $auth->authenticate(
+        $result = $sigV4Auth->authenticate(
             ['Content-Type' => 'application/json'],
             'POST',
             'https://api.example.com/invoke',
@@ -538,9 +560,9 @@ class SigV4AuthTest extends TestCase
      */
     public function testAmzDateFormatIsCorrect(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         // X-Amz-Date must be in ISO 8601 basic format: YYYYMMDDTHHmmssZ
         $this->assertMatchesRegularExpression('/^\d{8}T\d{6}Z$/', $result['X-Amz-Date']);
@@ -553,9 +575,9 @@ class SigV4AuthTest extends TestCase
      */
     public function testCredentialScopeContainsDateRegionServiceSuffix(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'ap-northeast-1', 'lambda');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'ap-northeast-1', 'lambda');
 
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         // Extract credential from Authorization header
         preg_match('/Credential=AKID\/(\S+),/', $result['Authorization'], $matches);
@@ -575,10 +597,10 @@ class SigV4AuthTest extends TestCase
      */
     public function testQueryStringParametersAffectSignature(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
-        $r1 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=bar', '{}');
-        $r2 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=baz', '{}');
+        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=bar', '{}');
+        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=baz', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -592,11 +614,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testQueryStringParametersAreSorted(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // Different order, same parameters — should produce same signature
-        $r1 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke?a=1&b=2', '{}');
-        $r2 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke?b=2&a=1', '{}');
+        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?a=1&b=2', '{}');
+        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?b=2&a=1', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -604,26 +626,48 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that path normalization.
+     * Verifies that authenticate produces a signature for a deep path.
      *
      * @return void
      */
-    public function testPathNormalization(): void
+    public function testAuthenticateSignsDeepPath(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
-        // Path with special chars that need encoding
-        $r1 = $auth->authenticate([], 'POST', 'https://api.example.com/path/to/resource', '{}');
-        $this->assertArrayHasKey('Authorization', $r1);
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/path/to/resource', '{}');
 
-        // Root path
-        $r2 = $auth->authenticate([], 'POST', 'https://api.example.com/', '{}');
-        $this->assertArrayHasKey('Authorization', $r2);
+        $this->assertArrayHasKey('Authorization', $result);
+    }
 
-        // Different paths must produce different signatures
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertNotSame($sig1, $sig2);
+    /**
+     * Verifies that authenticate produces a signature for the root path.
+     *
+     * @return void
+     */
+    public function testAuthenticateSignsRootPath(): void
+    {
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/', '{}');
+
+        $this->assertArrayHasKey('Authorization', $result);
+    }
+
+    /**
+     * Verifies that a deep multi-segment path and the root path produce different signatures.
+     *
+     * @return void
+     */
+    public function testDeepPathAndRootPathProduceDifferentSignatures(): void
+    {
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+
+        $deepPathResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/path/to/resource', '{}');
+        $rootPathResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/', '{}');
+
+        $deepPathSignature = $this->extractSignature($deepPathResult['Authorization']);
+        $rootPathSignature = $this->extractSignature($rootPathResult['Authorization']);
+        $this->assertNotSame($deepPathSignature, $rootPathSignature);
     }
 
     /**
@@ -633,11 +677,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testHostIsIncludedInSignature(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // Different hosts — different signatures
-        $r1 = $auth->authenticate([], 'POST', 'https://api1.example.com/invoke', '{}');
-        $r2 = $auth->authenticate([], 'POST', 'https://api2.example.com/invoke', '{}');
+        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api1.example.com/invoke', '{}');
+        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api2.example.com/invoke', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -651,11 +695,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testSessionTokenAffectsSignature(): void
     {
-        $authWithToken = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api', 'TOKEN');
-        $authWithoutToken = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api', null);
+        $sigV4AuthWithToken = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api', 'TOKEN');
+        $sigV4AuthWithoutToken = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api', null);
 
-        $r1 = $authWithToken->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $authWithoutToken->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r1 = $sigV4AuthWithToken->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r2 = $sigV4AuthWithoutToken->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -674,8 +718,8 @@ class SigV4AuthTest extends TestCase
         putenv('AWS_SESSION_TOKEN=');
 
         try {
-            $auth = SigV4Auth::fromEnvironment('us-east-1');
-            $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+            $sigV4Auth = SigV4Auth::fromEnvironment('us-east-1');
+            $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
             $this->assertArrayNotHasKey('X-Amz-Security-Token', $result);
         } finally {
             putenv('AWS_ACCESS_KEY_ID');
@@ -691,11 +735,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testSignatureIs64CharHex(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
-        $sig = $this->extractSignature($result['Authorization']);
-        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $sig);
+        $signature = $this->extractSignature($result['Authorization']);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $signature);
     }
 
     /**
@@ -705,8 +749,8 @@ class SigV4AuthTest extends TestCase
      */
     public function testContentHashIs64CharHex(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', 'test body');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', 'test body');
 
         $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $result['X-Amz-Content-Sha256']);
     }
@@ -721,13 +765,13 @@ class SigV4AuthTest extends TestCase
         // Verifies the "key:value\n" format of canonical headers
         // by checking that removing the colon, the key, the value, or the newline
         // would produce a different signature.
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // The signature depends on the canonical request which includes
         // "host:hostname\nx-amz-content-sha256:hash\nx-amz-date:date\n"
         // Any mutation to this format would change the canonical request hash
         // and therefore the signature.
-        $r1 = $auth->authenticate(
+        $r1 = $sigV4Auth->authenticate(
             ['Content-Type' => 'application/json'],
             'POST',
             'https://api.example.com/invoke',
@@ -735,11 +779,11 @@ class SigV4AuthTest extends TestCase
         );
 
         // Extract the signature
-        $sig = $this->extractSignature($r1['Authorization']);
+        $signature = $this->extractSignature($r1['Authorization']);
 
         // The signature is 64 hex chars — verifies the full signing pipeline
         // (canonical headers → canonical request → string to sign → signature)
-        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $sig);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $signature);
 
         // Verify SignedHeaders contains content-type, host, x-amz headers in sorted order
         preg_match('/SignedHeaders=([^,]+)/', $r1['Authorization'], $matches);
@@ -752,15 +796,15 @@ class SigV4AuthTest extends TestCase
      *
      * @return void
      */
-    public function testSigningKeyPrefixIsAWS4(): void
+    public function testSigningKeyUsesAws4LiteralPrefix(): void
     {
         // The signing key derivation uses 'AWS4' + secretAccessKey as the initial HMAC key.
         // Removing 'AWS4' or swapping the concat order changes the signing key chain.
-        $auth1 = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
-        $auth2 = new SigV4Auth('AKID', 'AWS4SECRET', 'us-east-1');
+        $sigV4AuthOriginalSecret = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4AuthPrefixedSecret = new SigV4Auth('AKID', 'AWS4SECRET', 'us-east-1');
 
-        $r1 = $auth1->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $auth2->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r1 = $sigV4AuthOriginalSecret->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r2 = $sigV4AuthPrefixedSecret->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         // If 'AWS4' were dropped or reordered, SECRET and AWS4SECRET would produce
         // the same signatures. They must be different.
@@ -777,11 +821,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testQueryStringValueWithEqualsSign(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // A query value containing '=' — the explode('=', $pair, 2) limit matters
-        $r1 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke?token=abc=def', '{}');
-        $r2 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke?token=abc', '{}');
+        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?token=abc=def', '{}');
+        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?token=abc', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -795,11 +839,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testQueryStringKeyAndValueOrder(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // key=value vs value=key should produce different signatures
-        $r1 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=bar', '{}');
-        $r2 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke?bar=foo', '{}');
+        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=bar', '{}');
+        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?bar=foo', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -813,11 +857,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testNormalizePathReturnsSlashForRoot(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // Root path and empty path should produce the same signature
-        $r1 = $auth->authenticate([], 'POST', 'https://api.example.com/', '{}');
-        $r2 = $auth->authenticate([], 'POST', 'https://api.example.com', '{}');
+        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/', '{}');
+        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -831,11 +875,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testEmptyQueryStringDoesNotAffectSignature(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // URL without query string and with empty query should produce same signature
-        $r1 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $auth->authenticate([], 'POST', 'https://api.example.com/invoke?', '{}');
+        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?', '{}');
 
         // parse_url returns '' for '?' with no params — canonicalizeQueryString('') returns ''
         // So these should be the same
@@ -853,9 +897,9 @@ class SigV4AuthTest extends TestCase
     {
         // The string to sign starts with 'AWS4-HMAC-SHA256'. Removing this first
         // element from the array (ArrayItemRemoval mutation) would change the hash.
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         // The Authorization header itself starts with 'AWS4-HMAC-SHA256 Credential=...'
         // This just verifies the signing pipeline produces a valid header with the prefix
@@ -863,8 +907,8 @@ class SigV4AuthTest extends TestCase
 
         // Verify the signature is deterministic — the algorithm prefix is part of the
         // string-to-sign, so removing it would change the signature
-        $sig = $this->extractSignature($result['Authorization']);
-        $this->assertSame(64, strlen($sig));
+        $signature = $this->extractSignature($result['Authorization']);
+        $this->assertSame(64, strlen($signature));
     }
 
     /**
@@ -874,13 +918,13 @@ class SigV4AuthTest extends TestCase
      */
     public function testPortHostFormatIncludesColon(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // With a non-standard port, the host in the canonical request should be
         // "hostname:port", not "portHostname", "port:", ":port", etc.
         // Different port formats produce different signatures.
-        $r8443 = $auth->authenticate([], 'POST', 'https://api.example.com:8443/invoke', '{}');
-        $r9443 = $auth->authenticate([], 'POST', 'https://api.example.com:9443/invoke', '{}');
+        $r8443 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com:8443/invoke', '{}');
+        $r9443 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com:9443/invoke', '{}');
 
         $sig8443 = $this->extractSignature($r8443['Authorization']);
         $sig9443 = $this->extractSignature($r9443['Authorization']);
@@ -896,14 +940,14 @@ class SigV4AuthTest extends TestCase
      */
     public function testDebugInfoMasksSecrets(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SUPER_SECRET',
             region: 'us-east-1',
             sessionToken: 'TOKEN',
         );
 
-        $debugInfo = $auth->__debugInfo();
+        $debugInfo = $sigV4Auth->__debugInfo();
 
         $this->assertSame('AKID', $debugInfo['accessKeyId']);
         $this->assertSame('****', $debugInfo['secretAccessKey']);
@@ -918,13 +962,13 @@ class SigV4AuthTest extends TestCase
      */
     public function testDebugInfoShowsNullSessionTokenAsNull(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
         );
 
-        $debugInfo = $auth->__debugInfo();
+        $debugInfo = $sigV4Auth->__debugInfo();
 
         $this->assertNull($debugInfo['sessionToken']);
     }
@@ -936,14 +980,14 @@ class SigV4AuthTest extends TestCase
      */
     public function testDebugInfoContainsServiceKey(): void
     {
-        $auth = new SigV4Auth(
+        $sigV4Auth = new SigV4Auth(
             accessKeyId: 'AKID',
             secretAccessKey: 'SECRET',
             region: 'us-east-1',
             service: 'lambda',
         );
 
-        $debugInfo = $auth->__debugInfo();
+        $debugInfo = $sigV4Auth->__debugInfo();
 
         $this->assertArrayHasKey('service', $debugInfo);
         $this->assertSame('lambda', $debugInfo['service']);
@@ -956,11 +1000,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testSignatureMatchesManualComputation(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
         $body = '{"message":"hello"}';
         $url = 'https://api.example.com/invoke';
 
-        $result = $auth->authenticate(
+        $result = $sigV4Auth->authenticate(
             ['Content-Type' => 'application/json'],
             'POST',
             $url,
@@ -1015,11 +1059,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testSignatureWithNonStandardPortMatchesManualComputation(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
         $body = '{}';
         $url = 'https://api.example.com:8443/invoke';
 
-        $result = $auth->authenticate([], 'POST', $url, $body);
+        $result = $sigV4Auth->authenticate([], 'POST', $url, $body);
 
         $amzDate = $result['X-Amz-Date'];
         $dateStamp = substr($amzDate, 0, 8);
@@ -1067,11 +1111,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testSignatureWithQueryStringMatchesManualComputation(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
         $body = '{}';
         $url = 'https://api.example.com/invoke?b=2&a=1';
 
-        $result = $auth->authenticate([], 'POST', $url, $body);
+        $result = $sigV4Auth->authenticate([], 'POST', $url, $body);
 
         $amzDate = $result['X-Amz-Date'];
         $dateStamp = substr($amzDate, 0, 8);
@@ -1119,13 +1163,13 @@ class SigV4AuthTest extends TestCase
      */
     public function testNormalizePathDirectly(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
-        $method = new \ReflectionMethod($auth, 'normalizePath');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $reflectionMethod = new \ReflectionMethod($sigV4Auth, 'normalizePath');
 
-        $this->assertSame('/', $method->invoke($auth, ''));
-        $this->assertSame('/', $method->invoke($auth, '/'));
-        $this->assertSame('/foo/bar', $method->invoke($auth, '/foo/bar'));
-        $this->assertSame('/foo%20bar/baz', $method->invoke($auth, '/foo bar/baz'));
+        $this->assertSame('/', $reflectionMethod->invoke($sigV4Auth, ''));
+        $this->assertSame('/', $reflectionMethod->invoke($sigV4Auth, '/'));
+        $this->assertSame('/foo/bar', $reflectionMethod->invoke($sigV4Auth, '/foo/bar'));
+        $this->assertSame('/foo%20bar/baz', $reflectionMethod->invoke($sigV4Auth, '/foo bar/baz'));
     }
 
     /**
@@ -1135,16 +1179,16 @@ class SigV4AuthTest extends TestCase
      */
     public function testCanonicalizeQueryStringDirectly(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
-        $method = new \ReflectionMethod($auth, 'canonicalizeQueryString');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $reflectionMethod = new \ReflectionMethod($sigV4Auth, 'canonicalizeQueryString');
 
-        $this->assertSame('', $method->invoke($auth, ''));
-        $this->assertSame('a=1&b=2', $method->invoke($auth, 'b=2&a=1'));
-        $this->assertSame('foo=bar', $method->invoke($auth, 'foo=bar'));
+        $this->assertSame('', $reflectionMethod->invoke($sigV4Auth, ''));
+        $this->assertSame('a=1&b=2', $reflectionMethod->invoke($sigV4Auth, 'b=2&a=1'));
+        $this->assertSame('foo=bar', $reflectionMethod->invoke($sigV4Auth, 'foo=bar'));
         // Value with '=' inside — explode limit of 2 preserves it
-        $this->assertSame('token=abc%3Ddef', $method->invoke($auth, 'token=abc=def'));
+        $this->assertSame('token=abc%3Ddef', $reflectionMethod->invoke($sigV4Auth, 'token=abc=def'));
         // Key-only parameter (no '=')
-        $this->assertSame('flag=', $method->invoke($auth, 'flag'));
+        $this->assertSame('flag=', $reflectionMethod->invoke($sigV4Auth, 'flag'));
     }
 
     /**
@@ -1154,19 +1198,19 @@ class SigV4AuthTest extends TestCase
      */
     public function testDeriveSigningKeyDirectly(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
-        $method = new \ReflectionMethod($auth, 'deriveSigningKey');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
+        $reflectionMethod = new \ReflectionMethod($sigV4Auth, 'deriveSigningKey');
 
-        $key = $method->invoke($auth, '20230101');
+        $key = $reflectionMethod->invoke($sigV4Auth, '20230101');
 
         // Must be 32 bytes (raw SHA-256 output)
         $this->assertSame(32, strlen($key));
 
         // Must be deterministic
-        $this->assertSame($key, $method->invoke($auth, '20230101'));
+        $this->assertSame($key, $reflectionMethod->invoke($sigV4Auth, '20230101'));
 
         // Different datestamp → different key
-        $this->assertNotSame($key, $method->invoke($auth, '20230102'));
+        $this->assertNotSame($key, $reflectionMethod->invoke($sigV4Auth, '20230102'));
 
         // Verify against manual computation
         $kDate = hash_hmac('sha256', '20230101', 'AWS4SECRET', true);
@@ -1184,16 +1228,16 @@ class SigV4AuthTest extends TestCase
      */
     public function testCanonicalHeaderTrimIsApplied(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // Content-Type with leading/trailing whitespace — trim must normalize it
-        $r1 = $auth->authenticate(
+        $r1 = $sigV4Auth->authenticate(
             ['Content-Type' => '  application/json  '],
             'POST',
             'https://api.example.com/invoke',
             '{}',
         );
-        $r2 = $auth->authenticate(
+        $r2 = $sigV4Auth->authenticate(
             ['Content-Type' => 'application/json'],
             'POST',
             'https://api.example.com/invoke',
@@ -1214,11 +1258,11 @@ class SigV4AuthTest extends TestCase
      */
     public function testSignatureWithSessionTokenMatchesManualComputation(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api', 'MY_SESSION_TOKEN');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api', 'MY_SESSION_TOKEN');
         $body = '{}';
         $url = 'https://api.example.com/invoke';
 
-        $result = $auth->authenticate(
+        $result = $sigV4Auth->authenticate(
             ['Content-Type' => 'application/json'],
             'POST',
             $url,
@@ -1275,14 +1319,14 @@ class SigV4AuthTest extends TestCase
      */
     public function testPreEncodedPercentInPathNotDoubleEncoded(): void
     {
-        $auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
+        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // %20 is already encoded — rawurldecode then rawurlencode should preserve it
-        $result = $auth->authenticate([], 'POST', 'https://api.example.com/foo%20bar/invoke', '{}');
+        $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/foo%20bar/invoke', '{}');
         $this->assertArrayHasKey('Authorization', $result);
 
         // A space and %20 should produce the same signature
-        $resultSpace = $auth->authenticate([], 'POST', 'https://api.example.com/foo bar/invoke', '{}');
+        $resultSpace = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/foo bar/invoke', '{}');
         $this->assertSame(
             $this->extractSignature($result['Authorization']),
             $this->extractSignature($resultSpace['Authorization']),

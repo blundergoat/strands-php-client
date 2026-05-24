@@ -33,6 +33,42 @@ class StrandsClientTest extends TestCase
     }
 
     /**
+     * Load a raw SSE fixture file as a string.
+     *
+     * @param string $name Fixture file name under tests/Fixtures/.
+     * @return string Raw fixture contents.
+     */
+    private function loadSseFixture(string $name): string
+    {
+        return file_get_contents(__DIR__ . '/../Fixtures/' . $name);
+    }
+
+    /**
+     * Build a transport whose post() throws once and then returns the given payload on every subsequent call.
+     * Keeps retry-counting state out of test bodies so each retry test reads linearly.
+     *
+     * @param \Throwable $throwOnce Exception thrown by the first call to post().
+     * @param array<string, mixed> $thenReturn Payload returned by every call after the first.
+     * @return HttpTransport Mocked transport with the throw-then-return sequence wired up.
+     */
+    private function transportThrowsOnceThenReturns(\Throwable $throwOnce, array $thenReturn): HttpTransport
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $callCount = 0;
+        $transport->method('post')
+            ->willReturnCallback(function () use (&$callCount, $throwOnce, $thenReturn): array {
+                $callCount++;
+                if ($callCount === 1) {
+                    throw $throwOnce;
+                }
+
+                return $thenReturn;
+            });
+
+        return $transport;
+    }
+
+    /**
      * Create mock transport for the test scenario.
      *
      * @param array<string, mixed> $response Parsed response data for the operation.
@@ -56,7 +92,7 @@ class StrandsClientTest extends TestCase
         $fixture = $this->loadFixture('invoke-analyst-response.json');
         $transport = $this->createMockTransport($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 auth: new NullAuth(),
@@ -64,7 +100,7 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
-        $response = $client->invoke(
+        $response = $strandsClient->invoke(
             message: 'Should we migrate to microservices?',
             context: AgentContext::create()->withMetadata('persona', 'analyst'),
             sessionId: 'test-session-001',
@@ -89,12 +125,12 @@ class StrandsClientTest extends TestCase
         $fixture['session_id'] = null;
         $transport = $this->createMockTransport($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $response = $client->invoke(message: 'What is 2+2?');
+        $response = $strandsClient->invoke(message: 'What is 2+2?');
 
         $this->assertNull($response->sessionId);
     }
@@ -109,12 +145,12 @@ class StrandsClientTest extends TestCase
         $fixture = $this->loadFixture('invoke-analyst-response.json');
         $transport = $this->createMockTransport($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $response = $client->invoke(message: 'Hello');
+        $response = $strandsClient->invoke(message: 'Hello');
 
         $this->assertInstanceOf(AgentResponse::class, $response);
     }
@@ -146,12 +182,12 @@ class StrandsClientTest extends TestCase
             )
             ->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $client->invoke(
+        $strandsClient->invoke(
             message: 'Test message',
             context: AgentContext::create()->withMetadata('persona', 'skeptic'),
             sessionId: 'sess-123',
@@ -173,12 +209,12 @@ class StrandsClientTest extends TestCase
             ->with('http://localhost:8081/invoke', $this->anything(), $this->anything(), $this->anything(), $this->anything())
             ->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081/'),
             transport: $transport,
         );
 
-        $client->invoke(message: 'Test');
+        $strandsClient->invoke(message: 'Test');
     }
 
     /**
@@ -203,7 +239,7 @@ class StrandsClientTest extends TestCase
 
         $transport = $this->createMockTransport($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 auth: $auth,
@@ -211,7 +247,7 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
-        $client->invoke(message: 'Test');
+        $strandsClient->invoke(message: 'Test');
     }
 
     /**
@@ -232,14 +268,14 @@ class StrandsClientTest extends TestCase
             )
             ->willReturnArgument(0);
 
-        $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
-        $transport = $this->createMock(HttpTransport::class);
+        $sseData = $this->loadSseFixture('sse-simple-text.txt');
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
                 $onChunk($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 auth: $auth,
@@ -247,7 +283,7 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
-        $client->stream(message: 'Test', onEvent: function () {
+        $strandsClient->stream(message: 'Test', onEvent: function () {
         });
     }
 
@@ -259,20 +295,12 @@ class StrandsClientTest extends TestCase
     public function testInvokeRetriesOnRetryableStatusCode(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
+        $transport = $this->transportThrowsOnceThenReturns(
+            new AgentErrorException('Service unavailable', statusCode: 503),
+            $fixture,
+        );
 
-        $transport = $this->createMock(HttpTransport::class);
-        $callCount = 0;
-        $transport->method('post')
-            ->willReturnCallback(function () use (&$callCount, $fixture) {
-                $callCount++;
-                if ($callCount === 1) {
-                    throw new AgentErrorException('Service unavailable', statusCode: 503);
-                }
-
-                return $fixture;
-            });
-
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 maxRetries: 2,
@@ -281,10 +309,9 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
-        $response = $client->invoke(message: 'Test');
+        $response = $strandsClient->invoke(message: 'Test');
 
         $this->assertStringContainsString('BLUF', $response->text);
-        $this->assertSame(2, $callCount);
     }
 
     /**
@@ -295,20 +322,12 @@ class StrandsClientTest extends TestCase
     public function testInvokeRetriesOnGenericStrandsException(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
+        $transport = $this->transportThrowsOnceThenReturns(
+            new StrandsException('Network error'),
+            $fixture,
+        );
 
-        $transport = $this->createMock(HttpTransport::class);
-        $callCount = 0;
-        $transport->method('post')
-            ->willReturnCallback(function () use (&$callCount, $fixture) {
-                $callCount++;
-                if ($callCount === 1) {
-                    throw new StrandsException('Network error');
-                }
-
-                return $fixture;
-            });
-
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 maxRetries: 2,
@@ -317,10 +336,9 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
-        $response = $client->invoke(message: 'Test');
+        $response = $strandsClient->invoke(message: 'Test');
 
         $this->assertStringContainsString('BLUF', $response->text);
-        $this->assertSame(2, $callCount);
     }
 
     /**
@@ -330,7 +348,7 @@ class StrandsClientTest extends TestCase
      */
     public function testInvokeDoesNotRetryNonRetryableStatusCode(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $callCount = 0;
         $transport->method('post')
             ->willReturnCallback(function () use (&$callCount) {
@@ -338,7 +356,7 @@ class StrandsClientTest extends TestCase
                 throw new AgentErrorException('Bad request', statusCode: 400);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 maxRetries: 3,
@@ -351,7 +369,7 @@ class StrandsClientTest extends TestCase
         $this->expectExceptionMessage('Bad request');
 
         try {
-            $client->invoke(message: 'Test');
+            $strandsClient->invoke(message: 'Test');
         } catch (AgentErrorException $e) {
             $this->assertSame(400, $e->statusCode);
             $this->assertSame(1, $callCount, 'Should not retry on 400');
@@ -367,11 +385,11 @@ class StrandsClientTest extends TestCase
      */
     public function testInvokeThrowsAfterMaxRetries(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('post')
             ->willThrowException(new AgentErrorException('Service unavailable', statusCode: 503));
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 maxRetries: 2,
@@ -383,7 +401,7 @@ class StrandsClientTest extends TestCase
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessage('Service unavailable');
 
-        $client->invoke(message: 'Test');
+        $strandsClient->invoke(message: 'Test');
     }
 
     /**
@@ -391,9 +409,9 @@ class StrandsClientTest extends TestCase
      *
      * @return void
      */
-    public function testInvokeDoesNotRetryOn401(): void
+    public function testInvokeDoesNotRetryOnUnauthorized(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $callCount = 0;
         $transport->method('post')
             ->willReturnCallback(function () use (&$callCount) {
@@ -401,7 +419,7 @@ class StrandsClientTest extends TestCase
                 throw new AgentErrorException('Unauthorized', statusCode: 401);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 maxRetries: 3,
@@ -414,7 +432,7 @@ class StrandsClientTest extends TestCase
         $this->expectExceptionMessage('Unauthorized');
 
         try {
-            $client->invoke(message: 'Test');
+            $strandsClient->invoke(message: 'Test');
         } catch (AgentErrorException $e) {
             $this->assertSame(401, $e->statusCode);
             $this->assertSame(1, $callCount, 'Should not retry on 401');
@@ -430,11 +448,11 @@ class StrandsClientTest extends TestCase
      */
     public function testConfigAcceptsBoundaryMaxRetries(): void
     {
-        $configZero = new StrandsConfig(endpoint: 'http://localhost:8081', maxRetries: 0);
-        $this->assertSame(0, $configZero->maxRetries);
+        $strandsConfigZeroRetries = new StrandsConfig(endpoint: 'http://localhost:8081', maxRetries: 0);
+        $this->assertSame(0, $strandsConfigZeroRetries->maxRetries);
 
-        $configMax = new StrandsConfig(endpoint: 'http://localhost:8081', maxRetries: 20);
-        $this->assertSame(20, $configMax->maxRetries);
+        $strandsConfigMaxRetries = new StrandsConfig(endpoint: 'http://localhost:8081', maxRetries: 20);
+        $this->assertSame(20, $strandsConfigMaxRetries->maxRetries);
     }
 
     /**
@@ -494,7 +512,7 @@ class StrandsClientTest extends TestCase
      *
      * @return void
      */
-    public function testConfigRejectsMaxRetriesAbove20(): void
+    public function testConfigRejectsMaxRetriesAboveUpperBound(): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('maxRetries must be between 0 and 20');
@@ -522,13 +540,13 @@ class StrandsClientTest extends TestCase
      */
     public function testConfigDefaultValues(): void
     {
-        $config = new StrandsConfig(endpoint: 'http://localhost:8081');
+        $strandsConfig = new StrandsConfig(endpoint: 'http://localhost:8081');
 
-        $this->assertSame(120, $config->timeout);
-        $this->assertSame(10, $config->connectTimeout);
-        $this->assertSame(0, $config->maxRetries);
-        $this->assertSame(500, $config->retryDelayMs);
-        $this->assertSame([429, 502, 503, 504], $config->retryableStatusCodes);
+        $this->assertSame(120, $strandsConfig->timeout);
+        $this->assertSame(10, $strandsConfig->connectTimeout);
+        $this->assertSame(0, $strandsConfig->maxRetries);
+        $this->assertSame(500, $strandsConfig->retryDelayMs);
+        $this->assertSame([429, 502, 503, 504], $strandsConfig->retryableStatusCodes);
     }
 
     /**
@@ -538,14 +556,14 @@ class StrandsClientTest extends TestCase
      */
     public function testConfigAcceptsTimeoutBoundary(): void
     {
-        $config = new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 1);
-        $this->assertSame(1, $config->timeout);
+        $strandsConfigTimeout = new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 1);
+        $this->assertSame(1, $strandsConfigTimeout->timeout);
 
-        $config2 = new StrandsConfig(endpoint: 'http://localhost:8081', connectTimeout: 1);
-        $this->assertSame(1, $config2->connectTimeout);
+        $strandsConfigConnectTimeout = new StrandsConfig(endpoint: 'http://localhost:8081', connectTimeout: 1);
+        $this->assertSame(1, $strandsConfigConnectTimeout->connectTimeout);
 
-        $config3 = new StrandsConfig(endpoint: 'http://localhost:8081', retryDelayMs: 1);
-        $this->assertSame(1, $config3->retryDelayMs);
+        $strandsConfigRetryDelay = new StrandsConfig(endpoint: 'http://localhost:8081', retryDelayMs: 1);
+        $this->assertSame(1, $strandsConfigRetryDelay->retryDelayMs);
     }
 
     /**
@@ -566,13 +584,13 @@ class StrandsClientTest extends TestCase
                 $debugCalls[] = ['message' => $message, 'context' => $context];
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             logger: $logger,
         );
 
-        $client->invoke(message: 'Test', sessionId: 'sess-log');
+        $strandsClient->invoke(message: 'Test', sessionId: 'sess-log');
 
         // Request log must include url and session_id
         $this->assertSame('Strands invoke request', $debugCalls[0]['message']);
@@ -602,18 +620,10 @@ class StrandsClientTest extends TestCase
     public function testRetryLogsWarning(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
-
-        $transport = $this->createMock(HttpTransport::class);
-        $callCount = 0;
-        $transport->method('post')
-            ->willReturnCallback(function () use (&$callCount, $fixture) {
-                $callCount++;
-                if ($callCount === 1) {
-                    throw new AgentErrorException('Unavailable', statusCode: 503);
-                }
-
-                return $fixture;
-            });
+        $transport = $this->transportThrowsOnceThenReturns(
+            new AgentErrorException('Unavailable', statusCode: 503),
+            $fixture,
+        );
 
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects($this->once())
@@ -633,7 +643,7 @@ class StrandsClientTest extends TestCase
                 }),
             );
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 maxRetries: 1,
@@ -643,7 +653,7 @@ class StrandsClientTest extends TestCase
             logger: $logger,
         );
 
-        $client->invoke(message: 'Test');
+        $strandsClient->invoke(message: 'Test');
     }
 
     /**
@@ -667,12 +677,12 @@ class StrandsClientTest extends TestCase
             )
             ->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $client->invoke(message: 'Test', timeoutSeconds: 300);
+        $strandsClient->invoke(message: 'Test', timeoutSeconds: 300);
     }
 
     /**
@@ -685,7 +695,7 @@ class StrandsClientTest extends TestCase
         $fixture = $this->loadFixture('invoke-analyst-response.json');
         $transport = $this->createMockTransport($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -693,7 +703,7 @@ class StrandsClientTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('timeoutSeconds must be at least 1');
 
-        $client->invoke(message: 'Test', timeoutSeconds: 0);
+        $strandsClient->invoke(message: 'Test', timeoutSeconds: 0);
     }
 
     /**
@@ -717,12 +727,12 @@ class StrandsClientTest extends TestCase
             )
             ->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 60),
             transport: $transport,
         );
 
-        $client->invoke(message: 'Test', timeoutSeconds: null);
+        $strandsClient->invoke(message: 'Test', timeoutSeconds: null);
     }
 
     /**
@@ -730,7 +740,7 @@ class StrandsClientTest extends TestCase
      *
      * @return void
      */
-    public function testConfigRejectsRetryableStatusCodeBelow400(): void
+    public function testConfigRejectsRetryableStatusCodeBelowLowerBound(): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('All retryableStatusCodes must be HTTP error codes (400-599), but got:');
@@ -743,7 +753,7 @@ class StrandsClientTest extends TestCase
      *
      * @return void
      */
-    public function testConfigRejectsRetryableStatusCodeAbove599(): void
+    public function testConfigRejectsRetryableStatusCodeAboveUpperBound(): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('All retryableStatusCodes must be HTTP error codes (400-599), but got:');
@@ -758,12 +768,12 @@ class StrandsClientTest extends TestCase
      */
     public function testConfigAcceptsValidRetryableStatusCodes(): void
     {
-        $config = new StrandsConfig(
+        $strandsConfig = new StrandsConfig(
             endpoint: 'http://localhost:8081',
             retryableStatusCodes: [429, 500, 502, 503, 504],
         );
 
-        $this->assertSame([429, 500, 502, 503, 504], $config->retryableStatusCodes);
+        $this->assertSame([429, 500, 502, 503, 504], $strandsConfig->retryableStatusCodes);
     }
 
     /**
@@ -773,12 +783,12 @@ class StrandsClientTest extends TestCase
      */
     public function testConfigAcceptsBoundaryRetryableStatusCodes(): void
     {
-        $config = new StrandsConfig(
+        $strandsConfig = new StrandsConfig(
             endpoint: 'http://localhost:8081',
             retryableStatusCodes: [400, 599],
         );
 
-        $this->assertSame([400, 599], $config->retryableStatusCodes);
+        $this->assertSame([400, 599], $strandsConfig->retryableStatusCodes);
     }
 
     /**
@@ -788,12 +798,12 @@ class StrandsClientTest extends TestCase
      */
     public function testConfigAcceptsEmptyRetryableStatusCodes(): void
     {
-        $config = new StrandsConfig(
+        $strandsConfig = new StrandsConfig(
             endpoint: 'http://localhost:8081',
             retryableStatusCodes: [],
         );
 
-        $this->assertSame([], $config->retryableStatusCodes);
+        $this->assertSame([], $strandsConfig->retryableStatusCodes);
     }
 
     /**
@@ -817,12 +827,12 @@ class StrandsClientTest extends TestCase
             )
             ->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $client->invoke(message: 'Test', timeoutSeconds: 1);
+        $strandsClient->invoke(message: 'Test', timeoutSeconds: 1);
     }
 
     /**
@@ -847,7 +857,7 @@ class StrandsClientTest extends TestCase
                 return ['text' => 'I see a cat', 'usage' => ['input_tokens' => 10, 'output_tokens' => 5]];
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -855,7 +865,7 @@ class StrandsClientTest extends TestCase
         $input = AgentInput::text("What's in this image?")
             ->withImage('base64cat', 'image/jpeg');
 
-        $response = $client->invoke($input);
+        $response = $strandsClient->invoke($input);
 
         $this->assertSame('I see a cat', $response->text);
     }
@@ -878,12 +888,12 @@ class StrandsClientTest extends TestCase
                 return ['text' => 'Hi', 'usage' => []];
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $response = $client->invoke('Hello');
+        $response = $strandsClient->invoke('Hello');
 
         $this->assertSame('Hi', $response->text);
     }
@@ -906,13 +916,13 @@ class StrandsClientTest extends TestCase
                 return ['text' => 'OK', 'usage' => []];
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $input = AgentInput::text('Simple text');
-        $response = $client->invoke($input);
+        $response = $strandsClient->invoke($input);
 
         $this->assertSame('OK', $response->text);
     }
@@ -972,7 +982,7 @@ class StrandsClientTest extends TestCase
         $fixture = $this->loadFixture('invoke-analyst-response.json');
         $transport = $this->createMockTransport($fixture);
 
-        $mw = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
+        $requestMiddleware = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
             /**
              * Return request headers and body from the middleware test stub.
              *
@@ -1009,23 +1019,23 @@ class StrandsClientTest extends TestCase
             ->method('warning')
             ->with(
                 'Middleware afterResponse threw an exception',
-                $this->callback(function (array $context) use ($mw): bool {
+                $this->callback(function (array $context) use ($requestMiddleware): bool {
                     return isset($context['middleware'])
                         && isset($context['error'])
-                        && $context['middleware'] === $mw::class
+                        && $context['middleware'] === $requestMiddleware::class
                         && $context['error'] === 'Middleware boom';
                 }),
             );
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             logger: $logger,
-            middleware: [$mw],
+            middleware: [$requestMiddleware],
         );
 
         // Should NOT throw — middleware exceptions are caught and logged
-        $client->invoke(message: 'Test');
+        $strandsClient->invoke(message: 'Test');
     }
 
     /**
@@ -1035,7 +1045,7 @@ class StrandsClientTest extends TestCase
      */
     public function testStreamStripsTrailingSlashFromEndpoint(): void
     {
-        $sseData = file_get_contents(__DIR__ . '/../Fixtures/sse-simple-text.txt');
+        $sseData = $this->loadSseFixture('sse-simple-text.txt');
 
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->once())
@@ -1045,12 +1055,12 @@ class StrandsClientTest extends TestCase
                 $onChunk($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081/'),
             transport: $transport,
         );
 
-        $client->stream(message: 'Test', onEvent: function () {
+        $strandsClient->stream(message: 'Test', onEvent: function () {
         });
     }
 
@@ -1063,7 +1073,7 @@ class StrandsClientTest extends TestCase
     {
         $transport = $this->createMockTransport([]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -1071,7 +1081,7 @@ class StrandsClientTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Message cannot be empty');
 
-        $client->invoke(message: '');
+        $strandsClient->invoke(message: '');
     }
 
     /**
@@ -1083,7 +1093,7 @@ class StrandsClientTest extends TestCase
     {
         $transport = $this->createMockTransport([]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -1091,7 +1101,7 @@ class StrandsClientTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Message cannot be empty');
 
-        $client->stream(message: '', onEvent: function () {
+        $strandsClient->stream(message: '', onEvent: function () {
         });
     }
 
@@ -1105,14 +1115,14 @@ class StrandsClientTest extends TestCase
         $fixture = $this->loadFixture('invoke-analyst-response.json');
         $transport = $this->createMockTransport($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         // interruptResponse has empty text but content blocks — should not throw
         $input = \StrandsPhpClient\Context\AgentInput::interruptResponse('int-123', 'Approved');
-        $response = $client->invoke(message: $input);
+        $response = $strandsClient->invoke(message: $input);
 
         $this->assertNotEmpty($response->text);
     }
@@ -1130,7 +1140,7 @@ class StrandsClientTest extends TestCase
         $authReceivedBody = null;
         $authReceivedHeaders = null;
 
-        $auth = $this->createMock(AuthStrategy::class);
+        $auth = $this->createStub(AuthStrategy::class);
         $auth->method('authenticate')
             ->willReturnCallback(function (array $headers, string $method, string $url, string $body) use (&$authReceivedBody, &$authReceivedHeaders): array {
                 $authReceivedBody = $body;
@@ -1141,7 +1151,7 @@ class StrandsClientTest extends TestCase
             });
 
         // Middleware that modifies the body and adds a header
-        $mw = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
+        $requestMiddleware = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
             /**
              * Return request headers and body from the middleware test stub.
              *
@@ -1176,16 +1186,16 @@ class StrandsClientTest extends TestCase
             }
         };
 
-        $transport = $this->createMock(HttpTransport::class);
+        $transport = $this->createStub(HttpTransport::class);
         $transport->method('post')->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', auth: $auth),
             transport: $transport,
-            middleware: [$mw],
+            middleware: [$requestMiddleware],
         );
 
-        $client->invoke(message: 'Test');
+        $strandsClient->invoke(message: 'Test');
 
         // Auth must see the middleware-modified body
         $this->assertNotNull($authReceivedBody);

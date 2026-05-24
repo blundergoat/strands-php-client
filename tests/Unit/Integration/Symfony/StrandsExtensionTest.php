@@ -22,12 +22,12 @@ class StrandsExtensionTest extends TestCase
      */
     private function loadExtension(array $config): ContainerBuilder
     {
-        $container = new ContainerBuilder();
-        $container->setDefinition('logger', new Definition(NullLogger::class));
-        $extension = new StrandsExtension();
-        $extension->load([$config], $container);
+        $containerBuilder = new ContainerBuilder();
+        $containerBuilder->setDefinition('logger', new Definition(NullLogger::class));
+        $strandsExtension = new StrandsExtension();
+        $strandsExtension->load([$config], $containerBuilder);
 
-        return $container;
+        return $containerBuilder;
     }
 
     /**
@@ -37,15 +37,15 @@ class StrandsExtensionTest extends TestCase
      */
     public function testRegistersFactoryService(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->loadExtension([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $this->assertTrue($container->hasDefinition('strands.client_factory'));
+        $this->assertTrue($containerBuilder->hasDefinition('strands.client_factory'));
 
-        $factoryDef = $container->getDefinition('strands.client_factory');
+        $factoryDef = $containerBuilder->getDefinition('strands.client_factory');
         $this->assertSame(StrandsClientFactory::class, $factoryDef->getClass());
     }
 
@@ -56,7 +56,7 @@ class StrandsExtensionTest extends TestCase
      */
     public function testRegistersNamedAgentServices(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->loadExtension([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
                 'skeptic' => ['endpoint' => 'http://agent:8000'],
@@ -64,9 +64,9 @@ class StrandsExtensionTest extends TestCase
             ],
         ]);
 
-        $this->assertTrue($container->hasDefinition('strands.client.analyst'));
-        $this->assertTrue($container->hasDefinition('strands.client.skeptic'));
-        $this->assertTrue($container->hasDefinition('strands.client.strategist'));
+        $this->assertTrue($containerBuilder->hasDefinition('strands.client.analyst'));
+        $this->assertTrue($containerBuilder->hasDefinition('strands.client.skeptic'));
+        $this->assertTrue($containerBuilder->hasDefinition('strands.client.strategist'));
     }
 
     /**
@@ -76,15 +76,15 @@ class StrandsExtensionTest extends TestCase
      */
     public function testFirstAgentIsDefaultAlias(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->loadExtension([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
                 'skeptic' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $this->assertTrue($container->hasAlias(StrandsClient::class));
-        $alias = $container->getAlias(StrandsClient::class);
+        $this->assertTrue($containerBuilder->hasAlias(StrandsClient::class));
+        $alias = $containerBuilder->getAlias(StrandsClient::class);
         $this->assertSame('strands.client.analyst', (string) $alias);
     }
 
@@ -95,11 +95,11 @@ class StrandsExtensionTest extends TestCase
      */
     public function testEmptyAgentsRegistersNothing(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->loadExtension([
             'agents' => [],
         ]);
 
-        $this->assertFalse($container->hasDefinition('strands.client_factory'));
+        $this->assertFalse($containerBuilder->hasDefinition('strands.client_factory'));
     }
 
     /**
@@ -109,14 +109,14 @@ class StrandsExtensionTest extends TestCase
      */
     public function testAgentServiceUsesFactory(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->loadExtension([
             'agents' => [
                 'primary' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $def = $container->getDefinition('strands.client.primary');
-        $factory = $def->getFactory();
+        $definition = $containerBuilder->getDefinition('strands.client.primary');
+        $factory = $definition->getFactory();
 
         $this->assertIsArray($factory);
         $this->assertSame('create', $factory[1]);
@@ -129,13 +129,13 @@ class StrandsExtensionTest extends TestCase
      */
     public function testFactoryReceivesAgentsArgument(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->loadExtension([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $factoryDef = $container->getDefinition('strands.client_factory');
+        $factoryDef = $containerBuilder->getDefinition('strands.client_factory');
         $agentsArg = $factoryDef->getArgument('$agents');
 
         $this->assertIsArray($agentsArg);
@@ -150,13 +150,13 @@ class StrandsExtensionTest extends TestCase
      */
     public function testFactoryReceivesLoggerArgument(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->loadExtension([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $factoryDef = $container->getDefinition('strands.client_factory');
+        $factoryDef = $containerBuilder->getDefinition('strands.client_factory');
         $loggerArg = $factoryDef->getArgument('$logger');
 
         $this->assertInstanceOf(\Symfony\Component\DependencyInjection\Reference::class, $loggerArg);
@@ -170,14 +170,14 @@ class StrandsExtensionTest extends TestCase
      */
     public function testAgentServiceReceivesNameArgument(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->loadExtension([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $def = $container->getDefinition('strands.client.analyst');
-        $this->assertSame('analyst', $def->getArgument(0));
+        $definition = $containerBuilder->getDefinition('strands.client.analyst');
+        $this->assertSame('analyst', $definition->getArgument(0));
     }
 
     /**
@@ -187,13 +187,13 @@ class StrandsExtensionTest extends TestCase
      */
     public function testFactoryReceivesMiddlewareArgument(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->loadExtension([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $factoryDef = $container->getDefinition('strands.client_factory');
+        $factoryDef = $containerBuilder->getDefinition('strands.client_factory');
         $middlewareArg = $factoryDef->getArgument('$middleware');
 
         $this->assertInstanceOf(\Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument::class, $middlewareArg);
@@ -206,13 +206,13 @@ class StrandsExtensionTest extends TestCase
      */
     public function testRequestMiddlewareAutoconfigured(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->loadExtension([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $autoconfigured = $container->getAutoconfiguredInstanceof();
+        $autoconfigured = $containerBuilder->getAutoconfiguredInstanceof();
         $this->assertArrayHasKey(\StrandsPhpClient\Http\RequestMiddleware::class, $autoconfigured);
     }
 
@@ -223,14 +223,14 @@ class StrandsExtensionTest extends TestCase
      */
     public function testMultipleAgentsEachGetCorrectName(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->loadExtension([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
                 'skeptic' => ['endpoint' => 'http://agent:8001'],
             ],
         ]);
 
-        $this->assertSame('analyst', $container->getDefinition('strands.client.analyst')->getArgument(0));
-        $this->assertSame('skeptic', $container->getDefinition('strands.client.skeptic')->getArgument(0));
+        $this->assertSame('analyst', $containerBuilder->getDefinition('strands.client.analyst')->getArgument(0));
+        $this->assertSame('skeptic', $containerBuilder->getDefinition('strands.client.skeptic')->getArgument(0));
     }
 }

@@ -17,11 +17,11 @@ class MaxTokensExceptionTest extends TestCase
      */
     public function testExtendsAgentErrorException(): void
     {
-        $e = new MaxTokensException('Max tokens reached', statusCode: 400, errorCode: 'max_tokens_reached');
+        $maxTokensException = new MaxTokensException('Max tokens reached', statusCode: 400, errorCode: 'max_tokens_reached');
 
-        $this->assertInstanceOf(AgentErrorException::class, $e);
-        $this->assertSame(400, $e->statusCode);
-        $this->assertSame('max_tokens_reached', $e->errorCode);
+        $this->assertInstanceOf(AgentErrorException::class, $maxTokensException);
+        $this->assertSame(400, $maxTokensException->statusCode);
+        $this->assertSame('max_tokens_reached', $maxTokensException->errorCode);
     }
 
     /**
@@ -35,7 +35,7 @@ class MaxTokensExceptionTest extends TestCase
 
         try {
             throw new MaxTokensException('Max tokens', statusCode: 400);
-        } catch (AgentErrorException $e) {
+        } catch (AgentErrorException $maxTokensException) {
             $caught = true;
         }
 
