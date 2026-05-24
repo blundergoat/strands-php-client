@@ -1,5 +1,5 @@
 ---
-goat-flow-reference-version: "1.5.0"
+goat-flow-reference-version: "1.7.0"
 ---
 # Skill Conventions
 
@@ -128,7 +128,7 @@ Write a session log entry for each completed milestone sequence.
 
 ### Plan Completion Protocol
 
-When all milestones reach `complete` or `human-verification-pending`, the plan enters Phase 4 (see goat-plan SKILL.md). The agent must:
+When all milestones reach `complete` or `human-verification-pending`, the plan enters Phase 4. See goat-plan SKILL.md. The agent must:
 
 1. Run the AI Verification Gate - confirm every task ticked, every exit criterion evidenced, every testing gate passed with proof from this session.
 2. Present the Human Verification Gate - **BLOCKING GATE**. List all files changed, all milestones and their status, and evidence for each exit criterion. Wait for explicit human approval.
@@ -167,8 +167,8 @@ boundaries. If the proposed change crosses an Ask First boundary, flag it:
 ## Authoring a Skill
 
 When creating a new goat-* skill or materially hardening an existing one, consult
-`.goat-flow/skill-reference/skill-quality-testing.md` (short index) and then load
-the topical file(s) in `.goat-flow/skill-reference/skill-quality-testing/` named by
+`.goat-flow/skill-playbooks/skill-quality-testing.md` (short index) and then load
+the topical file(s) in `.goat-flow/skill-playbooks/skill-quality-testing/` named by
 the index - `tdd-iteration.md` for TDD methodology (load first), `adversarial-framing.md`
 for review-class skills, `deployment.md` for the deployment checklist. Together they
 document the skill-authoring methodology: pressure-testing prompts against known failure

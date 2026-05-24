@@ -4,6 +4,19 @@ Architectural Decision Records (ADRs) capture durable decisions that constrain f
 
 > If the choice does not outlast the feature branch, it is not an ADR.
 
+<<<<<<< Updated upstream
+=======
+## Automatic Capture Policy
+
+Manual edits are normal: an explicit request to add or update a durable learning-loop entry means edit the Markdown in the correct directory. Programmatic automatic capture from terminal sessions, quality reports, PR reviews, or agent output is disabled unless `.goat-flow/config.yaml` explicitly sets `learning-loop.auto-capture.enabled: true` and a CLI-owned writer for that target exists. Prompts may suggest an ADR candidate, but automatic durable writes belong to CLI-owned code after opt-in.
+
+Auto-capture candidates must follow Extract / Consolidate / Skip:
+
+- Extract only when the item changes a future READ/SCOPE/ACT/VERIFY decision.
+- Consolidate into an existing ADR when the same durable decision already exists.
+- Skip raw tool output, successful smoke runs, UI/deploy churn, chain-of-thought, screenshots, raw JSON/HTML, duplicate dumps, and "I read the docs" summaries.
+
+>>>>>>> Stashed changes
 ## When To Write An ADR
 
 Write an ADR when the decision:

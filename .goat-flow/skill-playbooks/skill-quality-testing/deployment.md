@@ -1,5 +1,5 @@
 ---
-goat-flow-reference-version: "1.5.0"
+goat-flow-reference-version: "1.7.0"
 ---
 # Skill Deployment
 
@@ -46,6 +46,35 @@ Use these labels when summarising existing TDD logs:
 
 If current logs do not meet `bulletproof`, say so directly. Do not backfill missing evidence by creating summary records; rerun the pressure tests instead.
 
+## Verification claim evidence
+
+Use this table when a skill or agent needs to substantiate a generic verification
+claim. The Excuse / Reality table in `skill-preamble.md` covers how the wrong
+claim slips out; this table covers what proof each claim requires.
+
+| Claim | Requires | Not Sufficient |
+|---|---|---|
+| Tests pass | Test output: 0 failures/errored plus suite summary from this session | Previous run, "should pass", partial run |
+| Linter / typecheck clean | Tool exit 0 and full output read in this session | Linter passing implies typecheck |
+| Build succeeds | Build command exit 0 and artifact written | Logs look good, last green CI |
+| Bug fixed | Original failing reproduction rerun and observed passing | Code changed, "probably fixed" |
+| Regression test works | RED -> revert fix -> RED -> restore -> GREEN | Test passes once after the fix |
+| Sub-agent finished | VCS diff shows expected changes, re-read by you | Agent self-report |
+| Requirements met | Line-by-line checklist against plan or milestone | Tests passing alone |
+
+## Consumer and API Skill Patterns
+
+For consumer-project domain skills, keep the root `SKILL.md` compact: trigger,
+Step 0, local constraints, and links to scoped subdomain references. Each
+subdomain section should name production-safe evidence commands and rollback or
+post-deploy checks when destructive work is possible.
+
+For API-backed skills, prefer the official SDK, name the auth env var, require
+source/citation fields where returned data will be reused, pin the API version
+the skill was authored against, and surface cost or rate-limit budgets before
+fan-out. goat-flow core treats these as authoring guardrails, not generic
+deterministic scorer rules.
+
 **RED phase - write failing test:**
 - [ ] Create pressure scenarios (3+ combined pressures for discipline skills)
 - [ ] Run scenarios WITHOUT skill - document baseline behaviour verbatim
@@ -54,7 +83,7 @@ If current logs do not meet `bulletproof`, say so directly. Do not backfill miss
 
 **GREEN phase - write minimal skill:**
 - [ ] Name describes what you DO or the core insight
-- [ ] Frontmatter has `goat-flow-skill-version: "1.5.0"` and trigger-only `description`
+- [ ] Frontmatter has `goat-flow-skill-version: "1.7.0"` and trigger-only `description`
 - [ ] `description` is CSO-optimised: "Use when [trigger]", not a workflow summary
 - [ ] Keywords throughout for search (error messages, symptoms, tool names)
 - [ ] Overview states the core principle in 1–2 sentences
@@ -100,7 +129,7 @@ Deploying untested skills = deploying untested code. It's a violation of quality
 |-------|------|
 | `.goat-flow/skill-reference/skill-preamble.md` | Proof Gate, evidence standard, ceremony level - the loaded-every-invocation layer |
 | `.goat-flow/skill-reference/skill-conventions.md` | Rationalisation table definition, task tracking, recovery protocols |
-| `.goat-flow/skill-reference/skill-quality-testing/tdd-iteration.md` | Core TDD methodology |
-| `.goat-flow/skill-reference/skill-quality-testing/adversarial-framing.md` | Review-class skill patterns |
+| `.goat-flow/skill-playbooks/skill-quality-testing/tdd-iteration.md` | Core TDD methodology |
+| `.goat-flow/skill-playbooks/skill-quality-testing/adversarial-framing.md` | Review-class skill patterns |
 | `.goat-flow/decisions/` | Architecture decisions and rationale |
 | `.goat-flow/logs/sessions/*-<skill>-tdd.md` | TDD iteration logs live here; filename convention is the index |

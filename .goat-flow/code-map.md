@@ -1,116 +1,132 @@
-# Code Map
+# Code Map — strands-php-client
+
+Repository layout. Every path listed exists on disk.
 
 ```
 strands-php-client/
-├── src/                                    = Production source (PSR-4: StrandsPhpClient\)
-│   ├── StrandsClient.php                   = Main client: invoke(), stream(), postJson(), streamSse(), retry logic
-│   ├── Auth/                               = Authentication strategies
-│   │   ├── AuthStrategy.php                = Interface (single authenticate() method)
-│   │   ├── NullAuth.php                    = No-op for local dev (Null Object pattern)
-│   │   ├── ApiKeyAuth.php                  = Bearer token / custom header auth
-│   │   └── SigV4Auth.php                   = AWS Signature V4 (standalone, no aws-sdk-php)
+├── src/                                      = Production code (PSR-4: StrandsPhpClient\)
+│   ├── StrandsClient.php                     = Public entry point — invoke / stream / postJson / streamSse + retry
+│   ├── Auth/
+│   │   ├── AuthStrategy.php                  = Interface — single authenticate() method; runs AFTER middleware
+│   │   ├── NullAuth.php                      = Null Object (local dev)
+│   │   ├── ApiKeyAuth.php                    = Bearer / custom header
+│   │   └── SigV4Auth.php                     = AWS Signature V4 (standalone, no aws-sdk-php); ::fromEnvironment() helper
 │   ├── Config/
-│   │   └── StrandsConfig.php               = Immutable config: endpoint, timeouts, retries, auth
+│   │   └── StrandsConfig.php                 = Immutable config: endpoint, auth, timeouts, retries
 │   ├── Context/
-│   │   ├── AgentContext.php                = Immutable builder: system prompts, metadata, permissions
-│   │   └── AgentInput.php                  = Rich input builder: text, images, documents, S3 video
-│   ├── Http/                               = Transport abstraction
-│   │   ├── HttpTransport.php               = Interface: post() + stream()
-│   │   ├── RequestMiddleware.php           = Middleware interface: beforeRequest() + afterResponse()
-│   │   ├── SymfonyHttpTransport.php        = Symfony HttpClient (invoke + streaming)
-│   │   └── PsrHttpTransport.php            = PSR-18 client (invoke only, stream() throws)
+│   │   ├── AgentContext.php                  = Immutable builder (system prompt, metadata, permissions, documents)
+│   │   └── AgentInput.php                    = Rich input (text + images + documents + interrupt-response)
+│   ├── Http/
+│   │   ├── HttpTransport.php                 = Interface — post() + stream(); no defaults (interface)
+│   │   ├── RequestMiddleware.php             = Middleware interface — beforeRequest() + afterResponse()
+│   │   ├── SymfonyHttpTransport.php          = Full transport (invoke + SSE), requires symfony/http-client
+│   │   └── PsrHttpTransport.php              = PSR-18 transport, invoke only (stream() throws — PSR-18 spec limit)
 │   ├── Response/
-│   │   ├── AgentResponse.php               = Invoke response DTO with fromArray() factory
-│   │   ├── GuardrailTrace.php              = Guardrail intervention data
-│   │   ├── InterruptDetail.php             = Human-in-the-loop interrupt data
-│   │   ├── StopReason.php                  = Backed enum (EndTurn, ToolUse, MaxTokens, etc.)
-│   │   └── Usage.php                       = Token usage stats with fromArray() factory
+│   │   ├── AgentResponse.php                 = Invoke response DTO; ::fromArray() defensive hydrator
+│   │   ├── GuardrailTrace.php                = Guardrail intervention data
+│   │   ├── InterruptDetail.php               = Human-in-the-loop interrupt payload
+│   │   ├── StopReason.php                    = Backed enum (EndTurn, ToolUse, MaxTokens, ...)
+│   │   └── Usage.php                         = Token usage; ::fromArray() is the single canonical hydrator
 │   ├── Streaming/
-│   │   ├── StreamEvent.php                 = Single typed SSE event
-│   │   ├── StreamEventType.php             = Backed enum (Text, ToolUse, Complete, Error, etc.)
-│   │   ├── StreamParser.php                = Incremental SSE parser with 10 MB buffer limit
-│   │   └── StreamResult.php                = Accumulated stream result (text, usage, TTFT, etc.)
+│   │   ├── StreamEvent.php                   = One parsed event; ::fromArray() throws on unknown, ::tryFromArray() returns null
+│   │   ├── StreamEventType.php               = Backed enum (Text, ToolUse, ToolResult, Complete, Error, ...)
+│   │   ├── StreamParser.php                  = Incremental SSE parser; 10 MB buffer cap; tolerates unknown event names
+│   │   └── StreamResult.php                  = Accumulated stream result + TTFT metric
 │   ├── Exceptions/
-│   │   ├── StrandsException.php            = Base exception
-│   │   ├── AgentErrorException.php         = HTTP error (carries statusCode + responseBody)
-│   │   └── StreamInterruptedException.php  = Stream ended without terminal event
-│   └── Integration/
-│       ├── StrandsClientFactory.php        = Shared factory (used by both Laravel and Symfony)
+│   │   ├── StrandsException.php              = Base
+│   │   ├── AgentErrorException.php           = HTTP error; carries statusCode + responseBody for structured inspection
+│   │   └── StreamInterruptedException.php    = Stream ended without a terminal frame
+│   └── Integration/                          = Framework wiring
+│       ├── StrandsClientFactory.php          = Shared factory (Laravel + Symfony reuse)
 │       ├── Laravel/
-│       │   ├── StrandsServiceProvider.php  = Service provider with named agent bindings
-│       │   ├── Facades/Strands.php         = Facade for default client
-│       │   └── config/strands.php          = Publishable config template
+│       │   ├── StrandsServiceProvider.php    = Service provider with named agent bindings (register + boot)
+│       │   ├── Facades/Strands.php           = Default-client facade
+│       │   └── config/strands.php            = Publishable Laravel config template
 │       └── Symfony/
-│           ├── StrandsBundle.php           = Bundle registration
+│           ├── StrandsBundle.php             = Bundle registration
 │           └── DependencyInjection/
-│               ├── Configuration.php       = YAML config schema
-│               ├── StrandsExtension.php    = DI container extension
-│               └── StrandsClientFactory.php = Symfony-specific factory subclass
+│               ├── Configuration.php         = YAML config schema
+│               ├── StrandsExtension.php      = DI container extension
+│               └── StrandsClientFactory.php  = Symfony-specific subclass of shared factory
 │
-├── tests/                                  = Unit tests (mocked HTTP, no network)
-│   ├── Unit/                               = Mirrors src/ structure
-│   │   ├── StrandsClientTest.php           = Core invoke tests
-│   │   ├── StrandsClientStreamTest.php     = Stream tests
-│   │   ├── StrandsClientPostJsonTest.php   = postJson() tests
-│   │   ├── StrandsClientStreamSseTest.php  = streamSse() tests
-│   │   ├── StreamParserTest.php            = SSE parsing tests
-│   │   ├── SymfonyHttpTransportTest.php    = Symfony transport tests
-│   │   ├── PsrHttpTransportTest.php        = PSR-18 transport tests
-│   │   ├── ApiKeyAuthTest.php, NullAuthTest.php, SigV4AuthTest.php
-│   │   ├── AgentContextTest.php, AgentInputTest.php
-│   │   ├── AgentResponseTest.php, GuardrailTraceTest.php, InterruptDetailTest.php
+├── tests/                                    = PHPUnit suite (psr-4 dev: StrandsPhpClient\Tests\)
+│   ├── Unit/                                 = Mirrors src/; all HTTP mocked, no network/Docker
+│   │   ├── StrandsClientTest.php
+│   │   ├── StrandsClientStreamTest.php
+│   │   ├── StrandsClientPostJsonTest.php
+│   │   ├── StrandsClientStreamSseTest.php
+│   │   ├── StreamParserTest.php
+│   │   ├── SymfonyHttpTransportTest.php
+│   │   ├── PsrHttpTransportTest.php
+│   │   ├── AgentContextTest.php
+│   │   ├── AgentInputTest.php
+│   │   ├── AgentResponseTest.php
+│   │   ├── GuardrailTraceTest.php
+│   │   ├── InterruptDetailTest.php
+│   │   ├── NullAuthTest.php
+│   │   ├── ApiKeyAuthTest.php
+│   │   ├── SigV4AuthTest.php
 │   │   ├── RequestMiddlewareTest.php
-│   │   └── Integration/                    = Framework integration tests
-│   │       ├── StrandsClientFactoryTest.php
-│   │       ├── Laravel/                    = Laravel service provider tests
-│   │       └── Symfony/                    = Symfony bundle DI tests
-│   ├── Fixtures/                           = JSON responses and SSE text files for tests
-│   ├── Support/StrandsFunctionOverrides.php = Test helper for function mocking
-│   └── bootstrap.php                       = PHPUnit bootstrap
+│   │   └── Integration/                      = Laravel + Symfony DI tests
+│   ├── Fixtures/                             = Captured JSON + SSE bodies
+│   │   └── wire-contract/                    = Canonical v1 wire-contract fixtures
+│   ├── Support/                              = Test helpers (mock transports, fixture loaders)
+│   └── bootstrap.php                         = Composer autoloader bootstrap
 │
-├── docs/                                   = Documentation
-│   ├── usage-guide.md                      = Real-world patterns and examples
-│   ├── auth.md                             = Authentication strategies guide
-│   ├── rich-input.md                       = AgentInput builder guide
-│   ├── interrupts-and-guardrails.md        = Interrupt and guardrail handling
-│   ├── laravel-config.md                   = Laravel PHP config reference
-│   └── symfony-config.md                   = Symfony YAML config reference
+├── docs/                                     = Long-form user docs
+│   ├── usage-guide.md
+│   ├── auth.md
+│   ├── rich-input.md
+│   ├── interrupts-and-guardrails.md
+│   ├── laravel-config.md
+│   ├── symfony-config.md
+│   └── wire-contract.md                      = Strands HTTP Wire Contract v1 (PHP-facing JSON/SSE shapes)
 │
 ├── scripts/
-│   ├── preflight-checks.sh                 = Pre-commit quality gate runner
-│   ├── check-cyclomatic-complexity.php     = CC checker (max 20 per method)
-│   └── setup-initial.sh                    = Initial project setup
+│   ├── preflight-checks.sh                   = composer preflight runner (used in CI + locally)
+│   ├── check-cyclomatic-complexity.php       = Method CC ≤ 20 gate
+│   └── setup-initial.sh                      = One-shot dev bootstrap
+│
+├── .goat-flow/                               = Goat-flow learning loop + skills metadata
+│   ├── architecture.md
+│   ├── code-map.md                           = This file
+│   ├── glossary.md
+│   ├── footguns/                             = contract, generated-files, integration, observability, transport, transport-and-streaming
+│   ├── lessons/                              = history, verification
+│   ├── decisions/                            = ADR-001 wire contract, ADR-002 OTEL response observation
+│   ├── patterns/, scratchpad/, tasks/        = Repeatable patterns + ephemeral notes + plan files
+│   ├── skill-reference/, skill-playbooks/    = Installed verbatim from goat-flow
+│   ├── logs/sessions/                        = Local-only session continuity (gitignored)
+│   └── config.yaml                           = goat-flow version pin
+│
+├── .claude/                                  = Claude-owned harness
+│   ├── settings.json                         = Permissions + hook registration
+│   ├── settings.local.json                   = Local overrides (gitignored)
+│   ├── skills/                               = 7 goat-* skills installed verbatim
+│   └── hooks/deny-dangerous.sh               = PreToolUse deny hook (+ self-test)
 │
 ├── .github/
-│   ├── workflows/ci.yml                    = CI pipeline
-│   ├── ISSUE_TEMPLATE/                     = Bug report + feature request templates
-│   ├── pull_request_template.md            = PR template
-│   └── dependabot.yml                      = Dependency update config
+│   ├── workflows/                            = CI pipelines (ci.yml runs preflight)
+│   ├── ISSUE_TEMPLATE/, pull_request_template.md
+│   ├── git-commit-instructions.md            = Commit guidance (generated stub — needs human review)
+│   └── dependabot.yml
 │
-├── .claude/                                = Claude Code agent config (gitignored)
-│   ├── hooks/                              = PreToolUse/PostToolUse/Stop hooks
-│   ├── settings.json                       = Agent permissions and hooks
-│   └── skills/                             = goat-flow skills
+├── composer.json                             = Dependencies, scripts, branch-alias 1.4.x-dev
+├── composer.lock                             = Pinned dev deps
+├── phpunit.xml                               = Test runner config
+├── phpstan.neon                              = Static analysis (Level 10)
+├── phpmd.xml                                 = Mess detector rules
+├── infection.json5                           = Mutation testing config
+├── .php-cs-fixer.php                         = PHP-CS-Fixer rule set (PSR-12)
+├── AGENTS.md                                 = Codex peer instruction file
+├── CLAUDE.md                                 = Claude instruction file
+├── README.md, CHANGELOG.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, LICENSE
 │
-├── .goat-flow/                             = goat-flow project knowledge
-│   ├── architecture.md, code-map.md, glossary.md
-│   ├── footguns/, lessons/, patterns/, decisions/
-│   ├── skill-reference/                    = Tool playbooks
-│   └── logs/, tasks/, scratchpad/          = Session state
-│
-├── vendor/                                 = Composer dependencies (gitignored, never edit)
-│
-├── composer.json                           = Dependencies, scripts, autoload
-├── phpunit.xml                             = PHPUnit config
-├── phpstan.neon                            = PHPStan Level 10 config
-├── phpmd.xml                               = PHPMD rules
-├── infection.json5                         = Mutation testing config
-├── .php-cs-fixer.php                       = PSR-12 code style config
-├── AGENTS.md                               = AI agent guidelines (coding patterns, testing)
-├── CHANGELOG.md                            = Version history
-├── README.md                               = Project overview and quick start
-├── CONTRIBUTING.md                         = Human contributor guidelines
-├── SECURITY.md                             = Security policy
-├── CODE_OF_CONDUCT.md                      = Code of conduct
-└── LICENSE                                 = Apache-2.0
+├── vendor/                                   = Composer install output — never edit
+├── node_modules/                             = Goat-flow distribution — never edit
+└── coverage.xml                              = Coverage report (gitignored, generated)
 ```
+
+**Never edit:** `vendor/`, `node_modules/`, `coverage.xml`, `.goat-flow/audit-cache.json`, `.goat-flow/dashboard-state.json`.
+
+**Generated/local-only:** `.claude/settings.local.json`, `.goat-flow/logs/sessions/`, `.goat-flow/scratchpad/`, `coverage.xml`, `coverage-html/`.

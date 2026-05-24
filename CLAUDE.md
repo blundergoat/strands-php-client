@@ -1,126 +1,129 @@
-# Strands PHP Client — goat-flow v1.5.0
+# CLAUDE.md — strands-php-client
 
-PHP client library for consuming Strands AI agents over HTTP (invoke, SSE streaming).
-Core invariant: `HttpTransport` is an **interface** — no default method bodies, no abstract class.
-Contract invariant: this client targets the Strands HTTP Wire Contract v1 emitted by wrapper services, not raw sdk-python `TypedDict` shapes. See `docs/wire-contract.md` and `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`.
+**Project identity.** `blundergoat/strands-php-client` is a PHP 8.2+ library that consumes [Strands Agents](https://github.com/strands-agents/strands-agents) over HTTP — invoke, SSE streaming, custom-endpoint passthrough — with Laravel and Symfony integrations. **Core invariant:** the library never runs an agentic loop in PHP; it only marshals requests/responses for a Python agent. **Contract invariant:** this client targets the Strands HTTP Wire Contract v1 emitted by wrapper services, not raw sdk-python `TypedDict` shapes — see `docs/wire-contract.md` and `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`. Cross-cutting concerns: PSR-3 logging, PSR-18/Symfony transport abstraction, immutable DTOs/builders, strict types, defensive parsing.
 
-## Workspace Boundary
+**Goat-flow version:** 1.7.0
 
-The controlling goat-flow workspace and the selected target project are the same directory. All `.goat-flow/` surfaces, source code, and project-specific content live in this repo.
+**Workspace boundary.** The controlling goat-flow workspace (skills, templates, manifest) lives in `node_modules/@blundergoat/goat-flow/`. The selected target project is this repository root. Adapt commands, paths, and boundaries from the target — do not echo the controlling workspace's paths into installed surfaces.
 
 ## Truth Order
 
-1. User's explicit instruction for this session.
-2. This instruction file.
-3. Architecture (`.goat-flow/architecture.md`).
-4. Skills/templates loaded on demand.
+1. User's explicit instruction for this session
+2. This file (`CLAUDE.md`)
+3. `.goat-flow/architecture.md`, `.goat-flow/code-map.md`, `.goat-flow/glossary.md`
+4. `.goat-flow/decisions/` (ADRs, including the wire-contract ADR)
+5. Skills loaded on demand from `.claude/skills/`
+6. `AGENTS.md` (peer instruction; do not modify under Claude scope)
 
 ## Autonomy Tiers
 
-### Always
-Read files, run validation (`composer test`, `composer analyse`, `composer cs:check`), edit within declared scope, write continuity notes only when useful.
+**Always.** Read `src/`, `tests/`, `docs/`, `composer.json`, `phpstan.neon`, `phpunit.xml`. Run `composer test`, `composer analyse`, `composer cs:check`, `composer preflight`. Edit inside the declared scope. Write session notes to `.goat-flow/logs/sessions/`.
 
-### Ask First
-Before touching these boundaries, state: boundary touched, related code read, footgun checked, local instruction checked, rollback command.
+**Ask First** — state boundary touched, related code read, footgun checked, local instruction checked, rollback command:
+- `composer.json` `require` / `require-dev` (dependency surface — affects every consumer; rollback `git checkout composer.json composer.lock`)
+- `src/Http/HttpTransport.php` (interface — every transport implementer breaks; rollback `git checkout src/Http/`)
+- `src/Auth/AuthStrategy.php` (interface — every auth driver breaks; rollback `git checkout src/Auth/`)
+- `src/Integration/Laravel/` and `src/Integration/Symfony/` (framework wiring — consumer apps depend on service IDs / config keys)
+- Wire-contract shapes (`docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`) — changes here break Python wrappers and PHP consumers simultaneously
+- `.github/workflows/`, `scripts/preflight-checks.sh`, `phpstan.neon`, `phpunit.xml`, `infection.json5` (CI / quality gates)
+- 3+ files renamed, moved, or deleted at once
+- `.claude/settings.json`, `.claude/hooks/` (harness configuration)
 
-- **Instruction files**: `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`
-- **Architecture/config**: `composer.json`, `phpstan.neon`, `phpunit.xml`, `phpmd.xml`, `infection.json5`, `.php-cs-fixer.php`
-- **Framework integrations**: `src/Integration/Laravel/`, `src/Integration/Symfony/`
-- **CI/hooks**: `.github/workflows/`, `.claude/hooks/`, `.claude/settings.json`, `scripts/`
-- **Interfaces**: `src/Http/HttpTransport.php`, `src/Auth/AuthStrategy.php`, `src/Http/RequestMiddleware.php`
-- **Add/remove/rename**: any public class, method, or namespace
-
-### Never
-- Do not edit secrets, `.env`, or credential files.
-- Do not push, commit, or run destructive git commands.
-- Do not overwrite files without checking destination first.
-- Freeze writes first if interrupted or told "no changes."
+**Never.** Freeze writes if interrupted. Do not edit `AGENTS.md`, `.codex/`, `.agents/`, `.gemini/` under Claude scope. Do not commit, push, branch, reset, or run destructive git operations — the user owns all git operations. Do not weaken PHPStan Level 10, PSR-12, or test coverage to make checks pass.
 
 ## Hard Rules
 
-- If file exists, modify in place. Never create `_modified`, `_new`, `_backup`, or `_v2` variants.
+- Modify files in place. No `_modified`, `_new`, `_backup`, `_v2` variants — git history is the backup.
 - Severity order: SECURITY > CORRECTNESS > INTEGRATION > PERFORMANCE > STYLE.
-- `declare(strict_types=1)` in every PHP file. `readonly` on DTO properties.
-- Fully qualified PHPDoc types (`array<string, string>`, not bare `array`).
+- `declare(strict_types=1)` in every PHP file. `readonly` on DTO properties. Fully qualified PHPDoc array shapes (`array<string, string>`), never bare `array` or `mixed` without justification.
+- Cite file evidence with semantic anchors (function name, unique string, or `(search: "pattern")`) — never bare line numbers.
+- Preserve cross-file consistency for the same concept (e.g., `Usage::fromArray()` is the canonical hydrator — `AgentResponse::parseUsage()` and `StrandsClient::usageFromArray()` delegate to it; keep that contract).
+- Stream-cancellation callbacks compare with `=== false` (preserves void-returning callers). Do not collapse to `if (!$onChunk(...))`.
+- Sub-agents get one objective, structured return, and a 5-call budget.
 - No features, abstractions, or error handling beyond what was asked.
 - Ambiguous requirements: present interpretations; do not pick silently.
 
 ## Key Resources
 
-- **Learning loop** (grep before every change): `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, `.goat-flow/decisions/`.
-- **Wire contract**: `docs/wire-contract.md` and `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`.
-- **Tool playbooks**: `.goat-flow/skill-reference/browser-use.md`, `.goat-flow/skill-reference/page-capture.md` — read BEFORE declaring a tool unavailable.
-- **Agent guidelines**: `AGENTS.md` — coding patterns, testing patterns, style rules.
+- **Learning loop** (grep before every change): `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, `.goat-flow/decisions/`
+- **Tool playbooks**: `.goat-flow/skill-playbooks/browser-use.md`, `.goat-flow/skill-playbooks/page-capture.md` — read BEFORE declaring a tool unavailable
+- **Wire contract**: `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`
+- **Project orientation**: `.goat-flow/architecture.md`, `.goat-flow/code-map.md`, `.goat-flow/glossary.md`
+- **Peer instructions**: `AGENTS.md` (project conventions, coding patterns, testing patterns — read for context, do not modify)
 
 ## Essential Commands
 
 ```bash
-composer test                    # PHPUnit
-composer analyse                 # PHPStan Level 10
-composer cs:check                # PHP-CS-Fixer dry-run (PSR-12)
-composer cs:fix                  # Auto-format
-composer analyse:messdetector    # PHPMD
-composer analyse:complexity      # Cyclomatic complexity (max 20)
-composer mutate                  # Infection mutation testing
-composer preflight               # All quality gates at once
+composer test                      # PHPUnit suite (must be green)
+composer analyse                   # PHPStan Level 10
+composer cs:check                  # PHP-CS-Fixer dry-run (PSR-12)
+composer cs:fix                    # PHP-CS-Fixer apply
+composer analyse:complexity        # Cyclomatic complexity ≤ 20
+composer analyse:messdetector      # PHPMD
+composer preflight                 # Everything above, gate before commit
+composer mutate                    # Infection (slow; XDEBUG_MODE=coverage required)
+.claude/hooks/deny-dangerous.self-test.sh   # Hook self-test
 ```
 
 Single file/method: `vendor/bin/phpunit tests/Unit/FooTest.php --filter testBar`
 
-## Execution Loop: READ -> SCOPE -> ACT -> VERIFY
+## Execution Loop: READ → SCOPE → ACT → VERIFY
 
-When a goat-* skill is active, the skill's Step 0 replaces READ and selects the skill's mode/depth. SCOPE still applies before writes. Resume at ACT after Step 0 output.
+When a goat-* skill is active, its Step 0 replaces READ and selects the skill's mode/depth. SCOPE still applies before writes: a skill may write when its selected mode permits writes or the user explicitly approves them. `/goat-plan` File-Write may create gitignored milestone files without a separate approval gate; `/goat-debug` D3 still requires approval before fixes. Resume at ACT after Step 0 output or when a blocking gate releases.
 
 ### READ
-MUST read relevant files before changes. Never fabricate codebase facts. Check browser evidence first for URL, local HTML, localhost, screenshot, rendered UI, or browser-visible behaviour. Use grep-first retrieval across learning-loop dirs; include decisions for architecture, policy, or setup work. Before declaring any tool unavailable, read the matching `.goat-flow/skill-reference/` playbook and run its Availability Check.
+MUST read relevant files before changes. Never fabricate codebase facts. For URL, local HTML, localhost, screenshot, rendered UI, or browser-visible behaviour, check browser evidence first. Use grep-first retrieval across `.goat-flow/footguns/`, `.goat-flow/lessons/`, and `.goat-flow/patterns/`; include `.goat-flow/decisions/` for architecture or policy work. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim — project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool".
 
 ### SCOPE
-Declare intent, complexity tier, mode, files allowed to change, non-goals, and blast radius. Expanding beyond scope means stop and re-scope.
+Declare intent, complexity tier (Hotfix / Standard Feature / System Change / Infrastructure), mode, files allowed to change, non-goals, blast radius. Expanding beyond scope means stop and re-scope with the human.
 
 ### ACT
-Declare `State: [MODE] | Goal: [one line] | Exit: [condition]`. Mode: Plan, Implement, Explain, Debug, or Review.
+Declare `State: [MODE] | Goal: [one line] | Exit: [condition]`. Mode must be Plan, Implement, Explain, Debug, or Review. Implement in 2–3 turns; a 4th read without writing means checkpoint or re-scope.
 
 ### VERIFY
-Run required checks for changed files. Check cross-references after renames. Do not claim checks passed without the literal pass/fail line from this session. Stop the line when tests break, builds fail, or behaviour regresses. If VERIFY caught a failure or you corrected course, update the learning loop before DoD.
+Run `composer analyse` and `composer test` on changed PHP. Run `shellcheck` on changed `.sh`. Check cross-references after renames (grep the old name). Tick milestone checkboxes immediately, not at the end. Stop-the-line on broken tests, build failures, or behaviour regressions; preserve evidence, return to diagnosis, re-plan.
+
+**Hallucination red-flags:**
+
+1. **Checks passed.** Do not claim tests pass or any check passed (`composer analyse`, `composer test`, `composer preflight`, audit) without showing the literal pass/fail line copied verbatim from this session's run. Paraphrase, cached output, or prior-session results do not count.
+2. **Completion.** Do not claim completion without listing the specific files changed in this turn. If no files were changed, say so explicitly.
+3. **Fix verification.** Do not claim a fix works without running the reproduction steps that originally demonstrated the bug. "Looks correct" is not verification.
+4. **Hedged claims.** Do not use "should work", "probably fine", "looks good" as verification. These are guesses, not evidence.
+
+Rationalisations to reject — see `.goat-flow/skill-reference/skill-preamble.md` ("Rationalisations to reject" table) for the canonical Excuse / Reality pairs.
+
+- **Stop-the-line:** When tests break, builds fail, or behaviour regresses — stop expanding scope. Preserve evidence, return to diagnosis, re-plan before continuing.
+- Level 1 (isolated): note, continue. Level 2 (cross-doc, broken refs, evidence): MUST full stop, wait for human. Two corrections on same approach = MUST rewind.
+- Recovery: missing context → read first. Out-of-scope → name boundary, redirect. Conflicting sources → flag, ask.
+
+If VERIFY caught a failure or you corrected course, update the learning loop before DoD: behavioural mistakes → `.goat-flow/lessons/<category>.md`, architectural traps → `.goat-flow/footguns/<category>.md` with `**Status:** active | **Created:** YYYY-MM-DD | **Evidence:** ACTUAL_MEASURED`, significant decisions → `.goat-flow/decisions/`, optional continuity → `.goat-flow/logs/sessions/`.
 
 ## Definition of Done
 
-MUST confirm all six gates:
-1. Lint/typecheck passes on changed files.
-2. No broken cross-references.
-3. No unapproved boundary changes.
-4. Logs updated if tripped.
-5. Working notes current.
-6. Grep old pattern after renames.
+Confirm all six gates: (1) `composer analyse` clean on changed files; (2) `composer test` green; (3) no broken cross-references after renames; (4) no unapproved Ask-First boundary changes; (5) learning loop updated if VERIFY tripped; (6) any milestone file's `- [x]` ticks current.
 
 ## Artifact Routing
 
-| Artifact | Destination |
-|----------|-------------|
-| Footgun (code trap) | `.goat-flow/footguns/` |
-| Lesson (agent mistake) | `.goat-flow/lessons/` |
-| Decision record | `.goat-flow/decisions/` |
-| Reusable pattern | `.goat-flow/patterns/` |
-
-Read the target directory's `README.md` before editing.
+Add footguns → `.goat-flow/footguns/<category>.md` (read `.goat-flow/footguns/README.md` first). Add lessons → `.goat-flow/lessons/<category>.md`. Add decisions → `.goat-flow/decisions/ADR-NNN-*.md`. Add patterns → `.goat-flow/patterns/<name>.md`. These are documentation artifacts, not runtime code.
 
 ## Router Table
 
-| Surface | Path |
-|---------|------|
+| Resource | Path |
+|----------|------|
+| Instruction file (this file) | `CLAUDE.md` |
 | Learning loop | `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, `.goat-flow/decisions/` |
-| Skill reference + tool playbooks | `.goat-flow/skill-reference/` |
+| Skill reference (meta) | `.goat-flow/skill-reference/` |
+| Tool playbooks (CLI/MCP availability checks: browser-use, page-capture, skill-quality-testing) | `.goat-flow/skill-playbooks/` — read BEFORE declaring a tool unavailable |
 | Architecture | `.goat-flow/architecture.md` |
-| Code map | `.goat-flow/code-map.md` |
-| Glossary | `.goat-flow/glossary.md` |
-| Agent skills | `.claude/skills/` |
-| Agent guidelines | `AGENTS.md` |
-| Source code | `src/` |
-| Tests | `tests/` |
-| Scripts | `scripts/` |
-| Config | `composer.json`, `phpstan.neon`, `phpunit.xml`, `phpmd.xml`, `infection.json5` |
-| Docs | `docs/` |
+| Orientation | `.goat-flow/code-map.md`, `.goat-flow/glossary.md` |
+| Wire contract | `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md` |
+| Claude skills + harness | `.claude/skills/`, `.claude/settings.json`, `.claude/hooks/` |
+| Source | `src/` (entry: `src/StrandsClient.php`) |
+| Tests | `tests/Unit/`, `tests/Fixtures/`, `tests/Support/` |
+| Project docs | `docs/usage-guide.md`, `docs/auth.md`, `docs/rich-input.md`, `docs/interrupts-and-guardrails.md`, `docs/laravel-config.md`, `docs/symfony-config.md`, `docs/wire-contract.md` |
+| Quality config | `phpstan.neon`, `phpmd.xml`, `infection.json5`, `phpunit.xml`, `.php-cs-fixer.php` |
+| Scripts | `scripts/preflight-checks.sh`, `scripts/check-cyclomatic-complexity.php` |
 | CI | `.github/workflows/ci.yml` |
-| Session logs | `.goat-flow/logs/sessions/` |
-| Scratchpad | `.goat-flow/scratchpad/` |
-| Tasks | `.goat-flow/tasks/` |
+| Commit guidance | `.github/git-commit-instructions.md` |
+| Workspace notes | `.goat-flow/logs/sessions/`, `.goat-flow/tasks/`, `.goat-flow/scratchpad/` |
+| Peer instructions | `AGENTS.md` (do not modify under Claude scope) |

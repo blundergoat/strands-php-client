@@ -1,5 +1,5 @@
 ---
-goat-flow-reference-version: "1.5.0"
+goat-flow-reference-version: "1.7.0"
 ---
 # Browser Evidence Reference
 
@@ -67,9 +67,19 @@ browser-use open <url>                         # Default: headless Chromium
 browser-use --headed open <url>                # Visible window for ambiguous headless results
 browser-use connect                            # Connect to user's Chrome; requires explicit approval
 browser-use --profile "Default" open <url>     # Specific Chrome profile; requires explicit approval
+browser-use --session NAME open <url>          # Named session for parallel browsers (subagent flows, multi-tab QA)
 ```
 
 Use `--headed` when headless output is ambiguous. Do not use `connect`, `--profile`, profile sync, or cloud mode without explicit user approval.
+
+### When `browser-use connect` fails
+
+If `connect` cannot find a running Chrome with remote debugging, do not silently fall back. Surface the choice to the user with both options and let them pick — installed-Chrome and managed-Chromium are not equivalent because each touches different state:
+
+1. **Use the user's real Chrome.** They must enable remote debugging first: open `chrome://inspect/#remote-debugging` or relaunch Chrome with `--remote-debugging-port=9222`. Then retry `browser-use connect`.
+2. **Use managed Chromium with a Chrome profile.** Run `browser-use profile list` to show available profiles, ask which one, then run `browser-use --profile "ProfileName" open <url>`. This launches a separate Chromium instance with the chosen profile (cookies, logins, extensions); no Chrome relaunch needed.
+
+Both paths require explicit user approval — they read login state. Never pick one autonomously.
 
 ## Navigation and Sessions
 
@@ -109,4 +119,17 @@ Ask the user to provide this evidence. Manual evidence follows the same classifi
 - **Local HTML shows an empty DOM:** serve the directory over localhost and open the HTTP URL instead of `file://`
 - **Element not found after state:** `browser-use scroll down` then `browser-use state`
 - **Stale indices after navigation:** re-run `browser-use state`
+- **Stuck session after a failed command:** `browser-use close` (or `browser-use close --all` to clear every named session) before retrying
 - **Run diagnostics:** `browser-use doctor`
+
+## Cleanup
+
+When you are done with a browser-driven session, close the daemon and any side resources you opened:
+
+```bash
+browser-use close                  # Close the default session
+browser-use close --all            # Close every named session if you used --session
+browser-use tunnel stop --all      # Only if you started a tunnel earlier
+```
+
+Leaving the daemon running is harmless but consumes memory and keeps any open Chromium / cloud session alive.

@@ -12,7 +12,7 @@ last_reviewed: 2026-05-24
 
 **Why it happens:** `RequestMiddleware` only sees URL, headers/body before the request and URL/status/duration/error after the transport call. Parsed `AgentResponse`, `StreamResult`, and custom SSE summaries are created later in `StrandsClient`.
 
-**Evidence:** `src/Http/RequestMiddleware.php` (search: `afterResponse(string $url, int $statusCode`) has no result argument. `src/Http/ResponseObserver.php` (search: `afterInvoke`) is the additive terminal-result surface. `src/StrandsClient.php` (search: `notifyInvokeObservers`) calls observers after parsing and before closing request middleware spans.
+**Evidence:** `src/Http/RequestMiddleware.php` (search: `afterResponse(string $url, int $statusCode`) has no result argument. `src/Http/ResponseObserver.php` (search: `afterInvoke`) is the additive terminal-result surface. `src/StrandsClient.php` (search: `notifyResponseObservers`) calls observers after parsing and before closing request middleware spans.
 
 **Prevention:** Keep `RequestMiddleware` for request headers/body mutation and basic request lifecycle. Use `ResponseObserver` for parsed response/stream attributes. Do not widen `RequestMiddleware` signatures; external consumers implement that public interface.
 
@@ -36,8 +36,8 @@ last_reviewed: 2026-05-24
 
 **Symptoms:** A `RequestMiddleware` whose `beforeRequest()` acquired some state (active OTel scope, lock, counter increment) never sees `afterResponse()` when auth or a sibling middleware later throws. The state leaks into the next request — wrong parent/child traces, stuck counters, or "active" instrumentation that no longer corresponds to an in-flight call.
 
-**Why it happens:** `src/StrandsClient.php` (search: `[\$headers, \$body] = \$this->buildRequest`) invokes the middleware chain inside `buildRequest()` BEFORE the `try { postWithRetry(...) } catch` block. Exceptions thrown by middleware after the first one, or by `AuthStrategy::authenticate()` (which runs last inside `buildRequest`), escape the try and `notifyAfterResponse` is never called. The same shape exists in `stream()`, `postJson()`, and `streamSse()`.
+**Why it happens:** `src/StrandsClient.php` (search: `private function buildRequest`) invokes the middleware chain inside `buildRequest()` BEFORE the `try { postWithRetry(...) } catch` block. Exceptions thrown by middleware after the first one, or by `AuthStrategy::authenticate()` (which runs last inside `buildRequest`), escape the try and `notifyAfterResponse` is never called. The same shape exists in `stream()`, `postJson()`, and `streamSse()`.
 
-**Evidence:** `src/StrandsClient.php:91` (`invoke`), `:155` (`stream`), `:293` (`postJson`), `:345` (`streamSse`) all call `buildRequest*` outside the try/catch that triggers `notifyAfterResponse`. `src/Http/Middleware/OtelTracingMiddleware.php` (search: `endOrphanedSpans`) is the reference implementation — it self-heals by draining stale spans at the start of every `beforeRequest()`.
+**Evidence:** `src/StrandsClient.php` (search: `notifyAfterResponse`) is called inside the try/catch but `buildRequest()` callsites in `invoke()`, `stream()`, `postJson()`, and `streamSse()` happen outside it — grep for `= $this->buildRequest(` to see each callsite. `src/Http/Middleware/OtelTracingMiddleware.php` (search: `endOrphanedSpans`) is the reference implementation — it self-heals by draining stale spans at the start of every `beforeRequest()`.
 
 **Prevention:** A middleware that pairs before/after state MUST be self-recovering. Either drain orphaned state at the next `beforeRequest()` call (cheapest), or wrap the activation step in a try/catch that cleans up locally if a partial failure happens inside `beforeRequest()` itself. Do not assume `afterResponse()` is guaranteed to run.

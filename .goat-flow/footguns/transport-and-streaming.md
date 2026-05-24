@@ -1,0 +1,48 @@
+---
+category: transport-and-streaming
+last_reviewed: 2026-05-24
+---
+
+# Footguns — Transport & Streaming
+
+Architectural traps that exist because of how the client is structured. Read before touching `src/Http/`, `src/Streaming/`, or stream-cancellation paths.
+
+## Footgun: `HttpTransport` is a PHP `interface`, not an abstract class
+
+**Status:** active | **Created:** 2026-05-24 | **Evidence:** ACTUAL_MEASURED
+
+`src/Http/HttpTransport.php` (search: `interface HttpTransport`) declares both `post()` and `stream()` with no default bodies — PHP `interface` types cannot ship implementations. Adding a new transport (`PsrHttpTransport`, `SymfonyHttpTransport`, or third-party) means implementing both methods, even when one is unsupported. `PsrHttpTransport::stream()` deliberately throws because PSR-18 has no streaming. Do not "helpfully" promote the interface to an abstract class to share code — every existing implementer breaks and consumers who type-hint `HttpTransport` lose the contract guarantee.
+
+`hallucination-risk: high` — easy to misread the interface as an abstract class from the file name alone.
+
+## Footgun: `StreamParser` skips unknown events; `StreamEvent::fromArray()` throws on them
+
+**Status:** active | **Created:** 2026-05-24 | **Evidence:** ACTUAL_MEASURED
+
+`src/Streaming/StreamParser.php` (search: `skippedEvents++`) silently increments `skippedEvents` for unrecognised SSE types, while `src/Streaming/StreamEvent.php` (search: `throw new \InvalidArgumentException`) throws for the same unknown type. The asymmetry is **deliberate** — `StreamParser` calls `tryFromArray()` (search: `tryFromArray() returns null for unknown types`) which returns `null` instead of throwing, giving forward-compatibility on the stream path. Direct callers of `StreamEvent::fromArray()` get strict validation. Do not "unify" the behaviour: callers who hydrate events from cached payloads need the throw to catch schema drift, and live streams need to tolerate new event names from a newer server.
+
+`hallucination-risk: high` — names suggest these should behave the same.
+
+## Footgun: Stream cancellation requires literal `false` from the callback
+
+**Status:** active | **Created:** 2026-05-24 | **Evidence:** ACTUAL_MEASURED
+
+`src/Http/SymfonyHttpTransport.php` (search: `if ($onChunk($content) === false)`) calls `$response->cancel()` only when the user callback returns the boolean `false`. Returning `null`, `void`, `0`, or `""` continues the stream — the strict `=== false` check preserves backward compatibility with pre-cancellation callbacks that returned `void`. Refactoring this to `if (!$onChunk(...))` silently introduces cancellation on every callback that forgets to return, breaking every consumer that streams to a non-returning sink (loggers, echo, etc.). Cancellation also closes the TCP connection — it is not just a Boolean flag; it is an irreversible transport-level abort.
+
+## Footgun: `PsrHttpTransport::stream()` is intentionally unimplemented
+
+**Status:** active | **Created:** 2026-05-24 | **Evidence:** ACTUAL_MEASURED
+
+`src/Http/PsrHttpTransport.php` only supports `post()`. PSR-18 has no streaming contract, so attempting to add a polling/chunking fake here breaks the "real streaming" guarantee that `SymfonyHttpTransport` users rely on (TTFT metrics, mid-stream cancellation, server-driven flushes). Document the limitation, do not paper over it. If a non-Symfony streaming transport is needed, add a new class (e.g., a Guzzle async transport) that explicitly opts into the streaming contract — do not retrofit it into the PSR-18 one.
+
+## Footgun: `Usage::fromArray()` is the single canonical hydrator
+
+**Status:** active | **Created:** 2026-05-24 | **Evidence:** ACTUAL_MEASURED
+
+`src/Response/Usage.php` (search: `intField`) owns the defensive type-checking for token counts. `AgentResponse::parseUsage()` and `StrandsClient::usageFromArray()` both delegate to it. Adding a parallel hydrator (e.g., per-transport "fast path") forks the defensive logic — historically the source of silent zero-token bugs when the API returned strings instead of ints. New consumers of `Usage` must go through `Usage::fromArray()`.
+
+## Footgun: `src/StrandsClient.php` is a coordination hot-spot
+
+**Status:** active | **Created:** 2026-05-24 | **Evidence:** git history (9 commits, last `a508e69`) | **Source:** git history (auto-seeded)
+
+`src/StrandsClient.php` accumulates four cooperating concerns: retry-with-backoff, middleware ordering, message validation, and stream-cancellation propagation. Changes here ripple into `src/Streaming/StreamParser.php` (7 commits, last `a508e69`) and `src/Http/PsrHttpTransport.php` (7 commits, last `5c3a819`) — the three files are repeatedly co-committed when features cross the transport boundary. Before editing, check: does the change belong in the transport (one concern), in middleware (cross-cutting), or in the client (orchestration)? Wrong layer = broken retry semantics or skipped middleware.

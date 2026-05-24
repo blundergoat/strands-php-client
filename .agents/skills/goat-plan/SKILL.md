@@ -1,7 +1,7 @@
 ---
 name: goat-plan
 description: "Use when starting a non-trivial implementation that needs structured task breakdown with progress tracking."
-goat-flow-skill-version: "1.5.0"
+goat-flow-skill-version: "1.7.0"
 ---
 # /goat-plan
 
@@ -12,7 +12,7 @@ On full-depth, also read `.goat-flow/skill-reference/skill-conventions.md`.
 
 ## When to Use
 
-Use when work needs milestones with tracked progress. goat-plan manages files in `.goat-flow/tasks/<active>/`, where `.active` is advisory local state. Task files are gitignored coordination artifacts, not committed product docs.
+Use when work needs milestones with tracked progress. goat-plan manages gitignored coordination files in `.goat-flow/tasks/<active>/`, not product docs.
 
 Use for milestones, replans, rescope, resume-from-plan. **NOT this skill:** tests → run them; debug → /goat-debug; review → /goat-review; security → /goat-security; gaps → /goat-qa; critique → /goat-critique; question → answer directly.
 
@@ -25,15 +25,15 @@ Use for milestones, replans, rescope, resume-from-plan. **NOT this skill:** test
 
 ## Step 0 - Intake
 
-**Path-only guard runs first.** If the user message is only a task/milestone path, or an ambiguous context phrase such as "look at `.goat-flow/tasks/foo`" or "here's the task dir", choose **Path-Only Intake / Read-Only Orientation**. Read only minimal index/status files. Do NOT update `.active`, milestone status fields, task checkboxes, or code. If `.active` points elsewhere, mention it and offer to switch only on approval. Implementation requires "start", "implement", "resume", "mark in progress and begin", or "fix code". Plan-file writes require "update", "rewrite", "write", "create", or "fix" tied to the plan file. Before any write after an ambiguous path, checkpoint and stop.
+**Path-only guard runs first.** If the user message is only a task/milestone path, or an ambiguous context phrase such as "look at this task directory" or "here's the task dir", choose **Path-Only Intake / Read-Only Orientation**. Read only minimal index/status files. Do NOT update `.active`, milestone status fields, task checkboxes, or code. If `.active` points elsewhere, mention it and offer to switch only on approval. Implementation requires "start", "implement", "resume", "mark in progress and begin", or "fix code". Plan-file writes require "update", "rewrite", "write", "create", or "fix" tied to the plan file. Before any write after an ambiguous path, checkpoint and stop.
 
 **Check for existing milestones first:**
-- Treat `.goat-flow/tasks/.active` as an advisory local pointer (one-line file naming a subdir, e.g. `1.2.2`), not a setup invariant.
+- Treat `.goat-flow/tasks/.active` as an advisory local pointer (one-line file naming a subdir), not a setup invariant.
 - If `.active` exists and names an existing subdir, scan only that subdir for milestone files.
-- If `.active` is missing or names a missing subdir, treat as normal local churn. List top-level entries in `.goat-flow/tasks/` excluding `_archived`, prefer dirs with recent `M*.md` files, ask which plan is current, and offer to write/update `.active`. Do NOT report a stale/missing `.active` as a setup failure.
+- If `.active` is missing or names a missing subdir, treat as normal local churn. List top-level entries in `.goat-flow/tasks/` excluding archives, prefer dirs with recent `M*.md` files, ask which plan is current, and offer to write/update `.active`. Do NOT report a stale/missing `.active` as a setup failure.
 - If milestones exist and the user hasn't given an explicit action verb: "Milestone files exist for [feature]. Resume from here, update milestones, or start fresh?"
 - If the selected plan exists but appears stale: check whether code has moved on but milestones haven't been updated, flag it. Note: task files are gitignored, so `git log` won't track them - check file modification dates instead.
-- Also check for legacy milestone files outside `.goat-flow/tasks/` (e.g. `milestones/`, `tasks/`). Sibling-version subdirs (e.g. `1.5.0/`) hold deferred or completed work and are NOT scanned unless `.active` is missing or points nowhere. If found, note them.
+- Also check for legacy milestone files outside `.goat-flow/tasks/` (e.g. `milestones/`, `tasks/`). Sibling-version subdirs hold deferred or completed work and are NOT scanned unless `.active` is missing or points nowhere. If found, note them.
 
 **If starting fresh:** identify what is being built, the riskiest part, kill criteria, and run the preamble's grep-first learning-loop retrieval for the target area.
 
@@ -124,7 +124,7 @@ User explicitly asked to edit an existing plan file. Path-only references do not
 - Preserve title/status metadata unless the change requires updating them.
 - Present updated content or concise delta. Ask if scope spills beyond named file.
 
-### Mode 2: Strict No-Write Analysis (no files)
+### Mode 2: Read-Only Analysis (no files)
 
 Analysis signals triggered this mode.
 
@@ -177,13 +177,13 @@ If updates are needed mid-flight, follow the milestone retrospective protocol in
 
 ## Phase 4 - Plan Complete
 
-When all milestones reach `complete` status, the plan enters the completion protocol. Both gates must pass before the plan is considered finished.
+When all milestones reach `complete` or `human-verification-pending`, the plan enters Phase 4. Both gates must pass before the plan is considered finished.
 
 ### AI Verification Gate
 
 Before presenting completion, verify:
 
-1. Every milestone status shows `complete`
+1. Every milestone status shows `complete` or `human-verification-pending`
 2. Every task checkbox ticked `[x]` across all milestone files
 3. Every exit criterion met with evidence cited in this session
 4. Every testing gate passed with proof (not recollection)
