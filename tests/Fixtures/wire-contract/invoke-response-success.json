@@ -1,0 +1,23 @@
+{
+    "text": "The appointment is ready to confirm.",
+    "agent": "booking-assistant",
+    "session_id": "session-001",
+    "usage": {
+        "input_tokens": 128,
+        "output_tokens": 42,
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "latency_ms": 842.5,
+        "time_to_first_byte_ms": 210.1
+    },
+    "tools_used": [
+        {
+            "name": "availability_lookup",
+            "input": {
+                "date": "2026-05-24"
+            }
+        }
+    ],
+    "has_objective": true,
+    "stop_reason": "end_turn"
+}

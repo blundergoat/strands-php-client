@@ -1,0 +1,4 @@
+data: {"type":"text","content":"Starting"}
+
+data: {"type":"error","message":"Model provider timed out.","code":"provider_timeout"}
+

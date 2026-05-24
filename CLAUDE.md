@@ -2,6 +2,7 @@
 
 PHP client library for consuming Strands AI agents over HTTP (invoke, SSE streaming).
 Core invariant: `HttpTransport` is an **interface** — no default method bodies, no abstract class.
+Contract invariant: this client targets the Strands HTTP Wire Contract v1 emitted by wrapper services, not raw sdk-python `TypedDict` shapes. See `docs/wire-contract.md` and `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`.
 
 ## Workspace Boundary
 
@@ -47,6 +48,7 @@ Before touching these boundaries, state: boundary touched, related code read, fo
 ## Key Resources
 
 - **Learning loop** (grep before every change): `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, `.goat-flow/decisions/`.
+- **Wire contract**: `docs/wire-contract.md` and `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`.
 - **Tool playbooks**: `.goat-flow/skill-reference/browser-use.md`, `.goat-flow/skill-reference/page-capture.md` — read BEFORE declaring a tool unavailable.
 - **Agent guidelines**: `AGENTS.md` — coding patterns, testing patterns, style rules.
 

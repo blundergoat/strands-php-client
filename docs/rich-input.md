@@ -1,6 +1,6 @@
 # Rich Input (AgentInput)
 
-`AgentInput` is an immutable builder for sending multi-modal content to Strands agents. It supports text, images, documents (base64 and S3), videos (S3), structured output prompts, and interrupt responses.
+`AgentInput` is an immutable builder for sending multi-modal content to Strands wrapper services. It supports text, images, documents, videos, S3 and URL sources, structured output prompts, and interrupt responses.
 
 ## Table of Contents
 
@@ -25,9 +25,9 @@
 
 ## Why AgentInput?
 
-The standard `invoke()` and `stream()` methods accept a plain `string` message. This works for text-only conversations, but modern LLMs support multi-modal input: images, documents, videos. The Strands API represents these as **content blocks** within the message payload.
+The standard `invoke()` and `stream()` methods accept a plain `string` message. This works for text-only conversations, but modern LLMs support multi-modal input: images, documents, videos. The Strands HTTP Wire Contract represents these as **content blocks** within the message payload.
 
-`AgentInput` provides a type-safe, immutable builder that serializes to the content block format the API expects. When no content blocks are attached, it serializes as a plain string for backward compatibility.
+`AgentInput` provides a type-safe, immutable builder that serializes to the content block format the wrapper expects. When no content blocks are attached, it serializes as a plain string for backward compatibility.
 
 ```mermaid
 graph LR
@@ -59,9 +59,14 @@ All builder methods return a **new instance** (clone-and-mutate pattern). The or
 | Method | Parameters | Description |
 |--------|------------|-------------|
 | `withImage()` | `string $base64Data, string $mediaType` | Add a base64-encoded image (e.g. `image/png`, `image/jpeg`). |
+| `withImageFromS3()` | `string $s3Uri, string $format, ?string $bucketOwner` | Add an image from an S3 location. |
+| `withImageFromUrl()` | `string $url, string $mediaType` | Add a wrapper-supported URL image source. |
 | `withDocument()` | `string $base64Data, string $format, string $name` | Add a base64-encoded document (e.g. `pdf`, `txt`, `docx`). |
 | `withDocumentFromS3()` | `string $s3Uri, string $format, string $name, ?string $bucketOwner` | Add a document from an S3 location. |
+| `withDocumentFromUrl()` | `string $url, string $format, string $name` | Add a wrapper-supported URL document source. |
+| `withVideo()` | `string $base64Data, string $format` | Add a base64-encoded video. |
 | `withVideoFromS3()` | `string $s3Uri, string $format, ?string $bucketOwner` | Add a video from an S3 location. |
+| `withVideoFromUrl()` | `string $url, string $format` | Add a wrapper-supported URL video source. |
 | `withStructuredOutputPrompt()` | `string $prompt` | Set a prompt to control the output format. |
 
 ### Serialization
@@ -208,6 +213,8 @@ See [interrupts-and-guardrails.md](interrupts-and-guardrails.md) for the full in
 ## Wire Format
 
 `AgentInput` serializes differently depending on whether content blocks are attached:
+
+This is the PHP-facing Strands HTTP Wire Contract shape. A Python wrapper translates it into sdk-python/model-provider content blocks. URL source blocks are wrapper extensions and require explicit server support.
 
 ```mermaid
 graph TD

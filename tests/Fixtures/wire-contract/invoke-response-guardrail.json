@@ -1,0 +1,21 @@
+{
+    "text": "I cannot provide that content.",
+    "agent": "safety-agent",
+    "session_id": "session-005",
+    "usage": {
+        "input_tokens": 48,
+        "output_tokens": 8
+    },
+    "guardrail_trace": {
+        "action": "INTERVENED",
+        "assessments": [
+            {
+                "name": "safety",
+                "result": "blocked",
+                "confidence": 0.98
+            }
+        ],
+        "model_output": "Blocked by safety policy."
+    },
+    "stop_reason": "guardrail_intervened"
+}

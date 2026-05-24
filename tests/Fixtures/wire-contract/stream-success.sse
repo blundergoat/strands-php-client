@@ -1,0 +1,10 @@
+data: {"type":"text","content":"The appointment"}
+
+data: {"type":"text","content":" is ready."}
+
+data: {"type":"tool_use","tool_name":"availability_lookup","tool_input":{"date":"2026-05-24"}}
+
+data: {"type":"tool_result","result":{"available":true}}
+
+data: {"type":"complete","text":"The appointment is ready.","session_id":"session-001","usage":{"input_tokens":128,"output_tokens":42},"tools_used":[{"name":"availability_lookup"}],"stop_reason":"end_turn"}
+

@@ -17,11 +17,11 @@ composer require blundergoat/strands-php-client
 
 ## Why This Exists
 
-[Strands Agents](https://github.com/strands-agents/strands-agents) is an open-source Python SDK from AWS for building autonomous AI agents. It handles the hard parts -reasoning loops, tool orchestration, model routing (Claude, Nova, GPT, Ollama) -and exposes agents over HTTP.
+[Strands Agents](https://github.com/strands-agents/strands-agents) is an open-source Python SDK from AWS for building autonomous AI agents. It handles the hard parts -reasoning loops, tool orchestration, model routing (Claude, Nova, GPT, Ollama). In production PHP apps, those agents are exposed through a small HTTP wrapper.
 
 But most web applications aren't written in Python. If your product runs on Symfony or any PHP framework, you need a way to **consume** those agents without reimplementing the agentic loop in PHP. That's what this library does.
 
-Your Python agents handle the AI. Your PHP app handles the product. This client is the bridge.
+Your Python agents handle the AI. Your PHP app handles the product. This client is the bridge, targeting the [Strands HTTP Wire Contract](docs/wire-contract.md) emitted by wrapper services rather than raw sdk-python internal types.
 
 ```mermaid
 graph LR
@@ -184,7 +184,7 @@ echo $result->isInterrupted() ? 'yes' : 'no'; // Whether the agent was interrupt
 
 ### Custom Endpoints (postJson / streamSse)
 
-For agent endpoints with custom request/response schemas, use `postJson()` and `streamSse()`. These bypass the standard invoke/stream contract and work with arbitrary payloads:
+For agent endpoints with custom request/response schemas, use `postJson()` and `streamSse()`. These bypass the standard `/invoke` and `/stream` wire contract and work with arbitrary payloads:
 
 ```php
 // Synchronous - returns raw decoded JSON array
@@ -512,8 +512,10 @@ composer require blundergoat/strands-php-client symfony/http-client
 | Document | Description |
 |----------|-------------|
 | [Usage Guide](docs/usage-guide.md) | Real-world patterns and examples |
+| [Wire Contract](docs/wire-contract.md) | Canonical JSON/SSE contract for wrapper services |
+| [Wire Contract Audit](docs/wire-contract-audit.md) | Active wrapper-service conformance notes |
 | [Authentication](docs/auth.md) | Auth strategies, custom drivers, framework config |
-| [Rich Input](docs/rich-input.md) | Multi-modal input: images, documents, S3 locations |
+| [Rich Input](docs/rich-input.md) | Multi-modal input: images, documents, videos, S3 and URL sources |
 | [Interrupts & Guardrails](docs/interrupts-and-guardrails.md) | Human-in-the-loop and content safety |
 | [Laravel Config](docs/laravel-config.md) | Full PHP config reference with every option |
 | [Symfony Config](docs/symfony-config.md) | Full YAML config reference with every option |

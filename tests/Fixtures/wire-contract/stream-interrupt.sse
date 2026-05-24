@@ -1,0 +1,2 @@
+data: {"type":"complete","text":"","session_id":"session-006","stop_reason":"interrupt","interrupts":[{"interrupt_id":"interrupt-001","tool_use_id":"tool-001","tool_name":"book_appointment","tool_input":{"date":"2026-05-24","time":"09:30"},"reason":"approval_required"}]}
+

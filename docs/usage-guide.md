@@ -5,6 +5,7 @@ This guide walks through real-world usage patterns for the Strands PHP Client, b
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
+- [Wire Contract](#wire-contract)
 - [Basic Invoke](#basic-invoke)
 - [Rich Input (AgentInput)](#rich-input-agentinput)
 - [Streaming with SSE](#streaming-with-sse)
@@ -55,6 +56,12 @@ graph TB
 
 The PHP side never runs an agentic loop. It sends a message, optionally with context and a session ID, and gets back a response or a stream of events. All reasoning, tool calling, and state management happens in the Python agent.
 
+## Wire Contract
+
+`StrandsClient` targets the [Strands HTTP Wire Contract](wire-contract.md): a PHP-facing JSON/SSE contract emitted by Python wrapper services built on top of sdk-python. It is not a raw mirror of sdk-python `TypedDict` objects.
+
+The wrapper owns translation between PHP request/response shapes and sdk-python messages, results, citations, guardrails, usage counters, and stream events.
+
 ## Basic Invoke
 
 The simplest usage - send a message, get a response:
@@ -84,7 +91,7 @@ print_r($response->metadata);           // Unrecognised response fields (forward
 
 ## Rich Input (AgentInput)
 
-For multi-modal input - images, documents, S3 locations - use `AgentInput` instead of a plain string. It serializes to the content block format the Strands API expects.
+For multi-modal input - images, documents, videos, S3 locations, and wrapper-supported URL sources - use `AgentInput` instead of a plain string. It serializes to the content block format described by the Strands HTTP Wire Contract.
 
 ```php
 use StrandsPhpClient\Context\AgentInput;
@@ -175,7 +182,7 @@ When present, `has_objective` is exposed as `$event->hasObjective`.
 
 ## Custom Endpoints
 
-For agent endpoints that don't follow the standard invoke/stream contract - file processing, metadata extraction, custom validation - use `postJson()` and `streamSse()`. These work with arbitrary payloads and return raw decoded JSON instead of typed DTOs.
+For agent endpoints that don't follow the standard `/invoke` and `/stream` wire contract - file processing, metadata extraction, custom validation - use `postJson()` and `streamSse()`. These work with arbitrary payloads and return raw decoded JSON instead of typed DTOs.
 
 ### postJson() - Synchronous custom requests
 
@@ -893,7 +900,7 @@ eventSource.onmessage = (event) => {
 
 ## Building Your Python Agent
 
-The PHP client sends HTTP requests to your Python agent and expects specific JSON and SSE response formats. This section covers the contract, common pitfalls, and a minimal working example.
+The PHP client sends HTTP requests to your Python wrapper and expects the JSON and SSE response formats documented in the [wire contract](wire-contract.md). This section covers the practical wrapper shape, common sdk-python pitfalls behind that wrapper, and a minimal working example.
 
 ### JSON payload the PHP client sends
 

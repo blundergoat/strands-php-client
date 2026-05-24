@@ -1,0 +1,7 @@
+{
+    "message": "Validation failed.",
+    "code": "validation_error",
+    "detail": {
+        "field": "message"
+    }
+}
