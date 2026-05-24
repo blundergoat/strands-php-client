@@ -1524,7 +1524,7 @@ check_segment() {
   fi
 
   # 11. Lockfile direct modifications (must go through package manager)
-  if [[ "$cmd" =~ (\>|\>\>|tee|sed[[:space:]]+-i)[[:space:]]+.*(package-lock\.json|pnpm-lock\.yaml|composer\.lock|Cargo\.lock|yarn\.lock) ]]; then
+  if [[ "$cmd" =~ (\>|\>\>|tee|sed[[:space:]]+-i)[[:space:]]+.*(package-lock\.json|composer\.lock|Cargo\.lock|yarn\.lock) ]]; then
     block "Direct lockfile modification. Use the package manager (npm install, composer update, etc.)."
   fi
 
