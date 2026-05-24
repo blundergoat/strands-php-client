@@ -33,6 +33,8 @@ class StreamResult
      * @param list<InterruptDetail> $interrupts        Interrupts raised by the agent (human-in-the-loop).
      * @param GuardrailTrace|null $guardrailTrace      Guardrail intervention trace data.
      * @param list<array<string, mixed>> $citations    Citation content blocks accumulated during streaming.
+     * @param int|null $contextSize                    Current context size in tokens.
+     * @param int|null $projectedContextSize           Projected next-turn context size in tokens.
      */
     public function __construct(
         public readonly string $text,
@@ -47,6 +49,8 @@ class StreamResult
         public readonly array $interrupts = [],
         public readonly ?GuardrailTrace $guardrailTrace = null,
         public readonly array $citations = [],
+        public readonly ?int $contextSize = null,
+        public readonly ?int $projectedContextSize = null,
     ) {
     }
 

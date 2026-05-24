@@ -12,6 +12,8 @@ use StrandsPhpClient\Response\Citation\Citation;
  * Created by StreamParser (via tryFromArray) or directly via fromArray.
  * Each property maps to a specific event type - most are null for types
  * that don't carry that field.
+ *
+ * @SuppressWarnings("PHPMD.ExcessiveParameterList")
  */
 class StreamEvent
 {
@@ -33,6 +35,8 @@ class StreamEvent
      * @param string|null      $stopReason          Why the agent stopped (in Complete events).
      * @param list<array<string, mixed>> $interrupts  Raw interrupt data from Complete events.
      * @param array<string, mixed>|null $guardrailTrace  Raw guardrail trace from Complete events.
+     * @param int|null         $contextSize         Current context size in tokens.
+     * @param int|null         $projectedContextSize Projected next-turn context size in tokens.
      */
     public function __construct(
         public readonly StreamEventType $type,
@@ -52,6 +56,8 @@ class StreamEvent
         public readonly ?string $stopReason = null,
         public readonly array $interrupts = [],
         public readonly ?array $guardrailTrace = null,
+        public readonly ?int $contextSize = null,
+        public readonly ?int $projectedContextSize = null,
     ) {
     }
 
@@ -126,6 +132,8 @@ class StreamEvent
             stopReason: self::string($data, 'stop_reason'),
             interrupts: self::listOfArrays($data, 'interrupts'),
             guardrailTrace: self::parseGuardrailTrace($data),
+            contextSize: self::nullableIntField($data, 'context_size'),
+            projectedContextSize: self::nullableIntField($data, 'projected_context_size'),
         );
     }
 
@@ -271,6 +279,27 @@ class StreamEvent
 
         if ($raw !== null) {
             return json_encode($raw) ?: null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private static function nullableIntField(array $data, string $key): ?int
+    {
+        $value = $data[$key] ?? null;
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value)) {
+            return (int) round($value);
+        }
+
+        if (is_string($value) && is_numeric($value)) {
+            return (int) round((float) $value);
         }
 
         return null;

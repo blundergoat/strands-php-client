@@ -1,6 +1,6 @@
 # Rich Input (AgentInput)
 
-`AgentInput` is an immutable builder for sending multi-modal content to Strands wrapper services. It supports text, images, documents, videos, S3 and URL sources, structured output prompts, and interrupt responses.
+`AgentInput` is an immutable builder for sending multi-modal content to Strands wrapper services. It supports text, images, documents, videos, S3 and URL sources, cache points, document context/citation controls, structured output prompts, and interrupt responses.
 
 ## Table of Contents
 
@@ -14,6 +14,7 @@
   - [Text with Image](#text-with-image)
   - [Text with Document](#text-with-document)
   - [Document from S3](#document-from-s3)
+  - [Cache Point](#cache-point)
   - [Video from S3](#video-from-s3)
   - [Structured Output](#structured-output)
   - [Multiple Content Blocks](#multiple-content-blocks)
@@ -61,12 +62,13 @@ All builder methods return a **new instance** (clone-and-mutate pattern). The or
 | `withImage()` | `string $base64Data, string $mediaType` | Add a base64-encoded image (e.g. `image/png`, `image/jpeg`). |
 | `withImageFromS3()` | `string $s3Uri, string $format, ?string $bucketOwner` | Add an image from an S3 location. |
 | `withImageFromUrl()` | `string $url, string $mediaType` | Add a wrapper-supported URL image source. |
-| `withDocument()` | `string $base64Data, string $format, string $name` | Add a base64-encoded document (e.g. `pdf`, `txt`, `docx`). |
-| `withDocumentFromS3()` | `string $s3Uri, string $format, string $name, ?string $bucketOwner` | Add a document from an S3 location. |
-| `withDocumentFromUrl()` | `string $url, string $format, string $name` | Add a wrapper-supported URL document source. |
+| `withDocument()` | `string $base64Data, string $format, string $name, ?string $context, ?array $citations` | Add a base64-encoded document with optional wrapper context/citation controls. |
+| `withDocumentFromS3()` | `string $s3Uri, string $format, string $name, ?string $bucketOwner, ?string $context, ?array $citations` | Add a document from an S3 location. |
+| `withDocumentFromUrl()` | `string $url, string $format, string $name, ?string $context, ?array $citations` | Add a wrapper-supported URL document source. |
 | `withVideo()` | `string $base64Data, string $format` | Add a base64-encoded video. |
 | `withVideoFromS3()` | `string $s3Uri, string $format, ?string $bucketOwner` | Add a video from an S3 location. |
 | `withVideoFromUrl()` | `string $url, string $format` | Add a wrapper-supported URL video source. |
+| `withCachePoint()` | `string $type = 'default', ?string $ttl = null` | Add a wrapper cache point block. |
 | `withStructuredOutputPrompt()` | `string $prompt` | Set a prompt to control the output format. |
 
 ### Serialization
@@ -112,7 +114,27 @@ use StrandsPhpClient\Context\AgentInput;
 $pdfBytes = file_get_contents('report.pdf');
 
 $input = AgentInput::text('Summarise the key findings in this report')
-    ->withDocument(base64_encode($pdfBytes), 'pdf', 'Q4 Financial Report');
+    ->withDocument(
+        base64_encode($pdfBytes),
+        'pdf',
+        'Q4 Financial Report',
+        context: 'Quarterly report uploaded for board review.',
+        citations: ['enabled' => true],
+    );
+
+$response = $client->invoke(message: $input);
+```
+
+### Cache Point
+
+Cache points are wrapper-owned content blocks that the Python gateway can translate into sdk-python or provider cache controls:
+
+```php
+use StrandsPhpClient\Context\AgentInput;
+
+$input = AgentInput::text('Use the stable policy context, then answer the question.')
+    ->withCachePoint(ttl: '5m')
+    ->withDocumentFromS3('s3://my-bucket/policy.pdf', 'pdf', 'Policy');
 
 $response = $client->invoke(message: $input);
 ```
@@ -257,6 +279,42 @@ graph TD
                     "data": "iVBORw0KGgo..."
                 }
             }
+        ]
+    }
+}
+```
+
+**Document context and citations:**
+
+```json
+{
+    "message": {
+        "content": [
+            { "type": "text", "text": "Summarise this referral" },
+            {
+                "type": "document",
+                "name": "referral.pdf",
+                "format": "pdf",
+                "context": "Referral uploaded for clinical summarisation.",
+                "citations": { "enabled": true },
+                "source": {
+                    "type": "s3_location",
+                    "uri": "s3://bucket/referral.pdf"
+                }
+            }
+        ]
+    }
+}
+```
+
+**Cache point:**
+
+```json
+{
+    "message": {
+        "content": [
+            { "type": "text", "text": "Use cached context" },
+            { "type": "cache_point", "cache_type": "default", "ttl": "5m" }
         ]
     }
 }

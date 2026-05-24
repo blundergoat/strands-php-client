@@ -70,6 +70,8 @@ class ChatController extends Controller
 
 The service provider and facade are auto-discovered via the `extra.laravel` key in `composer.json`. No manual registration is needed.
 
+Middleware can be registered by tagging services with `strands.middleware`. Response-aware observers can be tagged with `strands.response_observer`; `OtelTracingMiddleware` also works when registered as regular middleware because the client detects observers already present in the middleware stack.
+
 If you have disabled auto-discovery, add the provider and facade manually:
 
 ```php

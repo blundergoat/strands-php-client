@@ -101,7 +101,7 @@ class StrandsClientStreamTest extends TestCase
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
             . "data: {\"type\": \"text\", \"content\": \" there\"}\n\n"
-            . "data: {\"type\": \"complete\", \"text\": \"Hello there\", \"session_id\": \"s-1\", \"usage\": {\"input_tokens\": 20, \"output_tokens\": 10}, \"tools_used\": []}\n\n";
+            . "data: {\"type\": \"complete\", \"text\": \"Hello there\", \"session_id\": \"s-1\", \"usage\": {\"input_tokens\": 20, \"output_tokens\": 10}, \"tools_used\": [], \"context_size\": 8192, \"projected_context_size\": 9216}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
         $client = new StrandsClient(
@@ -121,6 +121,8 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(10, $result->usage->outputTokens);
         $this->assertSame(2, $result->textEvents);
         $this->assertSame(3, $result->totalEvents);
+        $this->assertSame(8192, $result->contextSize);
+        $this->assertSame(9216, $result->projectedContextSize);
     }
 
     public function testStreamThrowsOnMissingTerminalEvent(): void

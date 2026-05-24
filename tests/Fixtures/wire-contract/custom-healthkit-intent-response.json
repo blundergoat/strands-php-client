@@ -1,0 +1,11 @@
+{
+    "intent": "book_appointment",
+    "confidence": 0.93,
+    "entities": {
+        "appointment_type": "consultation"
+    },
+    "usage": {
+        "input_tokens": 96,
+        "output_tokens": 12
+    }
+}

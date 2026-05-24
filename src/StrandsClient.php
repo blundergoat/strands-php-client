@@ -13,6 +13,7 @@ use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\Http\RequestMiddleware;
+use StrandsPhpClient\Http\ResponseObserver;
 use StrandsPhpClient\Http\SymfonyHttpTransport;
 use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\Response\Usage;
@@ -20,6 +21,7 @@ use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 use StrandsPhpClient\Streaming\StreamParser;
 use StrandsPhpClient\Streaming\StreamResult;
+use StrandsPhpClient\Streaming\StreamSseSummary;
 
 /**
  * The primary client for interacting with Strands AI agents.
@@ -37,21 +39,27 @@ class StrandsClient
     /** @var list<RequestMiddleware> */
     private readonly array $middleware;
 
+    /** @var list<ResponseObserver> */
+    private readonly array $responseObservers;
+
     /**
      * @param StrandsConfig              $config      Agent endpoint, auth, timeouts, retry settings.
      * @param HttpTransport|null         $transport   HTTP transport (auto-detected if null).
      * @param LoggerInterface|null       $logger      PSR-3 logger (NullLogger if null).
      * @param list<RequestMiddleware>    $middleware   Request middleware (executed in order).
+     * @param list<ResponseObserver>     $responseObservers  Parsed response observers (executed in order).
      */
     public function __construct(
         private readonly StrandsConfig $config,
         ?HttpTransport $transport = null,
         ?LoggerInterface $logger = null,
         array $middleware = [],
+        array $responseObservers = [],
     ) {
         $this->transport = $transport ?? self::detectTransport();
         $this->logger = $logger ?? new NullLogger();
         $this->middleware = $middleware;
+        $this->responseObservers = $this->normaliseResponseObservers($middleware, $responseObservers);
     }
 
     /**
@@ -99,10 +107,10 @@ class StrandsClient
             throw $e;
         }
 
-        $durationMs = (hrtime(true) - $startTime) / 1e6;
-        $this->notifyAfterResponse($url, 200, $durationMs);
-
         $response = AgentResponse::fromArray($data);
+        $durationMs = (hrtime(true) - $startTime) / 1e6;
+        $this->notifyAfterInvoke($url, $response, $durationMs);
+        $this->notifyAfterResponse($url, 200, $durationMs);
 
         $this->logger->debug('Strands invoke response', [
             'session_id' => $response->sessionId,
@@ -229,9 +237,6 @@ class StrandsClient
             throw $interrupted;
         }
 
-        $this->notifyAfterResponse($url, $cancelled ? 0 : 200, $durationMs);
-        $this->logSkippedEvents($parser);
-
         /** @var int|null $firstTextTokenTime */
         /** @var list<array<string, mixed>> $citations */
         $result = $this->buildStreamResult(
@@ -244,6 +249,10 @@ class StrandsClient
             $completeEvent,
             $citations,
         );
+
+        $this->notifyAfterStream($url, $result, $durationMs);
+        $this->notifyAfterResponse($url, $cancelled ? 0 : 200, $durationMs);
+        $this->logSkippedEvents($parser);
 
         $this->logger->debug('Strands stream complete', [
             'session_id' => $result->sessionId,
@@ -301,6 +310,7 @@ class StrandsClient
         }
 
         $durationMs = (hrtime(true) - $startTime) / 1e6;
+        $this->notifyAfterPostJson($url, $data, $durationMs);
         $this->notifyAfterResponse($url, 200, $durationMs);
 
         $this->logger->debug('Strands postJson response', [
@@ -342,11 +352,16 @@ class StrandsClient
         $effectiveTimeout = $timeout ?? $this->config->timeout;
         $buffer = '';
         $cancelled = false;
+        $totalEvents = 0;
+        $textEvents = 0;
+        $terminalType = null;
+        $usage = null;
+        $stopReason = null;
 
         $startTime = hrtime(true);
 
         try {
-            $this->transport->stream($url, $headers, $body, $effectiveTimeout, $this->config->connectTimeout, function (string $chunk) use (&$buffer, &$cancelled, $onEvent): bool {
+            $this->transport->stream($url, $headers, $body, $effectiveTimeout, $this->config->connectTimeout, function (string $chunk) use (&$buffer, &$cancelled, &$totalEvents, &$textEvents, &$terminalType, &$usage, &$stopReason, $onEvent): bool {
                 if ($cancelled) {
                     return false;
                 }
@@ -361,6 +376,15 @@ class StrandsClient
                     $decoded = self::extractSseData($rawEvent);
 
                     if ($decoded !== null) {
+                        $totalEvents++;
+                        self::updateStreamSseSummary(
+                            $decoded,
+                            $textEvents,
+                            $terminalType,
+                            $usage,
+                            $stopReason,
+                        );
+
                         if ($onEvent($decoded) === false) {
                             $cancelled = true;
 
@@ -382,6 +406,15 @@ class StrandsClient
         // Status 0 for cancelled streams (user returned false from onEvent),
         // 200 for streams that ran to natural completion.
         $durationMs = (hrtime(true) - $startTime) / 1e6;
+        $summary = new StreamSseSummary(
+            totalEvents: $totalEvents,
+            textEvents: $textEvents,
+            cancelled: $cancelled,
+            terminalType: $terminalType,
+            usage: $usage,
+            stopReason: $stopReason,
+        );
+        $this->notifyAfterStreamSse($url, $summary, $durationMs);
         $this->notifyAfterResponse($url, $cancelled ? 0 : 200, $durationMs);
 
         $this->logger->debug('Strands streamSse complete', [
@@ -471,6 +504,8 @@ class StrandsClient
         $interrupts = [];
         $guardrailTrace = null;
         $finalText = $accumulatedText;
+        $contextSize = null;
+        $projectedContextSize = null;
 
         if ($completeEvent !== null) {
             $sessionId = $completeEvent->sessionId;
@@ -492,6 +527,9 @@ class StrandsClient
             if ($completeEvent->guardrailTrace !== null) {
                 $guardrailTrace = Response\GuardrailTrace::fromArray($completeEvent->guardrailTrace);
             }
+
+            $contextSize = $completeEvent->contextSize;
+            $projectedContextSize = $completeEvent->projectedContextSize;
         }
 
         return new StreamResult(
@@ -507,6 +545,8 @@ class StrandsClient
             interrupts: $interrupts,
             guardrailTrace: $guardrailTrace,
             citations: $citations,
+            contextSize: $contextSize,
+            projectedContextSize: $projectedContextSize,
         );
     }
 
@@ -674,6 +714,123 @@ class StrandsClient
 
         /** @var array<string, mixed> $decoded */
         return $decoded;
+    }
+
+    /**
+     * Update a sanitized summary from one raw streamSse() event.
+     *
+     * This intentionally reads only known-safe control fields. Raw custom
+     * endpoint payloads remain app-owned and are not inspected for telemetry.
+     *
+     * @param array<string, mixed> $event
+     */
+    private static function updateStreamSseSummary(
+        array $event,
+        int &$textEvents,
+        ?string &$terminalType,
+        ?Usage &$usage,
+        ?string &$stopReason,
+    ): void {
+        $type = $event['type'] ?? null;
+        if (!is_string($type)) {
+            return;
+        }
+
+        if ($type === 'text') {
+            $textEvents++;
+        }
+
+        if ($type === 'complete' || $type === 'error') {
+            $terminalType = $type;
+        }
+
+        $rawUsage = $event['usage'] ?? null;
+        if (is_array($rawUsage)) {
+            /** @var array<string, mixed> $rawUsage */
+            $usage = Usage::fromArray($rawUsage);
+        }
+
+        $rawStopReason = $event['stop_reason'] ?? null;
+        if (is_string($rawStopReason)) {
+            $stopReason = $rawStopReason;
+        }
+    }
+
+    /**
+     * @param list<RequestMiddleware> $middleware
+     * @param list<ResponseObserver> $responseObservers
+     *
+     * @return list<ResponseObserver>
+     */
+    private function normaliseResponseObservers(array $middleware, array $responseObservers): array
+    {
+        /** @var list<ResponseObserver> $observerMiddleware */
+        $observerMiddleware = array_values(array_filter(
+            $middleware,
+            static fn (RequestMiddleware $mw): bool => $mw instanceof ResponseObserver,
+        ));
+
+        return [...$observerMiddleware, ...$responseObservers];
+    }
+
+    private function notifyAfterInvoke(string $url, AgentResponse $response, float $durationMs): void
+    {
+        $this->notifyResponseObservers(
+            static function (ResponseObserver $observer) use ($url, $response, $durationMs): void {
+                $observer->afterInvoke($url, $response, $durationMs);
+            },
+            'afterInvoke',
+        );
+    }
+
+    private function notifyAfterStream(string $url, StreamResult $result, float $durationMs): void
+    {
+        $this->notifyResponseObservers(
+            static function (ResponseObserver $observer) use ($url, $result, $durationMs): void {
+                $observer->afterStream($url, $result, $durationMs);
+            },
+            'afterStream',
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     */
+    private function notifyAfterPostJson(string $url, array $response, float $durationMs): void
+    {
+        $this->notifyResponseObservers(
+            static function (ResponseObserver $observer) use ($url, $response, $durationMs): void {
+                $observer->afterPostJson($url, $response, $durationMs);
+            },
+            'afterPostJson',
+        );
+    }
+
+    private function notifyAfterStreamSse(string $url, StreamSseSummary $summary, float $durationMs): void
+    {
+        $this->notifyResponseObservers(
+            static function (ResponseObserver $observer) use ($url, $summary, $durationMs): void {
+                $observer->afterStreamSse($url, $summary, $durationMs);
+            },
+            'afterStreamSse',
+        );
+    }
+
+    /**
+     * @param callable(ResponseObserver): void $notify
+     */
+    private function notifyResponseObservers(callable $notify, string $hook): void
+    {
+        foreach ($this->responseObservers as $observer) {
+            try {
+                $notify($observer);
+            } catch (\Throwable $e) {
+                $this->logger->warning(sprintf('Response observer %s threw an exception', $hook), [
+                    'observer' => $observer::class,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**

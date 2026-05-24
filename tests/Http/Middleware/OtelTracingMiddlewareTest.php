@@ -13,6 +13,8 @@ use OpenTelemetry\SDK\Trace\TracerProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Http\Middleware\OtelTracingMiddleware;
+use StrandsPhpClient\Response\AgentResponse;
+use StrandsPhpClient\Streaming\StreamSseSummary;
 
 class OtelTracingMiddlewareTest extends TestCase
 {
@@ -63,10 +65,13 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertCount(1, $spans);
 
         $span = $spans[0];
-        $this->assertSame('strands.client invoke', $span->getName());
+        $this->assertSame('strands.client.invoke', $span->getName());
         $this->assertSame(SpanKind::KIND_CLIENT, $span->getKind());
         $this->assertSame('POST', $span->getAttributes()->get('http.request.method'));
         $this->assertSame('https://agent.example.com/invoke', $span->getAttributes()->get('url.full'));
+        $this->assertSame('strands', $span->getAttributes()->get('gen_ai.system'));
+        $this->assertSame('invoke', $span->getAttributes()->get('gen_ai.operation.name'));
+        $this->assertSame('/invoke', $span->getAttributes()->get('strands.endpoint.route'));
         $this->assertSame(200, $span->getAttributes()->get('http.response.status_code'));
     }
 
@@ -115,6 +120,7 @@ class OtelTracingMiddlewareTest extends TestCase
 
         $this->assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
         $this->assertSame('RuntimeException', $span->getAttributes()->get('error.type'));
+        $this->assertSame('RuntimeException', $span->getStatus()->getDescription());
 
         $events = $span->getEvents();
         $this->assertNotEmpty($events);
@@ -125,6 +131,7 @@ class OtelTracingMiddlewareTest extends TestCase
             }
         }
         $this->assertNotNull($exceptionEvent);
+        $this->assertSame('RuntimeException', $exceptionEvent->getAttributes()->get('exception.message'));
     }
 
     public function testAgentErrorExceptionSetsStrandsStatusCode(): void
@@ -136,6 +143,8 @@ class OtelTracingMiddlewareTest extends TestCase
 
         $spans = $this->getSpans();
         $this->assertSame(400, $spans[0]->getAttributes()->get('strands.error.status_code'));
+        $this->assertSame('validation', $spans[0]->getAttributes()->get('strands.error.code'));
+        $this->assertSame('agent_error:validation', $spans[0]->getStatus()->getDescription());
     }
 
     public function testSequentialOperationsOnSameInstance(): void
@@ -148,8 +157,8 @@ class OtelTracingMiddlewareTest extends TestCase
 
         $spans = $this->getSpans();
         $this->assertCount(2, $spans);
-        $this->assertSame('strands.client invoke', $spans[0]->getName());
-        $this->assertSame('strands.client stream', $spans[1]->getName());
+        $this->assertSame('strands.client.invoke', $spans[0]->getName());
+        $this->assertSame('strands.client.stream', $spans[1]->getName());
     }
 
     public function testQueryStringStripping(): void
@@ -164,10 +173,10 @@ class OtelTracingMiddlewareTest extends TestCase
     public function testPathSegmentSpanNaming(): void
     {
         $urls = [
-            'https://x/invoke' => 'strands.client invoke',
-            'https://x/file-summarise-stream' => 'strands.client file-summarise-stream',
-            'https://x/' => 'strands.client request',
-            'https://x' => 'strands.client request',
+            'https://x/invoke' => 'strands.client.invoke',
+            'https://x/file-summarise-stream' => 'strands.client.custom.file-summarise-stream',
+            'https://x/' => 'strands.client.post_json',
+            'https://x' => 'strands.client.post_json',
         ];
 
         foreach ($urls as $url => $expectedName) {
@@ -203,5 +212,71 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame('agent.example.com', $spans[0]->getAttributes()->get('server.address'));
         $this->assertSame(8443, $spans[0]->getAttributes()->get('server.port'));
         $this->assertSame('https://agent.example.com:8443/invoke', $spans[0]->getAttributes()->get('url.full'));
+    }
+
+    public function testDynamicPathSegmentsAreSanitized(): void
+    {
+        $this->middleware->beforeRequest('https://agent.example.com/session/sess-secret-123/history?token=abc', [], '{}');
+        $this->middleware->afterResponse('https://agent.example.com/session/sess-secret-123/history?token=abc', 200, 10.0);
+
+        $spans = $this->getSpans();
+        $this->assertSame('strands.client.custom.session.id.history', $spans[0]->getName());
+        $this->assertSame('/session/{id}/history', $spans[0]->getAttributes()->get('strands.endpoint.route'));
+        $this->assertSame('https://agent.example.com/session/{id}/history', $spans[0]->getAttributes()->get('url.full'));
+    }
+
+    public function testResponseObserverAddsInvokeAttributesBeforeSpanEnds(): void
+    {
+        $this->middleware->beforeRequest('https://agent.example.com/invoke', [], '{}');
+        $this->middleware->afterInvoke('https://agent.example.com/invoke', AgentResponse::fromArray([
+            'text' => 'Done',
+            'agent' => 'booking-assistant',
+            'session_id' => 'session-secret',
+            'usage' => [
+                'input_tokens' => 12,
+                'output_tokens' => 4,
+                'cache_read_input_tokens' => 2,
+                'cache_write_input_tokens' => 1,
+            ],
+            'tools_used' => [
+                ['name' => 'availability_lookup'],
+            ],
+            'stop_reason' => 'end_turn',
+            'model' => 'claude-test',
+        ]), 40.0);
+        $this->middleware->afterResponse('https://agent.example.com/invoke', 200, 40.0);
+
+        $span = $this->getSpans()[0];
+        $this->assertSame('booking-assistant', $span->getAttributes()->get('strands.agent.name'));
+        $this->assertTrue($span->getAttributes()->get('strands.session.present'));
+        $this->assertSame(12, $span->getAttributes()->get('gen_ai.usage.input_tokens'));
+        $this->assertSame(4, $span->getAttributes()->get('gen_ai.usage.output_tokens'));
+        $this->assertSame(2, $span->getAttributes()->get('gen_ai.usage.cache_read_input_tokens'));
+        $this->assertSame(1, $span->getAttributes()->get('gen_ai.usage.cache_write_input_tokens'));
+        $this->assertSame('end_turn', $span->getAttributes()->get('gen_ai.response.finish_reason'));
+        $this->assertSame('claude-test', $span->getAttributes()->get('gen_ai.request.model'));
+        $this->assertSame(1, $span->getAttributes()->get('strands.tools.count'));
+    }
+
+    public function testStreamSseObserverAddsSanitizedSummaryAttributes(): void
+    {
+        $this->middleware->beforeRequest('https://agent.example.com/file-summarise-stream', ['Accept' => 'text/event-stream'], '{}');
+        $this->middleware->afterStreamSse('https://agent.example.com/file-summarise-stream', new StreamSseSummary(
+            totalEvents: 3,
+            textEvents: 2,
+            cancelled: false,
+            terminalType: 'complete',
+            usage: new \StrandsPhpClient\Response\Usage(inputTokens: 20, outputTokens: 8),
+            stopReason: 'end_turn',
+        ), 55.0);
+        $this->middleware->afterResponse('https://agent.example.com/file-summarise-stream', 200, 55.0);
+
+        $span = $this->getSpans()[0];
+        $this->assertSame('stream_sse', $span->getAttributes()->get('gen_ai.operation.name'));
+        $this->assertSame(3, $span->getAttributes()->get('strands.stream.total_events'));
+        $this->assertSame(2, $span->getAttributes()->get('strands.stream.text_events'));
+        $this->assertFalse($span->getAttributes()->get('strands.stream.cancelled'));
+        $this->assertSame(20, $span->getAttributes()->get('gen_ai.usage.input_tokens'));
+        $this->assertSame('end_turn', $span->getAttributes()->get('gen_ai.response.finish_reason'));
     }
 }

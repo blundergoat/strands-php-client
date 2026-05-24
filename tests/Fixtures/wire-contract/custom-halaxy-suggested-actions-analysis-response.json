@@ -1,0 +1,14 @@
+{
+    "suggested_actions": [
+        {
+            "id": "action-001",
+            "label": "Book follow-up",
+            "confidence": 0.89
+        }
+    ],
+    "analysis_id": "analysis-001",
+    "usage": {
+        "input_tokens": 220,
+        "output_tokens": 48
+    }
+}

@@ -1,0 +1,16 @@
+{
+    "session_id": "session-001",
+    "roles": [
+        {
+            "speaker_id": "speaker-1",
+            "role": "clinician",
+            "confidence": 0.97
+        },
+        {
+            "speaker_id": "speaker-2",
+            "role": "patient",
+            "confidence": 0.91
+        }
+    ],
+    "model": "fake-role-model"
+}

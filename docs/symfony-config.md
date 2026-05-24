@@ -88,6 +88,8 @@ return [
 
 The bundle auto-detects `symfony/http-client` and creates `SymfonyHttpTransport` instances, so both `invoke()` and `stream()` work out of the box.
 
+`RequestMiddleware` services are autoconfigured with the `strands.middleware` tag. Services implementing `ResponseObserver` are also autoconfigured with `strands.response_observer`; this lets response-aware observability read parsed `AgentResponse`, `StreamResult`, and sanitized custom endpoint summaries without changing the `RequestMiddleware` interface.
+
 ## Full Configuration Reference
 
 Every option with its default value:

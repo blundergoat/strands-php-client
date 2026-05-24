@@ -471,6 +471,18 @@ class StreamParserTest extends TestCase
         $this->assertSame('end_turn', $events[0]->stopReason);
     }
 
+    public function testCompleteEventParsesContextSizeFields(): void
+    {
+        $parser = new StreamParser();
+        $raw = "data: {\"type\": \"complete\", \"text\": \"Done\", \"context_size\": 8192, \"projected_context_size\": 9216}\n\n";
+
+        $events = $parser->feed($raw);
+
+        $this->assertCount(1, $events);
+        $this->assertSame(8192, $events[0]->contextSize);
+        $this->assertSame(9216, $events[0]->projectedContextSize);
+    }
+
     public function testDataWithSpaceVsWithoutSpaceParsesDifferently(): void
     {
         $parser = new StreamParser();

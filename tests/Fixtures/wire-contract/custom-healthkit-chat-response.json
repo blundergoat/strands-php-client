@@ -1,0 +1,14 @@
+{
+    "message": "I can help with that.",
+    "session_id": "chat-session-001",
+    "actions": [
+        {
+            "type": "show_booking_options",
+            "label": "Show appointments"
+        }
+    ],
+    "usage": {
+        "input_tokens": 180,
+        "output_tokens": 24
+    }
+}

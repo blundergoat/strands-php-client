@@ -1,0 +1,10 @@
+data: {"type":"thinking","content":"Checking persona context."}
+
+data: {"type":"tool_use","tool_name":"summit_room_state","tool_input":{"persona":"moderator"}}
+
+data: {"type":"tool_result","tool_name":"summit_room_state","result":{"active_personas":["moderator","guest"]}}
+
+data: {"type":"text","content":"Welcome back."}
+
+data: {"type":"complete","text":"Welcome back.","session_id":"summit-session-001","has_objective":true,"usage":{"input_tokens":32,"output_tokens":8},"stop_reason":"end_turn"}
+

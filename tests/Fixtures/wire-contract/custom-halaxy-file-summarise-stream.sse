@@ -1,0 +1,6 @@
+data: {"type":"progress","phase":"summary","percent":25,"message":"Reading document"}
+
+data: {"type":"text","content":"The document requests a follow-up appointment."}
+
+data: {"type":"complete","summary":"The document requests a follow-up appointment.","usage":{"input_tokens":300,"output_tokens":42,"latency_ms":810.4},"metrics":{"chunks":2}}
+

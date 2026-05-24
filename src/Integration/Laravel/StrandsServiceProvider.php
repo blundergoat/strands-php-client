@@ -16,6 +16,7 @@ use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Psr\Log\LoggerInterface;
 use StrandsPhpClient\Http\RequestMiddleware;
+use StrandsPhpClient\Http\ResponseObserver;
 use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
@@ -47,7 +48,13 @@ class StrandsServiceProvider extends ServiceProvider
             /** @var list<RequestMiddleware> $middleware */
             $middleware = $app->tagged('strands.middleware');
 
-            return new StrandsClientFactory($agents, $logger, $middleware);
+            // Response observers receive parsed terminal data for metrics/tracing.
+            // Middleware that implements ResponseObserver is also auto-detected by
+            // StrandsClient, so existing strands.middleware registrations keep working.
+            /** @var list<ResponseObserver> $responseObservers */
+            $responseObservers = $app->tagged('strands.response_observer');
+
+            return new StrandsClientFactory($agents, $logger, $middleware, $responseObservers);
         });
 
         $this->app->singleton(StrandsClient::class, function (Application $app): StrandsClient {

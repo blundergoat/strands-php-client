@@ -1,0 +1,23 @@
+{
+    "text": "The appointment is available.",
+    "agent": "booking-assistant",
+    "session_id": "session-009",
+    "usage": {
+        "input_tokens": 128,
+        "output_tokens": 42,
+        "total_tokens": 170
+    },
+    "tools_used": [
+        {
+            "name": "availability_lookup",
+            "duration_ms": 114,
+            "input": {
+                "summary": "date lookup"
+            },
+            "result": {
+                "summary": "slot available"
+            }
+        }
+    ],
+    "stop_reason": "end_turn"
+}

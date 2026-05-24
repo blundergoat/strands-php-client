@@ -28,6 +28,19 @@ The result: the PHP client is a custom-wrapper client. The active services expos
 - Not every service emits every optional field in the v1 contract. That is acceptable; PHP DTO fields should remain nullable/optional.
 - There is no shared Python package yet that enforces the contract. Until one exists, wrapper repos should test against the fixtures in `tests/Fixtures/wire-contract/`.
 
+## Active Endpoint Shapes
+
+| Project | PHP method | Endpoint examples | Payload/response notes |
+| --- | --- | --- | --- |
+| `ambient-scribe` | `postJson()` | `/session/{id}/history`, `/session/{id}/roles` | Empty request arrays with timeout overrides; responses are app-owned history and role-inference arrays. |
+| `the-summit-chatroom` | `stream()` | standard `/stream` | Uses `message`, `session_id`, and `AgentContext` metadata; consumes typed stream events and `has_objective`. |
+| `halaxy-agents-lab` | `postJson()` | `/file-metadata`, `/summary-verifier`, `/multi-file-summary-verifier`, `/suggested-actions/analyse`, `/suggested-actions/execute`, `/chat` | App-owned file, action, and booking payloads; responses may include `usage`, `metrics`, verification data, and domain IDs. |
+| `halaxy-agents-lab` | `streamSse()` | `/file-summarise-stream`, `/multi-file-summarise-stream`, `/suggested-actions/stream`, `/respond-stream` | Raw SSE arrays are forwarded by app code and must preserve unknown fields. |
+| `healthkit` | `postJson()` | `/chat`, `/intent`, `/file-metadata`, booking chat endpoints | App-owned patient/practice/page context; PHP must not force these into typed `AgentResponse`. |
+| `healthkit` | `streamSse()` | file summariser and booking responder streams | Long-running raw SSE streams; callbacks consume domain-specific event fields. |
+
+Executable compatibility coverage now lives in `tests/Unit/Contract/ConsumerCompatibilityTest.php`, backed by consumer-shaped fixtures in `tests/Fixtures/wire-contract/`.
+
 ## Recommendation
 
 Keep `strands-php-client` aligned to `docs/wire-contract.md`.

@@ -39,6 +39,8 @@ graph LR
 
 For a full walkthrough with real-world examples, see the [Usage Guide](docs/usage-guide.md).
 
+Need a Python wrapper to start from? See the [reference FastAPI gateway](examples/python-gateway), which includes `/invoke`, `/stream`, `/health`, custom endpoint examples, safe usage normalization, and trace-context continuation.
+
 ## Quick Start
 
 ### Symfony (with auto-detection)
@@ -103,7 +105,14 @@ $response = $client->invoke(message: $input);
 
 // Text with a document from S3
 $input = AgentInput::text('Summarise this report')
-    ->withDocumentFromS3('s3://my-bucket/report.pdf', 'pdf', 'report');
+    ->withCachePoint(ttl: '5m')
+    ->withDocumentFromS3(
+        s3Uri: 's3://my-bucket/report.pdf',
+        format: 'pdf',
+        name: 'report',
+        context: 'Quarterly operating report.',
+        citations: ['enabled' => true],
+    );
 
 // Resume after an interrupt (human-in-the-loop)
 $input = AgentInput::interruptResponse($interruptId, ['approved' => true]);
@@ -131,6 +140,10 @@ $response->usage;                        // Token usage (inputTokens, outputToke
 $response->usage->totalTokens();         // Total tokens (input + output)
 $response->toolsUsed;                    // Tools the agent called
 $response->metadata;                     // Unrecognised response fields (forward-compat)
+$response->wrapperMetadata;              // Top-level wrapper-owned metadata
+$response->message?->metadata?->custom;  // Nested message metadata
+$response->contextSize;                  // Current context size when emitted
+$response->rawStopReason;                // Original stop_reason string
 
 // Interrupt handling (human-in-the-loop)
 if ($response->isInterrupted()) {
@@ -259,7 +272,7 @@ Retries apply to `invoke()` and `postJson()`. Streaming requests are not retried
 
 ### Distributed Tracing (OpenTelemetry)
 
-The `OtelTracingMiddleware` emits a `KIND_CLIENT` span for each `invoke()`, `stream()`, `postJson()`, or `streamSse()` call, and injects W3C `traceparent`/`tracestate` headers so your agent service stitches into the same distributed trace. Zero runtime cost when not configured.
+The `OtelTracingMiddleware` emits a `KIND_CLIENT` span for each `invoke()`, `stream()`, `postJson()`, or `streamSse()` call, and injects W3C `traceparent`/`tracestate` headers so your agent service can continue the same distributed trace. Zero runtime cost when not configured.
 
 ```bash
 composer require open-telemetry/api open-telemetry/sdk open-telemetry/exporter-otlp
@@ -275,6 +288,10 @@ $client = new StrandsClient(
 ```
 
 This middleware does **not** capture request or response content on spans. Token counts and model-level tracing come from the server side (Strands SDK). See the [W3C Trace Context spec](https://www.w3.org/TR/trace-context/).
+
+The middleware uses the local `strands-otel-v1` attribute policy. It records safe metadata such as operation, sanitized route, response status, token counts, stop reason, stream event counts, tool names, and session presence. It does not record prompts, responses, filenames, raw context metadata, document content, citation source text, tool inputs/results, credentials, session ID values, or unsanitized exception messages.
+
+For Python wrapper trace continuation, copy the FastAPI middleware in [examples/python-gateway/tracing.py](examples/python-gateway/tracing.py).
 
 > **Concurrency note:** The middleware uses a LIFO stack for span/scope tracking, which is correct for synchronous PHP-FPM but not safe under Fibers or coroutines.
 

@@ -1,0 +1,16 @@
+{
+    "message": {
+        "content": [
+            {
+                "type": "text",
+                "text": "Remember the policy excerpt for the next turn."
+            },
+            {
+                "type": "cache_point",
+                "cache_type": "default",
+                "ttl": "5m"
+            }
+        ]
+    },
+    "session_id": "session-010"
+}

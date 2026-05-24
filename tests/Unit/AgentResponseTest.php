@@ -114,7 +114,7 @@ class AgentResponseTest extends TestCase
         $response = AgentResponse::fromArray($data);
 
         $this->assertSame(0, $response->usage->inputTokens);
-        $this->assertSame(0, $response->usage->outputTokens);
+        $this->assertSame(42, $response->usage->outputTokens);
     }
 
     public function testFromArrayHasObjectiveRequiresStrictTrue(): void
@@ -163,6 +163,21 @@ class AgentResponseTest extends TestCase
         $this->assertSame(['name' => 'calc'], $response->toolsUsed[1]);
     }
 
+    public function testFromArrayParsesSafeToolSummaries(): void
+    {
+        $data = json_decode(
+            file_get_contents(__DIR__ . '/../Fixtures/wire-contract/invoke-response-tools-full.json'),
+            true,
+        );
+
+        $response = AgentResponse::fromArray($data);
+
+        $this->assertSame('availability_lookup', $response->toolsUsed[0]['name']);
+        $this->assertSame(114, $response->toolsUsed[0]['duration_ms']);
+        $this->assertSame(['summary' => 'date lookup'], $response->toolsUsed[0]['input']);
+        $this->assertSame(['summary' => 'slot available'], $response->toolsUsed[0]['result']);
+    }
+
     public function testFromArrayHydratesStopReason(): void
     {
         $data = [
@@ -185,6 +200,7 @@ class AgentResponseTest extends TestCase
         $response = AgentResponse::fromArray($data);
 
         $this->assertNull($response->stopReason);
+        $this->assertSame('unknown_future_reason', $response->rawStopReason);
     }
 
     public function testFromArrayDefaultsStopReasonToNull(): void
@@ -242,6 +258,43 @@ class AgentResponseTest extends TestCase
         $this->assertSame(200, $response->usage->timeToFirstByteMs);
     }
 
+    public function testFromArrayParsesUsageCamelCaseAndFloatLatency(): void
+    {
+        $response = AgentResponse::fromArray([
+            'text' => 'Test',
+            'usage' => [
+                'inputTokens' => 100,
+                'outputTokens' => '50',
+                'totalTokens' => 151,
+                'cacheReadInputTokens' => '10',
+                'cacheWriteInputTokens' => 5.0,
+                'latencyMs' => 842.5,
+                'timeToFirstByteMs' => '210.1',
+            ],
+        ]);
+
+        $this->assertSame(100, $response->usage->inputTokens);
+        $this->assertSame(50, $response->usage->outputTokens);
+        $this->assertSame(151, $response->usage->totalTokens());
+        $this->assertSame(10, $response->usage->cacheReadInputTokens);
+        $this->assertSame(5, $response->usage->cacheWriteInputTokens);
+        $this->assertSame(843, $response->usage->latencyMs);
+        $this->assertSame(210, $response->usage->timeToFirstByteMs);
+    }
+
+    public function testSnakeCaseUsageWinsOverCamelCase(): void
+    {
+        $response = AgentResponse::fromArray([
+            'text' => 'Test',
+            'usage' => [
+                'input_tokens' => 10,
+                'inputTokens' => 999,
+            ],
+        ]);
+
+        $this->assertSame(10, $response->usage->inputTokens);
+    }
+
     public function testUsageDefaultsToZeroForMissingCacheFields(): void
     {
         $data = [
@@ -265,6 +318,13 @@ class AgentResponseTest extends TestCase
         $usage = new \StrandsPhpClient\Response\Usage(inputTokens: 100, outputTokens: 50);
 
         $this->assertSame(150, $usage->totalTokens());
+    }
+
+    public function testTotalTokensUsesWireValueWhenPresent(): void
+    {
+        $usage = new \StrandsPhpClient\Response\Usage(inputTokens: 100, outputTokens: 50, totalTokens: 160);
+
+        $this->assertSame(160, $usage->totalTokens());
     }
 
     public function testTotalTokensDefaultsToZero(): void
@@ -296,6 +356,49 @@ class AgentResponseTest extends TestCase
         $this->assertSame('claude-3-sonnet', $response->metadata['model_id']);
         $this->assertArrayHasKey('request_id', $response->metadata);
         $this->assertSame('req-456', $response->metadata['request_id']);
+    }
+
+    public function testFromArrayPreservesTopLevelWrapperMetadataSeparately(): void
+    {
+        $data = json_decode(
+            file_get_contents(__DIR__ . '/../Fixtures/wire-contract/invoke-response-metadata.json'),
+            true,
+        );
+
+        $response = AgentResponse::fromArray($data);
+
+        $this->assertSame(['document_type' => 'referral', 'confidence' => 0.91], $response->wrapperMetadata);
+        $this->assertArrayHasKey('metadata', $response->metadata);
+    }
+
+    public function testFromArrayPreservesNestedMessageMetadata(): void
+    {
+        $data = json_decode(
+            file_get_contents(__DIR__ . '/../Fixtures/wire-contract/invoke-response-message-metadata.json'),
+            true,
+        );
+
+        $response = AgentResponse::fromArray($data);
+
+        $this->assertNotNull($response->message);
+        $this->assertSame('assistant', $response->message->role);
+        $this->assertNotNull($response->message->metadata);
+        $this->assertSame(410, $response->message->metadata->usage?->inputTokens);
+        $this->assertSame(842.5, $response->message->metadata->metrics['latency_ms']);
+        $this->assertSame('referral', $response->message->metadata->custom['document_type']);
+    }
+
+    public function testFromArrayParsesContextSizeFields(): void
+    {
+        $data = json_decode(
+            file_get_contents(__DIR__ . '/../Fixtures/wire-contract/invoke-response-context-size.json'),
+            true,
+        );
+
+        $response = AgentResponse::fromArray($data);
+
+        $this->assertSame(8192, $response->contextSize);
+        $this->assertSame(9216, $response->projectedContextSize);
     }
 
     public function testFromArrayMetadataEmptyWhenNoUnknownKeys(): void

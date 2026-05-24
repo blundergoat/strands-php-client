@@ -81,24 +81,33 @@ class AgentInput
     /**
      * Add a base64-encoded document content block.
      *
-     * @param string $base64Data  Base64-encoded document data.
-     * @param string $format      Document format (e.g. 'pdf', 'txt', 'docx').
-     * @param string $name        Document name.
+     * @param string                    $base64Data  Base64-encoded document data.
+     * @param string                    $format      Document format (e.g. 'pdf', 'txt', 'docx').
+     * @param string                    $name        Document name.
+     * @param string|null               $context     Optional wrapper context for this document.
+     * @param array<string, mixed>|null $citations   Optional wrapper citation controls.
      *
      * @return self  A new instance with the document added.
      */
-    public function withDocument(string $base64Data, string $format, string $name): self
-    {
+    public function withDocument(
+        string $base64Data,
+        string $format,
+        string $name,
+        ?string $context = null,
+        ?array $citations = null,
+    ): self {
         $clone = clone $this;
-        $clone->contentBlocks[] = [
-            'type' => 'document',
-            'source' => [
+        $clone->contentBlocks[] = self::documentBlock(
+            format: $format,
+            name: $name,
+            source: [
                 'type' => 'base64',
                 'media_type' => self::formatToMimeType($format),
                 'data' => $base64Data,
             ],
-            'name' => $name,
-        ];
+            context: $context,
+            citations: $citations,
+        );
 
         return $clone;
     }
@@ -106,15 +115,23 @@ class AgentInput
     /**
      * Add a document from S3 location.
      *
-     * @param string      $s3Uri        S3 URI (e.g. 's3://my-bucket/report.pdf').
-     * @param string      $format       Document format (e.g. 'pdf').
-     * @param string      $name         Document name.
-     * @param string|null $bucketOwner  Optional bucket owner account ID.
+     * @param string                    $s3Uri        S3 URI (e.g. 's3://my-bucket/report.pdf').
+     * @param string                    $format       Document format (e.g. 'pdf').
+     * @param string                    $name         Document name.
+     * @param string|null               $bucketOwner  Optional bucket owner account ID.
+     * @param string|null               $context      Optional wrapper context for this document.
+     * @param array<string, mixed>|null $citations    Optional wrapper citation controls.
      *
      * @return self  A new instance with the S3 document added.
      */
-    public function withDocumentFromS3(string $s3Uri, string $format, string $name, ?string $bucketOwner = null): self
-    {
+    public function withDocumentFromS3(
+        string $s3Uri,
+        string $format,
+        string $name,
+        ?string $bucketOwner = null,
+        ?string $context = null,
+        ?array $citations = null,
+    ): self {
         $clone = clone $this;
         /** @var array<string, mixed> $source */
         $source = [
@@ -126,12 +143,7 @@ class AgentInput
             $source['bucket_owner'] = $bucketOwner;
         }
 
-        $clone->contentBlocks[] = [
-            'type' => 'document',
-            'source' => $source,
-            'format' => $format,
-            'name' => $name,
-        ];
+        $clone->contentBlocks[] = self::documentBlock($format, $name, $source, $context, $citations);
 
         return $clone;
     }
@@ -217,24 +229,32 @@ class AgentInput
     /**
      * Add a document from a URL.
      *
-     * @param string $url     The document URL.
-     * @param string $format  Document format (e.g. 'pdf', 'txt').
-     * @param string $name    Document name.
+     * @param string                    $url        The document URL.
+     * @param string                    $format     Document format (e.g. 'pdf', 'txt').
+     * @param string                    $name       Document name.
+     * @param string|null               $context    Optional wrapper context for this document.
+     * @param array<string, mixed>|null $citations  Optional wrapper citation controls.
      *
      * @return self  A new instance with the URL document added.
      */
-    public function withDocumentFromUrl(string $url, string $format, string $name): self
-    {
+    public function withDocumentFromUrl(
+        string $url,
+        string $format,
+        string $name,
+        ?string $context = null,
+        ?array $citations = null,
+    ): self {
         $clone = clone $this;
-        $clone->contentBlocks[] = [
-            'type' => 'document',
-            'source' => [
+        $clone->contentBlocks[] = self::documentBlock(
+            format: $format,
+            name: $name,
+            source: [
                 'type' => 'url',
                 'url' => $url,
             ],
-            'format' => $format,
-            'name' => $name,
-        ];
+            context: $context,
+            citations: $citations,
+        );
 
         return $clone;
     }
@@ -289,6 +309,28 @@ class AgentInput
             'source' => $source,
             'format' => $format,
         ];
+
+        return $clone;
+    }
+
+    /**
+     * Add a cache point content block.
+     *
+     * @return self  A new instance with the cache point added.
+     */
+    public function withCachePoint(string $type = 'default', ?string $ttl = null): self
+    {
+        $clone = clone $this;
+        $block = [
+            'type' => 'cache_point',
+            'cache_type' => $type,
+        ];
+
+        if ($ttl !== null) {
+            $block['ttl'] = $ttl;
+        }
+
+        $clone->contentBlocks[] = $block;
 
         return $clone;
     }
@@ -377,5 +419,36 @@ class AgentInput
             'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             default => 'application/' . $format,
         };
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     * @param array<string, mixed>|null $citations
+     *
+     * @return array<string, mixed>
+     */
+    private static function documentBlock(
+        string $format,
+        string $name,
+        array $source,
+        ?string $context = null,
+        ?array $citations = null,
+    ): array {
+        $block = [
+            'type' => 'document',
+            'source' => $source,
+            'format' => $format,
+            'name' => $name,
+        ];
+
+        if ($context !== null) {
+            $block['context'] = $context;
+        }
+
+        if ($citations !== null) {
+            $block['citations'] = $citations;
+        }
+
+        return $block;
     }
 }

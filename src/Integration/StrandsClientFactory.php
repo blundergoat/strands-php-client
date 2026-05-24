@@ -12,6 +12,7 @@ use StrandsPhpClient\Auth\NullAuth;
 use StrandsPhpClient\Auth\SigV4Auth;
 use StrandsPhpClient\Config\StrandsConfig;
 use StrandsPhpClient\Http\RequestMiddleware;
+use StrandsPhpClient\Http\ResponseObserver;
 use StrandsPhpClient\StrandsClient;
 
 /**
@@ -26,6 +27,9 @@ class StrandsClientFactory
     /** @var list<RequestMiddleware> */
     private readonly array $middleware;
 
+    /** @var list<ResponseObserver> */
+    private readonly array $responseObservers;
+
     /**
      * @param array<string, array{
      *     endpoint: string,
@@ -37,11 +41,13 @@ class StrandsClientFactory
      *     retryable_status_codes?: list<int>,
      * }> $agents
      * @param iterable<RequestMiddleware> $middleware
+     * @param iterable<ResponseObserver> $responseObservers
      */
     public function __construct(
         private readonly array $agents,
         private readonly LoggerInterface $logger = new NullLogger(),
         iterable $middleware = [],
+        iterable $responseObservers = [],
     ) {
         // Normalise to a plain list so we can pass it to StrandsClient.
         // Symfony DI passes a tagged iterator (Traversable), Laravel passes an array.
@@ -49,6 +55,11 @@ class StrandsClientFactory
             $middleware instanceof \Traversable
                 ? iterator_to_array($middleware, false)
                 : $middleware,
+        );
+        $this->responseObservers = array_values(
+            $responseObservers instanceof \Traversable
+                ? iterator_to_array($responseObservers, false)
+                : $responseObservers,
         );
     }
 
@@ -83,6 +94,7 @@ class StrandsClientFactory
             ),
             logger: $this->logger,
             middleware: $this->middleware,
+            responseObservers: $this->responseObservers,
         );
     }
 

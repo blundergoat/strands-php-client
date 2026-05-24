@@ -527,6 +527,43 @@ class AgentInputTest extends TestCase
         $this->assertNotSame($original, $withUrl);
     }
 
+    public function testWithDocumentSupportsContextAndCitationOptions(): void
+    {
+        $input = AgentInput::text('Summarise')
+            ->withDocument('pdfdata', 'pdf', 'report.pdf', 'Referral context', ['enabled' => true]);
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('Referral context', $payload['content'][1]['context']);
+        $this->assertSame(['enabled' => true], $payload['content'][1]['citations']);
+    }
+
+    public function testWithDocumentFromUrlSupportsContextAndCitationOptions(): void
+    {
+        $input = AgentInput::text('Summarise')
+            ->withDocumentFromUrl('https://example.com/report.pdf', 'pdf', 'report', 'URL context', ['enabled' => true]);
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('URL context', $payload['content'][1]['context']);
+        $this->assertSame(['enabled' => true], $payload['content'][1]['citations']);
+    }
+
+    public function testWithCachePointAddsCachePointBlock(): void
+    {
+        $input = AgentInput::text('Remember this')
+            ->withCachePoint(ttl: '5m');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('cache_point', $payload['content'][1]['type']);
+        $this->assertSame('default', $payload['content'][1]['cache_type']);
+        $this->assertSame('5m', $payload['content'][1]['ttl']);
+    }
+
     public function testWithVideoFromUrl(): void
     {
         $input = AgentInput::text('Describe')

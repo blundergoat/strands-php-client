@@ -1,0 +1,13 @@
+{
+    "text": "The conversation is still within the context window.",
+    "agent": "context-monitor",
+    "session_id": "session-008",
+    "usage": {
+        "input_tokens": 300,
+        "output_tokens": 24,
+        "total_tokens": 324
+    },
+    "context_size": 8192,
+    "projected_context_size": 9216,
+    "stop_reason": "end_turn"
+}

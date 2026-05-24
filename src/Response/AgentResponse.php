@@ -10,7 +10,7 @@ namespace StrandsPhpClient\Response;
  * Covers all response fields: text output, session continuity, token usage,
  * tool use history, structured output, interrupt control flow, guardrail
  * interventions, and citations. Unrecognised top-level fields are captured
- * in $metadata for forward-compatibility.
+ * in $metadata for backward-compatible forward-compatibility.
  */
 class AgentResponse
 {
@@ -22,7 +22,7 @@ class AgentResponse
      * @param string|null  $agent          Agent name that handled the request.
      * @param string|null  $sessionId      Session ID for multi-turn conversations.
      * @param Usage   $usage              Token usage statistics.
-     * @param list<array{name: string, duration_ms?: int}>  $toolsUsed  Tools the agent called.
+     * @param list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}>  $toolsUsed  Tools the agent called.
      * @param bool    $hasObjective       Whether this agent had a secret objective active.
      * @param StopReason|null $stopReason  Why the agent stopped generating output.
      * @param array<string, mixed>|null $structuredOutput  Schema-validated structured output.
@@ -30,6 +30,11 @@ class AgentResponse
      * @param list<InterruptDetail> $interrupts  Interrupts raised by the agent (human-in-the-loop).
      * @param GuardrailTrace|null $guardrailTrace  Guardrail intervention trace data.
      * @param list<array<string, mixed>> $citations  Citation content blocks from the response.
+     * @param Message|null $message  Wrapper-normalized raw message envelope.
+     * @param array<string, mixed> $wrapperMetadata  Top-level wrapper-owned metadata field.
+     * @param int|null $contextSize  Current context size in tokens.
+     * @param int|null $projectedContextSize  Projected next-turn context size in tokens.
+     * @param string|null $rawStopReason  Raw stop reason, including unknown future values.
      */
     public function __construct(
         public readonly string $text,
@@ -44,6 +49,11 @@ class AgentResponse
         public readonly array $interrupts = [],
         public readonly ?GuardrailTrace $guardrailTrace = null,
         public readonly array $citations = [],
+        public readonly ?Message $message = null,
+        public readonly array $wrapperMetadata = [],
+        public readonly ?int $contextSize = null,
+        public readonly ?int $projectedContextSize = null,
+        public readonly ?string $rawStopReason = null,
     ) {
     }
 
@@ -132,9 +142,13 @@ class AgentResponse
             'text', 'agent', 'session_id', 'usage', 'tools_used',
             'has_objective', 'stop_reason', 'structured_output',
             'interrupts', 'guardrail_trace', 'trace', 'message',
+            'context_size', 'projected_context_size',
         ];
         /** @var array<string, mixed> $metadata */
         $metadata = array_diff_key($data, array_flip($knownKeys));
+        $rawWrapperMetadata = $data['metadata'] ?? null;
+        /** @var array<string, mixed> $wrapperMetadata */
+        $wrapperMetadata = is_array($rawWrapperMetadata) ? $rawWrapperMetadata : [];
 
         return new self(
             text: is_string($data['text'] ?? null) ? $data['text'] : '',
@@ -149,6 +163,11 @@ class AgentResponse
             interrupts: self::parseInterrupts($data),
             guardrailTrace: self::parseGuardrailTrace($data),
             citations: self::parseCitations($data),
+            message: self::parseMessage($data),
+            wrapperMetadata: $wrapperMetadata,
+            contextSize: self::nullableIntField($data, 'context_size'),
+            projectedContextSize: self::nullableIntField($data, 'projected_context_size'),
+            rawStopReason: is_string($rawStopReason) ? $rawStopReason : null,
         );
     }
 
@@ -170,7 +189,7 @@ class AgentResponse
      *
      * @param array<string, mixed> $data
      *
-     * @return list<array{name: string, duration_ms?: int}>
+     * @return list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}>
      */
     private static function parseToolsUsed(array $data): array
     {
@@ -188,7 +207,19 @@ class AgentResponse
                 $entry['duration_ms'] = $tool['duration_ms'];
             }
 
-            /** @var array{name: string, duration_ms?: int} $entry */
+            if (isset($tool['input']) && is_array($tool['input'])) {
+                /** @var array<string, mixed> $input */
+                $input = $tool['input'];
+                $entry['input'] = $input;
+            }
+
+            if (isset($tool['result']) && is_array($tool['result'])) {
+                /** @var array<string, mixed> $result */
+                $result = $tool['result'];
+                $entry['result'] = $result;
+            }
+
+            /** @var array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>} $entry */
             $toolsUsed[] = $entry;
         }
 
@@ -280,5 +311,57 @@ class AgentResponse
         }
 
         return $citations;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private static function parseMessage(array $data): ?Message
+    {
+        $message = $data['message'] ?? null;
+
+        $messageData = self::stringKeyedArray($message);
+
+        return $messageData !== null ? Message::fromArray($messageData) : null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private static function nullableIntField(array $data, string $key): ?int
+    {
+        $value = $data[$key] ?? null;
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value)) {
+            return (int) round($value);
+        }
+
+        if (is_string($value) && is_numeric($value)) {
+            return (int) round((float) $value);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function stringKeyedArray(mixed $value): ?array
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        $result = [];
+        foreach ($value as $key => $item) {
+            if (is_string($key)) {
+                $result[$key] = $item;
+            }
+        }
+
+        return $result;
     }
 }

@@ -1,0 +1,25 @@
+{
+    "message": {
+        "content": [
+            {
+                "type": "text",
+                "text": "Answer from the referral and cite the source."
+            },
+            {
+                "type": "document",
+                "name": "referral.pdf",
+                "format": "pdf",
+                "context": "Referral letter uploaded for this patient summary.",
+                "citations": {
+                    "enabled": true
+                },
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": "JVBERi0xLjQK..."
+                }
+            }
+        ]
+    },
+    "session_id": "session-011"
+}

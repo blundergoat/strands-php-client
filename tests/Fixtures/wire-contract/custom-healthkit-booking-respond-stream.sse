@@ -1,0 +1,6 @@
+data: {"type":"text","content":"I found appointment options."}
+
+data: {"type":"booking_options","options":[{"slot_id":"slot-001","label":"Tomorrow 9:00 AM"}],"source":"healthkit"}
+
+data: {"type":"complete","message":"Choose a time that works for you.","usage":{"input_tokens":144,"output_tokens":29},"stop_reason":"end_turn"}
+
