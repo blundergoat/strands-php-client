@@ -569,11 +569,17 @@ class AgentInputTest extends TestCase
     public function testWithCachePointReturnsNewInstance(): void
     {
         $original = AgentInput::text('Hello');
+        $originalPayload = $original->toPayloadValue();
         $withCache = $original->withCachePoint(ttl: '5m');
 
-        $this->assertSame('Hello', $original->toPayloadValue());
-        $this->assertIsArray($withCache->toPayloadValue());
         $this->assertNotSame($original, $withCache);
+        $this->assertSame($originalPayload, $original->toPayloadValue());
+        $this->assertSame('Hello', $original->toPayloadValue());
+
+        $cachedPayload = $withCache->toPayloadValue();
+        $this->assertIsArray($cachedPayload);
+        $this->assertCount(2, $cachedPayload['content']);
+        $this->assertSame('cache_point', $cachedPayload['content'][1]['type']);
     }
 
     public function testWithVideoFromUrl(): void

@@ -29,7 +29,7 @@ Use when the user describes an outcome and wants the right workflow chosen. **If
    - If any check fails or is unavailable, note `gather-degraded` and route anyway
 3. **ROUTE** - dispatch using the route map. Emit a Route Snapshot:
 
-```
+```text
 Intent: [classified intent]
 Route: [/goat-* or direct]
 Rationale: [concrete signals that justified this route]
