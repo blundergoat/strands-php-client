@@ -128,7 +128,8 @@ class StrandsServiceProviderTest extends TestCase
      */
     public function testFactoryReceivesTaggedMiddleware(): void
     {
-        $requestMiddleware = $this->createStub(RequestMiddleware::class);
+        $requestMiddleware = $this->createMock(RequestMiddleware::class);
+        $requestMiddleware->expects($this->never())->method('beforeRequest');
 
         $app = $this->createRegisteredApplication([
             'default' => 'primary',

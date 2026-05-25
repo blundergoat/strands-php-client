@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit\Streaming;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Streaming\StreamCallbackHandler;
 use StrandsPhpClient\Streaming\StreamEvent;
@@ -44,90 +45,119 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Verifies that tool use event dispatches to onToolUse.
+     * Verifies that StreamCallbackHandler's __invoke dispatches each event type
+     * to the matching protected `on*` hook. The anonymous subclass below
+     * records the hook name(s) that fired so each row of the data provider
+     * can assert the dispatch landed on exactly one expected method.
      *
+     * @param StreamEvent $streamEvent Event sent through the handler under test.
+     * @param string $expectedHook Name of the hook expected to record the event.
      * @return void
      */
-    public function testToolUseEventDispatchesToOnToolUse(): void
+    #[DataProvider('dispatchProvider')]
+    public function testEventDispatchesToMatchingHook(StreamEvent $streamEvent, string $expectedHook): void
     {
         $handler = new class () extends StreamCallbackHandler {
-            public bool $called = false;
+            /** @var list<string> */
+            public array $calls = [];
 
-            /**
-             * Handle a tool-use event in the anonymous test handler.
-             *
-             * @param StreamEvent $streamEvent Stream event being handled.
-             * @return bool|null False cancels the stream; null continues it.
-             */
+            /** @param StreamEvent $streamEvent Stream event being handled. */
+            protected function onText(StreamEvent $streamEvent): ?bool
+            {
+                $this->calls[] = 'onText';
+
+                return null;
+            }
+
+            /** @param StreamEvent $streamEvent Stream event being handled. */
             protected function onToolUse(StreamEvent $streamEvent): ?bool
             {
-                $this->called = true;
+                $this->calls[] = 'onToolUse';
 
                 return null;
             }
-        };
 
-        $handler->__invoke(new StreamEvent(type: StreamEventType::ToolUse, toolName: 'search'));
+            /** @param StreamEvent $streamEvent Stream event being handled. */
+            protected function onToolResult(StreamEvent $streamEvent): ?bool
+            {
+                $this->calls[] = 'onToolResult';
 
-        $this->assertTrue($handler->called);
-    }
+                return null;
+            }
 
-    /**
-     * Verifies that complete event dispatches to onComplete.
-     *
-     * @return void
-     */
-    public function testCompleteEventDispatchesToOnComplete(): void
-    {
-        $handler = new class () extends StreamCallbackHandler {
-            public bool $called = false;
+            /** @param StreamEvent $streamEvent Stream event being handled. */
+            protected function onThinking(StreamEvent $streamEvent): ?bool
+            {
+                $this->calls[] = 'onThinking';
 
-            /**
-             * Handle a completion event in the anonymous test handler.
-             *
-             * @param StreamEvent $streamEvent Stream event being handled.
-             * @return bool|null False cancels the stream; null continues it.
-             */
+                return null;
+            }
+
+            /** @param StreamEvent $streamEvent Stream event being handled. */
+            protected function onCitation(StreamEvent $streamEvent): ?bool
+            {
+                $this->calls[] = 'onCitation';
+
+                return null;
+            }
+
+            /** @param StreamEvent $streamEvent Stream event being handled. */
+            protected function onReasoningSignature(StreamEvent $streamEvent): ?bool
+            {
+                $this->calls[] = 'onReasoningSignature';
+
+                return null;
+            }
+
+            /** @param StreamEvent $streamEvent Stream event being handled. */
+            protected function onReasoningRedacted(StreamEvent $streamEvent): ?bool
+            {
+                $this->calls[] = 'onReasoningRedacted';
+
+                return null;
+            }
+
+            /** @param StreamEvent $streamEvent Stream event being handled. */
             protected function onComplete(StreamEvent $streamEvent): ?bool
             {
-                $this->called = true;
+                $this->calls[] = 'onComplete';
+
+                return null;
+            }
+
+            /** @param StreamEvent $streamEvent Stream event being handled. */
+            protected function onError(StreamEvent $streamEvent): ?bool
+            {
+                $this->calls[] = 'onError';
 
                 return null;
             }
         };
 
-        $handler->__invoke(new StreamEvent(type: StreamEventType::Complete));
+        $handler->__invoke($streamEvent);
 
-        $this->assertTrue($handler->called);
+        $this->assertSame([$expectedHook], $handler->calls);
     }
 
     /**
-     * Verifies that error event dispatches to onError.
+     * Cases for testEventDispatchesToMatchingHook().
      *
-     * @return void
+     * @return iterable<string, array{0: StreamEvent, 1: string}>
      */
-    public function testErrorEventDispatchesToOnError(): void
+    public static function dispatchProvider(): iterable
     {
-        $handler = new class () extends StreamCallbackHandler {
-            public bool $called = false;
-
-            /**
-             * Handle an error event in the anonymous test handler.
-             *
-             * @param StreamEvent $streamEvent Stream event being handled.
-             * @return bool|null False cancels the stream; null continues it.
-             */
-            protected function onError(StreamEvent $streamEvent): ?bool
-            {
-                $this->called = true;
-
-                return null;
-            }
-        };
-
-        $handler->__invoke(new StreamEvent(type: StreamEventType::Error, errorCode: 'ERR', errorMessage: 'fail'));
-
-        $this->assertTrue($handler->called);
+        yield 'ToolUse → onToolUse' => [
+            new StreamEvent(type: StreamEventType::ToolUse, toolName: 'search'),
+            'onToolUse',
+        ];
+        yield 'Complete → onComplete' => [
+            new StreamEvent(type: StreamEventType::Complete),
+            'onComplete',
+        ];
+        yield 'Error → onError' => [
+            new StreamEvent(type: StreamEventType::Error, errorCode: 'ERR', errorMessage: 'fail'),
+            'onError',
+        ];
     }
 
     /**

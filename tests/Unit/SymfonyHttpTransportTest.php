@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\StrandsException;
@@ -184,44 +185,35 @@ class SymfonyHttpTransportTest extends TestCase
      *
      * @return void
      */
-    public function testPostThrowsAgentErrorOnHttpError(): void
+    /**
+     * Verifies that post surfaces the agent error message from each documented error-response shape.
+     *
+     * @param string $responseBody Body returned by the mock transport.
+     * @param int $statusCode HTTP status the mock transport reports.
+     * @param string $expectedMessage Substring AgentErrorException::getMessage() must contain.
+     * @return void
+     */
+    #[DataProvider('postErrorBodyProvider')]
+    public function testPostThrowsAgentErrorOnDocumentedErrorShape(string $responseBody, int $statusCode, string $expectedMessage): void
     {
-        $symfonyHttpTransport = $this->transportReturning('{"detail":"Something went wrong"}', 422);
+        $symfonyHttpTransport = $this->transportReturning($responseBody, $statusCode);
 
         $this->expectException(AgentErrorException::class);
-        $this->expectExceptionMessage('Something went wrong');
+        $this->expectExceptionMessage($expectedMessage);
 
         $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
     }
 
     /**
-     * Verifies that post throws agent error with error key.
+     * Cases for testPostThrowsAgentErrorOnDocumentedErrorShape().
      *
-     * @return void
+     * @return iterable<string, array{0: string, 1: int, 2: string}>
      */
-    public function testPostThrowsAgentErrorWithErrorKey(): void
+    public static function postErrorBodyProvider(): iterable
     {
-        $symfonyHttpTransport = $this->transportReturning('{"error":"Bad request"}', 400);
-
-        $this->expectException(AgentErrorException::class);
-        $this->expectExceptionMessage('Bad request');
-
-        $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
-    }
-
-    /**
-     * Verifies that post throws agent error with plain text body.
-     *
-     * @return void
-     */
-    public function testPostThrowsAgentErrorWithPlainTextBody(): void
-    {
-        $symfonyHttpTransport = $this->transportReturning('Internal Server Error', 500);
-
-        $this->expectException(AgentErrorException::class);
-        $this->expectExceptionMessage('Internal Server Error');
-
-        $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
+        yield 'JSON detail field, 422' => ['{"detail":"Something went wrong"}', 422, 'Something went wrong'];
+        yield 'JSON error field, 400' => ['{"error":"Bad request"}', 400, 'Bad request'];
+        yield 'Plain text body, 500' => ['Internal Server Error', 500, 'Internal Server Error'];
     }
 
     /**
@@ -381,15 +373,20 @@ class SymfonyHttpTransportTest extends TestCase
         $chunk = $this->createChunk(timeout: false, last: false, content: 'data');
         $stream = $this->createResponseStream($response, [$chunk]);
 
-        $httpClient = $this->createStub(HttpClientInterface::class);
-        $httpClient->method('request')->willReturn($response);
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->any())->method('request')->willReturn($response);
         $httpClient->method('stream')->willReturn($stream);
 
         $symfonyHttpTransport = new SymfonyHttpTransport($httpClient);
 
-        $symfonyHttpTransport->stream('http://example.com/stream', [], '{}', 30, 10, function (): bool {
+        $cancelCalls = 0;
+        $symfonyHttpTransport->stream('http://example.com/stream', [], '{}', 30, 10, function () use (&$cancelCalls): bool {
+            $cancelCalls++;
+
             return false;
         });
+
+        $this->assertSame(1, $cancelCalls, 'onChunk must run once before returning false cancels the response');
     }
 
     /**
@@ -504,8 +501,8 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testPostWrapsNonStrandsException(): void
     {
-        $httpClient = $this->createStub(HttpClientInterface::class);
-        $httpClient->method('request')
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->any())->method('request')
             ->willThrowException(new \RuntimeException('DNS resolution failed'));
 
         $symfonyHttpTransport = new SymfonyHttpTransport($httpClient);
@@ -527,8 +524,8 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testStreamWrapsNonStrandsException(): void
     {
-        $httpClient = $this->createStub(HttpClientInterface::class);
-        $httpClient->method('request')
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->any())->method('request')
             ->willThrowException(new \RuntimeException('Connection reset'));
 
         $symfonyHttpTransport = new SymfonyHttpTransport($httpClient);
@@ -697,66 +694,37 @@ class SymfonyHttpTransportTest extends TestCase
      *
      * @return void
      */
-    public function testPostErrorExtractsErrorCode(): void
+    /**
+     * Verifies that AgentErrorException carries the expected errorCode for each documented error-body shape.
+     *
+     * @param string $responseBody Body returned by the mock transport.
+     * @param int $statusCode HTTP status the mock transport reports.
+     * @param string|null $expectedErrorCode Value that AgentErrorException::$errorCode must equal after the throw.
+     * @return void
+     */
+    #[DataProvider('postErrorCodeProvider')]
+    public function testPostErrorCodeExtractedFromDocumentedShape(string $responseBody, int $statusCode, ?string $expectedErrorCode): void
     {
-        $symfonyHttpTransport = $this->transportReturning('{"detail":"Unauthorized","code":"auth_failed"}', 401);
+        $symfonyHttpTransport = $this->transportReturning($responseBody, $statusCode);
 
         try {
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $agentErrorException) {
-            $this->assertSame('auth_failed', $agentErrorException->errorCode);
+            $this->assertSame($expectedErrorCode, $agentErrorException->errorCode);
         }
     }
 
     /**
-     * Verifies that post error extracts error code from alternate key.
+     * Cases for testPostErrorCodeExtractedFromDocumentedShape().
      *
-     * @return void
+     * @return iterable<string, array{0: string, 1: int, 2: string|null}>
      */
-    public function testPostErrorExtractsErrorCodeFromAlternateKey(): void
+    public static function postErrorCodeProvider(): iterable
     {
-        $symfonyHttpTransport = $this->transportReturning('{"detail":"Rate limited","error_code":"throttled"}', 429);
-
-        try {
-            $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
-            $this->fail('Expected AgentErrorException');
-        } catch (AgentErrorException $agentErrorException) {
-            $this->assertSame('throttled', $agentErrorException->errorCode);
-        }
-    }
-
-    /**
-     * Verifies that post error code is null when absent.
-     *
-     * @return void
-     */
-    public function testPostErrorCodeIsNullWhenAbsent(): void
-    {
-        $symfonyHttpTransport = $this->transportReturning('{"detail":"Server error"}', 500);
-
-        try {
-            $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
-            $this->fail('Expected AgentErrorException');
-        } catch (AgentErrorException $agentErrorException) {
-            $this->assertNull($agentErrorException->errorCode);
-        }
-    }
-
-    /**
-     * Verifies that post error code prefers code over error code.
-     *
-     * @return void
-     */
-    public function testPostErrorCodePrefersCodeOverErrorCode(): void
-    {
-        $symfonyHttpTransport = $this->transportReturning('{"detail":"Error","code":"primary_code","error_code":"fallback_code"}', 400);
-
-        try {
-            $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
-            $this->fail('Expected AgentErrorException');
-        } catch (AgentErrorException $agentErrorException) {
-            $this->assertSame('primary_code', $agentErrorException->errorCode);
-        }
+        yield 'code field present' => ['{"detail":"Unauthorized","code":"auth_failed"}', 401, 'auth_failed'];
+        yield 'error_code alternate key' => ['{"detail":"Rate limited","error_code":"throttled"}', 429, 'throttled'];
+        yield 'no error code field present' => ['{"detail":"Server error"}', 500, null];
+        yield 'code preferred over error_code' => ['{"detail":"Error","code":"primary_code","error_code":"fallback_code"}', 400, 'primary_code'];
     }
 }

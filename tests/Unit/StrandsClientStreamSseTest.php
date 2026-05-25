@@ -58,8 +58,12 @@ class StrandsClientStreamSseTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () {
+        $eventCount = 0;
+        $strandsClient->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () use (&$eventCount): void {
+            $eventCount++;
         });
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
     /**
@@ -95,11 +99,15 @@ class StrandsClientStreamSseTest extends TestCase
             transport: $transport,
         );
 
+        $eventCount = 0;
         $strandsClient->streamSse('/file-summarise-stream', [
             'file_base64' => 'abc',
             'template' => 'default',
-        ], function () {
+        ], function () use (&$eventCount): void {
+            $eventCount++;
         });
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
     /**
@@ -131,8 +139,12 @@ class StrandsClientStreamSseTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () {
+        $eventCount = 0;
+        $strandsClient->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () use (&$eventCount): void {
+            $eventCount++;
         });
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
     /**
@@ -303,8 +315,12 @@ class StrandsClientStreamSseTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () {
+        $eventCount = 0;
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () use (&$eventCount): void {
+            $eventCount++;
         });
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
     /**
@@ -334,8 +350,12 @@ class StrandsClientStreamSseTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () {
+        $eventCount = 0;
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () use (&$eventCount): void {
+            $eventCount++;
         }, timeout: 15);
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
     /**
@@ -401,8 +421,8 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSseCancelsAcrossChunks(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('stream')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 // First chunk delivers one event
                 $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
@@ -460,8 +480,8 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSseHandlesChunkedDelivery(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('stream')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 // SSE event split across two TCP chunks
                 $onChunk->__invoke('data: {"type":');
@@ -493,8 +513,8 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSsePropagatesTransportError(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('stream')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('stream')
             ->willThrowException(new AgentErrorException('Internal Server Error', statusCode: 500));
 
         $strandsClient = new StrandsClient(
@@ -516,7 +536,8 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSseThrowsOnEncodingFailure(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -540,7 +561,8 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSseRejectsZeroTimeout(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -561,7 +583,8 @@ class StrandsClientStreamSseTest extends TestCase
      */
     public function testStreamSseRejectsNegativeTimeout(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -604,8 +627,12 @@ class StrandsClientStreamSseTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (): void {
+        $eventCount = 0;
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () use (&$eventCount): void {
+            $eventCount++;
         }, timeout: 1);
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
     /**
@@ -681,8 +708,8 @@ class StrandsClientStreamSseTest extends TestCase
         // is parsed as one event (two data lines), not split into separate events.
         // If \r\n normalization is removed, the \r\n\r\n becomes a double-newline
         // before the second data line, incorrectly splitting it into two events.
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('stream')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 // Two data lines with CRLF endings in the same event block
                 $onChunk->__invoke("data: {\"type\": \"text\",\r\ndata:  \"content\": \"hello\"}\r\n\r\n");

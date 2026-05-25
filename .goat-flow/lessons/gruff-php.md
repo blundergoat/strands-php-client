@@ -125,6 +125,22 @@ Patterns that respond well to mechanical extraction (verified on this repo, 110 
 
 **Evidence:** see the 5 extraction patterns implemented in `/tmp/extract_test_data.py` (script run during this session) plus the per-file helpers added to `tests/Unit/SymfonyHttpTransportTest.php` (search: "transportReturning") and `tests/Unit/SigV4AuthTest.php` (search: "sigV4AuthWith").
 
+## Lesson: `test-quality.magic-number-assertion` doesn't recognise LLM `usage` property names
+
+**Created:** 2026-05-25
+
+The rule fires on `$this->assertSame(<literal>, <expr>)` when the literal isn't in `allowedLiterals` (config) AND the expression's property/key name isn't in the hardcoded `CONTEXTUAL_NUMERIC_NAMES` list. That list is **not configurable** — it's a private constant in `MagicNumberAssertionRule.php`. The names it does recognise are general analyzer/test terms (`count`, `total`, `findings`, `score`, `complexity`, etc.). It does NOT include domain-specific numeric names like `inputTokens`, `outputTokens`, `latencyMs`, `totalEvents`, `textEvents`, `cacheReadInputTokens` — all of which show up in any LLM client test.
+
+In this repo every `assertSame(100, $agentResponse->usage->inputTokens)` round-trip test triggers the rule because:
+- The literal 100 isn't an HTTP code (the only thing the default allowlist covers).
+- The property `inputTokens` isn't in the contextual-name allowlist.
+
+The literals are **inherently** paired with their fixture-data counterparts; the test's whole point is "I put 100 in, prove 100 came back." Extracting `const FIXTURE_INPUT_TOKENS = 100` and using it in both setup and assertion adds an indirection without adding signal — the reader still has to chase the constant to verify the round-trip.
+
+**Recommendation:** accept these 96 findings as Advisory debt. The rule ships with `Confidence::Low` and `Severity::Advisory` precisely because the rule's own author knows this is heuristic. If gruff-php ever exposes `additionalContextualNames` as a config option, add `inputTokens`/`outputTokens`/`latencyMs`/`textEvents`/`totalEvents` and revisit.
+
+**Evidence:** `vendor/blundergoat/gruff-php/src/Rule/TestQuality/MagicNumberAssertionRule.php (search: "CONTEXTUAL_NUMERIC_NAMES")` — hardcoded list at the top of the file.
+
 ## Lesson: `sensitive-data.high-entropy-string` flags long MIME types and rule references
 
 **Created:** 2026-05-25

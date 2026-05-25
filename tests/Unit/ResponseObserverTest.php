@@ -31,8 +31,8 @@ final class ResponseObserverTest extends TestCase
                 $this->greaterThan(0),
             );
 
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('post')->willReturn(['text' => 'ok']);
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('post')->willReturn(['text' => 'ok']);
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -40,7 +40,9 @@ final class ResponseObserverTest extends TestCase
             responseObservers: [$observer],
         );
 
-        $strandsClient->invoke('hello');
+        $response = $strandsClient->invoke('hello');
+
+        $this->assertSame('ok', $response->text);
     }
 
     /**
@@ -59,8 +61,8 @@ final class ResponseObserverTest extends TestCase
                 $this->greaterThan(0),
             );
 
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('stream')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk): void {
                 $onChunk->__invoke("data: {\"type\":\"text\",\"content\":\"done\"}\n\n"
                     . "data: {\"type\":\"complete\",\"text\":\"done\",\"usage\":{},\"tools_used\":[]}\n\n");
@@ -72,8 +74,10 @@ final class ResponseObserverTest extends TestCase
             responseObservers: [$observer],
         );
 
-        $strandsClient->stream('hello', static function (): void {
+        $streamResult = $strandsClient->stream('hello', static function (): void {
         });
+
+        $this->assertSame('done', $streamResult->text);
     }
 
     /**
@@ -92,8 +96,8 @@ final class ResponseObserverTest extends TestCase
                 $this->greaterThan(0),
             );
 
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('post')->willReturn(['status' => 'ok']);
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('post')->willReturn(['status' => 'ok']);
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -101,7 +105,9 @@ final class ResponseObserverTest extends TestCase
             responseObservers: [$observer],
         );
 
-        $strandsClient->postJson('/custom', ['message' => 'hello']);
+        $result = $strandsClient->postJson('/custom', ['message' => 'hello']);
+
+        $this->assertSame(['status' => 'ok'], $result);
     }
 
     /**
@@ -125,8 +131,8 @@ final class ResponseObserverTest extends TestCase
                 $this->greaterThan(0),
             );
 
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('stream')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk): void {
                 $onChunk->__invoke("data: {\"type\":\"text\",\"content\":\"secret response text\"}\n\n"
                     . "data: {\"type\":\"complete\",\"usage\":{\"input_tokens\":11,\"output_tokens\":3},\"stop_reason\":\"end_turn\"}\n\n");
@@ -138,7 +144,11 @@ final class ResponseObserverTest extends TestCase
             responseObservers: [$observer],
         );
 
-        $strandsClient->streamSse('/custom-stream', ['message' => 'hello'], static function (): void {
+        $events = [];
+        $strandsClient->streamSse('/custom-stream', ['message' => 'hello'], static function (array $event) use (&$events): void {
+            $events[] = $event;
         });
+
+        $this->assertCount(2, $events, 'onEvent must receive every parsed SSE event delivered to the observer');
     }
 }

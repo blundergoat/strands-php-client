@@ -78,7 +78,9 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $result = $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
+
+        $this->assertSame(['summary' => 'test'], $result);
     }
 
     /**
@@ -112,11 +114,13 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->postJson('/file-summarise', [
+        $result = $strandsClient->postJson('/file-summarise', [
             'file_base64' => 'abc',
             'file_name' => 'test.pdf',
             'mime_type' => 'application/pdf',
         ]);
+
+        $this->assertSame(['summary' => 'test'], $result);
     }
 
     /**
@@ -147,7 +151,9 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $result = $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
+
+        $this->assertSame(['summary' => 'test'], $result);
     }
 
     /**
@@ -208,9 +214,9 @@ class StrandsClientPostJsonTest extends TestCase
      */
     public function testPostJsonDoesNotRetryOnBadRequest(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
+        $transport = $this->createMock(HttpTransport::class);
         $callCount = 0;
-        $transport->method('post')
+        $transport->expects($this->any())->method('post')
             ->willReturnCallback(function () use (&$callCount) {
                 $callCount++;
                 throw new AgentErrorException('Bad request', statusCode: 400);
@@ -317,7 +323,9 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->postJson('/test', ['data' => 'test']);
+        $result = $strandsClient->postJson('/test', ['data' => 'test']);
+
+        $this->assertSame(['ok' => true], $result);
     }
 
     /**
@@ -344,7 +352,9 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->postJson('/file-metadata', ['data' => 'test'], timeout: 30);
+        $result = $strandsClient->postJson('/file-metadata', ['data' => 'test'], timeout: 30);
+
+        $this->assertSame(['ok' => true], $result);
     }
 
     /**
@@ -440,7 +450,9 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->postJson('/test', ['data' => 'test'], timeout: null);
+        $result = $strandsClient->postJson('/test', ['data' => 'test'], timeout: null);
+
+        $this->assertSame(['ok' => true], $result);
     }
 
     /**
@@ -467,6 +479,8 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->postJson('/test', ['data' => 'test'], timeout: 1);
+        $result = $strandsClient->postJson('/test', ['data' => 'test'], timeout: 1);
+
+        $this->assertSame(['ok' => true], $result);
     }
 }

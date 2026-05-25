@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Exceptions\StreamInterruptedException;
 use StrandsPhpClient\Streaming\StreamEventType;
@@ -582,42 +583,29 @@ class StreamParserTest extends TestCase
      *
      * @return void
      */
-    public function testTryFromArrayReturnsNullOnUnknownType(): void
+    /**
+     * Verifies StreamEvent::tryFromArray() returns null for every documented
+     * "unparseable type" shape (unknown enum, missing field, empty string).
+     *
+     * @param array<string, mixed> $payload Wire-shape payload that cannot resolve to a known event type.
+     * @return void
+     */
+    #[DataProvider('unparseableEventPayloadProvider')]
+    public function testTryFromArrayReturnsNullForUnparseableEventShape(array $payload): void
     {
-        $result = \StrandsPhpClient\Streaming\StreamEvent::tryFromArray([
-            'type' => 'future_event',
-            'data' => 'something new',
-        ]);
-
-        $this->assertNull($result);
+        $this->assertNull(\StrandsPhpClient\Streaming\StreamEvent::tryFromArray($payload));
     }
 
     /**
-     * Verifies that try from array returns null on missing type.
+     * Cases for testTryFromArrayReturnsNullForUnparseableEventShape().
      *
-     * @return void
+     * @return iterable<string, array{0: array<string, mixed>}>
      */
-    public function testTryFromArrayReturnsNullOnMissingType(): void
+    public static function unparseableEventPayloadProvider(): iterable
     {
-        $result = \StrandsPhpClient\Streaming\StreamEvent::tryFromArray([
-            'content' => 'no type',
-        ]);
-
-        $this->assertNull($result);
-    }
-
-    /**
-     * Verifies that try from array returns null on empty type.
-     *
-     * @return void
-     */
-    public function testTryFromArrayReturnsNullOnEmptyType(): void
-    {
-        $result = \StrandsPhpClient\Streaming\StreamEvent::tryFromArray([
-            'type' => '',
-        ]);
-
-        $this->assertNull($result);
+        yield 'unknown type enum' => [['type' => 'future_event', 'data' => 'something new']];
+        yield 'type field missing entirely' => [['content' => 'no type']];
+        yield 'type field present but empty string' => [['type' => '']];
     }
 
     /**

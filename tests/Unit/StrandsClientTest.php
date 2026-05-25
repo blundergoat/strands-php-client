@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use StrandsPhpClient\Auth\AuthStrategy;
@@ -187,11 +188,13 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->invoke(
+        $response = $strandsClient->invoke(
             message: 'Test message',
             context: AgentContext::create()->withMetadata('persona', 'skeptic'),
             sessionId: 'sess-123',
         );
+
+        $this->assertInstanceOf(AgentResponse::class, $response);
     }
 
     /**
@@ -214,7 +217,9 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->invoke(message: 'Test');
+        $response = $strandsClient->invoke(message: 'Test');
+
+        $this->assertInstanceOf(AgentResponse::class, $response);
     }
 
     /**
@@ -247,7 +252,9 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->invoke(message: 'Test');
+        $response = $strandsClient->invoke(message: 'Test');
+
+        $this->assertInstanceOf(AgentResponse::class, $response);
     }
 
     /**
@@ -269,8 +276,8 @@ class StrandsClientTest extends TestCase
             ->willReturnArgument(0);
 
         $sseData = $this->loadSseFixture('sse-simple-text.txt');
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('stream')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
                 $onChunk->__invoke($sseData);
             });
@@ -283,8 +290,10 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->stream(message: 'Test', onEvent: function () {
+        $streamResult = $strandsClient->stream(message: 'Test', onEvent: function () {
         });
+
+        $this->assertInstanceOf(\StrandsPhpClient\Streaming\StreamResult::class, $streamResult);
     }
 
     /**
@@ -348,9 +357,9 @@ class StrandsClientTest extends TestCase
      */
     public function testInvokeDoesNotRetryNonRetryableStatusCode(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
+        $transport = $this->createMock(HttpTransport::class);
         $callCount = 0;
-        $transport->method('post')
+        $transport->expects($this->any())->method('post')
             ->willReturnCallback(function () use (&$callCount) {
                 $callCount++;
                 throw new AgentErrorException('Bad request', statusCode: 400);
@@ -385,8 +394,8 @@ class StrandsClientTest extends TestCase
      */
     public function testInvokeThrowsAfterMaxRetries(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('post')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('post')
             ->willThrowException(new AgentErrorException('Service unavailable', statusCode: 503));
 
         $strandsClient = new StrandsClient(
@@ -411,9 +420,9 @@ class StrandsClientTest extends TestCase
      */
     public function testInvokeDoesNotRetryOnUnauthorized(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
+        $transport = $this->createMock(HttpTransport::class);
         $callCount = 0;
-        $transport->method('post')
+        $transport->expects($this->any())->method('post')
             ->willReturnCallback(function () use (&$callCount) {
                 $callCount++;
                 throw new AgentErrorException('Unauthorized', statusCode: 401);
@@ -456,81 +465,62 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that config rejects zero timeout.
+     * Verifies that StrandsConfig rejects each documented invalid field value
+     * with an InvalidArgumentException whose message names the failing field.
      *
+     * @param \Closure(): void $constructConfig Callback that constructs the
+     *   invalid config; expected to throw InvalidArgumentException.
+     * @param string $expectedMessageFragment Substring the exception message must contain.
      * @return void
      */
-    public function testConfigRejectsZeroTimeout(): void
+    #[DataProvider('invalidConfigConstructorProvider')]
+    public function testConfigRejectsInvalidFieldWithIdentifyingMessage(\Closure $constructConfig, string $expectedMessageFragment): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('timeout must be at least 1');
+        $this->expectExceptionMessage($expectedMessageFragment);
 
-        new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 0);
+        $constructConfig();
     }
 
     /**
-     * Verifies that config rejects negative connect timeout.
+     * Cases for testConfigRejectsInvalidFieldWithIdentifyingMessage().
      *
-     * @return void
+     * @return iterable<string, array{0: \Closure(): void, 1: string}>
      */
-    public function testConfigRejectsNegativeConnectTimeout(): void
+    public static function invalidConfigConstructorProvider(): iterable
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('connectTimeout must be at least 1');
-
-        new StrandsConfig(endpoint: 'http://localhost:8081', connectTimeout: -1);
-    }
-
-    /**
-     * Verifies that config rejects zero retry delay ms.
-     *
-     * @return void
-     */
-    public function testConfigRejectsZeroRetryDelayMs(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('retryDelayMs must be at least 1');
-
-        new StrandsConfig(endpoint: 'http://localhost:8081', retryDelayMs: 0);
-    }
-
-    /**
-     * Verifies that config rejects invalid endpoint URL.
-     *
-     * @return void
-     */
-    public function testConfigRejectsInvalidEndpointUrl(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid endpoint URL');
-
-        new StrandsConfig(endpoint: 'not a url');
-    }
-
-    /**
-     * Verifies that config rejects max retries above 20.
-     *
-     * @return void
-     */
-    public function testConfigRejectsMaxRetriesAboveUpperBound(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('maxRetries must be between 0 and 20');
-
-        new StrandsConfig(endpoint: 'http://localhost:8081', maxRetries: 21);
-    }
-
-    /**
-     * Verifies that config rejects negative max retries.
-     *
-     * @return void
-     */
-    public function testConfigRejectsNegativeMaxRetries(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('maxRetries must be between 0 and 20');
-
-        new StrandsConfig(endpoint: 'http://localhost:8081', maxRetries: -1);
+        yield 'zero timeout' => [
+            static fn (): StrandsConfig => new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 0),
+            'timeout must be at least 1',
+        ];
+        yield 'negative connectTimeout' => [
+            static fn (): StrandsConfig => new StrandsConfig(endpoint: 'http://localhost:8081', connectTimeout: -1),
+            'connectTimeout must be at least 1',
+        ];
+        yield 'zero retryDelayMs' => [
+            static fn (): StrandsConfig => new StrandsConfig(endpoint: 'http://localhost:8081', retryDelayMs: 0),
+            'retryDelayMs must be at least 1',
+        ];
+        yield 'invalid endpoint URL' => [
+            static fn (): StrandsConfig => new StrandsConfig(endpoint: 'not a url'),
+            'Invalid endpoint URL',
+        ];
+        yield 'maxRetries above upper bound' => [
+            static fn (): StrandsConfig => new StrandsConfig(endpoint: 'http://localhost:8081', maxRetries: 21),
+            'maxRetries must be between 0 and 20',
+        ];
+        yield 'negative maxRetries' => [
+            static fn (): StrandsConfig => new StrandsConfig(endpoint: 'http://localhost:8081', maxRetries: -1),
+            'maxRetries must be between 0 and 20',
+        ];
+        yield 'retryableStatusCode below lower bound' => [
+            static fn (): StrandsConfig => new StrandsConfig(endpoint: 'http://localhost:8081', retryableStatusCodes: [200]),
+            'All retryableStatusCodes must be HTTP error codes (400-599), but got:',
+        ];
+        yield 'retryableStatusCode above upper bound' => [
+            static fn (): StrandsConfig => new StrandsConfig(endpoint: 'http://localhost:8081', retryableStatusCodes: [600]),
+            'All retryableStatusCodes must be HTTP error codes (400-599), but got:',
+        ];
     }
 
     /**
@@ -653,15 +643,22 @@ class StrandsClientTest extends TestCase
             logger: $logger,
         );
 
-        $strandsClient->invoke(message: 'Test');
+        $response = $strandsClient->invoke(message: 'Test');
+
+        $this->assertInstanceOf(AgentResponse::class, $response);
     }
 
     /**
-     * Verifies that invoke with timeout seconds override.
+     * Verifies that invoke()'s effective timeout forwarded to the transport
+     * follows the per-call override → config default → boundary chain.
      *
+     * @param int|null $timeoutSecondsArg Argument passed to invoke()'s timeoutSeconds parameter.
+     * @param int $configuredTimeout Default timeout set on StrandsConfig.
+     * @param int $expectedForwardedTimeout Timeout value the transport.post() call must receive.
      * @return void
      */
-    public function testInvokeWithTimeoutSecondsOverride(): void
+    #[DataProvider('invokeTimeoutResolutionProvider')]
+    public function testInvokeForwardsResolvedTimeoutToTransport(?int $timeoutSecondsArg, int $configuredTimeout, int $expectedForwardedTimeout): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
 
@@ -672,17 +669,31 @@ class StrandsClientTest extends TestCase
                 $this->anything(),
                 $this->anything(),
                 $this->anything(),
-                300,
+                $expectedForwardedTimeout,
                 10,
             )
             ->willReturn($fixture);
 
         $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: $configuredTimeout),
             transport: $transport,
         );
 
-        $strandsClient->invoke(message: 'Test', timeoutSeconds: 300);
+        $response = $strandsClient->invoke(message: 'Test', timeoutSeconds: $timeoutSecondsArg);
+
+        $this->assertInstanceOf(AgentResponse::class, $response);
+    }
+
+    /**
+     * Cases for testInvokeForwardsResolvedTimeoutToTransport().
+     *
+     * @return iterable<string, array{0: int|null, 1: int, 2: int}>
+     */
+    public static function invokeTimeoutResolutionProvider(): iterable
+    {
+        yield 'per-call override beats config default' => [300, 120, 300];
+        yield 'null override falls back to config default' => [null, 60, 60];
+        yield 'boundary value of 1 propagates' => [1, 120, 1];
     }
 
     /**
@@ -706,134 +717,36 @@ class StrandsClientTest extends TestCase
         $strandsClient->invoke(message: 'Test', timeoutSeconds: 0);
     }
 
-    /**
-     * Verifies that invoke timeout seconds null uses default.
-     *
-     * @return void
-     */
-    public function testInvokeTimeoutSecondsNullUsesDefault(): void
-    {
-        $fixture = $this->loadFixture('invoke-analyst-response.json');
-
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->expects($this->once())
-            ->method('post')
-            ->with(
-                $this->anything(),
-                $this->anything(),
-                $this->anything(),
-                60,
-                10,
-            )
-            ->willReturn($fixture);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 60),
-            transport: $transport,
-        );
-
-        $strandsClient->invoke(message: 'Test', timeoutSeconds: null);
-    }
 
     /**
-     * Verifies that config rejects retryable status code below 400.
+     * Verifies that StrandsConfig preserves valid retryableStatusCodes (including boundary and empty lists).
      *
+     * @param list<int> $retryableStatusCodes Status codes passed to the constructor and expected unchanged.
      * @return void
      */
-    public function testConfigRejectsRetryableStatusCodeBelowLowerBound(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('All retryableStatusCodes must be HTTP error codes (400-599), but got:');
-
-        new StrandsConfig(endpoint: 'http://localhost:8081', retryableStatusCodes: [200]);
-    }
-
-    /**
-     * Verifies that config rejects retryable status code above 599.
-     *
-     * @return void
-     */
-    public function testConfigRejectsRetryableStatusCodeAboveUpperBound(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('All retryableStatusCodes must be HTTP error codes (400-599), but got:');
-
-        new StrandsConfig(endpoint: 'http://localhost:8081', retryableStatusCodes: [600]);
-    }
-
-    /**
-     * Verifies that config accepts valid retryable status codes.
-     *
-     * @return void
-     */
-    public function testConfigAcceptsValidRetryableStatusCodes(): void
+    #[DataProvider('validRetryableStatusCodesProvider')]
+    public function testConfigPreservesValidRetryableStatusCodes(array $retryableStatusCodes): void
     {
         $strandsConfig = new StrandsConfig(
             endpoint: 'http://localhost:8081',
-            retryableStatusCodes: [429, 500, 502, 503, 504],
+            retryableStatusCodes: $retryableStatusCodes,
         );
 
-        $this->assertSame([429, 500, 502, 503, 504], $strandsConfig->retryableStatusCodes);
+        $this->assertSame($retryableStatusCodes, $strandsConfig->retryableStatusCodes);
     }
 
     /**
-     * Verifies that config accepts boundary retryable status codes.
+     * Cases for testConfigPreservesValidRetryableStatusCodes().
      *
-     * @return void
+     * @return iterable<string, array{0: list<int>}>
      */
-    public function testConfigAcceptsBoundaryRetryableStatusCodes(): void
+    public static function validRetryableStatusCodesProvider(): iterable
     {
-        $strandsConfig = new StrandsConfig(
-            endpoint: 'http://localhost:8081',
-            retryableStatusCodes: [400, 599],
-        );
-
-        $this->assertSame([400, 599], $strandsConfig->retryableStatusCodes);
+        yield 'common retryable HTTP errors' => [[429, 500, 502, 503, 504]];
+        yield 'boundary values (400 + 599)' => [[400, 599]];
+        yield 'empty list' => [[]];
     }
 
-    /**
-     * Verifies that config accepts empty retryable status codes.
-     *
-     * @return void
-     */
-    public function testConfigAcceptsEmptyRetryableStatusCodes(): void
-    {
-        $strandsConfig = new StrandsConfig(
-            endpoint: 'http://localhost:8081',
-            retryableStatusCodes: [],
-        );
-
-        $this->assertSame([], $strandsConfig->retryableStatusCodes);
-    }
-
-    /**
-     * Verifies that invoke timeout seconds accepts boundary one.
-     *
-     * @return void
-     */
-    public function testInvokeTimeoutSecondsAcceptsBoundaryOne(): void
-    {
-        $fixture = $this->loadFixture('invoke-analyst-response.json');
-
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->expects($this->once())
-            ->method('post')
-            ->with(
-                $this->anything(),
-                $this->anything(),
-                $this->anything(),
-                1,
-                10,
-            )
-            ->willReturn($fixture);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $strandsClient->invoke(message: 'Test', timeoutSeconds: 1);
-    }
 
     /**
      * Verifies that invoke accepts agent input.
@@ -1035,7 +948,9 @@ class StrandsClientTest extends TestCase
         );
 
         // Should NOT throw — middleware exceptions are caught and logged
-        $strandsClient->invoke(message: 'Test');
+        $response = $strandsClient->invoke(message: 'Test');
+
+        $this->assertInstanceOf(AgentResponse::class, $response);
     }
 
     /**
@@ -1060,8 +975,10 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->stream(message: 'Test', onEvent: function () {
+        $streamResult = $strandsClient->stream(message: 'Test', onEvent: function () {
         });
+
+        $this->assertInstanceOf(\StrandsPhpClient\Streaming\StreamResult::class, $streamResult);
     }
 
     /**
@@ -1140,8 +1057,8 @@ class StrandsClientTest extends TestCase
         $authReceivedBody = null;
         $authReceivedHeaders = null;
 
-        $auth = $this->createStub(AuthStrategy::class);
-        $auth->method('authenticate')
+        $auth = $this->createMock(AuthStrategy::class);
+        $auth->expects($this->any())->method('authenticate')
             ->willReturnCallback(function (array $headers, string $method, string $url, string $body) use (&$authReceivedBody, &$authReceivedHeaders): array {
                 $authReceivedBody = $body;
                 $authReceivedHeaders = $headers;
@@ -1186,8 +1103,8 @@ class StrandsClientTest extends TestCase
             }
         };
 
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('post')->willReturn($fixture);
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('post')->willReturn($fixture);
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', auth: $auth),

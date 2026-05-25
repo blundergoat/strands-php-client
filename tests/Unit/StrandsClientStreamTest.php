@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use StrandsPhpClient\Config\StrandsConfig;
@@ -168,11 +169,13 @@ class StrandsClientStreamTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->stream(
+        $streamResult = $strandsClient->stream(
             message: 'Test',
             onEvent: function () {
             },
         );
+
+        $this->assertInstanceOf(StreamResult::class, $streamResult);
     }
 
     /**
@@ -524,8 +527,18 @@ class StrandsClientStreamTest extends TestCase
      *
      * @return void
      */
-    public function testStreamStopReasonDefaultsToNull(): void
+    /**
+     * Verifies that StreamResult defaults each documented optional field to null
+     * when the SSE complete event omits the corresponding data.
+     *
+     * @param string $propertyName Name of the StreamResult property expected to be null.
+     * @return void
+     */
+    #[DataProvider('streamResultDefaultsToNullProvider')]
+    public function testStreamResultDefaultsOptionalFieldToNull(string $propertyName): void
     {
+        // Minimal complete event: no stop_reason, no text events (so no TTFT),
+        // no guardrail trace — exercises every optional-field fallback path.
         $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
@@ -540,7 +553,19 @@ class StrandsClientStreamTest extends TestCase
             },
         );
 
-        $this->assertNull($streamResult->stopReason);
+        $this->assertNull($streamResult->{$propertyName});
+    }
+
+    /**
+     * Cases for testStreamResultDefaultsOptionalFieldToNull().
+     *
+     * @return iterable<string, array{0: string}>
+     */
+    public static function streamResultDefaultsToNullProvider(): iterable
+    {
+        yield 'stopReason omitted from complete event' => ['stopReason'];
+        yield 'timeToFirstTextTokenMs absent when no text events' => ['timeToFirstTextTokenMs'];
+        yield 'guardrailTrace omitted from complete event' => ['guardrailTrace'];
     }
 
     /**
@@ -637,8 +662,8 @@ class StrandsClientStreamTest extends TestCase
      */
     public function testStreamCancelsAcrossChunks(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('stream')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
                 // Second chunk — callback already cancelled, should be skipped
@@ -693,12 +718,14 @@ class StrandsClientStreamTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->stream(
+        $streamResult = $strandsClient->stream(
             message: 'Test',
             onEvent: function (): void {
             },
             timeoutSeconds: 300,
         );
+
+        $this->assertInstanceOf(StreamResult::class, $streamResult);
     }
 
     /**
@@ -756,12 +783,14 @@ class StrandsClientStreamTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->stream(
+        $streamResult = $strandsClient->stream(
             message: 'Test',
             onEvent: function (): void {
             },
             timeoutSeconds: null,
         );
+
+        $this->assertInstanceOf(StreamResult::class, $streamResult);
     }
 
     /**
@@ -793,12 +822,14 @@ class StrandsClientStreamTest extends TestCase
             transport: $transport,
         );
 
-        $strandsClient->stream(
+        $streamResult = $strandsClient->stream(
             message: 'Test',
             onEvent: function (): void {
             },
             timeoutSeconds: 1,
         );
+
+        $this->assertInstanceOf(StreamResult::class, $streamResult);
     }
 
     /**
@@ -846,24 +877,6 @@ class StrandsClientStreamTest extends TestCase
      *
      * @return void
      */
-    public function testStreamTtftNullWhenNoTextEvents(): void
-    {
-        $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-        );
-
-        $this->assertNull($streamResult->timeToFirstTextTokenMs);
-    }
 
     /**
      * Verifies that stream logs skipped events.
@@ -894,11 +907,13 @@ class StrandsClientStreamTest extends TestCase
             logger: $logger,
         );
 
-        $strandsClient->stream(
+        $streamResult = $strandsClient->stream(
             message: 'Test',
             onEvent: function (): void {
             },
         );
+
+        $this->assertInstanceOf(StreamResult::class, $streamResult);
     }
 
     /**
@@ -923,11 +938,13 @@ class StrandsClientStreamTest extends TestCase
             logger: $logger,
         );
 
-        $strandsClient->stream(
+        $streamResult = $strandsClient->stream(
             message: 'Test',
             onEvent: function (): void {
             },
         );
+
+        $this->assertInstanceOf(StreamResult::class, $streamResult);
     }
 
     /**
@@ -1077,24 +1094,6 @@ class StrandsClientStreamTest extends TestCase
      *
      * @return void
      */
-    public function testStreamGuardrailTraceDefaultsToNull(): void
-    {
-        $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-        );
-
-        $this->assertNull($streamResult->guardrailTrace);
-    }
 
     /**
      * Verifies that stream accepts agent input.
@@ -1366,9 +1365,9 @@ class StrandsClientStreamTest extends TestCase
      */
     public function testStreamRetryExhaustsMaxRetriesExactly(): void
     {
-        $transport = $this->createStub(HttpTransport::class);
+        $transport = $this->createMock(HttpTransport::class);
         $callCount = 0;
-        $transport->method('post')
+        $transport->expects($this->any())->method('post')
             ->willReturnCallback(function () use (&$callCount) {
                 $callCount++;
                 throw new \StrandsPhpClient\Exceptions\AgentErrorException('Unavailable', statusCode: 503);
@@ -1400,8 +1399,8 @@ class StrandsClientStreamTest extends TestCase
     public function testStreamEmptyStreamThrowsInterrupted(): void
     {
         // Transport streams nothing — no events at all
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('stream')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 // Stream ends immediately without sending any chunks
             });
@@ -1426,8 +1425,8 @@ class StrandsClientStreamTest extends TestCase
     public function testStreamOnlyHeartbeatsThrowsInterrupted(): void
     {
         // Stream contains only SSE comments (heartbeats) — no real events
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('stream')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 $onChunk->__invoke(": heartbeat\n\n: keepalive\n\n");
             });
@@ -1452,8 +1451,8 @@ class StrandsClientStreamTest extends TestCase
     public function testStreamPartialEventAtEofThrowsInterrupted(): void
     {
         // Stream ends with an incomplete event (no \n\n terminator)
-        $transport = $this->createStub(HttpTransport::class);
-        $transport->method('stream')
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 $onChunk->__invoke('data: {"type": "text", "content": "partial"}');
                 // No \n\n so event never completes

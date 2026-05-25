@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Auth\SigV4Auth;
 
@@ -434,17 +435,18 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that different regions produce different signatures.
+     * Verifies that varying one credential field (region/service/keys/session token) on
+     * SigV4Auth changes the produced signature for the same request.
      *
+     * @param SigV4Auth $first First signer; expected to disagree with $second on the signed Authorization header.
+     * @param SigV4Auth $second Second signer; differs from $first by exactly one credential dimension.
      * @return void
      */
-    public function testDifferentRegionsProduceDifferentSignatures(): void
+    #[DataProvider('signaturePairProvider')]
+    public function testSignatureChangesWhenOneCredentialFieldDiffers(SigV4Auth $first, SigV4Auth $second): void
     {
-        $sigV4AuthUsEast = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
-        $sigV4AuthEuWest = new SigV4Auth('AKID', 'SECRET', 'eu-west-1');
-
-        $r1 = $sigV4AuthUsEast->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $sigV4AuthEuWest->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r1 = $first->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $r2 = $second->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         $sig1 = $this->extractSignature($r1['Authorization']);
         $sig2 = $this->extractSignature($r2['Authorization']);
@@ -452,39 +454,24 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that different services produce different signatures.
+     * Signer pairs for testSignatureChangesWhenOneCredentialFieldDiffers().
      *
-     * @return void
+     * @return iterable<string, array{0: SigV4Auth, 1: SigV4Auth}>
      */
-    public function testDifferentServicesProduceDifferentSignatures(): void
+    public static function signaturePairProvider(): iterable
     {
-        $sigV4AuthExecuteApi = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
-        $sigV4AuthLambda = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'lambda');
-
-        $r1 = $sigV4AuthExecuteApi->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $sigV4AuthLambda->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertNotSame($sig1, $sig2);
-    }
-
-    /**
-     * Verifies that different keys produce different signatures.
-     *
-     * @return void
-     */
-    public function testDifferentKeysProduceDifferentSignatures(): void
-    {
-        $sigV4AuthFirstKey = new SigV4Auth('AKID1', 'SECRET1', 'us-east-1');
-        $sigV4AuthSecondKey = new SigV4Auth('AKID2', 'SECRET2', 'us-east-1');
-
-        $r1 = $sigV4AuthFirstKey->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $sigV4AuthSecondKey->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertNotSame($sig1, $sig2);
+        yield 'region: us-east-1 vs eu-west-1' => [
+            new SigV4Auth('AKID', 'SECRET', 'us-east-1'),
+            new SigV4Auth('AKID', 'SECRET', 'eu-west-1'),
+        ];
+        yield 'service: execute-api vs lambda' => [
+            new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api'),
+            new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'lambda'),
+        ];
+        yield 'credentials: first vs second key pair' => [
+            new SigV4Auth('AKID1', 'SECRET1', 'us-east-1'),
+            new SigV4Auth('AKID2', 'SECRET2', 'us-east-1'),
+        ];
     }
 
     /**
@@ -689,12 +676,19 @@ class SigV4AuthTest extends TestCase
         $sigV4AuthWithToken = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api', 'TOKEN');
         $sigV4AuthWithoutToken = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api', null);
 
-        $r1 = $sigV4AuthWithToken->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $sigV4AuthWithoutToken->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $headersWithToken = $sigV4AuthWithToken->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $headersWithoutToken = $sigV4AuthWithoutToken->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertNotSame($sig1, $sig2);
+        // Session token affects more than just the signature — it adds the
+        // X-Amz-Security-Token header and changes the signed-headers list. We
+        // keep this as a standalone test (not folded into the parameterised
+        // signature-pair check) so the contract is named.
+        $this->assertSame('TOKEN', $headersWithToken['X-Amz-Security-Token'] ?? null);
+        $this->assertArrayNotHasKey('X-Amz-Security-Token', $headersWithoutToken);
+        $this->assertNotSame(
+            $this->extractSignature($headersWithToken['Authorization']),
+            $this->extractSignature($headersWithoutToken['Authorization']),
+        );
     }
 
     /**

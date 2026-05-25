@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\Response\Citation\Citation;
@@ -351,13 +352,30 @@ class AgentResponseTest extends TestCase
      *
      * @return void
      */
-    public function testFromArrayDefaultsStopReasonToNull(): void
+    /**
+     * Verifies that fromArray defaults each documented optional field to null
+     * when the wire payload omits it.
+     *
+     * @param string $propertyName Property on AgentResponse expected to be null when omitted.
+     * @return void
+     */
+    #[DataProvider('omittedFieldDefaultsToNullProvider')]
+    public function testFromArrayDefaultsOmittedFieldToNull(string $propertyName): void
     {
-        $data = ['text' => 'Test'];
+        $agentResponse = AgentResponse::fromArray(['text' => 'Test']);
 
-        $agentResponse = AgentResponse::fromArray($data);
+        $this->assertNull($agentResponse->{$propertyName});
+    }
 
-        $this->assertNull($agentResponse->stopReason);
+    /**
+     * Cases for testFromArrayDefaultsOmittedFieldToNull().
+     *
+     * @return iterable<string, array{0: string}>
+     */
+    public static function omittedFieldDefaultsToNullProvider(): iterable
+    {
+        yield 'stopReason' => ['stopReason'];
+        yield 'structuredOutput' => ['structuredOutput'];
     }
 
     /**
@@ -376,20 +394,6 @@ class AgentResponseTest extends TestCase
         $agentResponse = AgentResponse::fromArray($data);
 
         $this->assertSame($structured, $agentResponse->structuredOutput);
-    }
-
-    /**
-     * Verifies that from array defaults structured output to null.
-     *
-     * @return void
-     */
-    public function testFromArrayDefaultsStructuredOutputToNull(): void
-    {
-        $data = ['text' => 'Test'];
-
-        $agentResponse = AgentResponse::fromArray($data);
-
-        $this->assertNull($agentResponse->structuredOutput);
     }
     /**
      * Data fixture for testFromArrayHydratesCacheTokens().
@@ -516,35 +520,39 @@ class AgentResponseTest extends TestCase
      *
      * @return void
      */
-    public function testTotalTokensReturnsSum(): void
+    /**
+     * Verifies Usage::totalTokens() returns the wire value when supplied,
+     * otherwise sums inputTokens + outputTokens (which falls back to 0+0).
+     *
+     * @param \Closure(): \StrandsPhpClient\Response\Usage $buildUsage Factory for the Usage instance under test.
+     * @param int $expectedTotal Expected return value of totalTokens().
+     * @return void
+     */
+    #[DataProvider('totalTokensProvider')]
+    public function testTotalTokensFollowsDocumentedFallbackChain(\Closure $buildUsage, int $expectedTotal): void
     {
-        $usage = new \StrandsPhpClient\Response\Usage(inputTokens: 100, outputTokens: 50);
-
-        $this->assertSame(150, $usage->totalTokens());
+        $this->assertSame($expectedTotal, $buildUsage()->totalTokens());
     }
 
     /**
-     * Verifies that total tokens uses wire value when present.
+     * Cases for testTotalTokensFollowsDocumentedFallbackChain().
      *
-     * @return void
+     * @return iterable<string, array{0: \Closure(): \StrandsPhpClient\Response\Usage, 1: int}>
      */
-    public function testTotalTokensUsesWireValueWhenPresent(): void
+    public static function totalTokensProvider(): iterable
     {
-        $usage = new \StrandsPhpClient\Response\Usage(inputTokens: 100, outputTokens: 50, totalTokens: 160);
-
-        $this->assertSame(160, $usage->totalTokens());
-    }
-
-    /**
-     * Verifies that total tokens defaults to zero.
-     *
-     * @return void
-     */
-    public function testTotalTokensDefaultsToZero(): void
-    {
-        $usage = new \StrandsPhpClient\Response\Usage();
-
-        $this->assertSame(0, $usage->totalTokens());
+        yield 'sums input+output when wire totalTokens absent' => [
+            static fn (): \StrandsPhpClient\Response\Usage => new \StrandsPhpClient\Response\Usage(inputTokens: 100, outputTokens: 50),
+            150,
+        ];
+        yield 'prefers wire totalTokens when present' => [
+            static fn (): \StrandsPhpClient\Response\Usage => new \StrandsPhpClient\Response\Usage(inputTokens: 100, outputTokens: 50, totalTokens: 160),
+            160,
+        ];
+        yield 'defaults to zero when no fields supplied' => [
+            static fn (): \StrandsPhpClient\Response\Usage => new \StrandsPhpClient\Response\Usage(),
+            0,
+        ];
     }
 
     /**
@@ -817,6 +825,10 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayGuardrailTraceDefaultsToNull(): void
     {
+        // guardrailTrace stays a standalone test (not folded into the
+        // omittedFieldDefaultsToNull provider) because it lives on a separate
+        // execution path: fromArray() does its own GuardrailTrace::fromArray()
+        // hydration before the null-fallback runs.
         $agentResponse = AgentResponse::fromArray(['text' => 'Test']);
 
         $this->assertNull($agentResponse->guardrailTrace);
