@@ -10,19 +10,29 @@ use StrandsPhpClient\Response\InterruptDetail;
 class InterruptDetailTest extends TestCase
 {
     /**
-     * Verifies that from array hydrates all fields.
+     * Data fixture for testFromArrayHydratesAllFields().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayHydratesAllFields(): void
+    private function dataForFromArrayHydratesAllFields(): array
     {
-        $data = [
+        return [
             'tool_name' => 'deploy',
             'tool_input' => ['environment' => 'production'],
             'tool_use_id' => 'tu-001',
             'interrupt_id' => 'int-abc',
             'reason' => 'Requires approval',
         ];
+    }
+
+    /**
+     * Verifies that from array hydrates all fields.
+     *
+     * @return void
+     */
+    public function testFromArrayHydratesAllFields(): void
+    {
+        $data = $this->dataForFromArrayHydratesAllFields();
 
         $interruptDetail = InterruptDetail::fromArray($data);
 
@@ -48,6 +58,22 @@ class InterruptDetailTest extends TestCase
         $this->assertNull($interruptDetail->interruptId);
         $this->assertNull($interruptDetail->reason);
     }
+    /**
+     * Data fixture for testFromArrayHandlesNonStringValues().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayHandlesNonStringValues(): array
+    {
+        return [
+            'tool_name' => 123,
+            'tool_input' => 'not_array',
+            'tool_use_id' => 456,
+            'interrupt_id' => true,
+            'reason' => [],
+        ];
+    }
+
 
     /**
      * Verifies that from array handles non string values.
@@ -56,13 +82,7 @@ class InterruptDetailTest extends TestCase
      */
     public function testFromArrayHandlesNonStringValues(): void
     {
-        $data = [
-            'tool_name' => 123,
-            'tool_input' => 'not_array',
-            'tool_use_id' => 456,
-            'interrupt_id' => true,
-            'reason' => [],
-        ];
+        $data = $this->dataForFromArrayHandlesNonStringValues();
 
         $interruptDetail = InterruptDetail::fromArray($data);
 

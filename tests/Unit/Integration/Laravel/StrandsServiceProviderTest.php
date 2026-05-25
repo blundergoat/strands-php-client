@@ -293,7 +293,7 @@ class StrandsServiceProviderTest extends TestCase
                     throw new \RuntimeException(sprintf('No binding found for "%s".', $abstract));
                 }
 
-                $instances[$abstract] = $bindings[$abstract]($app);
+                $instances[$abstract] = $bindings[$abstract]->__invoke($app);
 
                 return $instances[$abstract];
             },

@@ -62,7 +62,7 @@ final class ResponseObserverTest extends TestCase
         $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk): void {
-                $onChunk("data: {\"type\":\"text\",\"content\":\"done\"}\n\n"
+                $onChunk->__invoke("data: {\"type\":\"text\",\"content\":\"done\"}\n\n"
                     . "data: {\"type\":\"complete\",\"text\":\"done\",\"usage\":{},\"tools_used\":[]}\n\n");
             });
 
@@ -128,7 +128,7 @@ final class ResponseObserverTest extends TestCase
         $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk): void {
-                $onChunk("data: {\"type\":\"text\",\"content\":\"secret response text\"}\n\n"
+                $onChunk->__invoke("data: {\"type\":\"text\",\"content\":\"secret response text\"}\n\n"
                     . "data: {\"type\":\"complete\",\"usage\":{\"input_tokens\":11,\"output_tokens\":3},\"stop_reason\":\"end_turn\"}\n\n");
             });
 

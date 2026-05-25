@@ -11,13 +11,13 @@ use StrandsPhpClient\Response\GuardrailTrace;
 class GuardrailTraceTest extends TestCase
 {
     /**
-     * Verifies that from array hydrates all fields.
+     * Data fixture for testFromArrayHydratesAllFields().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayHydratesAllFields(): void
+    private function dataForFromArrayHydratesAllFields(): array
     {
-        $data = [
+        return [
             'action' => 'INTERVENED',
             'assessments' => [
                 ['type' => 'content_filter', 'policy' => 'harmful', 'action' => 'BLOCKED'],
@@ -25,6 +25,16 @@ class GuardrailTraceTest extends TestCase
             ],
             'model_output' => 'The original unsafe response',
         ];
+    }
+
+    /**
+     * Verifies that from array hydrates all fields.
+     *
+     * @return void
+     */
+    public function testFromArrayHydratesAllFields(): void
+    {
+        $data = $this->dataForFromArrayHydratesAllFields();
 
         $trace = GuardrailTrace::fromArray($data);
 
@@ -48,15 +58,14 @@ class GuardrailTraceTest extends TestCase
         $this->assertSame([], $trace->assessments);
         $this->assertNull($trace->modelOutput);
     }
-
     /**
-     * Verifies that from array filters non array assessments.
+     * Data fixture for testFromArrayFiltersNonArrayAssessments().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayFiltersNonArrayAssessments(): void
+    private function dataForFromArrayFiltersNonArrayAssessments(): array
     {
-        $data = [
+        return [
             'action' => 'NONE',
             'assessments' => [
                 ['type' => 'valid'],
@@ -65,6 +74,17 @@ class GuardrailTraceTest extends TestCase
                 ['type' => 'also_valid'],
             ],
         ];
+    }
+
+
+    /**
+     * Verifies that from array filters non array assessments.
+     *
+     * @return void
+     */
+    public function testFromArrayFiltersNonArrayAssessments(): void
+    {
+        $data = $this->dataForFromArrayFiltersNonArrayAssessments();
 
         $trace = GuardrailTrace::fromArray($data);
 

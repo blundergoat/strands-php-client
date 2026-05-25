@@ -12,24 +12,50 @@ use StrandsPhpClient\StrandsClient;
 class StrandsClientFactoryTest extends TestCase
 {
     /**
-     * Verifies that create returns client.
+     * Test fixture for testCreateReturnsClient().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateReturnsClient(): void
+    private function strandsClientFactoryForCreateReturnsClient(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'analyst' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => ['driver' => 'null'],
                 'timeout' => 120,
             ],
         ]);
+    }
+
+    /**
+     * Verifies that create returns client.
+     *
+     * @return void
+     */
+    public function testCreateReturnsClient(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateReturnsClient();
 
         $strandsClient = $strandsClientFactory->create('analyst');
 
         $this->assertInstanceOf(StrandsClient::class, $strandsClient);
     }
+    /**
+     * Test fixture for testCreateThrowsForUnknownAgent().
+     *
+     * @return StrandsClientFactory
+     */
+    private function strandsClientFactoryForCreateThrowsForUnknownAgent(): StrandsClientFactory
+    {
+        return new StrandsClientFactory([
+            'analyst' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => ['driver' => 'null'],
+                'timeout' => 120,
+            ],
+        ]);
+    }
+
 
     /**
      * Verifies that create throws for unknown agent.
@@ -38,19 +64,29 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testCreateThrowsForUnknownAgent(): void
     {
-        $strandsClientFactory = new StrandsClientFactory([
-            'analyst' => [
-                'endpoint' => 'http://agent:8000',
-                'auth' => ['driver' => 'null'],
-                'timeout' => 120,
-            ],
-        ]);
+        $strandsClientFactory = $this->strandsClientFactoryForCreateThrowsForUnknownAgent();
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unknown Strands agent "nonexistent"');
 
         $strandsClientFactory->create('nonexistent');
     }
+    /**
+     * Test fixture for testCreateThrowsForUnsupportedAuthDriver().
+     *
+     * @return StrandsClientFactory
+     */
+    private function strandsClientFactoryForCreateThrowsForUnsupportedAuthDriver(): StrandsClientFactory
+    {
+        return new StrandsClientFactory([
+            'test' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => ['driver' => 'oauth2'],
+                'timeout' => 120,
+            ],
+        ]);
+    }
+
 
     /**
      * Verifies that create throws for unsupported auth driver.
@@ -59,28 +95,21 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testCreateThrowsForUnsupportedAuthDriver(): void
     {
-        $strandsClientFactory = new StrandsClientFactory([
-            'test' => [
-                'endpoint' => 'http://agent:8000',
-                'auth' => ['driver' => 'oauth2'],
-                'timeout' => 120,
-            ],
-        ]);
+        $strandsClientFactory = $this->strandsClientFactoryForCreateThrowsForUnsupportedAuthDriver();
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unsupported auth driver "oauth2"');
 
         $strandsClientFactory->create('test');
     }
-
     /**
-     * Verifies that create with api key auth.
+     * Test fixture for testCreateWithApiKeyAuth().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateWithApiKeyAuth(): void
+    private function strandsClientFactoryForCreateWithApiKeyAuth(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -90,11 +119,38 @@ class StrandsClientFactoryTest extends TestCase
                 'timeout' => 120,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create with api key auth.
+     *
+     * @return void
+     */
+    public function testCreateWithApiKeyAuth(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateWithApiKeyAuth();
 
         $strandsClient = $strandsClientFactory->create('test');
 
         $this->assertInstanceOf(StrandsClient::class, $strandsClient);
     }
+    /**
+     * Test fixture for testCreateWithApiKeyAuthThrowsWhenMissingKey().
+     *
+     * @return StrandsClientFactory
+     */
+    private function strandsClientFactoryForCreateWithApiKeyAuthThrowsWhenMissingKey(): StrandsClientFactory
+    {
+        return new StrandsClientFactory([
+            'test' => [
+                'endpoint' => 'http://agent:8000',
+                'auth' => ['driver' => 'api_key'],
+                'timeout' => 120,
+            ],
+        ]);
+    }
+
 
     /**
      * Verifies that create with api key auth throws when missing key.
@@ -103,28 +159,21 @@ class StrandsClientFactoryTest extends TestCase
      */
     public function testCreateWithApiKeyAuthThrowsWhenMissingKey(): void
     {
-        $strandsClientFactory = new StrandsClientFactory([
-            'test' => [
-                'endpoint' => 'http://agent:8000',
-                'auth' => ['driver' => 'api_key'],
-                'timeout' => 120,
-            ],
-        ]);
+        $strandsClientFactory = $this->strandsClientFactoryForCreateWithApiKeyAuthThrowsWhenMissingKey();
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('api_key" option is required');
 
         $strandsClientFactory->create('test');
     }
-
     /**
-     * Verifies that create with empty api key throws.
+     * Test fixture for testCreateWithEmptyApiKeyThrows().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateWithEmptyApiKeyThrows(): void
+    private function strandsClientFactoryForCreateWithEmptyApiKeyThrows(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -134,21 +183,31 @@ class StrandsClientFactoryTest extends TestCase
                 'timeout' => 120,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create with empty api key throws.
+     *
+     * @return void
+     */
+    public function testCreateWithEmptyApiKeyThrows(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateWithEmptyApiKeyThrows();
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('api_key" option is required');
 
         $strandsClientFactory->create('test');
     }
-
     /**
-     * Verifies that create with api key auth custom header.
+     * Test fixture for testCreateWithApiKeyAuthCustomHeader().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateWithApiKeyAuthCustomHeader(): void
+    private function strandsClientFactoryForCreateWithApiKeyAuthCustomHeader(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -160,20 +219,30 @@ class StrandsClientFactoryTest extends TestCase
                 'timeout' => 120,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create with api key auth custom header.
+     *
+     * @return void
+     */
+    public function testCreateWithApiKeyAuthCustomHeader(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateWithApiKeyAuthCustomHeader();
 
         $strandsClient = $strandsClientFactory->create('test');
 
         $this->assertInstanceOf(StrandsClient::class, $strandsClient);
     }
-
     /**
-     * Verifies that create with retry config.
+     * Test fixture for testCreateWithRetryConfig().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateWithRetryConfig(): void
+    private function strandsClientFactoryForCreateWithRetryConfig(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => ['driver' => 'null'],
@@ -183,6 +252,17 @@ class StrandsClientFactoryTest extends TestCase
                 'retry_delay_ms' => 1000,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create with retry config.
+     *
+     * @return void
+     */
+    public function testCreateWithRetryConfig(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateWithRetryConfig();
 
         $strandsClient = $strandsClientFactory->create('test');
 
@@ -270,15 +350,14 @@ class StrandsClientFactoryTest extends TestCase
             $this->assertStringContainsString('skeptic', $e->getMessage());
         }
     }
-
     /**
-     * Verifies that create with sigv 4 auth.
+     * Test fixture for testCreateWithSigv4Auth().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateWithSigv4Auth(): void
+    private function strandsClientFactoryForCreateWithSigv4Auth(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -290,19 +369,29 @@ class StrandsClientFactoryTest extends TestCase
                 'timeout' => 120,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create with sigv 4 auth.
+     *
+     * @return void
+     */
+    public function testCreateWithSigv4Auth(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateWithSigv4Auth();
 
         $strandsClient = $strandsClientFactory->create('test');
         $this->assertInstanceOf(StrandsClient::class, $strandsClient);
     }
-
     /**
-     * Verifies that create with api key custom header and prefix.
+     * Test fixture for testCreateWithApiKeyCustomHeaderAndPrefix().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateWithApiKeyCustomHeaderAndPrefix(): void
+    private function strandsClientFactoryForCreateWithApiKeyCustomHeaderAndPrefix(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -314,20 +403,29 @@ class StrandsClientFactoryTest extends TestCase
                 'timeout' => 120,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create with api key custom header and prefix.
+     *
+     * @return void
+     */
+    public function testCreateWithApiKeyCustomHeaderAndPrefix(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateWithApiKeyCustomHeaderAndPrefix();
 
         $strandsClient = $strandsClientFactory->create('test');
         $this->assertInstanceOf(StrandsClient::class, $strandsClient);
     }
-
     /**
-     * Verifies that create with api key default header and prefix.
+     * Test fixture for testCreateWithApiKeyDefaultHeaderAndPrefix().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateWithApiKeyDefaultHeaderAndPrefix(): void
+    private function strandsClientFactoryForCreateWithApiKeyDefaultHeaderAndPrefix(): StrandsClientFactory
     {
-        // When header_name and value_prefix are not provided, defaults should apply
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -337,6 +435,18 @@ class StrandsClientFactoryTest extends TestCase
                 'timeout' => 120,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create with api key default header and prefix.
+     *
+     * @return void
+     */
+    public function testCreateWithApiKeyDefaultHeaderAndPrefix(): void
+    {
+        // When header_name and value_prefix are not provided, defaults should apply
+        $strandsClientFactory = $this->strandsClientFactoryForCreateWithApiKeyDefaultHeaderAndPrefix();
 
         $strandsClient = $strandsClientFactory->create('test');
         $this->assertInstanceOf(StrandsClient::class, $strandsClient);
@@ -397,15 +507,14 @@ class StrandsClientFactoryTest extends TestCase
         $strandsClient = $strandsClientFactory->create('test');
         $this->assertInstanceOf(StrandsClient::class, $strandsClient);
     }
-
     /**
-     * Verifies that create sigv 4 throws when missing region.
+     * Test fixture for testCreateSigv4ThrowsWhenMissingRegion().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateSigv4ThrowsWhenMissingRegion(): void
+    private function strandsClientFactoryForCreateSigv4ThrowsWhenMissingRegion(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -416,21 +525,31 @@ class StrandsClientFactoryTest extends TestCase
                 'timeout' => 120,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create sigv 4 throws when missing region.
+     *
+     * @return void
+     */
+    public function testCreateSigv4ThrowsWhenMissingRegion(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateSigv4ThrowsWhenMissingRegion();
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('region" option is required');
 
         $strandsClientFactory->create('test');
     }
-
     /**
-     * Verifies that create sigv 4 throws on partial credentials.
+     * Test fixture for testCreateSigv4ThrowsOnPartialCredentials().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateSigv4ThrowsOnPartialCredentials(): void
+    private function strandsClientFactoryForCreateSigv4ThrowsOnPartialCredentials(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -442,21 +561,31 @@ class StrandsClientFactoryTest extends TestCase
                 'timeout' => 120,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create sigv 4 throws on partial credentials.
+     *
+     * @return void
+     */
+    public function testCreateSigv4ThrowsOnPartialCredentials(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateSigv4ThrowsOnPartialCredentials();
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Both "access_key_id" and "secret_access_key" must be provided together');
 
         $strandsClientFactory->create('test');
     }
-
     /**
-     * Verifies that create sigv 4 throws on partial credentials reverse.
+     * Test fixture for testCreateSigv4ThrowsOnPartialCredentialsReverse().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateSigv4ThrowsOnPartialCredentialsReverse(): void
+    private function strandsClientFactoryForCreateSigv4ThrowsOnPartialCredentialsReverse(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -468,21 +597,31 @@ class StrandsClientFactoryTest extends TestCase
                 'timeout' => 120,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create sigv 4 throws on partial credentials reverse.
+     *
+     * @return void
+     */
+    public function testCreateSigv4ThrowsOnPartialCredentialsReverse(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateSigv4ThrowsOnPartialCredentialsReverse();
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Both "access_key_id" and "secret_access_key" must be provided together');
 
         $strandsClientFactory->create('test');
     }
-
     /**
-     * Verifies that create sigv 4 with session token.
+     * Test fixture for testCreateSigv4WithSessionToken().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateSigv4WithSessionToken(): void
+    private function strandsClientFactoryForCreateSigv4WithSessionToken(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -495,19 +634,29 @@ class StrandsClientFactoryTest extends TestCase
                 'timeout' => 120,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create sigv 4 with session token.
+     *
+     * @return void
+     */
+    public function testCreateSigv4WithSessionToken(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateSigv4WithSessionToken();
 
         $strandsClient = $strandsClientFactory->create('test');
         $this->assertInstanceOf(StrandsClient::class, $strandsClient);
     }
-
     /**
-     * Verifies that create sigv 4 with custom service.
+     * Test fixture for testCreateSigv4WithCustomService().
      *
-     * @return void
+     * @return StrandsClientFactory
      */
-    public function testCreateSigv4WithCustomService(): void
+    private function strandsClientFactoryForCreateSigv4WithCustomService(): StrandsClientFactory
     {
-        $strandsClientFactory = new StrandsClientFactory([
+        return new StrandsClientFactory([
             'test' => [
                 'endpoint' => 'http://agent:8000',
                 'auth' => [
@@ -520,6 +669,17 @@ class StrandsClientFactoryTest extends TestCase
                 'timeout' => 120,
             ],
         ]);
+    }
+
+
+    /**
+     * Verifies that create sigv 4 with custom service.
+     *
+     * @return void
+     */
+    public function testCreateSigv4WithCustomService(): void
+    {
+        $strandsClientFactory = $this->strandsClientFactoryForCreateSigv4WithCustomService();
 
         $strandsClient = $strandsClientFactory->create('test');
         $this->assertInstanceOf(StrandsClient::class, $strandsClient);

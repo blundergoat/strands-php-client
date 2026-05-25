@@ -214,7 +214,7 @@ class ConsumerCompatibilityTest extends TestCase
         $transport = $this->createMock(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData): void {
-                $onChunk($sseData);
+                $onChunk->__invoke($sseData);
             });
 
         return $transport;

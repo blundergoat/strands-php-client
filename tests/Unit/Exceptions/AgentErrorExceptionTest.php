@@ -92,6 +92,20 @@ class AgentErrorExceptionTest extends TestCase
 
         $this->assertInstanceOf(MaxTokensException::class, $e);
     }
+    /**
+     * Data fixture for testAllSubclassesCaughtByParent().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForAllSubclassesCaughtByParent(): array
+    {
+        return [
+            new ThrottledException('test', statusCode: 429),
+            new ContextOverflowException('test', statusCode: 400),
+            new MaxTokensException('test', statusCode: 400),
+        ];
+    }
+
 
     /**
      * Verifies that all subclasses caught by parent.
@@ -100,11 +114,7 @@ class AgentErrorExceptionTest extends TestCase
      */
     public function testAllSubclassesCaughtByParent(): void
     {
-        $exceptions = [
-            new ThrottledException('test', statusCode: 429),
-            new ContextOverflowException('test', statusCode: 400),
-            new MaxTokensException('test', statusCode: 400),
-        ];
+        $exceptions = $this->dataForAllSubclassesCaughtByParent();
 
         foreach ($exceptions as $e) {
             $caught = false;

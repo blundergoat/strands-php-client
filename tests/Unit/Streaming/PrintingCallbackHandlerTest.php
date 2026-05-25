@@ -23,7 +23,7 @@ class PrintingCallbackHandlerTest extends TestCase
             $output .= $message;
         });
 
-        $printingCallbackHandler(new StreamEvent(type: StreamEventType::Text, text: 'Hello world'));
+        $printingCallbackHandler->__invoke(new StreamEvent(type: StreamEventType::Text, text: 'Hello world'));
 
         $this->assertSame('Hello world', $output);
     }
@@ -40,10 +40,20 @@ class PrintingCallbackHandlerTest extends TestCase
             $output .= $message;
         });
 
-        $printingCallbackHandler(new StreamEvent(type: StreamEventType::Complete));
+        $printingCallbackHandler->__invoke(new StreamEvent(type: StreamEventType::Complete));
 
         $this->assertSame(PHP_EOL, $output);
     }
+    /**
+     * Test fixture for testErrorEventWritesToStderr().
+     *
+     * @return string
+     */
+    private function rawForErrorEventWritesToStderr(): string
+    {
+        return '';
+    }
+
 
     /**
      * Verifies that error event writes to stderr.
@@ -52,7 +62,7 @@ class PrintingCallbackHandlerTest extends TestCase
      */
     public function testErrorEventWritesToStderr(): void
     {
-        $errorOutput = '';
+        $errorOutput = $this->rawForErrorEventWritesToStderr();
         $printingCallbackHandler = new PrintingCallbackHandler(errorWriter: static function (string $message) use (&$errorOutput): void {
             $errorOutput .= $message;
         });
@@ -63,10 +73,20 @@ class PrintingCallbackHandlerTest extends TestCase
             errorMessage: 'Something failed',
         );
 
-        $printingCallbackHandler($streamEvent);
+        $printingCallbackHandler->__invoke($streamEvent);
 
         $this->assertSame('Error [ERR_001]: Something failed' . PHP_EOL, $errorOutput);
     }
+    /**
+     * Test fixture for testNonTextEventsProduceNoOutput().
+     *
+     * @return string
+     */
+    private function rawForNonTextEventsProduceNoOutput(): string
+    {
+        return '';
+    }
+
 
     /**
      * Verifies that nonText events produce no output.
@@ -75,7 +95,7 @@ class PrintingCallbackHandlerTest extends TestCase
      */
     public function testNonTextEventsProduceNoOutput(): void
     {
-        $output = '';
+        $output = $this->rawForNonTextEventsProduceNoOutput();
         $printingCallbackHandler = new PrintingCallbackHandler(outputWriter: static function (string $message) use (&$output): void {
             $output .= $message;
         });
@@ -89,7 +109,7 @@ class PrintingCallbackHandlerTest extends TestCase
         ];
 
         foreach ($silentTypes as $type) {
-            $printingCallbackHandler(new StreamEvent(type: $type));
+            $printingCallbackHandler->__invoke(new StreamEvent(type: $type));
 
             $this->assertSame('', $output, "Unexpected output for {$type->value}");
         }
@@ -107,10 +127,10 @@ class PrintingCallbackHandlerTest extends TestCase
             $output .= $message;
         });
 
-        $printingCallbackHandler(new StreamEvent(type: StreamEventType::Text, text: 'Hello'));
-        $printingCallbackHandler(new StreamEvent(type: StreamEventType::Text, text: ' '));
-        $printingCallbackHandler(new StreamEvent(type: StreamEventType::Text, text: 'world'));
-        $printingCallbackHandler(new StreamEvent(type: StreamEventType::Complete));
+        $printingCallbackHandler->__invoke(new StreamEvent(type: StreamEventType::Text, text: 'Hello'));
+        $printingCallbackHandler->__invoke(new StreamEvent(type: StreamEventType::Text, text: ' '));
+        $printingCallbackHandler->__invoke(new StreamEvent(type: StreamEventType::Text, text: 'world'));
+        $printingCallbackHandler->__invoke(new StreamEvent(type: StreamEventType::Complete));
 
         $this->assertSame('Hello world' . PHP_EOL, $output);
     }

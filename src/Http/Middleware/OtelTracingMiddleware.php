@@ -177,8 +177,11 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
 
             $scope->detach();
             $span->end();
-        } catch (\Throwable) {
-            // Contract: exceptions in afterResponse are swallowed.
+        } catch (\Throwable $tracingException) {
+            // Tracing must never break user code: span lifecycle failures are swallowed
+            // by middleware contract. Discard the captured exception explicitly so static
+            // analysis can see the handling is intentional rather than accidental.
+            unset($tracingException);
         }
     }
 

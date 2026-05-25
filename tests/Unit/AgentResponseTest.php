@@ -28,15 +28,14 @@ class AgentResponseTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
     }
-
     /**
-     * Verifies that from array hydrates all fields.
+     * Data fixture for testFromArrayHydratesAllFields().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayHydratesAllFields(): void
+    private function dataForFromArrayHydratesAllFields(): array
     {
-        $data = [
+        return [
             'text' => 'Hello, world!',
             'agent' => 'analyst',
             'session_id' => 'sess-001',
@@ -49,6 +48,17 @@ class AgentResponseTest extends TestCase
                 ['name' => 'search', 'duration_ms' => 150],
             ],
         ];
+    }
+
+
+    /**
+     * Verifies that from array hydrates all fields.
+     *
+     * @return void
+     */
+    public function testFromArrayHydratesAllFields(): void
+    {
+        $data = $this->dataForFromArrayHydratesAllFields();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -81,6 +91,19 @@ class AgentResponseTest extends TestCase
         $this->assertSame(0, $agentResponse->usage->outputTokens);
         $this->assertSame([], $agentResponse->toolsUsed);
     }
+    /**
+     * Data fixture for testFromArrayHandlesEmptyUsage().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayHandlesEmptyUsage(): array
+    {
+        return [
+            'text' => 'Test',
+            'usage' => [],
+        ];
+    }
+
 
     /**
      * Verifies that from array handles empty usage.
@@ -89,25 +112,21 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayHandlesEmptyUsage(): void
     {
-        $data = [
-            'text' => 'Test',
-            'usage' => [],
-        ];
+        $data = $this->dataForFromArrayHandlesEmptyUsage();
 
         $agentResponse = AgentResponse::fromArray($data);
 
         $this->assertSame(0, $agentResponse->usage->inputTokens);
         $this->assertSame(0, $agentResponse->usage->outputTokens);
     }
-
     /**
-     * Verifies that from array filters malformed tools used.
+     * Data fixture for testFromArrayFiltersMalformedToolsUsed().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayFiltersMalformedToolsUsed(): void
+    private function dataForFromArrayFiltersMalformedToolsUsed(): array
     {
-        $data = [
+        return [
             'text' => 'Test',
             'tools_used' => [
                 ['name' => 'search', 'duration_ms' => 100],
@@ -117,6 +136,17 @@ class AgentResponseTest extends TestCase
                 ['name' => 'calculator'],
             ],
         ];
+    }
+
+
+    /**
+     * Verifies that from array filters malformed tools used.
+     *
+     * @return void
+     */
+    public function testFromArrayFiltersMalformedToolsUsed(): void
+    {
+        $data = $this->dataForFromArrayFiltersMalformedToolsUsed();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -141,6 +171,22 @@ class AgentResponseTest extends TestCase
         $this->assertSame(0, $usage->latencyMs);
         $this->assertSame(0, $usage->timeToFirstByteMs);
     }
+    /**
+     * Data fixture for testFromArrayHandlesNonIntUsageValues().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayHandlesNonIntUsageValues(): array
+    {
+        return [
+            'text' => 'Test',
+            'usage' => [
+                'input_tokens' => 'not_an_int',
+                'output_tokens' => '42',
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that from array handles non int usage values.
@@ -149,13 +195,7 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayHandlesNonIntUsageValues(): void
     {
-        $data = [
-            'text' => 'Test',
-            'usage' => [
-                'input_tokens' => 'not_an_int',
-                'output_tokens' => '42',
-            ],
-        ];
+        $data = $this->dataForFromArrayHandlesNonIntUsageValues();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -179,6 +219,22 @@ class AgentResponseTest extends TestCase
 
         $this->assertFalse($agentResponse->hasObjective);
     }
+    /**
+     * Data fixture for testFromArrayStripsNonIntDurationMs().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayStripsNonIntDurationMs(): array
+    {
+        return [
+            'text' => 'Test',
+            'tools_used' => [
+                ['name' => 'search', 'duration_ms' => 'fast'],
+                ['name' => 'calc', 'duration_ms' => 42],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that from array strips non int duration ms.
@@ -187,13 +243,7 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayStripsNonIntDurationMs(): void
     {
-        $data = [
-            'text' => 'Test',
-            'tools_used' => [
-                ['name' => 'search', 'duration_ms' => 'fast'],
-                ['name' => 'calc', 'duration_ms' => 42],
-            ],
-        ];
+        $data = $this->dataForFromArrayStripsNonIntDurationMs();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -201,6 +251,22 @@ class AgentResponseTest extends TestCase
         $this->assertArrayNotHasKey('duration_ms', $agentResponse->toolsUsed[0]);
         $this->assertSame(42, $agentResponse->toolsUsed[1]['duration_ms']);
     }
+    /**
+     * Data fixture for testFromArrayStripsExtraKeysFromToolsUsed().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayStripsExtraKeysFromToolsUsed(): array
+    {
+        return [
+            'text' => 'Test',
+            'tools_used' => [
+                ['name' => 'search', 'duration_ms' => 100, 'extra_key' => 'should_be_stripped'],
+                ['name' => 'calc', 'unknown' => 'also_stripped'],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that from array strips extra keys from tools used.
@@ -209,13 +275,7 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayStripsExtraKeysFromToolsUsed(): void
     {
-        $data = [
-            'text' => 'Test',
-            'tools_used' => [
-                ['name' => 'search', 'duration_ms' => 100, 'extra_key' => 'should_be_stripped'],
-                ['name' => 'calc', 'unknown' => 'also_stripped'],
-            ],
-        ];
+        $data = $this->dataForFromArrayStripsExtraKeysFromToolsUsed();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -257,6 +317,19 @@ class AgentResponseTest extends TestCase
 
         $this->assertSame(StopReason::EndTurn, $agentResponse->stopReason);
     }
+    /**
+     * Data fixture for testFromArrayHandlesUnknownStopReason().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayHandlesUnknownStopReason(): array
+    {
+        return [
+            'text' => 'Test',
+            'stop_reason' => 'unknown_future_reason',
+        ];
+    }
+
 
     /**
      * Verifies that from array handles unknown stop reason.
@@ -265,10 +338,7 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayHandlesUnknownStopReason(): void
     {
-        $data = [
-            'text' => 'Test',
-            'stop_reason' => 'unknown_future_reason',
-        ];
+        $data = $this->dataForFromArrayHandlesUnknownStopReason();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -321,15 +391,14 @@ class AgentResponseTest extends TestCase
 
         $this->assertNull($agentResponse->structuredOutput);
     }
-
     /**
-     * Verifies that from array hydrates cache tokens.
+     * Data fixture for testFromArrayHydratesCacheTokens().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayHydratesCacheTokens(): void
+    private function dataForFromArrayHydratesCacheTokens(): array
     {
-        $data = [
+        return [
             'text' => 'Test',
             'usage' => [
                 'input_tokens' => 100,
@@ -340,6 +409,17 @@ class AgentResponseTest extends TestCase
                 'time_to_first_byte_ms' => 200,
             ],
         ];
+    }
+
+
+    /**
+     * Verifies that from array hydrates cache tokens.
+     *
+     * @return void
+     */
+    public function testFromArrayHydratesCacheTokens(): void
+    {
+        $data = $this->dataForFromArrayHydratesCacheTokens();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -397,6 +477,22 @@ class AgentResponseTest extends TestCase
 
         $this->assertSame(10, $agentResponse->usage->inputTokens);
     }
+    /**
+     * Data fixture for testUsageDefaultsToZeroForMissingCacheFields().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForUsageDefaultsToZeroForMissingCacheFields(): array
+    {
+        return [
+            'text' => 'Test',
+            'usage' => [
+                'input_tokens' => 100,
+                'output_tokens' => 50,
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that usage defaults to zero for missing cache fields.
@@ -405,13 +501,7 @@ class AgentResponseTest extends TestCase
      */
     public function testUsageDefaultsToZeroForMissingCacheFields(): void
     {
-        $data = [
-            'text' => 'Test',
-            'usage' => [
-                'input_tokens' => 100,
-                'output_tokens' => 50,
-            ],
-        ];
+        $data = $this->dataForUsageDefaultsToZeroForMissingCacheFields();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -531,15 +621,14 @@ class AgentResponseTest extends TestCase
         $this->assertSame(8192, $agentResponse->contextSize);
         $this->assertSame(9216, $agentResponse->projectedContextSize);
     }
-
     /**
-     * Verifies that from array metadata empty when no unknown keys.
+     * Data fixture for testFromArrayMetadataEmptyWhenNoUnknownKeys().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayMetadataEmptyWhenNoUnknownKeys(): void
+    private function dataForFromArrayMetadataEmptyWhenNoUnknownKeys(): array
     {
-        $data = [
+        return [
             'text' => 'Test',
             'agent' => 'test',
             'session_id' => 's1',
@@ -549,11 +638,36 @@ class AgentResponseTest extends TestCase
             'stop_reason' => 'end_turn',
             'structured_output' => null,
         ];
+    }
+
+
+    /**
+     * Verifies that from array metadata empty when no unknown keys.
+     *
+     * @return void
+     */
+    public function testFromArrayMetadataEmptyWhenNoUnknownKeys(): void
+    {
+        $data = $this->dataForFromArrayMetadataEmptyWhenNoUnknownKeys();
 
         $agentResponse = AgentResponse::fromArray($data);
 
         $this->assertSame([], $agentResponse->metadata);
     }
+    /**
+     * Data fixture for testFromArrayMetadataExcludesKnownKeys().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayMetadataExcludesKnownKeys(): array
+    {
+        return [
+            'text' => 'Test',
+            'session_id' => 's1',
+            'custom_field' => 'custom_value',
+        ];
+    }
+
 
     /**
      * Verifies that from array metadata excludes known keys.
@@ -562,11 +676,7 @@ class AgentResponseTest extends TestCase
      */
     public function testFromArrayMetadataExcludesKnownKeys(): void
     {
-        $data = [
-            'text' => 'Test',
-            'session_id' => 's1',
-            'custom_field' => 'custom_value',
-        ];
+        $data = $this->dataForFromArrayMetadataExcludesKnownKeys();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -576,15 +686,14 @@ class AgentResponseTest extends TestCase
         // 'custom_field' should be in metadata
         $this->assertSame('custom_value', $agentResponse->metadata['custom_field']);
     }
-
     /**
-     * Verifies that from array handles all stop reasons.
+     * Data fixture for testFromArrayHandlesAllStopReasons().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayHandlesAllStopReasons(): void
+    private function dataForFromArrayHandlesAllStopReasons(): array
     {
-        $reasons = [
+        return [
             'end_turn' => StopReason::EndTurn,
             'tool_use' => StopReason::ToolUse,
             'max_tokens' => StopReason::MaxTokens,
@@ -595,6 +704,17 @@ class AgentResponseTest extends TestCase
             'cancelled' => StopReason::Cancelled,
             'checkpoint' => StopReason::Checkpoint,
         ];
+    }
+
+
+    /**
+     * Verifies that from array handles all stop reasons.
+     *
+     * @return void
+     */
+    public function testFromArrayHandlesAllStopReasons(): void
+    {
+        $reasons = $this->dataForFromArrayHandlesAllStopReasons();
 
         foreach ($reasons as $raw => $expected) {
             $agentResponse = AgentResponse::fromArray(['text' => 'Test', 'stop_reason' => $raw]);
@@ -656,15 +776,14 @@ class AgentResponseTest extends TestCase
         $this->assertSame('The original unsafe response text', $agentResponse->guardrailTrace->modelOutput);
         $this->assertSame(StopReason::GuardrailIntervened, $agentResponse->stopReason);
     }
-
     /**
-     * Verifies that from array guardrail trace from nested trace.
+     * Data fixture for testFromArrayGuardrailTraceFromNestedTrace().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayGuardrailTraceFromNestedTrace(): void
+    private function dataForFromArrayGuardrailTraceFromNestedTrace(): array
     {
-        $data = [
+        return [
             'text' => 'Blocked',
             'trace' => [
                 'guardrail' => [
@@ -673,6 +792,17 @@ class AgentResponseTest extends TestCase
                 ],
             ],
         ];
+    }
+
+
+    /**
+     * Verifies that from array guardrail trace from nested trace.
+     *
+     * @return void
+     */
+    public function testFromArrayGuardrailTraceFromNestedTrace(): void
+    {
+        $data = $this->dataForFromArrayGuardrailTraceFromNestedTrace();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -720,15 +850,14 @@ class AgentResponseTest extends TestCase
 
         $this->assertSame([], $agentResponse->citations);
     }
-
     /**
-     * Verifies that from array citations ignores non citation blocks.
+     * Data fixture for testFromArrayCitationsIgnoresNonCitationBlocks().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayCitationsIgnoresNonCitationBlocks(): void
+    private function dataForFromArrayCitationsIgnoresNonCitationBlocks(): array
     {
-        $data = [
+        return [
             'text' => 'Test',
             'message' => [
                 'content' => [
@@ -738,12 +867,37 @@ class AgentResponseTest extends TestCase
                 ],
             ],
         ];
+    }
+
+
+    /**
+     * Verifies that from array citations ignores non citation blocks.
+     *
+     * @return void
+     */
+    public function testFromArrayCitationsIgnoresNonCitationBlocks(): void
+    {
+        $data = $this->dataForFromArrayCitationsIgnoresNonCitationBlocks();
 
         $agentResponse = AgentResponse::fromArray($data);
 
         $this->assertCount(1, $agentResponse->citations);
         $this->assertSame('citationsContent', $agentResponse->citations[0]['type']);
     }
+    /**
+     * Data fixture for testInterruptsExcludedFromMetadata().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForInterruptsExcludedFromMetadata(): array
+    {
+        return [
+            'text' => 'Test',
+            'interrupts' => [],
+            'custom' => 'value',
+        ];
+    }
+
 
     /**
      * Verifies that interrupts excluded from metadata.
@@ -752,17 +906,28 @@ class AgentResponseTest extends TestCase
      */
     public function testInterruptsExcludedFromMetadata(): void
     {
-        $data = [
-            'text' => 'Test',
-            'interrupts' => [],
-            'custom' => 'value',
-        ];
+        $data = $this->dataForInterruptsExcludedFromMetadata();
 
         $agentResponse = AgentResponse::fromArray($data);
 
         $this->assertArrayNotHasKey('interrupts', $agentResponse->metadata);
         $this->assertSame('value', $agentResponse->metadata['custom']);
     }
+    /**
+     * Data fixture for testGuardrailTraceExcludedFromMetadata().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForGuardrailTraceExcludedFromMetadata(): array
+    {
+        return [
+            'text' => 'Test',
+            'guardrail_trace' => ['action' => 'NONE'],
+            'trace' => ['guardrail' => ['action' => 'NONE']],
+            'message' => ['content' => []],
+        ];
+    }
+
 
     /**
      * Verifies that guardrail trace excluded from metadata.
@@ -771,12 +936,7 @@ class AgentResponseTest extends TestCase
      */
     public function testGuardrailTraceExcludedFromMetadata(): void
     {
-        $data = [
-            'text' => 'Test',
-            'guardrail_trace' => ['action' => 'NONE'],
-            'trace' => ['guardrail' => ['action' => 'NONE']],
-            'message' => ['content' => []],
-        ];
+        $data = $this->dataForGuardrailTraceExcludedFromMetadata();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -796,15 +956,14 @@ class AgentResponseTest extends TestCase
 
         $this->assertFalse($agentResponse->hasObjective);
     }
-
     /**
-     * Verifies that multiple interrupts all returned.
+     * Data fixture for testMultipleInterruptsAllReturned().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testMultipleInterruptsAllReturned(): void
+    private function dataForMultipleInterruptsAllReturned(): array
     {
-        $data = [
+        return [
             'text' => 'Test',
             'stop_reason' => 'interrupt',
             'interrupts' => [
@@ -824,6 +983,17 @@ class AgentResponseTest extends TestCase
                 ],
             ],
         ];
+    }
+
+
+    /**
+     * Verifies that multiple interrupts all returned.
+     *
+     * @return void
+     */
+    public function testMultipleInterruptsAllReturned(): void
+    {
+        $data = $this->dataForMultipleInterruptsAllReturned();
 
         $agentResponse = AgentResponse::fromArray($data);
 
@@ -831,15 +1001,14 @@ class AgentResponseTest extends TestCase
         $this->assertSame('deploy', $agentResponse->interrupts[0]->toolName);
         $this->assertSame('scale', $agentResponse->interrupts[1]->toolName);
     }
-
     /**
-     * Verifies that multiple citations all returned.
+     * Data fixture for testMultipleCitationsAllReturned().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testMultipleCitationsAllReturned(): void
+    private function dataForMultipleCitationsAllReturned(): array
     {
-        $data = [
+        return [
             'text' => 'Test',
             'message' => [
                 'content' => [
@@ -849,6 +1018,17 @@ class AgentResponseTest extends TestCase
                 ],
             ],
         ];
+    }
+
+
+    /**
+     * Verifies that multiple citations all returned.
+     *
+     * @return void
+     */
+    public function testMultipleCitationsAllReturned(): void
+    {
+        $data = $this->dataForMultipleCitationsAllReturned();
 
         $agentResponse = AgentResponse::fromArray($data);
 

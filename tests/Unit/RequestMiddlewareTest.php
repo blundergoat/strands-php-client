@@ -280,7 +280,7 @@ class RequestMiddlewareTest extends TestCase
         $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+                $onChunk->__invoke($sseData);
             });
 
         $strandsClient = new StrandsClient(
@@ -367,7 +367,7 @@ class RequestMiddlewareTest extends TestCase
         $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+                $onChunk->__invoke($sseData);
             });
 
         $strandsClient = new StrandsClient(
@@ -522,7 +522,7 @@ class RequestMiddlewareTest extends TestCase
         $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+                $onChunk->__invoke($sseData);
             });
 
         $strandsClient = new StrandsClient(
@@ -601,7 +601,7 @@ class RequestMiddlewareTest extends TestCase
         $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+                $onChunk->__invoke($sseData);
             });
 
         $strandsClient = new StrandsClient(
@@ -641,7 +641,7 @@ class RequestMiddlewareTest extends TestCase
         $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+                $onChunk->__invoke($sseData);
             });
 
         $strandsClient = new StrandsClient(

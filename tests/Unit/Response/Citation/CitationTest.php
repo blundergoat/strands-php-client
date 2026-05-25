@@ -13,13 +13,13 @@ use StrandsPhpClient\Response\Citation\CitationSourceContent;
 class CitationTest extends TestCase
 {
     /**
-     * Verifies that from array with full data.
+     * Data fixture for testFromArrayWithFullData().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayWithFullData(): void
+    private function dataForFromArrayWithFullData(): array
     {
-        $data = [
+        return [
             'location' => [
                 'type' => 'DOCUMENT',
                 'start_character_index' => 0,
@@ -39,6 +39,16 @@ class CitationTest extends TestCase
                 'text' => 'The generated text',
             ],
         ];
+    }
+
+    /**
+     * Verifies that from array with full data.
+     *
+     * @return void
+     */
+    public function testFromArrayWithFullData(): void
+    {
+        $data = $this->dataForFromArrayWithFullData();
 
         $citation = Citation::fromArray($data);
 
@@ -58,6 +68,21 @@ class CitationTest extends TestCase
         $this->assertSame('TEXT', $citation->generatedContent->type);
         $this->assertSame('The generated text', $citation->generatedContent->text);
     }
+    /**
+     * Data fixture for testFromArrayWithPartialData().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayWithPartialData(): array
+    {
+        return [
+            'location' => [
+                'type' => 'WEB',
+                'url' => 'https://example.com',
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that from array with partial data.
@@ -66,12 +91,7 @@ class CitationTest extends TestCase
      */
     public function testFromArrayWithPartialData(): void
     {
-        $data = [
-            'location' => [
-                'type' => 'WEB',
-                'url' => 'https://example.com',
-            ],
-        ];
+        $data = $this->dataForFromArrayWithPartialData();
 
         $citation = Citation::fromArray($data);
 
@@ -82,6 +102,20 @@ class CitationTest extends TestCase
         $this->assertNull($citation->sourceContent);
         $this->assertNull($citation->generatedContent);
     }
+    /**
+     * Data fixture for testFromArrayPreservesFlatCitationData().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayPreservesFlatCitationData(): array
+    {
+        return [
+            'source' => 'https://example.com/docs',
+            'title' => 'Official Documentation',
+            'text' => 'the answer is 42',
+        ];
+    }
+
 
     /**
      * Verifies that from array preserves flat citation data.
@@ -90,11 +124,7 @@ class CitationTest extends TestCase
      */
     public function testFromArrayPreservesFlatCitationData(): void
     {
-        $data = [
-            'source' => 'https://example.com/docs',
-            'title' => 'Official Documentation',
-            'text' => 'the answer is 42',
-        ];
+        $data = $this->dataForFromArrayPreservesFlatCitationData();
 
         $citation = Citation::fromArray($data);
 

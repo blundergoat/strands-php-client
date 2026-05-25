@@ -10,13 +10,13 @@ use StrandsPhpClient\Response\GuardrailAssessment;
 class GuardrailAssessmentTest extends TestCase
 {
     /**
-     * Verifies that from array with all policies.
+     * Data fixture for testFromArrayWithAllPolicies().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayWithAllPolicies(): void
+    private function dataForFromArrayWithAllPolicies(): array
     {
-        $data = [
+        return [
             'type' => 'content_filter',
             'action' => 'BLOCKED',
             'topic_policy' => ['name' => 'violence', 'action' => 'BLOCKED'],
@@ -25,6 +25,16 @@ class GuardrailAssessmentTest extends TestCase
             'sensitive_information_policy' => ['pii_entities' => ['SSN']],
             'contextual_grounding_policy' => ['threshold' => 0.7],
         ];
+    }
+
+    /**
+     * Verifies that from array with all policies.
+     *
+     * @return void
+     */
+    public function testFromArrayWithAllPolicies(): void
+    {
+        $data = $this->dataForFromArrayWithAllPolicies();
 
         $assessment = GuardrailAssessment::fromArray($data);
 
@@ -36,6 +46,19 @@ class GuardrailAssessmentTest extends TestCase
         $this->assertSame(['pii_entities' => ['SSN']], $assessment->sensitiveInformationPolicy);
         $this->assertSame(['threshold' => 0.7], $assessment->contextualGroundingPolicy);
     }
+    /**
+     * Data fixture for testFromArrayWithMinimalData().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayWithMinimalData(): array
+    {
+        return [
+            'type' => 'topic_filter',
+            'action' => 'NONE',
+        ];
+    }
+
 
     /**
      * Verifies that from array with minimal data.
@@ -44,10 +67,7 @@ class GuardrailAssessmentTest extends TestCase
      */
     public function testFromArrayWithMinimalData(): void
     {
-        $data = [
-            'type' => 'topic_filter',
-            'action' => 'NONE',
-        ];
+        $data = $this->dataForFromArrayWithMinimalData();
 
         $assessment = GuardrailAssessment::fromArray($data);
 
@@ -72,6 +92,20 @@ class GuardrailAssessmentTest extends TestCase
         $this->assertNull($assessment->type);
         $this->assertNull($assessment->action);
     }
+    /**
+     * Data fixture for testFromArrayIgnoresNonArrayPolicies().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayIgnoresNonArrayPolicies(): array
+    {
+        return [
+            'type' => 'test',
+            'topic_policy' => 'not_an_array',
+            'content_policy' => 42,
+        ];
+    }
+
 
     /**
      * Verifies that from array ignores non array policies.
@@ -80,11 +114,7 @@ class GuardrailAssessmentTest extends TestCase
      */
     public function testFromArrayIgnoresNonArrayPolicies(): void
     {
-        $data = [
-            'type' => 'test',
-            'topic_policy' => 'not_an_array',
-            'content_policy' => 42,
-        ];
+        $data = $this->dataForFromArrayIgnoresNonArrayPolicies();
 
         $assessment = GuardrailAssessment::fromArray($data);
 

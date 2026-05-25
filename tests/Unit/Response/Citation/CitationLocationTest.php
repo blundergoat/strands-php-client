@@ -10,19 +10,29 @@ use StrandsPhpClient\Response\Citation\CitationLocation;
 class CitationLocationTest extends TestCase
 {
     /**
-     * Verifies that from array document location.
+     * Data fixture for testFromArrayDocumentLocation().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testFromArrayDocumentLocation(): void
+    private function dataForFromArrayDocumentLocation(): array
     {
-        $data = [
+        return [
             'type' => 'DOCUMENT',
             'start_character_index' => 10,
             'end_character_index' => 50,
             'start_page_index' => 3,
             'end_page_index' => 5,
         ];
+    }
+
+    /**
+     * Verifies that from array document location.
+     *
+     * @return void
+     */
+    public function testFromArrayDocumentLocation(): void
+    {
+        $data = $this->dataForFromArrayDocumentLocation();
 
         $location = CitationLocation::fromArray($data);
 
@@ -33,6 +43,20 @@ class CitationLocationTest extends TestCase
         $this->assertSame(5, $location->endPageIndex);
         $this->assertNull($location->url);
     }
+    /**
+     * Data fixture for testFromArrayWebLocation().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayWebLocation(): array
+    {
+        return [
+            'type' => 'WEB',
+            'url' => 'https://example.com/article',
+            'title' => 'Article Title',
+        ];
+    }
+
 
     /**
      * Verifies that from array web location.
@@ -41,11 +65,7 @@ class CitationLocationTest extends TestCase
      */
     public function testFromArrayWebLocation(): void
     {
-        $data = [
-            'type' => 'WEB',
-            'url' => 'https://example.com/article',
-            'title' => 'Article Title',
-        ];
+        $data = $this->dataForFromArrayWebLocation();
 
         $location = CitationLocation::fromArray($data);
 
@@ -53,6 +73,21 @@ class CitationLocationTest extends TestCase
         $this->assertSame('https://example.com/article', $location->url);
         $this->assertSame('Article Title', $location->title);
     }
+    /**
+     * Data fixture for testFromArraySearchResultLocation().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArraySearchResultLocation(): array
+    {
+        return [
+            'type' => 'SEARCH_RESULT',
+            'search_query' => 'PHP OTEL',
+            'search_result_rank' => 3,
+            'url' => 'https://example.com/result',
+        ];
+    }
+
 
     /**
      * Verifies that from array search result location.
@@ -61,12 +96,7 @@ class CitationLocationTest extends TestCase
      */
     public function testFromArraySearchResultLocation(): void
     {
-        $data = [
-            'type' => 'SEARCH_RESULT',
-            'search_query' => 'PHP OTEL',
-            'search_result_rank' => 3,
-            'url' => 'https://example.com/result',
-        ];
+        $data = $this->dataForFromArraySearchResultLocation();
 
         $location = CitationLocation::fromArray($data);
 
@@ -74,6 +104,20 @@ class CitationLocationTest extends TestCase
         $this->assertSame('PHP OTEL', $location->searchQuery);
         $this->assertSame(3, $location->searchResultRank);
     }
+    /**
+     * Data fixture for testFromArrayChunkLocation().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayChunkLocation(): array
+    {
+        return [
+            'type' => 'CHUNK',
+            'start_chunk_index' => 0,
+            'end_chunk_index' => 2,
+        ];
+    }
+
 
     /**
      * Verifies that from array chunk location.
@@ -82,11 +126,7 @@ class CitationLocationTest extends TestCase
      */
     public function testFromArrayChunkLocation(): void
     {
-        $data = [
-            'type' => 'CHUNK',
-            'start_chunk_index' => 0,
-            'end_chunk_index' => 2,
-        ];
+        $data = $this->dataForFromArrayChunkLocation();
 
         $location = CitationLocation::fromArray($data);
 
@@ -109,6 +149,20 @@ class CitationLocationTest extends TestCase
 
         $this->assertNull($location->startCharacterIndex);
     }
+    /**
+     * Data fixture for testFromArrayAcceptsNumericStringsAndFloats().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForFromArrayAcceptsNumericStringsAndFloats(): array
+    {
+        return [
+            'search_result_rank' => '5',
+            'start_page_index' => 2.0,
+            'end_page_index' => 3.7,
+        ];
+    }
+
 
     /**
      * Verifies that from array accepts numeric strings and floats.
@@ -117,11 +171,7 @@ class CitationLocationTest extends TestCase
      */
     public function testFromArrayAcceptsNumericStringsAndFloats(): void
     {
-        $data = [
-            'search_result_rank' => '5',
-            'start_page_index' => 2.0,
-            'end_page_index' => 3.7,
-        ];
+        $data = $this->dataForFromArrayAcceptsNumericStringsAndFloats();
 
         $location = CitationLocation::fromArray($data);
 

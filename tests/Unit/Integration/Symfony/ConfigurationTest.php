@@ -23,6 +23,22 @@ class ConfigurationTest extends TestCase
 
         return $processor->processConfiguration(new Configuration(), [$config]);
     }
+    /**
+     * Test fixture for testMinimalConfig().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForMinimalConfig(): array
+    {
+        return [
+            'agents' => [
+                'analyst' => [
+                    'endpoint' => 'http://agent:8000',
+                ],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that minimal config.
@@ -31,19 +47,29 @@ class ConfigurationTest extends TestCase
      */
     public function testMinimalConfig(): void
     {
-        $config = $this->processConfig([
-            'agents' => [
-                'analyst' => [
-                    'endpoint' => 'http://agent:8000',
-                ],
-            ],
-        ]);
+        $config = $this->processConfig($this->dataForMinimalConfig());
 
         $this->assertArrayHasKey('analyst', $config['agents']);
         $this->assertSame('http://agent:8000', $config['agents']['analyst']['endpoint']);
         $this->assertSame('null', $config['agents']['analyst']['auth']['driver']);
         $this->assertSame(120, $config['agents']['analyst']['timeout']);
     }
+    /**
+     * Test fixture for testMultipleAgents().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForMultipleAgents(): array
+    {
+        return [
+            'agents' => [
+                'analyst' => ['endpoint' => 'http://agent:8000'],
+                'skeptic' => ['endpoint' => 'http://agent:8000'],
+                'strategist' => ['endpoint' => 'http://agent:8000'],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that multiple agents.
@@ -52,16 +78,27 @@ class ConfigurationTest extends TestCase
      */
     public function testMultipleAgents(): void
     {
-        $config = $this->processConfig([
-            'agents' => [
-                'analyst' => ['endpoint' => 'http://agent:8000'],
-                'skeptic' => ['endpoint' => 'http://agent:8000'],
-                'strategist' => ['endpoint' => 'http://agent:8000'],
-            ],
-        ]);
+        $config = $this->processConfig($this->dataForMultipleAgents());
 
         $this->assertCount(3, $config['agents']);
     }
+    /**
+     * Test fixture for testCustomTimeout().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForCustomTimeout(): array
+    {
+        return [
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                    'timeout' => 60,
+                ],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that custom timeout.
@@ -70,17 +107,26 @@ class ConfigurationTest extends TestCase
      */
     public function testCustomTimeout(): void
     {
-        $config = $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                    'timeout' => 60,
-                ],
-            ],
-        ]);
+        $config = $this->processConfig($this->dataForCustomTimeout());
 
         $this->assertSame(60, $config['agents']['primary']['timeout']);
     }
+    /**
+     * Test fixture for testAuthDriverDefault().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForAuthDriverDefault(): array
+    {
+        return [
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                ],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that auth driver default.
@@ -89,16 +135,27 @@ class ConfigurationTest extends TestCase
      */
     public function testAuthDriverDefault(): void
     {
-        $config = $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                ],
-            ],
-        ]);
+        $config = $this->processConfig($this->dataForAuthDriverDefault());
 
         $this->assertSame('null', $config['agents']['primary']['auth']['driver']);
     }
+    /**
+     * Test fixture for testExplicitNullAuth().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForExplicitNullAuth(): array
+    {
+        return [
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                    'auth' => ['driver' => 'null'],
+                ],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that explicit null auth.
@@ -107,26 +164,18 @@ class ConfigurationTest extends TestCase
      */
     public function testExplicitNullAuth(): void
     {
-        $config = $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                    'auth' => ['driver' => 'null'],
-                ],
-            ],
-        ]);
+        $config = $this->processConfig($this->dataForExplicitNullAuth());
 
         $this->assertSame('null', $config['agents']['primary']['auth']['driver']);
     }
-
     /**
-     * Verifies that api key auth driver.
+     * Test fixture for testApiKeyAuthDriver().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testApiKeyAuthDriver(): void
+    private function dataForApiKeyAuthDriver(): array
     {
-        $config = $this->processConfig([
+        return [
             'agents' => [
                 'primary' => [
                     'endpoint' => 'http://agent:8000',
@@ -136,22 +185,32 @@ class ConfigurationTest extends TestCase
                     ],
                 ],
             ],
-        ]);
+        ];
+    }
+
+
+    /**
+     * Verifies that api key auth driver.
+     *
+     * @return void
+     */
+    public function testApiKeyAuthDriver(): void
+    {
+        $config = $this->processConfig($this->dataForApiKeyAuthDriver());
 
         $this->assertSame('api_key', $config['agents']['primary']['auth']['driver']);
         $this->assertSame('sk-test-123', $config['agents']['primary']['auth']['api_key']);
         $this->assertSame('Authorization', $config['agents']['primary']['auth']['header_name']);
         $this->assertSame('Bearer ', $config['agents']['primary']['auth']['value_prefix']);
     }
-
     /**
-     * Verifies that api key auth with custom header.
+     * Test fixture for testApiKeyAuthWithCustomHeader().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testApiKeyAuthWithCustomHeader(): void
+    private function dataForApiKeyAuthWithCustomHeader(): array
     {
-        $config = $this->processConfig([
+        return [
             'agents' => [
                 'primary' => [
                     'endpoint' => 'http://agent:8000',
@@ -163,7 +222,18 @@ class ConfigurationTest extends TestCase
                     ],
                 ],
             ],
-        ]);
+        ];
+    }
+
+
+    /**
+     * Verifies that api key auth with custom header.
+     *
+     * @return void
+     */
+    public function testApiKeyAuthWithCustomHeader(): void
+    {
+        $config = $this->processConfig($this->dataForApiKeyAuthWithCustomHeader());
 
         $this->assertSame('X-API-Key', $config['agents']['primary']['auth']['header_name']);
         $this->assertSame('', $config['agents']['primary']['auth']['value_prefix']);
@@ -210,6 +280,22 @@ class ConfigurationTest extends TestCase
         yield 'negative max_retries' => [['max_retries' => -1], '/max_retries/'];
         yield 'negative retry_delay_ms' => [['retry_delay_ms' => -1], '/retry_delay_ms/'];
     }
+    /**
+     * Test fixture for testNewConfigDefaults().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForNewConfigDefaults(): array
+    {
+        return [
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                ],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that new config defaults.
@@ -218,28 +304,21 @@ class ConfigurationTest extends TestCase
      */
     public function testNewConfigDefaults(): void
     {
-        $config = $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                ],
-            ],
-        ]);
+        $config = $this->processConfig($this->dataForNewConfigDefaults());
 
         $agent = $config['agents']['primary'];
         $this->assertSame(10, $agent['connect_timeout']);
         $this->assertSame(0, $agent['max_retries']);
         $this->assertSame(500, $agent['retry_delay_ms']);
     }
-
     /**
-     * Verifies that custom retry settings.
+     * Test fixture for testCustomRetrySettings().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testCustomRetrySettings(): void
+    private function dataForCustomRetrySettings(): array
     {
-        $config = $this->processConfig([
+        return [
             'agents' => [
                 'primary' => [
                     'endpoint' => 'http://agent:8000',
@@ -248,7 +327,18 @@ class ConfigurationTest extends TestCase
                     'connect_timeout' => 5,
                 ],
             ],
-        ]);
+        ];
+    }
+
+
+    /**
+     * Verifies that custom retry settings.
+     *
+     * @return void
+     */
+    public function testCustomRetrySettings(): void
+    {
+        $config = $this->processConfig($this->dataForCustomRetrySettings());
 
         $agent = $config['agents']['primary'];
         $this->assertSame(3, $agent['max_retries']);
@@ -295,15 +385,14 @@ class ConfigurationTest extends TestCase
         ]);
         $this->assertSame(20, $configMax['agents']['primary']['max_retries']);
     }
-
     /**
-     * Verifies that accepts boundary timeouts.
+     * Test fixture for testAcceptsBoundaryTimeouts().
      *
-     * @return void
+     * @return array<string, mixed>
      */
-    public function testAcceptsBoundaryTimeouts(): void
+    private function dataForAcceptsBoundaryTimeouts(): array
     {
-        $config = $this->processConfig([
+        return [
             'agents' => [
                 'primary' => [
                     'endpoint' => 'http://agent:8000',
@@ -312,13 +401,40 @@ class ConfigurationTest extends TestCase
                     'retry_delay_ms' => 1,
                 ],
             ],
-        ]);
+        ];
+    }
+
+
+    /**
+     * Verifies that accepts boundary timeouts.
+     *
+     * @return void
+     */
+    public function testAcceptsBoundaryTimeouts(): void
+    {
+        $config = $this->processConfig($this->dataForAcceptsBoundaryTimeouts());
 
         $agent = $config['agents']['primary'];
         $this->assertSame(1, $agent['timeout']);
         $this->assertSame(1, $agent['connect_timeout']);
         $this->assertSame(1, $agent['retry_delay_ms']);
     }
+    /**
+     * Test fixture for testDefaultRetryableStatusCodes().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForDefaultRetryableStatusCodes(): array
+    {
+        return [
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                ],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that rejects negative max retries.
@@ -333,16 +449,27 @@ class ConfigurationTest extends TestCase
      */
     public function testDefaultRetryableStatusCodes(): void
     {
-        $config = $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                ],
-            ],
-        ]);
+        $config = $this->processConfig($this->dataForDefaultRetryableStatusCodes());
 
         $this->assertSame([429, 502, 503, 504], $config['agents']['primary']['retryable_status_codes']);
     }
+    /**
+     * Test fixture for testCustomRetryableStatusCodes().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForCustomRetryableStatusCodes(): array
+    {
+        return [
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                    'retryable_status_codes' => [429, 500, 502, 503],
+                ],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that custom retryable status codes.
@@ -351,17 +478,27 @@ class ConfigurationTest extends TestCase
      */
     public function testCustomRetryableStatusCodes(): void
     {
-        $config = $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                    'retryable_status_codes' => [429, 500, 502, 503],
-                ],
-            ],
-        ]);
+        $config = $this->processConfig($this->dataForCustomRetryableStatusCodes());
 
         $this->assertSame([429, 500, 502, 503], $config['agents']['primary']['retryable_status_codes']);
     }
+    /**
+     * Test fixture for testEmptyRetryableStatusCodes().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForEmptyRetryableStatusCodes(): array
+    {
+        return [
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                    'retryable_status_codes' => [],
+                ],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that empty retryable status codes.
@@ -370,17 +507,26 @@ class ConfigurationTest extends TestCase
      */
     public function testEmptyRetryableStatusCodes(): void
     {
-        $config = $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                    'retryable_status_codes' => [],
-                ],
-            ],
-        ]);
+        $config = $this->processConfig($this->dataForEmptyRetryableStatusCodes());
 
         $this->assertSame([], $config['agents']['primary']['retryable_status_codes']);
     }
+    /**
+     * Test fixture for testDefaultRetryableFields().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForDefaultRetryableFields(): array
+    {
+        return [
+            'agents' => [
+                'primary' => [
+                    'endpoint' => 'http://agent:8000',
+                ],
+            ],
+        ];
+    }
+
 
     /**
      * Verifies that default retryable fields.
@@ -389,13 +535,7 @@ class ConfigurationTest extends TestCase
      */
     public function testDefaultRetryableFields(): void
     {
-        $config = $this->processConfig([
-            'agents' => [
-                'primary' => [
-                    'endpoint' => 'http://agent:8000',
-                ],
-            ],
-        ]);
+        $config = $this->processConfig($this->dataForDefaultRetryableFields());
 
         $agent = $config['agents']['primary'];
         $this->assertSame(120, $agent['timeout']);

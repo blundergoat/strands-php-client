@@ -10,16 +10,41 @@ use StrandsPhpClient\Auth\SigV4Auth;
 class SigV4AuthTest extends TestCase
 {
     /**
+     * Build a SigV4Auth pre-configured with the canonical AWS SigV4 example
+     * credentials. Tests that don't care about the credential values use this
+     * to keep the test body focused on the call under test.
+     *
+     * @param string $region AWS region for the signed request.
+     * @param string $service AWS service name (defaults to API Gateway's value).
+     * @param string|null $sessionToken Optional STS session token to include in the signature.
+     * @return SigV4Auth Configured signer ready for an authenticate() call.
+     */
+    private function sigV4AuthWith(
+        string $region = 'us-east-1',
+        string $service = 'execute-api',
+        ?string $sessionToken = null,
+        string $accessKeyId = 'AKID',
+        string $secretAccessKey = 'SECRET',
+    ): SigV4Auth {
+        return new SigV4Auth(
+            accessKeyId: $accessKeyId,
+            secretAccessKey: $secretAccessKey,
+            region: $region,
+            service: $service,
+            sessionToken: $sessionToken,
+        );
+    }
+
+    /**
      * Verifies that authenticate adds required headers.
      *
      * @return void
      */
     public function testAuthenticateAddsRequiredHeaders(): void
     {
-        $sigV4Auth = new SigV4Auth(
+        $sigV4Auth = $this->sigV4AuthWith(
             accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
             secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-            region: 'us-east-1',
         );
 
         $headers = ['Content-Type' => 'application/json'];
@@ -40,12 +65,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateIncludesSessionToken(): void
     {
-        $sigV4Auth = new SigV4Auth(
-            accessKeyId: 'AKID',
-            secretAccessKey: 'SECRET',
-            region: 'eu-west-1',
-            sessionToken: 'SESSION_TOKEN',
-        );
+        $sigV4Auth = $this->sigV4AuthWith(region: 'eu-west-1', sessionToken: 'SESSION_TOKEN');
 
         $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
@@ -61,11 +81,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateOmitsSecurityTokenWhenNull(): void
     {
-        $sigV4Auth = new SigV4Auth(
-            accessKeyId: 'AKID',
-            secretAccessKey: 'SECRET',
-            region: 'us-west-2',
-        );
+        $sigV4Auth = $this->sigV4AuthWith(region: 'us-west-2');
 
         $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
@@ -80,12 +96,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateIncludesCorrectRegionAndService(): void
     {
-        $sigV4Auth = new SigV4Auth(
-            accessKeyId: 'AKID',
-            secretAccessKey: 'SECRET',
-            region: 'ap-southeast-1',
-            service: 'lambda',
-        );
+        $sigV4Auth = $this->sigV4AuthWith(region: 'ap-southeast-1', service: 'lambda');
 
         $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
@@ -99,11 +110,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateDefaultServiceIsExecuteApi(): void
     {
-        $sigV4Auth = new SigV4Auth(
-            accessKeyId: 'AKID',
-            secretAccessKey: 'SECRET',
-            region: 'us-east-1',
-        );
+        $sigV4Auth = $this->sigV4AuthWith();
 
         $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
@@ -117,11 +124,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticatePreservesExistingHeaders(): void
     {
-        $sigV4Auth = new SigV4Auth(
-            accessKeyId: 'AKID',
-            secretAccessKey: 'SECRET',
-            region: 'us-east-1',
-        );
+        $sigV4Auth = $this->sigV4AuthWith();
 
         $headers = [
             'Content-Type' => 'application/json',
@@ -162,11 +165,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthenticateHandlesUrlWithQueryString(): void
     {
-        $sigV4Auth = new SigV4Auth(
-            accessKeyId: 'AKID',
-            secretAccessKey: 'SECRET',
-            region: 'us-east-1',
-        );
+        $sigV4Auth = $this->sigV4AuthWith();
 
         $result = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=bar&baz=qux', '{}');
 
@@ -314,11 +313,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testSignatureIsDeterministicForSameInputs(): void
     {
-        $sigV4Auth = new SigV4Auth(
-            accessKeyId: 'AKID',
-            secretAccessKey: 'SECRET',
-            region: 'us-east-1',
-        );
+        $sigV4Auth = $this->sigV4AuthWith();
 
         [$firstHeaders, $secondHeaders] = $this->authenticatePairInSameSecond(
             $sigV4Auth,
@@ -364,11 +359,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testContentTypeIsIncludedInSignedHeaders(): void
     {
-        $sigV4Auth = new SigV4Auth(
-            accessKeyId: 'AKID',
-            secretAccessKey: 'SECRET',
-            region: 'us-east-1',
-        );
+        $sigV4Auth = $this->sigV4AuthWith();
 
         $result = $sigV4Auth->authenticate(
             ['Content-Type' => 'application/json'],
@@ -503,7 +494,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testAuthorizationHeaderFormat(): void
     {
-        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
+        $sigV4Auth = $this->sigV4AuthWith();
 
         $result = $sigV4Auth->authenticate(
             ['Content-Type' => 'application/json'],
@@ -940,12 +931,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testDebugInfoMasksSecrets(): void
     {
-        $sigV4Auth = new SigV4Auth(
-            accessKeyId: 'AKID',
-            secretAccessKey: 'SUPER_SECRET',
-            region: 'us-east-1',
-            sessionToken: 'TOKEN',
-        );
+        $sigV4Auth = $this->sigV4AuthWith(sessionToken: 'TOKEN', secretAccessKey: 'SUPER_SECRET');
 
         $debugInfo = $sigV4Auth->__debugInfo();
 
@@ -962,11 +948,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testDebugInfoShowsNullSessionTokenAsNull(): void
     {
-        $sigV4Auth = new SigV4Auth(
-            accessKeyId: 'AKID',
-            secretAccessKey: 'SECRET',
-            region: 'us-east-1',
-        );
+        $sigV4Auth = $this->sigV4AuthWith();
 
         $debugInfo = $sigV4Auth->__debugInfo();
 
@@ -980,12 +962,7 @@ class SigV4AuthTest extends TestCase
      */
     public function testDebugInfoContainsServiceKey(): void
     {
-        $sigV4Auth = new SigV4Auth(
-            accessKeyId: 'AKID',
-            secretAccessKey: 'SECRET',
-            region: 'us-east-1',
-            service: 'lambda',
-        );
+        $sigV4Auth = $this->sigV4AuthWith(service: 'lambda');
 
         $debugInfo = $sigV4Auth->__debugInfo();
 

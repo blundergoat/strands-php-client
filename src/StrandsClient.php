@@ -458,11 +458,13 @@ class StrandsClient
                 // Exponential backoff with jitter (50-100% of base delay)
                 // to avoid thundering herd when multiple clients retry simultaneously.
                 // Capped at 30 seconds to prevent absurd delays at high retry counts.
+                // random_int() (CSPRNG-backed) avoids the predictable lcg_value() PRNG
+                // without changing the jitter window observed by retry tests/users.
                 $baseDelay = min(
                     $this->config->retryDelayMs * (2 ** $attempt),
                     30_000,
                 );
-                $delayMs = (int) ($baseDelay * (0.5 + lcg_value() * 0.5));
+                $delayMs = (int) ($baseDelay * (random_int(50, 100) / 100));
                 $attempt++;
 
                 $this->logger->warning('Strands request failed, retrying', [

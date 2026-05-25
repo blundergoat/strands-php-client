@@ -23,6 +23,19 @@ class NullAuthTest extends TestCase
 
         $this->assertSame($headers, $result);
     }
+    /**
+     * Test fixture for testPreservesAllMultipleHeaders().
+     *
+     * @return array<string, mixed>
+     */
+    private function dataForPreservesAllMultipleHeaders(): array
+    {
+        return [
+            'Content-Type' => 'application/json',
+            'Accept' => 'text/event-stream',
+        ];
+    }
+
 
     /**
      * Verifies that preserves all multiple headers.
@@ -32,10 +45,7 @@ class NullAuthTest extends TestCase
     public function testPreservesAllMultipleHeaders(): void
     {
         $nullAuth = new NullAuth();
-        $headers = [
-            'Content-Type' => 'application/json',
-            'Accept' => 'text/event-stream',
-        ];
+        $headers = $this->dataForPreservesAllMultipleHeaders();
 
         $result = $nullAuth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
 

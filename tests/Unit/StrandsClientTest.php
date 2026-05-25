@@ -272,7 +272,7 @@ class StrandsClientTest extends TestCase
         $transport = $this->createStub(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+                $onChunk->__invoke($sseData);
             });
 
         $strandsClient = new StrandsClient(
@@ -1052,7 +1052,7 @@ class StrandsClientTest extends TestCase
             ->method('stream')
             ->with('http://localhost:8081/stream', $this->anything(), $this->anything(), $this->anything(), $this->anything(), $this->anything())
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+                $onChunk->__invoke($sseData);
             });
 
         $strandsClient = new StrandsClient(

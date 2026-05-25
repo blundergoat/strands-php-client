@@ -25,7 +25,7 @@ class StrandsClientStreamSseTest extends TestCase
         $mock = $this->createMock(HttpTransport::class);
         $mock->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+                $onChunk->__invoke($sseData);
             });
 
         return $mock;
@@ -50,7 +50,7 @@ class StrandsClientStreamSseTest extends TestCase
                 $this->anything(),
             )
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                $onChunk("data: {\"type\": \"complete\", \"text\": \"done\"}\n\n");
+                $onChunk->__invoke("data: {\"type\": \"complete\", \"text\": \"done\"}\n\n");
             });
 
         $strandsClient = new StrandsClient(
@@ -87,7 +87,7 @@ class StrandsClientStreamSseTest extends TestCase
                 $this->anything(),
             )
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                $onChunk("data: {\"type\": \"complete\"}\n\n");
+                $onChunk->__invoke("data: {\"type\": \"complete\"}\n\n");
             });
 
         $strandsClient = new StrandsClient(
@@ -295,7 +295,7 @@ class StrandsClientStreamSseTest extends TestCase
                 $this->anything(),
             )
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                $onChunk("data: {\"type\": \"complete\"}\n\n");
+                $onChunk->__invoke("data: {\"type\": \"complete\"}\n\n");
             });
 
         $strandsClient = new StrandsClient(
@@ -326,7 +326,7 @@ class StrandsClientStreamSseTest extends TestCase
                 $this->anything(),
             )
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                $onChunk("data: {\"type\": \"complete\"}\n\n");
+                $onChunk->__invoke("data: {\"type\": \"complete\"}\n\n");
             });
 
         $strandsClient = new StrandsClient(
@@ -405,9 +405,9 @@ class StrandsClientStreamSseTest extends TestCase
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 // First chunk delivers one event
-                $onChunk("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
+                $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
                 // Second chunk delivers another — but callback already cancelled
-                $onChunk("data: {\"type\": \"text\", \"content\": \"second\"}\n\n");
+                $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"second\"}\n\n");
             });
 
         $strandsClient = new StrandsClient(
@@ -464,10 +464,10 @@ class StrandsClientStreamSseTest extends TestCase
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 // SSE event split across two TCP chunks
-                $onChunk('data: {"type":');
-                $onChunk(" \"text\", \"content\": \"hello\"}\n\n");
+                $onChunk->__invoke('data: {"type":');
+                $onChunk->__invoke(" \"text\", \"content\": \"hello\"}\n\n");
                 // Second complete event in one chunk
-                $onChunk("data: {\"type\": \"complete\", \"text\": \"hello\"}\n\n");
+                $onChunk->__invoke("data: {\"type\": \"complete\", \"text\": \"hello\"}\n\n");
             });
 
         $strandsClient = new StrandsClient(
@@ -596,7 +596,7 @@ class StrandsClientStreamSseTest extends TestCase
                 $this->anything(),
             )
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+                $onChunk->__invoke($sseData);
             });
 
         $strandsClient = new StrandsClient(
@@ -685,7 +685,7 @@ class StrandsClientStreamSseTest extends TestCase
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 // Two data lines with CRLF endings in the same event block
-                $onChunk("data: {\"type\": \"text\",\r\ndata:  \"content\": \"hello\"}\r\n\r\n");
+                $onChunk->__invoke("data: {\"type\": \"text\",\r\ndata:  \"content\": \"hello\"}\r\n\r\n");
             });
 
         $strandsClient = new StrandsClient(

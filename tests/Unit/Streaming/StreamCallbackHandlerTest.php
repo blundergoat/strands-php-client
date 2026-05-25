@@ -38,7 +38,7 @@ class StreamCallbackHandlerTest extends TestCase
         };
 
         $streamEvent = new StreamEvent(type: StreamEventType::Text, text: 'hello');
-        $handler($streamEvent);
+        $handler->__invoke($streamEvent);
 
         $this->assertSame($streamEvent, $handler->received);
     }
@@ -67,7 +67,7 @@ class StreamCallbackHandlerTest extends TestCase
             }
         };
 
-        $handler(new StreamEvent(type: StreamEventType::ToolUse, toolName: 'search'));
+        $handler->__invoke(new StreamEvent(type: StreamEventType::ToolUse, toolName: 'search'));
 
         $this->assertTrue($handler->called);
     }
@@ -96,7 +96,7 @@ class StreamCallbackHandlerTest extends TestCase
             }
         };
 
-        $handler(new StreamEvent(type: StreamEventType::Complete));
+        $handler->__invoke(new StreamEvent(type: StreamEventType::Complete));
 
         $this->assertTrue($handler->called);
     }
@@ -125,7 +125,7 @@ class StreamCallbackHandlerTest extends TestCase
             }
         };
 
-        $handler(new StreamEvent(type: StreamEventType::Error, errorCode: 'ERR', errorMessage: 'fail'));
+        $handler->__invoke(new StreamEvent(type: StreamEventType::Error, errorCode: 'ERR', errorMessage: 'fail'));
 
         $this->assertTrue($handler->called);
     }
@@ -151,7 +151,7 @@ class StreamCallbackHandlerTest extends TestCase
     {
         $handler = new class () extends StreamCallbackHandler {};
 
-        $result = $handler(new StreamEvent(type: StreamEventType::Text, text: 'hi'));
+        $result = $handler->__invoke(new StreamEvent(type: StreamEventType::Text, text: 'hi'));
 
         $this->assertNull($result);
     }
@@ -194,9 +194,9 @@ class StreamCallbackHandlerTest extends TestCase
             }
         };
 
-        $handler(new StreamEvent(type: StreamEventType::Text, text: 'hello'));
-        $handler(new StreamEvent(type: StreamEventType::ToolUse, toolName: 'search'));
-        $handler(new StreamEvent(type: StreamEventType::Thinking, text: 'thinking'));
+        $handler->__invoke(new StreamEvent(type: StreamEventType::Text, text: 'hello'));
+        $handler->__invoke(new StreamEvent(type: StreamEventType::ToolUse, toolName: 'search'));
+        $handler->__invoke(new StreamEvent(type: StreamEventType::Thinking, text: 'thinking'));
 
         $this->assertSame(['text:hello', 'tool:search'], $handler->log);
     }
@@ -211,7 +211,7 @@ class StreamCallbackHandlerTest extends TestCase
         $handler = new class () extends StreamCallbackHandler {};
 
         foreach (StreamEventType::cases() as $type) {
-            $result = $handler(new StreamEvent(type: $type));
+            $result = $handler->__invoke(new StreamEvent(type: $type));
             $this->assertNull($result, "Handler returned non-null for {$type->value}");
         }
     }
@@ -236,7 +236,7 @@ class StreamCallbackHandlerTest extends TestCase
             }
         };
 
-        $result = $handler(new StreamEvent(type: StreamEventType::Text, text: 'stop'));
+        $result = $handler->__invoke(new StreamEvent(type: StreamEventType::Text, text: 'stop'));
 
         $this->assertFalse($result);
     }

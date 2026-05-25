@@ -128,17 +128,50 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
+     * Build a SymfonyHttpTransport whose mock client returns the given response body and status.
+     * Centralises the MockResponse + MockHttpClient + transport wiring so per-test bodies
+     * stay short and read as setup-then-act rather than transport-construction boilerplate.
+     *
+     * @param string $responseBody Body returned by the underlying mock HTTP response.
+     * @param int $statusCode HTTP status code for the mocked response.
+     * @return SymfonyHttpTransport Configured transport ready for a post() / stream() call.
+     */
+    private function transportReturning(string $responseBody, int $statusCode = 200): SymfonyHttpTransport
+    {
+        $mockResponse = new MockResponse($responseBody, ['http_code' => $statusCode]);
+
+        return new SymfonyHttpTransport(new MockHttpClient($mockResponse));
+    }
+
+    /**
+     * Build a SymfonyHttpTransport whose mock client captures the Symfony HTTP
+     * options array on every call. Useful for tests asserting on headers, body,
+     * or timeout values forwarded by SymfonyHttpTransport without spelling out
+     * the closure-mock plumbing in each test body.
+     *
+     * @param-out array<string, mixed> $capturedOptions Reference filled with the options array passed to the mock client.
+     * @return SymfonyHttpTransport Configured transport.
+     */
+    private function transportCapturingOptions(array &$capturedOptions): SymfonyHttpTransport
+    {
+        $mockResponse = new MockResponse('{"text":"ok"}', ['http_code' => 200]);
+        $mockHttpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions, $mockResponse): MockResponse {
+            $capturedOptions = $options;
+
+            return $mockResponse;
+        });
+
+        return new SymfonyHttpTransport($mockHttpClient);
+    }
+
+    /**
      * Verifies that post returns decoded JSON.
      *
      * @return void
      */
     public function testPostReturnsDecodedJson(): void
     {
-        $mockResponse = new MockResponse('{"text":"hello","session_id":"s1"}', [
-            'http_code' => 200,
-        ]);
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning('{"text":"hello","session_id":"s1"}');
 
         $result = $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
 
@@ -153,11 +186,7 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testPostThrowsAgentErrorOnHttpError(): void
     {
-        $mockResponse = new MockResponse('{"detail":"Something went wrong"}', [
-            'http_code' => 422,
-        ]);
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning('{"detail":"Something went wrong"}', 422);
 
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessage('Something went wrong');
@@ -172,11 +201,7 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testPostThrowsAgentErrorWithErrorKey(): void
     {
-        $mockResponse = new MockResponse('{"error":"Bad request"}', [
-            'http_code' => 400,
-        ]);
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning('{"error":"Bad request"}', 400);
 
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessage('Bad request');
@@ -191,11 +216,7 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testPostThrowsAgentErrorWithPlainTextBody(): void
     {
-        $mockResponse = new MockResponse('Internal Server Error', [
-            'http_code' => 500,
-        ]);
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning('Internal Server Error', 500);
 
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessage('Internal Server Error');
@@ -255,11 +276,7 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testStreamThrowsAgentErrorOnHttpError(): void
     {
-        $mockResponse = new MockResponse('Server error', [
-            'http_code' => 500,
-        ]);
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning('Server error', 500);
 
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessageMatches('/HTTP 500/');
@@ -429,9 +446,7 @@ class SymfonyHttpTransportTest extends TestCase
     public function testPostErrorIncludesResponseBody(): void
     {
         $body = '{"detail":"Validation failed","errors":[{"field":"name","msg":"required"}]}';
-        $mockResponse = new MockResponse($body, ['http_code' => 422]);
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning($body, 422);
 
         try {
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
@@ -451,9 +466,7 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testPostErrorResponseBodyNullForPlainText(): void
     {
-        $mockResponse = new MockResponse('Internal Server Error', ['http_code' => 500]);
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning('Internal Server Error', 500);
 
         try {
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
@@ -471,9 +484,7 @@ class SymfonyHttpTransportTest extends TestCase
     public function testStreamErrorIncludesResponseBody(): void
     {
         $body = '{"detail":"Stream error","code":"RATE_LIMIT"}';
-        $mockResponse = new MockResponse($body, ['http_code' => 429]);
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning($body, 429);
 
         try {
             $symfonyHttpTransport->stream('http://example.com/stream', [], '{}', 30, 10, function (): void {
@@ -627,11 +638,7 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testPostDoesNotThrowOn399StatusCode(): void
     {
-        $mockResponse = new MockResponse('{"text":"ok"}', [
-            'http_code' => 399,
-        ]);
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning('{"text":"ok"}', 399);
 
         $result = $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
 
@@ -646,13 +653,7 @@ class SymfonyHttpTransportTest extends TestCase
     public function testPostSendsHeadersToSymfony(): void
     {
         $capturedOptions = [];
-        $mockResponse = new MockResponse('{"text":"ok"}', ['http_code' => 200]);
-        $mockHttpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions, $mockResponse) {
-            $capturedOptions = $options;
-
-            return $mockResponse;
-        });
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportCapturingOptions($capturedOptions);
 
         $symfonyHttpTransport->post('http://example.com/invoke', ['X-Custom' => 'test-value'], '{}', 30, 10);
 
@@ -668,13 +669,7 @@ class SymfonyHttpTransportTest extends TestCase
     public function testPostSendsBodyToSymfony(): void
     {
         $capturedOptions = [];
-        $mockResponse = new MockResponse('{"text":"ok"}', ['http_code' => 200]);
-        $mockHttpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions, $mockResponse) {
-            $capturedOptions = $options;
-
-            return $mockResponse;
-        });
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportCapturingOptions($capturedOptions);
 
         $symfonyHttpTransport->post('http://example.com/invoke', [], '{"message":"hi"}', 30, 10);
 
@@ -689,13 +684,7 @@ class SymfonyHttpTransportTest extends TestCase
     public function testPostSendsTimeoutToSymfony(): void
     {
         $capturedOptions = [];
-        $mockResponse = new MockResponse('{"text":"ok"}', ['http_code' => 200]);
-        $mockHttpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions, $mockResponse) {
-            $capturedOptions = $options;
-
-            return $mockResponse;
-        });
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportCapturingOptions($capturedOptions);
 
         $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 45, 5);
 
@@ -710,12 +699,7 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testPostErrorExtractsErrorCode(): void
     {
-        $mockResponse = new MockResponse(
-            '{"detail":"Unauthorized","code":"auth_failed"}',
-            ['http_code' => 401],
-        );
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning('{"detail":"Unauthorized","code":"auth_failed"}', 401);
 
         try {
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
@@ -732,12 +716,7 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testPostErrorExtractsErrorCodeFromAlternateKey(): void
     {
-        $mockResponse = new MockResponse(
-            '{"detail":"Rate limited","error_code":"throttled"}',
-            ['http_code' => 429],
-        );
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning('{"detail":"Rate limited","error_code":"throttled"}', 429);
 
         try {
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
@@ -754,12 +733,7 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testPostErrorCodeIsNullWhenAbsent(): void
     {
-        $mockResponse = new MockResponse(
-            '{"detail":"Server error"}',
-            ['http_code' => 500],
-        );
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning('{"detail":"Server error"}', 500);
 
         try {
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
@@ -776,12 +750,7 @@ class SymfonyHttpTransportTest extends TestCase
      */
     public function testPostErrorCodePrefersCodeOverErrorCode(): void
     {
-        $mockResponse = new MockResponse(
-            '{"detail":"Error","code":"primary_code","error_code":"fallback_code"}',
-            ['http_code' => 400],
-        );
-        $mockHttpClient = new MockHttpClient($mockResponse);
-        $symfonyHttpTransport = new SymfonyHttpTransport($mockHttpClient);
+        $symfonyHttpTransport = $this->transportReturning('{"detail":"Error","code":"primary_code","error_code":"fallback_code"}', 400);
 
         try {
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);

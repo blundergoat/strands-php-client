@@ -154,6 +154,16 @@ class StreamParserTest extends TestCase
 
         $this->assertSame([], $events);
     }
+    /**
+     * Test fixture for testParseToolUseEvent().
+     *
+     * @return string
+     */
+    private function rawForParseToolUseEvent(): string
+    {
+        return "data: {\"type\": \"tool_use\", \"tool_name\": \"search_kb\", \"tool_input\": {\"query\": \"test\"}}\n\n";
+    }
+
 
     /**
      * Verifies that parse tool use event.
@@ -163,7 +173,7 @@ class StreamParserTest extends TestCase
     public function testParseToolUseEvent(): void
     {
         $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"tool_use\", \"tool_name\": \"search_kb\", \"tool_input\": {\"query\": \"test\"}}\n\n";
+        $raw = $this->rawForParseToolUseEvent();
 
         $events = $streamParser->feed($raw);
 
@@ -172,6 +182,16 @@ class StreamParserTest extends TestCase
         $this->assertSame('search_kb', $events[0]->toolName);
         $this->assertSame(['query' => 'test'], $events[0]->toolInput);
     }
+    /**
+     * Test fixture for testParseToolResultEvent().
+     *
+     * @return string
+     */
+    private function rawForParseToolResultEvent(): string
+    {
+        return "data: {\"type\": \"tool_result\", \"tool_name\": \"search_kb\", \"result\": \"some results\"}\n\n";
+    }
+
 
     /**
      * Verifies that parse tool result event.
@@ -181,7 +201,7 @@ class StreamParserTest extends TestCase
     public function testParseToolResultEvent(): void
     {
         $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"tool_result\", \"tool_name\": \"search_kb\", \"result\": \"some results\"}\n\n";
+        $raw = $this->rawForParseToolResultEvent();
 
         $events = $streamParser->feed($raw);
 
@@ -355,6 +375,16 @@ class StreamParserTest extends TestCase
         $this->assertCount(1, $events2);
         $this->assertSame('recovered', $events2[0]->text);
     }
+    /**
+     * Test fixture for testCompleteEventWithMultipleToolsUsed().
+     *
+     * @return string
+     */
+    private function rawForCompleteEventWithMultipleToolsUsed(): string
+    {
+        return "data: {\"type\": \"complete\", \"text\": \"Result\", \"session_id\": \"s1\", \"usage\": {}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100}, {\"name\": \"calc\", \"duration_ms\": 50}]}\n\n";
+    }
+
 
     /**
      * Verifies that complete event with multiple tools used.
@@ -364,7 +394,7 @@ class StreamParserTest extends TestCase
     public function testCompleteEventWithMultipleToolsUsed(): void
     {
         $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"complete\", \"text\": \"Result\", \"session_id\": \"s1\", \"usage\": {}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100}, {\"name\": \"calc\", \"duration_ms\": 50}]}\n\n";
+        $raw = $this->rawForCompleteEventWithMultipleToolsUsed();
 
         $events = $streamParser->feed($raw);
 
@@ -376,6 +406,16 @@ class StreamParserTest extends TestCase
         $this->assertSame('calc', $events[0]->toolsUsed[1]['name']);
         $this->assertSame(50, $events[0]->toolsUsed[1]['duration_ms']);
     }
+    /**
+     * Test fixture for testMultipleDataLinesJoinedWithNewline().
+     *
+     * @return string
+     */
+    private function rawForMultipleDataLinesJoinedWithNewline(): string
+    {
+        return "data: {\"type\": \"text\",\ndata:  \"content\": \"hello\"}\n\n";
+    }
+
 
     /**
      * Verifies that multiple data lines joined with newline.
@@ -386,7 +426,7 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
         // SSE spec: multiple data: lines in one event are joined with newlines
-        $raw = "data: {\"type\": \"text\",\ndata:  \"content\": \"hello\"}\n\n";
+        $raw = $this->rawForMultipleDataLinesJoinedWithNewline();
 
         $events = $streamParser->feed($raw);
 
@@ -816,6 +856,16 @@ class StreamParserTest extends TestCase
 
         $this->assertFalse($streamEvent->hasObjective);
     }
+    /**
+     * Test fixture for testToolsUsedFiltersMalformedEntries().
+     *
+     * @return string
+     */
+    private function rawForToolsUsedFiltersMalformedEntries(): string
+    {
+        return "data: {\"type\": \"complete\", \"text\": \"Done\", \"session_id\": null, \"usage\": {}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100}, {\"no_name\": true}, \"not_array\", {\"name\": 123}]}\n\n";
+    }
+
 
     /**
      * Verifies that tools used filters malformed entries.
@@ -825,7 +875,7 @@ class StreamParserTest extends TestCase
     public function testToolsUsedFiltersMalformedEntries(): void
     {
         $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"complete\", \"text\": \"Done\", \"session_id\": null, \"usage\": {}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100}, {\"no_name\": true}, \"not_array\", {\"name\": 123}]}\n\n";
+        $raw = $this->rawForToolsUsedFiltersMalformedEntries();
 
         $events = $streamParser->feed($raw);
 
