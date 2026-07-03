@@ -31,6 +31,11 @@ class StrandsClientFactory
     private readonly array $responseObservers;
 
     /**
+     * Hold the app's agent configs plus shared middleware and observers.
+     *
+     * The framework integration builds this once from config; create() then
+     * makes a ready client per named agent on demand.
+     *
      * @param array<string, array{
      *     endpoint: string,
      *     auth: array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string},
@@ -67,8 +72,8 @@ class StrandsClientFactory
     /**
      * Create a StrandsClient for the given agent name.
      *
-     * @param string $agentName Configured agent selected by app code.
-     * @return StrandsClient Value returned to app code.
+     * @param string $agentName Which configured agent to build a client for (e.g. "support").
+     * @return StrandsClient A ready client wired to that agent's endpoint, auth, and timeouts.
      * @throws \InvalidArgumentException  If the agent name doesn't exist in the configuration.
      */
     public function create(string $agentName): StrandsClient
@@ -103,10 +108,10 @@ class StrandsClientFactory
     }
 
     /**
-     * Supports the resolve auth step in the app-facing flow.
+     * Turn the agent's `auth` config block into the matching auth strategy.
      *
      * @param array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string, region?: string, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null} $authConfig Framework auth settings for the selected agent.
-     * @return AuthStrategy Value returned to app code.
+     * @return AuthStrategy Strategy the client uses to sign every request (NullAuth, ApiKeyAuth, or SigV4Auth).
      */
     private function resolveAuth(array $authConfig): AuthStrategy
     {
@@ -122,15 +127,16 @@ class StrandsClientFactory
     }
 
     /**
-     * Supports the create api key auth step in the app-facing flow.
+     * Build API-key auth from the agent config (the common hosted-endpoint case).
      *
      * @param array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string} $authConfig Framework auth settings for the selected agent.
-     * @return ApiKeyAuth Value returned to app code.
+     * @return ApiKeyAuth Strategy that attaches the configured API key to every request.
      */
     private function createApiKeyAuth(array $authConfig): ApiKeyAuth
     {
         $apiKey = $authConfig['api_key'] ?? null;
 
+        // The app chose the api_key driver but left the key blank — fail loudly at boot.
         if ($apiKey === null || $apiKey === '') {
             throw new \InvalidArgumentException(
                 'The "api_key" option is required when using the "api_key" auth driver.',
@@ -145,15 +151,16 @@ class StrandsClientFactory
     }
 
     /**
-     * Supports the create sig v4auth step in the app-facing flow.
+     * Build AWS SigV4 auth from the agent config (for IAM-protected endpoints).
      *
      * @param array{driver: string, region?: string, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null} $authConfig Framework auth settings for the selected agent.
-     * @return SigV4Auth Value returned to app code.
+     * @return SigV4Auth Strategy that signs every request with an AWS SigV4 signature.
      */
     private function createSigV4Auth(array $authConfig): SigV4Auth
     {
         $region = $authConfig['region'] ?? null;
 
+        // SigV4 signatures are scoped to a region, so a blank region can't work.
         if ($region === null || $region === '') {
             throw new \InvalidArgumentException(
                 'The "region" option is required when using the "sigv4" auth driver.',
@@ -178,6 +185,7 @@ class StrandsClientFactory
             );
         }
 
+        // Both keys were supplied inline (e.g. from a secrets manager) — use them directly.
         if ($hasAccessKey && $hasSecretKey) {
             /** @var string $accessKeyId validated before app code uses it. */
             /** @var string $secretAccessKey validated before app code uses it. */

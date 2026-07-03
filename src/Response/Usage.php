@@ -5,11 +5,19 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response;
 
 /**
- * Token usage and performance statistics for an agent request/response.
+ * Token counts and timing for a single agent request/response.
+ *
+ * This is what an app reads to show "cost" and speed: how many tokens the turn
+ * consumed (including cache reads/writes) and how long the agent took. All
+ * fields default to zero, so a response that omits usage is still safe to read.
  */
 class Usage
 {
     /**
+     * Hold the token and timing counts for one turn.
+     *
+     * Usually built by fromArray() from the response's usage block.
+     *
      * @param int $inputTokens            Number of input tokens processed.
      * @param int $outputTokens           Number of output tokens generated.
      * @param int $cacheReadInputTokens   Input tokens served from cache.
@@ -32,10 +40,11 @@ class Usage
     /**
      * Total tokens consumed (input + output).
      *
-     * @return int number used by the app or telemetry layer.
+     * @return int Total tokens consumed, for the app's usage/cost readout.
      */
     public function totalTokens(): int
     {
+        // Prefer the server's own total when it sent one; otherwise add the two halves.
         if ($this->totalTokens > 0) {
             return $this->totalTokens;
         }
@@ -46,7 +55,7 @@ class Usage
     /**
      * Create a Usage instance from a raw usage array (e.g. from API response).
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
@@ -63,25 +72,31 @@ class Usage
     }
 
     /**
-     * Supports the int field step in the app-facing flow.
+     * Read one token/timing count, tolerating the wire's numeric quirks.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * Wrappers differ in how they spell and type these fields, so this accepts
+     * snake_case or camelCase and coerces int/float/numeric-string alike.
+     *
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      * @param string $snakeKey Snake-case usage field from the wire payload.
-     * @param ?string $camelKey Camel-case fallback usage field from older payloads.
-     * @return int number used by the app or telemetry layer.
+     * @param ?string $camelKey Camel-case fallback field from older payloads; null when there's no fallback to try.
+     * @return int Count the app shows as usage, or 0 when the field is missing.
      */
     private static function intField(array $data, string $snakeKey, ?string $camelKey = null): int
     {
         $value = $data[$snakeKey] ?? ($camelKey !== null ? ($data[$camelKey] ?? 0) : 0);
 
+        // Already a clean integer — the common case, hand it straight back.
         if (is_int($value)) {
             return $value;
         }
 
+        // Some wrappers report counts as floats; round to whole tokens.
         if (is_float($value)) {
             return (int) round($value);
         }
 
+        // Others send counts as numeric strings (e.g. "1024"); accept those too.
         if (is_string($value) && is_numeric($value)) {
             return (int) round((float) $value);
         }

@@ -14,6 +14,10 @@ namespace StrandsPhpClient\Response;
 final readonly class InterruptDetail
 {
     /**
+     * Hold one interrupt the agent raised — a pause awaiting the user.
+     *
+     * Usually built by fromArray(); call toResumeInput() to send the user's answer back.
+     *
      * @param string      $toolName     The tool that raised the interrupt.
      * @param array<string, mixed> $toolInput  The input/arguments the tool was called with.
      * @param string|null $toolUseId    Unique ID for the tool invocation (for resume).
@@ -37,13 +41,15 @@ final readonly class InterruptDetail
      *
      * @param mixed $response  The approval/denial value to send back (e.g. 'Approved', ['action' => 'allow']).
      *
-     * @return \StrandsPhpClient\Context\AgentInput Value returned to app code.
+     * @return \StrandsPhpClient\Context\AgentInput Input that resumes the paused turn with the user's answer.
      * @throws \LogicException If neither interruptId nor toolUseId is available.
      */
     public function toResumeInput(mixed $response): \StrandsPhpClient\Context\AgentInput
     {
         $id = $this->interruptId ?? $this->toolUseId;
 
+        // Without an id we can't tell the agent which pause the user is answering,
+        // so refuse now rather than send a blank id and get a confusing server error.
         if ($id === null) {
             throw new \LogicException(
                 'Cannot resume: InterruptDetail has neither interruptId nor toolUseId.',
@@ -54,9 +60,9 @@ final readonly class InterruptDetail
     }
 
     /**
-     * Hydrates caller-facing data from the agent response.
+     * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self

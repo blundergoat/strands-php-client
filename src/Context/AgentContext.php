@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Context;
 
 /**
- * Immutable builder for application context sent to agents.
+ * Immutable builder for the background an app attaches to an agent turn.
  *
- * All mutation methods return a new instance (clone-and-mutate pattern).
+ * Collects the system prompt, informational permissions, documents, and
+ * arbitrary metadata/structured data the agent should see alongside the user's
+ * message. Every with* method returns a new instance (clone-and-mutate), so a
+ * base context can be shared and safely specialised per request.
  */
 class AgentContext
 {
@@ -44,10 +47,10 @@ class AgentContext
     }
 
     /**
-     * Supports the with metadata step in the app-facing flow.
+     * Attach a custom key/value the agent can see (e.g. the signed-in user's plan tier).
      *
-     * @param string $key Payload field name being read or written.
-     * @param mixed $value Payload value stored for the agent call.
+     * @param string $key Metadata field name the agent will receive.
+     * @param mixed $value Metadata value stored for this agent call.
      * @return self  A new instance with the metadata added.
      */
     public function withMetadata(string $key, mixed $value): self
@@ -59,7 +62,7 @@ class AgentContext
     }
 
     /**
-     * Supports the with system prompt step in the app-facing flow.
+     * Set the system instruction that steers how the agent answers this turn.
      *
      * @param string $systemPrompt System instruction sent with the agent turn.
      * @return self  A new instance with the system prompt set.
@@ -88,6 +91,8 @@ class AgentContext
     }
 
     /**
+     * Attach a document the agent can read as background for this turn.
+     *
      * @param string $name           Document name (e.g. 'report.pdf').
      * @param string $base64Content  Base64-encoded content.
      * @param string $mimeType       MIME type (e.g. 'application/pdf').
@@ -107,10 +112,10 @@ class AgentContext
     }
 
     /**
-     * Supports the with structured data step in the app-facing flow.
+     * Attach structured data (e.g. a cart or user profile) for the agent to reason over.
      *
-     * @param string $key Payload field name being read or written.
-     * @param mixed $value Payload value stored for the agent call.
+     * @param string $key Structured-data field name the agent will receive.
+     * @param mixed $value Structured-data value stored for this agent call.
      * @return self  A new instance with the structured data added.
      */
     public function withStructuredData(string $key, mixed $value): self
@@ -130,22 +135,28 @@ class AgentContext
     {
         $context = [];
 
+        // Send only the sections the app actually set, so the agent payload stays lean.
+        // A custom system prompt overrides the agent's default persona for this turn.
         if ($this->systemPrompt !== null) {
             $context['system_prompt'] = $this->systemPrompt;
         }
 
+        // Extra metadata the app tagged the request with (feature flags, user tier, ...).
         if ($this->metadata !== []) {
             $context['metadata'] = $this->metadata;
         }
 
+        // Informational permission labels the agent may mention but must not rely on.
         if ($this->permissions !== []) {
             $context['permissions'] = $this->permissions;
         }
 
+        // Documents the user supplied as background reading for this turn.
         if ($this->documents !== []) {
             $context['documents'] = $this->documents;
         }
 
+        // Structured records (cart, profile, ...) the agent can reason over.
         if ($this->structuredData !== []) {
             $context['structured_data'] = $this->structuredData;
         }

@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response;
 
 /**
- * Optional metadata attached to a wrapper-normalized agent message.
+ * Optional per-message extras a wrapper can attach to an agent message.
+ *
+ * Carries token usage for this specific message plus any metrics or app-owned
+ * custom fields the wrapper added. Apps use it for per-message cost readouts or
+ * debugging; it stays null whenever the wrapper sent no such details.
  */
 class MessageMetadata
 {
@@ -14,7 +18,7 @@ class MessageMetadata
      *
      * @param array<string, mixed> $metrics numeric or timing metadata from the wrapper.
      * @param array<string, mixed> $custom app-owned metadata from the wrapper.
-     * @param ?Usage $usage optional token usage attached to the message.
+     * @param ?Usage $usage Token usage for this message; null when the message carried none.
      */
     public function __construct(
         public readonly ?Usage $usage = null,
@@ -24,9 +28,9 @@ class MessageMetadata
     }
 
     /**
-     * Hydrates caller-facing data from the agent response.
+     * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
@@ -54,12 +58,15 @@ class MessageMetadata
      */
     private static function stringKeyedArray(mixed $value): ?array
     {
+        // No such section on the message means there is nothing for the app to read.
         if (!is_array($value)) {
             return null;
         }
 
         $result = [];
+        // Keep only string keys so the app always gets a predictable name => value map.
         foreach ($value as $key => $item) {
+            // Drop any stray numeric keys the wrapper may have mixed in.
             if (is_string($key)) {
                 $result[$key] = $item;
             }

@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Streaming;
 
 /**
- * A callback handler that prints text events to stdout and errors to stderr.
+ * A ready-made stream handler that prints the answer as it arrives.
+ *
+ * Drop this into StrandsClient::stream() to echo streamed text to stdout (and
+ * errors to stderr) — handy for CLI tools and quick demos. Pass custom writers
+ * to redirect output elsewhere, such as a log file or a test buffer.
  */
 class PrintingCallbackHandler extends StreamCallbackHandler
 {
@@ -16,7 +20,7 @@ class PrintingCallbackHandler extends StreamCallbackHandler
     private readonly ?\Closure $errorWriter;
 
     /**
-     * Supports the __construct step in the app-facing flow.
+     * Choose where streamed text and errors are written (defaults to stdout/stderr).
      *
      * @param callable(string): void|null $outputWriter Writer used to show streamed text to the user.
      * @param callable(string): void|null $errorWriter Writer used to show stream errors to the user.
@@ -77,6 +81,7 @@ class PrintingCallbackHandler extends StreamCallbackHandler
      */
     private function writeOutput(string $message): void
     {
+        // Use the app's custom writer when one was supplied; otherwise print to stdout.
         if ($this->outputWriter !== null) {
             ($this->outputWriter)($message);
 
@@ -94,6 +99,7 @@ class PrintingCallbackHandler extends StreamCallbackHandler
      */
     private function writeError(string $message): void
     {
+        // Use the app's custom error writer when one was supplied; otherwise use stderr.
         if ($this->errorWriter !== null) {
             ($this->errorWriter)($message);
 

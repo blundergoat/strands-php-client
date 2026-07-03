@@ -28,6 +28,11 @@ class PsrHttpTransport implements HttpTransport
     private bool $timeoutWarningLogged = false;
 
     /**
+     * Wire up a PSR-18 transport from the app's own HTTP client and factories.
+     *
+     * Use this for invoke-only setups where streaming isn't needed; pass the
+     * resulting transport to the StrandsClient constructor.
+     *
      * @param ClientInterface         $httpClient      PSR-18 HTTP client.
      * @param RequestFactoryInterface $requestFactory  PSR-7 request factory.
      * @param StreamFactoryInterface  $streamFactory   PSR-7 stream factory.
@@ -58,6 +63,7 @@ class PsrHttpTransport implements HttpTransport
      */
     public function post(string $url, array $headers, string $body, int $timeout, int $connectTimeout): array
     {
+        // PSR-18 clients own their own timeouts, so warn once that our values are ignored.
         if (!$this->timeoutWarningLogged) {
             $this->timeoutWarningLogged = true;
             $this->logger->notice(
@@ -70,6 +76,7 @@ class PsrHttpTransport implements HttpTransport
         try {
             $request = $this->requestFactory->createRequest('POST', $url);
 
+            // Copy every auth/content header onto the request before it goes out.
             foreach ($headers as $name => $value) {
                 $request = $request->withHeader($name, $value);
             }
@@ -84,10 +91,12 @@ class PsrHttpTransport implements HttpTransport
             $content = (string) $response->getBody();
             $data = json_decode($content, true);
 
+            // Any 4xx/5xx means the agent rejected the request — surface it as a typed error.
             if ($statusCode >= 400) {
                 throw AgentErrorException::fromHttpResponse($statusCode, $content, $data);
             }
 
+            // A 2xx that isn't a JSON object means a broken/proxy response, not a real answer.
             if (!is_array($data)) {
                 throw new StrandsException(sprintf(
                     'Expected JSON object from %s, got %s',

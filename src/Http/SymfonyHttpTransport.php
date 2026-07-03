@@ -59,10 +59,12 @@ class SymfonyHttpTransport implements HttpTransport
             $content = $response->getContent(false);
             $data = json_decode($content, true);
 
+            // Any 4xx/5xx means the agent rejected the request — surface it as a typed error.
             if ($statusCode >= 400) {
                 throw AgentErrorException::fromHttpResponse($statusCode, $content, $data);
             }
 
+            // A 2xx that isn't a JSON object means a broken/proxy response, not a real answer.
             if (!is_array($data)) {
                 throw new StrandsException(sprintf(
                     'Expected JSON object from %s, got %s',
@@ -84,7 +86,7 @@ class SymfonyHttpTransport implements HttpTransport
     }
 
     /**
-     * Supports the stream step in the app-facing flow.
+     * Open a live SSE connection and push each chunk to the app as it arrives.
      *
      * @param string               $url             The URL to POST to.
      * @param array<string, string> $headers         Headers to include.
@@ -108,19 +110,24 @@ class SymfonyHttpTransport implements HttpTransport
             ]);
 
             $statusCode = $response->getStatusCode();
+            // Reject up front on an error status so the user sees a clear failure, not a dead stream.
             if ($statusCode >= 400) {
                 $content = $response->getContent(false);
                 throw AgentErrorException::fromHttpResponse($statusCode, $content, json_decode($content, true));
             }
 
+            // Pull chunks as the agent produces them — this is what makes the answer appear live.
             foreach ($this->httpClient->stream($response, $timeout) as $chunk) {
+                // A gap longer than the idle timeout means the stream stalled; stop waiting.
                 if ($chunk->isTimeout()) {
                     throw new StreamInterruptedException('Stream timed out');
                 }
 
                 $content = $chunk->getContent();
 
+                // Forward only non-empty chunks (Symfony also emits empty control chunks).
                 if ($content !== '') {
+                    // The app returns false to stop early (e.g. the user hit "stop generating").
                     if ($onChunk($content) === false) {
                         $response->cancel();
 
@@ -128,6 +135,7 @@ class SymfonyHttpTransport implements HttpTransport
                     }
                 }
 
+                // The final chunk marks a clean end of the answer.
                 if ($chunk->isLast()) {
                     break;
                 }

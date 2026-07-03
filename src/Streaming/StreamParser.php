@@ -60,12 +60,15 @@ class StreamParser
 
         $events = [];
 
+        // An SSE event ends at a blank line ("\n\n"); pull out each complete one the
+        // buffer holds and leave any half-received trailing event for the next feed().
         while (($position = strpos($this->buffer, "\n\n")) !== false) {
             $rawEvent = substr($this->buffer, 0, $position);
             $this->buffer = substr($this->buffer, $position + 2);
 
             $event = $this->parseEvent($rawEvent);
 
+            // Only hand real, recognised events to the app; skipped ones come back null.
             if ($event !== null) {
                 $events[] = $event;
             }
@@ -81,17 +84,20 @@ class StreamParser
      * with "data:" contain the JSON payload.
      *
      * @param string $rawEvent Raw SSE event block received from the stream.
-     * @return ?StreamEvent Value returned to app code.
+     * @return ?StreamEvent The parsed event, or null when the block was a heartbeat or unknown type (skipped).
      */
     private function parseEvent(string $rawEvent): ?StreamEvent
     {
         $dataLines = [];
 
+        // Walk the event's lines, keeping the payload and ignoring SSE bookkeeping.
         foreach (explode("\n", $rawEvent) as $line) {
+            // Lines starting with ":" are heartbeat/comment lines — nothing to display.
             if (str_starts_with($line, ':')) {
                 continue;
             }
 
+            // The actual payload rides on "data:" lines (with or without the space).
             if (str_starts_with($line, 'data: ')) {
                 $dataLines[] = substr($line, 6);
             } elseif (str_starts_with($line, 'data:')) {
@@ -101,6 +107,7 @@ class StreamParser
 
         $data = implode("\n", $dataLines);
 
+        // A comment-only event (e.g. a keep-alive) carries no data — nothing to emit.
         if ($data === '') {
             return null;
         }
@@ -115,6 +122,7 @@ class StreamParser
             return null;
         }
 
+        // A payload that isn't a typed object can't become an event; skip it and count it.
         if (!is_array($decoded) || !isset($decoded['type'])) {
             $this->skippedEvents++;
 
@@ -125,6 +133,7 @@ class StreamParser
         // ensuring forward compatibility with new server-side event types.
         /** @var array<string, mixed> $decoded validated before app code uses it. */
         $event = StreamEvent::tryFromArray($decoded);
+        // A type this client doesn't know yet (newer server) is skipped, not fatal.
         if ($event === null) {
             $this->skippedEvents++;
 

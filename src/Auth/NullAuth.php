@@ -7,7 +7,9 @@ namespace StrandsPhpClient\Auth;
 /**
  * No-op authentication strategy for local development.
  *
- * Returns headers unchanged. Used by default when no auth is configured.
+ * Passes request headers through untouched — for an agent that needs no
+ * credentials, typically a local dev endpoint. This is the default when no auth
+ * is configured, so the client works out of the box without any setup.
  */
 class NullAuth implements AuthStrategy
 {

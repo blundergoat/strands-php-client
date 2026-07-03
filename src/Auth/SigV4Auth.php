@@ -30,6 +30,11 @@ class SigV4Auth implements AuthStrategy
     private ?string $sessionToken;
 
     /**
+     * Configure AWS SigV4 signing with explicit credentials.
+     *
+     * Usually built from config or via fromEnvironment(); the client then signs
+     * every request so an IAM-protected agent endpoint accepts it.
+     *
      * @param string      $accessKeyId      AWS access key ID.
      * @param string      $secretAccessKey   AWS secret access key.
      * @param string      $region            AWS region (e.g. 'us-east-1').
@@ -61,17 +66,22 @@ class SigV4Auth implements AuthStrategy
      */
     public static function fromEnvironment(string $region, string $service = 'execute-api'): self
     {
+        // Read the standard AWS credential env vars the app's host or container provides.
         $accessKeyId = getenv('AWS_ACCESS_KEY_ID');
         $secretAccessKey = getenv('AWS_SECRET_ACCESS_KEY');
 
+        // No access key means the app never wired up AWS auth — fail loudly at startup
+        // instead of letting every agent call come back as a 403 later.
         if ($accessKeyId === false || $accessKeyId === '') {
             throw new \RuntimeException('AWS_ACCESS_KEY_ID environment variable is not set');
         }
 
+        // Same for the secret half of the credential pair.
         if ($secretAccessKey === false || $secretAccessKey === '') {
             throw new \RuntimeException('AWS_SECRET_ACCESS_KEY environment variable is not set');
         }
 
+        // Present only when the app runs on temporary (assumed-role/STS) credentials.
         $sessionToken = getenv('AWS_SESSION_TOKEN');
 
         return new self(
@@ -105,9 +115,9 @@ class SigV4Auth implements AuthStrategy
         $port = $parsed['port'] ?? null;
         $scheme = $parsed['scheme'] ?? 'https';
 
-        // Per AWS SigV4 spec, the Host header must include the port
-        // if it is not the default for the scheme (80 for http, 443 for https).
         $host = $hostname;
+        // Append the port only when it is non-default: the agent's gateway recomputes
+        // this exact Host to check the signature, so a mismatch rejects the request.
         if ($port !== null && !(($scheme === 'https' && $port === 443) || ($scheme === 'http' && $port === 80))) {
             $host .= ':' . $port;
         }
@@ -131,12 +141,14 @@ class SigV4Auth implements AuthStrategy
             'x-amz-date' => $amzDate,
         ];
 
+        // Temporary (STS) credentials also carry a session token that must be signed.
         if ($this->sessionToken !== null) {
             $signingHeaders['x-amz-security-token'] = $this->sessionToken;
         }
 
-        // Add content-type if present in original headers
+        // Fold in Content-Type when the app set one — it is part of the signature.
         foreach ($headers as $name => $value) {
+            // Only Content-Type is signed here; every other app header is ignored.
             if (strtolower($name) === 'content-type') {
                 $signingHeaders['content-type'] = $value;
             }
@@ -147,6 +159,7 @@ class SigV4Auth implements AuthStrategy
 
         $canonicalHeaders = '';
         $signedHeaderNames = [];
+        // Flatten the sorted headers into the exact text block AWS re-hashes to verify us.
         foreach ($signingHeaders as $key => $value) {
             $canonicalHeaders .= $key . ':' . trim($value) . "\n";
             $signedHeaderNames[] = $key;
@@ -193,6 +206,7 @@ class SigV4Auth implements AuthStrategy
         $headers['X-Amz-Date'] = $amzDate;
         $headers['X-Amz-Content-Sha256'] = $payloadHash;
 
+        // Send the session token as a real header too, so it matches what we signed.
         if ($this->sessionToken !== null) {
             $headers['X-Amz-Security-Token'] = $this->sessionToken;
         }
@@ -239,13 +253,14 @@ class SigV4Auth implements AuthStrategy
      */
     private function normalizePath(string $path): string
     {
+        // Root path signs as "/"; there is nothing to normalize.
         if ($path === '' || $path === '/') {
             return '/';
         }
 
-        // URI-encode each path segment, then rejoin
         $segments = explode('/', $path);
         $normalized = [];
+        // Re-encode each segment so our signed path matches AWS's byte-for-byte.
         foreach ($segments as $segment) {
             $normalized[] = rawurlencode(rawurldecode($segment));
         }
@@ -257,15 +272,17 @@ class SigV4Auth implements AuthStrategy
      * Canonicalize the query string: sort by parameter name, URI-encode keys and values.
      *
      * @param string $queryString request query used to produce a stable signature.
-     * @return string text value used in the caller-facing agent flow.
+     * @return string Canonical query string folded into the AWS signature.
      */
     private function canonicalizeQueryString(string $queryString): string
     {
+        // Most agent calls are POSTs with no query string — nothing to canonicalize.
         if ($queryString === '') {
             return '';
         }
 
         $params = [];
+        // Sort and re-encode every query param so the signature is order-independent.
         foreach (explode('&', $queryString) as $pair) {
             $parts = explode('=', $pair, 2);
             $key = rawurlencode(rawurldecode($parts[0]));

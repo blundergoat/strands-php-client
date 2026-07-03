@@ -9,14 +9,19 @@ use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 /**
- * Configuration tree (schema) for the "strands:" config key.
+ * Defines and validates the shape of the app's `strands:` config.
+ *
+ * Symfony uses this schema to check the bundle config an app writes in YAML:
+ * which agents exist and, for each, its endpoint, auth driver, timeouts, and
+ * retry policy. Bad or missing values are rejected at container-compile time,
+ * so misconfiguration surfaces at deploy rather than on the first user request.
  */
 class Configuration implements ConfigurationInterface
 {
     /**
-     * Supports the get config tree builder step in the app-facing flow.
+     * Build the validation schema Symfony applies to the app's `strands:` config.
      *
-     * @return TreeBuilder Value returned to app code.
+     * @return TreeBuilder The config tree Symfony validates the app's YAML against.
      */
     public function getConfigTreeBuilder(): TreeBuilder
     {
@@ -70,7 +75,7 @@ class Configuration implements ConfigurationInterface
      *   'api_key' - ApiKeyAuth (sends API key in an HTTP header)
      *   'sigv4'   - SigV4Auth (AWS Signature V4 for IAM-protected endpoints)
      *
-     * @return ArrayNodeDefinition payload shape passed to the agent, framework, or observer.
+     * @return ArrayNodeDefinition The `auth` sub-schema (driver plus its per-driver options).
      */
     private function authNode(): ArrayNodeDefinition
     {
@@ -130,7 +135,7 @@ class Configuration implements ConfigurationInterface
      * @param int    $default      The default value in seconds
      * @param string $description  Human-readable description
      *
-     * @return \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition Value returned to app code.
+     * @return \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition A validated seconds-based timeout node (minimum 1).
      */
     private function timeoutNode(string $name, int $default, string $description): \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition
     {

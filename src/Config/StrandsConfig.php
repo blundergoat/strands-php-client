@@ -1,11 +1,5 @@
 <?php
 
-/**
- * Configuration settings for connecting to a Strands agent.
- *
- * Holds the agent URL, authentication strategy, timeouts, and retry behaviour.
- */
-
 declare(strict_types=1);
 
 namespace StrandsPhpClient\Config;
@@ -14,11 +8,21 @@ use StrandsPhpClient\Auth\AuthStrategy;
 use StrandsPhpClient\Auth\NullAuth;
 
 /**
- * Configuration for connecting to a Strands agent.
+ * Everything the client needs to reach one Strands agent.
+ *
+ * Bundles the agent's endpoint URL, how to authenticate, how long to wait, and
+ * how to retry transient failures — the single object an app builds (directly or
+ * from Laravel/Symfony config) and hands to the client. Values are validated on
+ * construction so a misconfigured agent fails fast at startup, not mid-request.
  */
 class StrandsConfig
 {
     /**
+     * Assemble one agent's connection settings, validating them up front.
+     *
+     * The app builds this directly or from Laravel/Symfony config, then hands it
+     * to the client; bad values throw here so a misconfigured agent fails at startup.
+     *
      * @param string       $endpoint       The full URL of the Strands agent API.
      * @param AuthStrategy $auth           Authentication strategy (default: NullAuth).
      * @param int          $timeout        Response timeout in seconds (default: 120).
@@ -63,6 +67,8 @@ class StrandsConfig
         $parts = parse_url($endpoint);
         $scheme = is_array($parts) ? ($parts['scheme'] ?? null) : null;
 
+        // Accept only an absolute http(s) URL with a host — this is the address the
+        // app's agent actually lives at (e.g. STRANDS_ENDPOINT=http://localhost:8081).
         if (is_array($parts) && isset($parts['host']) && in_array($scheme, ['http', 'https'], true)) {
             return;
         }
@@ -83,6 +89,7 @@ class StrandsConfig
      */
     private static function assertMinimum(string $name, int $value, int $min): void
     {
+        // Meets the floor, so this timeout/retry value is safe to use as configured.
         if ($value >= $min) {
             return;
         }
@@ -104,6 +111,7 @@ class StrandsConfig
      */
     private static function assertRange(string $name, int $value, int $min, int $max): void
     {
+        // Sits inside the allowed band, so accept the value the app configured.
         if ($value >= $min && $value <= $max) {
             return;
         }
@@ -125,7 +133,10 @@ class StrandsConfig
      */
     private static function assertRetryableStatusCodes(array $retryableStatusCodes): void
     {
+        // Vet every status code the app asked us to retry on before we trust it.
         foreach ($retryableStatusCodes as $statusCode) {
+            // Only genuine 4xx/5xx failures are worth retrying; anything else is a
+            // config mistake (retrying a 200 would turn a success into an error).
             if ($statusCode >= 400 && $statusCode <= 599) {
                 continue;
             }

@@ -14,12 +14,17 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpKernel\DependencyInjection\Extension;
 
 /**
- * Symfony DI extension that registers Strands agent clients as services.
+ * Turns the app's validated `strands:` config into real container services.
+ *
+ * Runs once while Symfony compiles the container: it reads each configured
+ * agent, registers a "strands.client.<name>" service for it, aliases the first
+ * as the default StrandsClient, and auto-tags app middleware/observers so they
+ * are injected into every client.
  */
 class StrandsExtension extends Extension
 {
     /**
-     * Supports the load step in the app-facing flow.
+     * Register a client service per configured agent as the container compiles.
      *
      * @param array<int, array<string, mixed>> $configs Symfony config arrays merged for the app.
      * @param ContainerBuilder $container Symfony container receiving client services.
@@ -33,6 +38,7 @@ class StrandsExtension extends Extension
         /** @var array<string, array<string, mixed>> $agents validated before app code uses it. */
         $agents = is_array($config['agents'] ?? null) ? $config['agents'] : [];
 
+        // No agents configured means the app isn't using Strands yet — register nothing.
         if ($agents === []) {
             return;
         }
@@ -51,6 +57,7 @@ class StrandsExtension extends Extension
 
         $firstServiceId = null;
 
+        // Register one injectable client service per configured agent.
         foreach (array_keys($agents) as $name) {
             $serviceId = 'strands.client.' . (string) $name;
 

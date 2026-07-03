@@ -5,12 +5,17 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Http;
 
 /**
- * Interface for HTTP transport implementations.
+ * The seam that carries a request to the agent and brings the answer back.
+ *
+ * StrandsClient talks only to this interface, so the app can swap how calls
+ * actually travel — Symfony's client for live streaming, or any PSR-18 client
+ * for plain invoke — without changing a line of calling code. Implementations
+ * own timeouts, connection handling, and turning HTTP errors into exceptions.
  */
 interface HttpTransport
 {
     /**
-     * Send a POST request and return the decoded response body.
+     * Send one request and hand back the agent's answer — the backbone of invoke().
      *
      * @param string               $url             The full URL to POST to.
      * @param array<string, string> $headers         HTTP headers to include.
@@ -18,7 +23,7 @@ interface HttpTransport
      * @param int                  $timeout         Maximum seconds for the overall request.
      * @param int                  $connectTimeout  Maximum seconds to wait for the initial connection.
      *
-     * @return array<string, mixed>  The decoded JSON response.
+     * @return array<string, mixed>  The decoded JSON response; empty only if the agent returned no fields.
      */
     public function post(string $url, array $headers, string $body, int $timeout, int $connectTimeout): array;
 

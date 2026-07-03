@@ -45,6 +45,11 @@ class StrandsClient
     private readonly array $responseObservers;
 
     /**
+     * Wire up the client for one agent.
+     *
+     * The app builds this (directly or via the Laravel/Symfony integration), then
+     * calls invoke()/stream()/postJson()/streamSse() on it to talk to the agent.
+     *
      * @param StrandsConfig              $config      Agent endpoint, auth, timeouts, retry settings.
      * @param HttpTransport|null         $transport   HTTP transport (auto-detected if null).
      * @param LoggerInterface|null       $logger      PSR-3 logger (NullLogger if null).
@@ -68,9 +73,9 @@ class StrandsClient
      * Send a message and wait for the complete response.
      *
      * @param string|AgentInput  $message         The message (or rich input) to send to the agent.
-     * @param AgentContext|null  $context         Optional extra context (system prompts, metadata).
-     * @param string|null        $sessionId       Optional session ID to continue a conversation.
-     * @param int|null           $timeoutSeconds  Override the config timeout for this request only.
+     * @param AgentContext|null  $context         Extra context (system prompts, metadata); null sends just the message.
+     * @param string|null        $sessionId       Session to continue; null starts a brand-new conversation.
+     * @param int|null           $timeoutSeconds  Per-request timeout override; null uses the configured default.
      *
      * @return AgentResponse parsed agent result the app can render or inspect.
      *
@@ -130,9 +135,9 @@ class StrandsClient
      *
      * @param string|AgentInput  $message         The message (or rich input) to send to the agent.
      * @param callable(StreamEvent): (void|bool) $onEvent  Called for each event as it arrives. Return false to cancel.
-     * @param AgentContext|null  $context         Optional extra context.
-     * @param string|null        $sessionId       Optional session ID.
-     * @param int|null           $timeoutSeconds  Override the config timeout for this request only.
+     * @param AgentContext|null  $context         Extra context; null sends just the message.
+     * @param string|null        $sessionId       Session to continue; null starts a brand-new conversation.
+     * @param int|null           $timeoutSeconds  Per-request timeout override; null uses the configured default.
      *
      * @return StreamResult stream summary the app can use after live updates finish.
      *
@@ -148,6 +153,7 @@ class StrandsClient
     ): StreamResult {
         self::validateMessage($message);
 
+        // The app may bind this to a per-request UI control; reject values too small to ever answer.
         if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
             throw new \InvalidArgumentException('timeoutSeconds must be at least 1');
         }
@@ -185,11 +191,13 @@ class StrandsClient
 
                 $events = $streamParser->feed($chunk);
 
+                // One network chunk can carry several events; hand each to the app in order.
                 foreach ($events as $event) {
                     $totalEvents++;
 
                     // Text events are what a chat UI would append token-by-token while the user waits.
                     if ($event->type === StreamEventType::Text && $event->text !== null) {
+                        // Stamp the first token's arrival so we can report "time to first word".
                         if ($firstTextTokenTime === null) {
                             $firstTextTokenTime = hrtime(true);
                         }
@@ -202,9 +210,11 @@ class StrandsClient
                         $citations[] = $event->citation;
                     }
 
+                    // A terminal event means the agent is done (or errored) — remember that.
                     if ($event->isTerminal()) {
                         $receivedTerminal = true;
 
+                        // Keep the Complete event; it carries the final usage, tools, and session id.
                         if ($event->type === StreamEventType::Complete) {
                             $completeEvent = $event;
                         }
@@ -230,6 +240,8 @@ class StrandsClient
 
         $durationMs = (hrtime(true) - $startTime) / 1e6;
 
+        // Stream ended with no "done" signal and the user didn't stop it — the
+        // connection likely dropped mid-answer, so tell the caller it was interrupted.
         if (!$receivedTerminal && !$cancelled) {
             $streamInterruptedException = new Exceptions\StreamInterruptedException(
                 sprintf(
@@ -279,15 +291,16 @@ class StrandsClient
      *
      * @param string               $path     The endpoint path (e.g. '/file-summarise').
      * @param array<string, mixed> $payload  The JSON payload to send.
-     * @param int|null             $timeout  Per-request timeout in seconds (null = use config default).
+     * @param int|null             $timeout  Per-request timeout in seconds; null uses the configured default.
      *
-     * @return array<string, mixed>  The decoded JSON response.
+     * @return array<string, mixed>  The decoded JSON response; empty only if the endpoint returned no fields.
      *
      * @throws StrandsException           If the request fails or the payload cannot be encoded.
      * @throws \InvalidArgumentException  If timeout is less than 1.
      */
     public function postJson(string $path, array $payload, ?int $timeout = null): array
     {
+        // A per-request timeout the app may bind to a UI control; reject values too small to ever answer.
         if ($timeout !== null && $timeout < 1) {
             throw new \InvalidArgumentException('timeout must be at least 1');
         }
@@ -333,7 +346,7 @@ class StrandsClient
      * @param string               $path      The endpoint path (e.g. '/file-summarise-stream').
      * @param array<string, mixed> $payload   The JSON payload to send.
      * @param callable(array<string, mixed>): (void|bool) $onEvent  Called for each decoded SSE event. Return false to cancel.
-     * @param int|null             $timeout   Per-request timeout in seconds (null = use config default).
+     * @param int|null             $timeout   Per-request timeout in seconds; null uses the configured default.
      *
      * @return void No returned value; updates client or observer state.
      * @throws StrandsException           If the request fails or the payload cannot be encoded.
@@ -341,6 +354,7 @@ class StrandsClient
      */
     public function streamSse(string $path, array $payload, callable $onEvent, ?int $timeout = null): void
     {
+        // A per-request timeout the app may bind to a UI control; reject values too small to ever answer.
         if ($timeout !== null && $timeout < 1) {
             throw new \InvalidArgumentException('timeout must be at least 1');
         }
@@ -366,6 +380,7 @@ class StrandsClient
 
         try {
             $this->transport->stream($url, $headers, $body, $effectiveTimeout, $this->config->connectTimeout, function (string $chunk) use (&$buffer, &$cancelled, &$totalEvents, &$textEvents, &$terminalType, &$usage, &$stopReason, $onEvent): bool {
+                // A prior callback returning false already stopped the user's live updates.
                 if ($cancelled) {
                     return false;
                 }
@@ -373,12 +388,14 @@ class StrandsClient
                 // Normalise line endings on the new chunk only.
                 $buffer .= str_replace(["\r\n", "\r"], "\n", $chunk);
 
+                // Emit every complete event the buffer now holds; a partial tail waits for more.
                 while (($position = strpos($buffer, "\n\n")) !== false) {
                     $rawEvent = substr($buffer, 0, $position);
                     $buffer = substr($buffer, $position + 2);
 
                     $decoded = self::extractSseData($rawEvent);
 
+                    // Skip heartbeats/blank frames; only real decoded events reach the app.
                     if ($decoded !== null) {
                         $totalEvents++;
                         self::updateStreamSseSummary(
@@ -389,6 +406,7 @@ class StrandsClient
                             $stopReason,
                         );
 
+                        // The app returns false to stop early (e.g. the user cancelled).
                         if ($onEvent($decoded) === false) {
                             $cancelled = true;
 
@@ -442,6 +460,7 @@ class StrandsClient
         $maxRetries = $this->config->maxRetries;
         $effectiveTimeout = $timeout ?? $this->config->timeout;
 
+        // Keep trying until we return a response or run out of retry budget.
         while (true) {
             try {
                 return $this->transport->post($url, $headers, $body, $effectiveTimeout, $this->config->connectTimeout);
@@ -455,6 +474,7 @@ class StrandsClient
                     throw $e;
                 }
 
+                // Out of retries — give up and let the user see the failure.
                 if ($attempt >= $maxRetries) {
                     throw $e;
                 }
@@ -492,8 +512,8 @@ class StrandsClient
      * @param int $totalEvents Total stream events received for the app call.
      * @param bool $cancelled Whether the app callback stopped the stream early.
      * @param int $startTime Request start timestamp used for duration metrics.
-     * @param ?int $firstTextTokenTime Timestamp used to report first-token latency.
-     * @param ?StreamEvent $completeEvent Terminal stream event with the final agent summary.
+     * @param ?int $firstTextTokenTime Timestamp for first-token latency; null when no text arrived (cancelled/error-only).
+     * @param ?StreamEvent $completeEvent Final Complete event; null when the stream ended without one (error/cancel/drop).
      * @return StreamResult stream summary the app can use after live updates finish.
      */
     private function buildStreamResult(
@@ -523,23 +543,29 @@ class StrandsClient
         $contextSize = null;
         $projectedContextSize = null;
 
+        // A Complete event arrived, so fill the final result from it; otherwise the
+        // safe defaults above stand (the stream errored, was cancelled, or dropped).
         if ($completeEvent !== null) {
             $sessionId = $completeEvent->sessionId;
             $usage = Usage::fromArray($completeEvent->usage);
             $toolsUsed = $completeEvent->toolsUsed;
 
+            // Prefer the text we streamed live; fall back to the full text if we saw no tokens.
             if ($finalText === '') {
                 $finalText = $completeEvent->fullText ?? '';
             }
 
+            // Map the raw stop reason to a typed enum the app can branch on.
             if (is_string($completeEvent->stopReason)) {
                 $stopReason = Response\StopReason::tryFrom($completeEvent->stopReason);
             }
 
+            // Each interrupt becomes an approval/prompt the app must surface to the user.
             foreach ($completeEvent->interrupts as $interruptData) {
                 $interrupts[] = Response\InterruptDetail::fromArray($interruptData);
             }
 
+            // A guardrail trace means the app should explain a safety intervention.
             if ($completeEvent->guardrailTrace !== null) {
                 $guardrailTrace = Response\GuardrailTrace::fromArray($completeEvent->guardrailTrace);
             }
@@ -575,6 +601,8 @@ class StrandsClient
     private function logSkippedEvents(StreamParser $streamParser): void
     {
         $skippedEvents = $streamParser->getSkippedEvents();
+        // The server sent event types this client didn't recognise — log it as a hint
+        // that the PHP client may be behind the agent, without disrupting the user.
         if ($skippedEvents > 0) {
             $this->logger->info('strands.stream.skipped_events', [
                 'count' => $skippedEvents,
@@ -588,8 +616,8 @@ class StrandsClient
      *
      * @param string $url agent endpoint the app is calling.
      * @param string|AgentInput $message user input or rich payload sent to the agent.
-     * @param ?AgentContext $context optional instructions and metadata for the agent turn.
-     * @param ?string $sessionId conversation id used to continue an app session.
+     * @param ?AgentContext $context Optional context for the turn; null sends just the message.
+     * @param ?string $sessionId Conversation id to continue; null starts a brand-new conversation.
      * @param string $accept Accept header used for the app call.
      * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the agent.
      *
@@ -652,13 +680,14 @@ class StrandsClient
      * Build the full URL for a custom endpoint path.
      *
      * @param string $path request path that becomes part of the signed URL.
-     * @return string text value used in the caller-facing agent flow.
+     * @return string Full absolute URL for the custom-endpoint call.
      */
     private function buildUrl(string $path): string
     {
         $base = rtrim($this->config->endpoint, '/');
         $path = ltrim($path, '/');
 
+        // An empty path means the app wants the agent's base URL itself.
         if ($path === '') {
             return $base;
         }
@@ -721,10 +750,12 @@ class StrandsClient
         // - Lines starting with ":" are comments (used as heartbeats)
         // - "data:" lines carry the payload; multiple data lines are joined with "\n"
         foreach (explode("\n", $rawEvent) as $line) {
+            // Lines starting with ":" are heartbeat/comment lines — nothing to display.
             if (str_starts_with($line, ':')) {
                 continue;
             }
 
+            // The actual payload rides on "data:" lines (with or without the space).
             if (str_starts_with($line, 'data: ')) {
                 $dataLines[] = substr($line, 6);
             } elseif (str_starts_with($line, 'data:')) {
@@ -734,6 +765,7 @@ class StrandsClient
 
         $data = implode("\n", $dataLines);
 
+        // A comment-only frame (e.g. a keep-alive) carries no data — nothing to emit.
         if ($data === '') {
             return null;
         }
@@ -744,6 +776,7 @@ class StrandsClient
             return null;
         }
 
+        // A payload that isn't a JSON object can't be handed to the app callback.
         if (!is_array($decoded)) {
             return null;
         }
@@ -760,9 +793,9 @@ class StrandsClient
      *
      * @param array<string, mixed> $event decoded SSE event delivered to the app callback.
      * @param int $textEvents running count of text events emitted to the app.
-     * @param ?string $terminalType last complete/error event type seen by telemetry.
-     * @param ?Usage $usage token usage reported by the terminal event.
-     * @param ?string $stopReason finish reason reported by the terminal event.
+     * @param ?string $terminalType Last complete/error event type seen; null until the stream ends.
+     * @param ?Usage $usage Token usage from the terminal event; null until one reports it.
+     * @param ?string $stopReason Finish reason from the terminal event; null until one reports it.
      * @return void No returned value; updates the stream summary used by observers.
      */
     private static function updateStreamSseSummary(
@@ -773,25 +806,30 @@ class StrandsClient
         ?string &$stopReason,
     ): void {
         $type = $event['type'] ?? null;
+        // An event with no string type tells us nothing to summarise; ignore it.
         if (!is_string($type)) {
             return;
         }
 
+        // Count text events so telemetry can report how much the user actually saw.
         if ($type === 'text') {
             $textEvents++;
         }
 
+        // Remember the terminal type so observers know how the stream ended.
         if ($type === 'complete' || $type === 'error') {
             $terminalType = $type;
         }
 
         $rawUsage = $event['usage'] ?? null;
+        // Capture token usage when the event carries it, for the app's cost readout.
         if (is_array($rawUsage)) {
             /** @var array<string, mixed> $rawUsage validated before app code uses it. */
             $usage = Usage::fromArray($rawUsage);
         }
 
         $rawStopReason = $event['stop_reason'] ?? null;
+        // Record why the agent stopped, when the event says so.
         if (is_string($rawStopReason)) {
             $stopReason = $rawStopReason;
         }
@@ -803,7 +841,7 @@ class StrandsClient
      * @param list<RequestMiddleware> $middleware request hooks applied before the agent call.
      * @param list<ResponseObserver> $responseObservers observers that receive parsed caller results.
      *
-     * @return list<ResponseObserver> Value returned to app code.
+     * @return list<ResponseObserver> Deduplicated observers to notify; empty when the app registered none.
      */
     private function normaliseResponseObservers(array $middleware, array $responseObservers): array
     {
@@ -912,6 +950,7 @@ class StrandsClient
      */
     private function notifyResponseObservers(callable $notify, string $hook): void
     {
+        // Fan out to each observer; one that throws is logged, never breaking the user's call.
         foreach ($this->responseObservers as $observer) {
             try {
                 $notify($observer);
@@ -934,11 +973,12 @@ class StrandsClient
      * @param string $url agent endpoint the app is calling.
      * @param int $statusCode HTTP status recorded for app diagnostics.
      * @param float $durationMs elapsed time reported to app telemetry.
-     * @param ?\Throwable $error failure surfaced while the app waited for the agent.
+     * @param ?\Throwable $error Failure surfaced while awaiting the agent; null when the call succeeded.
      * @return void No returned value; updates client or observer state.
      */
     private function notifyAfterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
     {
+        // Tell every middleware the call is done; observability failures are logged, not raised.
         foreach ($this->middleware as $mw) {
             try {
                 $mw->afterResponse($url, $statusCode, $durationMs, $error);
@@ -962,6 +1002,8 @@ class StrandsClient
     {
         $text = $message instanceof AgentInput ? $message->getText() : $message;
 
+        // Block an empty send (e.g. the user hit enter on a blank box) unless attachments
+        // or content blocks carry the request — saves a confusing 400 round-trip.
         if ($text === '' && !($message instanceof AgentInput && $message->toPayloadValue() !== '')) {
             throw new \InvalidArgumentException(
                 'Message cannot be empty. Provide a non-empty string or an AgentInput with content blocks.',
@@ -972,11 +1014,12 @@ class StrandsClient
     /**
      * Chooses the HTTP transport used to reach the agent.
      *
-     * @return HttpTransport Value returned to app code.
-     * @throws StrandsException
+     * @return HttpTransport A ready transport (Symfony-based) for reaching the agent.
+     * @throws StrandsException When no supported HTTP client is installed.
      */
     private static function detectTransport(): HttpTransport
     {
+        // Prefer Symfony's client when installed — it's the only transport that can stream.
         if (class_exists(\Symfony\Component\HttpClient\HttpClient::class)) {
             return new SymfonyHttpTransport();
         }

@@ -18,6 +18,11 @@ use StrandsPhpClient\Response\Citation\Citation;
 class StreamEvent
 {
     /**
+     * Hold one typed streaming event.
+     *
+     * Usually built by the parser via tryFromArray(); each event maps to
+     * something the UI shows as the answer streams in (a token, a tool call, …).
+     *
      * @param StreamEventType  $type                The type of this event (Text, ToolUse, Complete, etc.).
      * @param string|null      $text                The text token for Text/Thinking events.
      * @param string|null      $fullText            The full accumulated text in Complete events.
@@ -74,6 +79,7 @@ class StreamEvent
     {
         $rawType = self::string($data, 'type') ?? '';
         $type = StreamEventType::tryFrom($rawType);
+        // Strict path: an unrecognised event type is a hard error the caller must see.
         if ($type === null) {
             throw new \InvalidArgumentException(
                 sprintf('Unknown stream event type: "%s"', $rawType !== '' ? $rawType : '(missing)'),
@@ -97,6 +103,7 @@ class StreamEvent
     {
         $rawType = self::string($data, 'type') ?? '';
         $type = StreamEventType::tryFrom($rawType);
+        // Forgiving path: skip an event type a newer server added but this client can't map.
         if ($type === null) {
             return null;
         }
@@ -107,8 +114,8 @@ class StreamEvent
     /**
      * Build a StreamEvent from validated data and type.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
-     * @param StreamEventType $type Payload type selected by app code.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
+     * @param StreamEventType $type The validated event type this data maps to.
      * @return self New instance ready for app code.
      */
     private static function buildFromArray(array $data, StreamEventType $type): self
@@ -142,10 +149,11 @@ class StreamEvent
     /**
      * Get the citation as a typed DTO, hydrated from the raw $citation array.
      *
-     * @return ?Citation Value returned to app code.
+     * @return ?Citation The citation DTO for the app to render, or null on non-citation events.
      */
     public function getCitationObject(): ?Citation
     {
+        // Only Citation events carry a citation block; anything else has nothing to show.
         if ($this->citation === null) {
             return null;
         }
@@ -156,7 +164,7 @@ class StreamEvent
     /**
      * True if this is a terminal event (Complete or Error).
      *
-     * @return bool true when the caller-facing condition is met.
+     * @return bool true for Complete/Error events — the app's cue to stop the live stream.
      */
     public function isTerminal(): bool
     {
@@ -166,7 +174,7 @@ class StreamEvent
     /**
      * Reads an optional string field from a stream event.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      * @param string $key stream event field to read.
      * @return ?string Text the app can show, or null when absent.
      */
@@ -180,7 +188,7 @@ class StreamEvent
     /**
      * Reads a map field while shielding app code from malformed event data.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      *
      * @param string $key stream event field to read.
      * @return array<string, mixed> Map data from the event, or an empty map.
@@ -194,24 +202,28 @@ class StreamEvent
     }
 
     /**
-     * Supports the tools used field step in the app-facing flow.
+     * Collect the tools named in a Complete event, for the app's "tools used" trail.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      *
      * @return list<array{name: string, duration_ms?: int}> Tool calls reported during the stream.
      */
     private static function toolsUsedField(array $data): array
     {
         $value = $data['tools_used'] ?? null;
+        // Most events aren't Complete events, so there's usually no tool list here.
         if (!is_array($value)) {
             return [];
         }
 
         $tools = [];
+        // Record each tool the agent used so the app can list them under the answer.
         foreach ($value as $tool) {
+            // Keep only well-formed, named tool entries; ignore anything malformed.
             if (is_array($tool) && isset($tool['name']) && is_string($tool['name'])) {
                 $entry = ['name' => $tool['name']];
 
+                // Include the tool's duration when timed, for a per-tool latency hint.
                 if (isset($tool['duration_ms']) && is_int($tool['duration_ms'])) {
                     $entry['duration_ms'] = $tool['duration_ms'];
                 }
@@ -227,7 +239,7 @@ class StreamEvent
     /**
      * Reads an optional map field from a stream event.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      *
      * @param string $key stream event field to read.
      * @return array<string, mixed>|null Map data, or null when the event omits it.
@@ -243,7 +255,7 @@ class StreamEvent
     /**
      * Reads a list of maps while dropping malformed entries.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      *
      * @param string $key stream event field to read.
      * @return list<array<string, mixed>> List entries safe for DTO hydration.
@@ -259,6 +271,7 @@ class StreamEvent
         $result = [];
         // Keep only valid list entries before the app turns them into interrupt or trace objects.
         foreach ($value as $item) {
+            // Drop any non-array entry so a malformed one can't reach the app.
             if (is_array($item)) {
                 /** @var array<string, mixed> $item validated before app code uses it. */
                 $result[] = $item;
@@ -271,7 +284,7 @@ class StreamEvent
     /**
      * Extract guardrail trace from top-level or nested trace.guardrail.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      *
      * @return array<string, mixed>|null Guardrail trace for UI warnings, or null when absent.
      */
@@ -287,6 +300,7 @@ class StreamEvent
         // Some servers nest guardrail details under trace for the same user-facing result.
         if (is_array($trace)) {
             $guardrail = $trace['guardrail'] ?? null;
+            // Use the nested guardrail block only when it's a well-formed object.
             if (is_array($guardrail)) {
                 /** @var array<string, mixed> $guardrail validated before app code uses it. */
                 return $guardrail;
@@ -305,10 +319,12 @@ class StreamEvent
      */
     private static function encodeResult(mixed $raw): ?string
     {
+        // A plain string result can be shown to the user as-is.
         if (is_string($raw)) {
             return $raw;
         }
 
+        // A structured result (array/object) is JSON-encoded so the UI can display it.
         if ($raw !== null) {
             return json_encode($raw) ?: null;
         }
@@ -319,21 +335,24 @@ class StreamEvent
     /**
      * Reads a token count field while tolerating numeric wire variations.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      * @param string $key stream event field that may contain a token count.
      * @return ?int Token count for UI hints, or null when unavailable.
      */
     private static function nullableIntField(array $data, string $key): ?int
     {
         $value = $data[$key] ?? null;
+        // Already a clean integer token count — hand it straight to the app.
         if (is_int($value)) {
             return $value;
         }
 
+        // Some wrappers report the count as a float; round to whole tokens.
         if (is_float($value)) {
             return (int) round($value);
         }
 
+        // Others send it as a numeric string (e.g. "8192"); accept those too.
         if (is_string($value) && is_numeric($value)) {
             return (int) round((float) $value);
         }

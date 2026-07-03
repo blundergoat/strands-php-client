@@ -14,11 +14,16 @@ namespace StrandsPhpClient\Exceptions;
 class AgentErrorException extends StrandsException
 {
     /**
+     * Carry an agent HTTP failure the app can catch and inspect.
+     *
+     * Usually created by fromHttpResponse() when a call comes back 400+; the app
+     * reads $statusCode/$errorCode to decide how to recover.
+     *
      * @param string               $message      Human-readable error message.
      * @param int                  $statusCode   HTTP status code from the agent response.
-     * @param string|null          $errorCode    Machine-readable error code (e.g. "unauthorized").
+     * @param string|null          $errorCode    Machine-readable error code (e.g. "unauthorized"); null when the agent sent none.
      * @param \Throwable|null      $previous     The original exception, if any.
-     * @param array<string, mixed>|null $responseBody Full decoded response body for debugging.
+     * @param array<string, mixed>|null $responseBody Full decoded response body for debugging; null when the error body wasn't JSON.
      */
     public function __construct(
         string $message,
@@ -43,6 +48,7 @@ class AgentErrorException extends StrandsException
         /** @var array<string, mixed> $errorData validated before app code uses it. */
         $errorData = is_array($decoded) ? $decoded : [];
         $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
+        // Prefer a plain-text detail the app can show the user; JSON-encode structured ones.
         if (is_string($detail)) {
             $detailText = $detail;
         } else {
@@ -67,25 +73,30 @@ class AgentErrorException extends StrandsException
     /**
      * Selects the exception type the app can catch.
      *
-     * @param class-string<self> $default Fallback returned when app config is missing.
+     * @param class-string<self> $default Exception class to fall back to when no specific subtype matches.
      *
      * @param int $statusCode HTTP status recorded for app diagnostics.
-     * @param ?string $errorCode Value supplied by app code.
-     * @return class-string<self> Value returned to app code.
+     * @param ?string $errorCode Agent's machine-readable error code, or null when it sent none.
+     * @return class-string<self> The most specific exception class for this error, so apps can catch it precisely.
      */
     private static function resolveExceptionClass(int $statusCode, ?string $errorCode, string $default = self::class): string
     {
+        // 429 always means rate limiting, whatever the body says — map it directly.
         if ($statusCode === 429) {
             return ThrottledException::class;
         }
 
+        // When the agent named a specific error, pick the matching typed exception so the
+        // app can catch (e.g.) a context overflow without string-matching the message.
         if ($errorCode !== null) {
             $lower = strtolower($errorCode);
 
+            // Conversation grew past the model's window — the app should trim or restart it.
             if (str_contains($lower, 'context') && str_contains($lower, 'overflow')) {
                 return ContextOverflowException::class;
             }
 
+            // The answer was cut off at the token cap — the app may offer to continue.
             if (str_contains($lower, 'max_tokens')) {
                 return MaxTokensException::class;
             }

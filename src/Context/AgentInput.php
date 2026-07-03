@@ -39,7 +39,8 @@ class AgentInput
     /**
      * Create an input starting with a text message.
      *
-     * @param string $text Value supplied by app code.
+     * @param string $text The message the user typed for this turn.
+     *
      * @return self New instance ready for app code.
      */
     public static function text(string $text): self
@@ -50,17 +51,18 @@ class AgentInput
     /**
      * Create an interrupt response to resume after an interrupt.
      *
-     * @param string $interruptId  The interrupt ID from InterruptDetail.
-     * @param mixed  $response     The approval/denial response value.
+     * @param string $interruptId The interrupt ID from InterruptDetail.
+     * @param mixed  $response    The approval/denial response value.
+     *
      * @return self New instance ready for app code.
      */
     public static function interruptResponse(string $interruptId, mixed $response): self
     {
-        $input = new self('');
+        $input                  = new self('');
         $input->contentBlocks[] = [
-            'type' => 'interrupt_response',
+            'type'         => 'interrupt_response',
             'interrupt_id' => $interruptId,
-            'response' => $response,
+            'response'     => $response,
         ];
 
         return $input;
@@ -69,21 +71,21 @@ class AgentInput
     /**
      * Add a base64-encoded image content block.
      *
-     * @param string $base64Data  Base64-encoded image data.
-     * @param string $mediaType   MIME type (e.g. 'image/png', 'image/jpeg').
+     * @param string $base64Data Base64-encoded image data.
+     * @param string $mediaType  MIME type (e.g. 'image/png', 'image/jpeg').
      *
      * @return self  A new instance with the image added.
      */
     public function withImage(string $base64Data, string $mediaType): self
     {
-        $clone = clone $this;
+        $clone                  = clone $this;
         $clone->contentBlocks[] = [
-            'type' => 'image',
+            'type'   => 'image',
             'format' => self::deriveImageFormat($mediaType),
             'source' => [
-                'type' => 'base64',
+                'type'       => 'base64',
                 'media_type' => $mediaType,
-                'data' => $base64Data,
+                'data'       => $base64Data,
             ],
         ];
 
@@ -93,31 +95,31 @@ class AgentInput
     /**
      * Add a base64-encoded document content block.
      *
-     * @param string                    $base64Data  Base64-encoded document data.
-     * @param string                    $format      Document format (e.g. 'pdf', 'txt', 'docx').
-     * @param string                    $name        Document name.
-     * @param string|null               $context     Optional wrapper context for this document.
-     * @param array<string, mixed>|null $citations   Optional wrapper citation controls.
+     * @param string                    $base64Data Base64-encoded document data.
+     * @param string                    $format     Document format (e.g. 'pdf', 'txt', 'docx').
+     * @param string                    $name       Document name.
+     * @param string|null               $context    Optional wrapper context for this document.
+     * @param array<string, mixed>|null $citations  Optional wrapper citation controls.
      *
      * @return self  A new instance with the document added.
      */
     public function withDocument(
-        string $base64Data,
-        string $format,
-        string $name,
+        string  $base64Data,
+        string  $format,
+        string  $name,
         ?string $context = null,
-        ?array $citations = null,
+        ?array  $citations = null,
     ): self {
-        $clone = clone $this;
+        $clone                  = clone $this;
         $clone->contentBlocks[] = self::documentBlock(
-            format: $format,
-            name: $name,
-            source: [
-                'type' => 'base64',
-                'media_type' => self::formatToMimeType($format),
-                'data' => $base64Data,
-            ],
-            context: $context,
+            format:    $format,
+            name:      $name,
+            source:    [
+                           'type'       => 'base64',
+                           'media_type' => self::formatToMimeType($format),
+                           'data'       => $base64Data,
+                       ],
+            context:   $context,
             citations: $citations,
         );
 
@@ -127,30 +129,31 @@ class AgentInput
     /**
      * Add a document from S3 location.
      *
-     * @param string                    $s3Uri        S3 URI (e.g. 's3://my-bucket/report.pdf').
-     * @param string                    $format       Document format (e.g. 'pdf').
-     * @param string                    $name         Document name.
-     * @param string|null               $bucketOwner  Optional bucket owner account ID.
-     * @param string|null               $context      Optional wrapper context for this document.
-     * @param array<string, mixed>|null $citations    Optional wrapper citation controls.
+     * @param string                    $s3Uri       S3 URI (e.g. 's3://my-bucket/report.pdf').
+     * @param string                    $format      Document format (e.g. 'pdf').
+     * @param string                    $name        Document name.
+     * @param string|null               $bucketOwner Optional bucket owner account ID.
+     * @param string|null               $context     Optional wrapper context for this document.
+     * @param array<string, mixed>|null $citations   Optional wrapper citation controls.
      *
      * @return self  A new instance with the S3 document added.
      */
     public function withDocumentFromS3(
-        string $s3Uri,
-        string $format,
-        string $name,
+        string  $s3Uri,
+        string  $format,
+        string  $name,
         ?string $bucketOwner = null,
         ?string $context = null,
-        ?array $citations = null,
+        ?array  $citations = null,
     ): self {
         $clone = clone $this;
         /** @var array<string, mixed> $source validated before app code uses it. */
         $source = [
             'type' => 's3_location',
-            'uri' => $s3Uri,
+            'uri'  => $s3Uri,
         ];
 
+        // Cross-account S3 needs the owner account id; same-account buckets omit it.
         if ($bucketOwner !== null) {
             $source['bucket_owner'] = $bucketOwner;
         }
@@ -163,9 +166,9 @@ class AgentInput
     /**
      * Add an image from S3 location.
      *
-     * @param string      $s3Uri        S3 URI (e.g. 's3://my-bucket/image.png').
-     * @param string      $format       Image format (e.g. 'png', 'jpeg').
-     * @param string|null $bucketOwner  Optional bucket owner account ID.
+     * @param string      $s3Uri       S3 URI (e.g. 's3://my-bucket/image.png').
+     * @param string      $format      Image format (e.g. 'png', 'jpeg').
+     * @param string|null $bucketOwner Optional bucket owner account ID.
      *
      * @return self  A new instance with the S3 image added.
      */
@@ -175,15 +178,16 @@ class AgentInput
         /** @var array<string, mixed> $source validated before app code uses it. */
         $source = [
             'type' => 's3_location',
-            'uri' => $s3Uri,
+            'uri'  => $s3Uri,
         ];
 
+        // Cross-account S3 needs the owner account id; same-account buckets omit it.
         if ($bucketOwner !== null) {
             $source['bucket_owner'] = $bucketOwner;
         }
 
         $clone->contentBlocks[] = [
-            'type' => 'image',
+            'type'   => 'image',
             'source' => $source,
             'format' => $format,
         ];
@@ -194,20 +198,20 @@ class AgentInput
     /**
      * Add a base64-encoded video content block.
      *
-     * @param string $base64Data  Base64-encoded video data.
-     * @param string $format      Video format (e.g. 'mp4', 'webm').
+     * @param string $base64Data Base64-encoded video data.
+     * @param string $format     Video format (e.g. 'mp4', 'webm').
      *
      * @return self  A new instance with the video added.
      */
     public function withVideo(string $base64Data, string $format): self
     {
-        $clone = clone $this;
+        $clone                  = clone $this;
         $clone->contentBlocks[] = [
-            'type' => 'video',
+            'type'   => 'video',
             'source' => [
-                'type' => 'base64',
+                'type'       => 'base64',
                 'media_type' => 'video/' . $format,
-                'data' => $base64Data,
+                'data'       => $base64Data,
             ],
             'format' => $format,
         ];
@@ -218,20 +222,20 @@ class AgentInput
     /**
      * Add an image from a URL.
      *
-     * @param string $url        The image URL.
-     * @param string $mediaType  MIME type (e.g. 'image/png', 'image/jpeg').
+     * @param string $url       The image URL.
+     * @param string $mediaType MIME type (e.g. 'image/png', 'image/jpeg').
      *
      * @return self  A new instance with the URL image added.
      */
     public function withImageFromUrl(string $url, string $mediaType): self
     {
-        $clone = clone $this;
+        $clone                  = clone $this;
         $clone->contentBlocks[] = [
-            'type' => 'image',
+            'type'   => 'image',
             'format' => self::deriveImageFormat($mediaType),
             'source' => [
-                'type' => 'url',
-                'url' => $url,
+                'type'       => 'url',
+                'url'        => $url,
                 'media_type' => $mediaType,
             ],
         ];
@@ -242,30 +246,30 @@ class AgentInput
     /**
      * Add a document from a URL.
      *
-     * @param string                    $url        The document URL.
-     * @param string                    $format     Document format (e.g. 'pdf', 'txt').
-     * @param string                    $name       Document name.
-     * @param string|null               $context    Optional wrapper context for this document.
-     * @param array<string, mixed>|null $citations  Optional wrapper citation controls.
+     * @param string                    $url       The document URL.
+     * @param string                    $format    Document format (e.g. 'pdf', 'txt').
+     * @param string                    $name      Document name.
+     * @param string|null               $context   Optional wrapper context for this document.
+     * @param array<string, mixed>|null $citations Optional wrapper citation controls.
      *
      * @return self  A new instance with the URL document added.
      */
     public function withDocumentFromUrl(
-        string $url,
-        string $format,
-        string $name,
+        string  $url,
+        string  $format,
+        string  $name,
         ?string $context = null,
-        ?array $citations = null,
+        ?array  $citations = null,
     ): self {
-        $clone = clone $this;
+        $clone                  = clone $this;
         $clone->contentBlocks[] = self::documentBlock(
-            format: $format,
-            name: $name,
-            source: [
-                'type' => 'url',
-                'url' => $url,
-            ],
-            context: $context,
+            format:    $format,
+            name:      $name,
+            source:    [
+                           'type' => 'url',
+                           'url'  => $url,
+                       ],
+            context:   $context,
             citations: $citations,
         );
 
@@ -275,19 +279,19 @@ class AgentInput
     /**
      * Add a video from a URL.
      *
-     * @param string $url     The video URL.
-     * @param string $format  Video format (e.g. 'mp4', 'webm').
+     * @param string $url    The video URL.
+     * @param string $format Video format (e.g. 'mp4', 'webm').
      *
      * @return self  A new instance with the URL video added.
      */
     public function withVideoFromUrl(string $url, string $format): self
     {
-        $clone = clone $this;
+        $clone                  = clone $this;
         $clone->contentBlocks[] = [
-            'type' => 'video',
+            'type'   => 'video',
             'source' => [
                 'type' => 'url',
-                'url' => $url,
+                'url'  => $url,
             ],
             'format' => $format,
         ];
@@ -298,9 +302,9 @@ class AgentInput
     /**
      * Add a video from S3 location.
      *
-     * @param string      $s3Uri        S3 URI.
-     * @param string      $format       Video format (e.g. 'mp4').
-     * @param string|null $bucketOwner  Optional bucket owner account ID.
+     * @param string      $s3Uri       S3 URI.
+     * @param string      $format      Video format (e.g. 'mp4').
+     * @param string|null $bucketOwner Optional bucket owner account ID.
      *
      * @return self  A new instance with the S3 video added.
      */
@@ -310,15 +314,16 @@ class AgentInput
         /** @var array<string, mixed> $source validated before app code uses it. */
         $source = [
             'type' => 's3_location',
-            'uri' => $s3Uri,
+            'uri'  => $s3Uri,
         ];
 
+        // Cross-account S3 needs the owner account id; same-account buckets omit it.
         if ($bucketOwner !== null) {
             $source['bucket_owner'] = $bucketOwner;
         }
 
         $clone->contentBlocks[] = [
-            'type' => 'video',
+            'type'   => 'video',
             'source' => $source,
             'format' => $format,
         ];
@@ -329,18 +334,20 @@ class AgentInput
     /**
      * Add a cache point content block.
      *
-     * @param string $type Payload type selected by app code.
-     * @param ?string $ttl Cache lifetime label sent with the cache point.
+     * @param string  $type Cache scope for this block (e.g. 'default').
+     * @param ?string $ttl  Cache lifetime label sent with the cache point; null lets the agent keep it until eviction.
+     *
      * @return self  A new instance with the cache point added.
      */
     public function withCachePoint(string $type = 'default', ?string $ttl = null): self
     {
         $clone = clone $this;
         $block = [
-            'type' => 'cache_point',
+            'type'       => 'cache_point',
             'cache_type' => $type,
         ];
 
+        // A TTL is optional; include it only when the app wants the cache to expire.
         if ($ttl !== null) {
             $block['ttl'] = $ttl;
         }
@@ -354,11 +361,12 @@ class AgentInput
      * Set a structured output prompt to control output format.
      *
      * @param string $prompt Structured-output instruction sent to the agent.
+     *
      * @return self  A new instance with the structured output prompt set.
      */
     public function withStructuredOutputPrompt(string $prompt): self
     {
-        $clone = clone $this;
+        $clone                         = clone $this;
         $clone->structuredOutputPrompt = $prompt;
 
         return $clone;
@@ -367,7 +375,7 @@ class AgentInput
     /**
      * Get the text portion of this input.
      *
-     * @return string text value used in the caller-facing agent flow.
+     * @return string The plain text the user typed for this turn.
      */
     public function getText(): string
     {
@@ -423,7 +431,8 @@ class AgentInput
      * fall back to the input unchanged.
      *
      * @param string $mediaType MIME type used to describe the attachment.
-     * @return string text value used in the caller-facing agent flow.
+     *
+     * @return string Wire-contract image format (e.g. 'png') the agent expects.
      */
     private static function deriveImageFormat(string $mediaType): string
     {
@@ -439,7 +448,8 @@ class AgentInput
      * fall back to "application/{format}".
      *
      * @param string $format Attachment format sent with the user message.
-     * @return string text value used in the caller-facing agent flow.
+     *
+     * @return string MIME type the agent uses to interpret the attachment.
      */
     private static function formatToMimeType(string $format): string
     {
@@ -465,32 +475,35 @@ class AgentInput
     /**
      * Builds a document payload block for the agent request.
      *
-     * @param array<string, mixed> $source Attachment source sent in the request payload.
+     * @param array<string, mixed>      $source    Attachment source sent in the request payload.
      * @param array<string, mixed>|null $citations Citation blocks collected for the final answer UI.
      *
-     * @param string $format document format shown to the agent.
-     * @param string $name document name shown in citations and agent context.
-     * @param ?string $context optional instructions and metadata for the agent turn.
+     * @param string                    $format    document format shown to the agent.
+     * @param string                    $name      document name shown in citations and agent context.
+     * @param ?string                   $context   Optional per-document guidance for the agent; null attaches none.
+     *
      * @return array<string, mixed> Document content block sent with the user message.
      */
     private static function documentBlock(
-        string $format,
-        string $name,
-        array $source,
+        string  $format,
+        string  $name,
+        array   $source,
         ?string $context = null,
-        ?array $citations = null,
+        ?array  $citations = null,
     ): array {
         $block = [
-            'type' => 'document',
+            'type'   => 'document',
             'source' => $source,
             'format' => $format,
-            'name' => $name,
+            'name'   => $name,
         ];
 
+        // Optional per-document guidance the app can attach for the agent to follow.
         if ($context !== null) {
             $block['context'] = $context;
         }
 
+        // Citation controls are attached only when the app wants sourced answers back.
         if ($citations !== null) {
             $block['citations'] = $citations;
         }

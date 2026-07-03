@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response;
 
 /**
- * Why the agent stopped generating output.
+ * Why the agent stopped generating output on a given turn.
+ *
+ * The app reads this to decide what to show after a response: a finished answer,
+ * a "continue" affordance when the model ran out of tokens, a safety notice, or
+ * a prompt for the user when the agent paused for human input. Unknown future
+ * values are preserved separately as the response's raw stop reason.
  */
 enum StopReason: string
 {

@@ -20,6 +20,11 @@ class AgentResponse
     private ?array $citationObjects = null;
 
     /**
+     * Assemble the full result of an invoke() call.
+     *
+     * Usually built by fromArray() from the agent's JSON; construct directly only
+     * in tests. The app reads these fields to render the answer and its metadata.
+     *
      * @param string  $text               The agent's text response.
      * @param string|null  $agent          Agent name that handled the request.
      * @param string|null  $sessionId      Session ID for multi-turn conversations.
@@ -62,7 +67,7 @@ class AgentResponse
     /**
      * Whether the agent was interrupted and is waiting for user input.
      *
-     * @return bool true when the caller-facing condition is met.
+     * @return bool true when the agent paused and is waiting on the user.
      */
     public function isInterrupted(): bool
     {
@@ -72,15 +77,17 @@ class AgentResponse
     /**
      * Get citations as typed DTOs, hydrated from the raw $citations arrays.
      *
-     * @return list<Citation\Citation> Value returned to app code.
+     * @return list<Citation\Citation> Typed citations to render under the answer; empty when nothing was cited.
      */
     public function getCitationObjects(): array
     {
+        // Build the typed list once, then reuse it — the UI may ask on every redraw.
         if ($this->citationObjects !== null) {
             return $this->citationObjects;
         }
 
         $this->citationObjects = [];
+        // Turn each raw citation into a DTO the app can render as a source footnote.
         foreach ($this->citations as $data) {
             $this->citationObjects[] = Citation\Citation::fromArray($data);
         }
@@ -95,12 +102,14 @@ class AgentResponse
      *
      * @param class-string<T> $class DTO class used to hydrate structured output.
      *
-     * @return T Value returned to app code.
+     * @return T The response hydrated into the app's DTO, ready to use.
      *
      * @throws StrandsException If no structured output is available or hydration fails.
      */
     public function structuredOutputAs(string $class): object
     {
+        // The app asked to type the answer, but the agent returned no structured
+        // output — surface that clearly instead of handing back an empty object.
         if ($this->structuredOutput === null) {
             throw new StrandsException('No structured output in response');
         }
@@ -108,14 +117,17 @@ class AgentResponse
         try {
             $reflectionClass = new \ReflectionClass($class);
 
+            // Prefer the DTO's own fromArray() factory when it exposes one.
             if ($reflectionClass->hasMethod('fromArray')) {
                 $method = $reflectionClass->getMethod('fromArray');
+                // Only a public static fromArray() is safe to call without an instance.
                 if ($method->isStatic() && $method->isPublic()) {
                     /** @var T */
                     return $method->invoke(null, $this->structuredOutput);
                 }
             }
 
+            // Otherwise map the fields straight onto the constructor's named arguments.
             /** @var T */
             return new $class(...$this->structuredOutput);
         } catch (StrandsException $e) {
@@ -131,7 +143,7 @@ class AgentResponse
     /**
      * Create from the raw JSON array returned by the /invoke endpoint.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
@@ -182,8 +194,8 @@ class AgentResponse
     /**
      * Parse usage statistics from the raw API data.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
-     * @return Usage Value returned to app code.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
+     * @return Usage Token usage for the turn; zeroed when the response omitted it.
      */
     private static function parseUsage(array $data): Usage
     {
@@ -196,7 +208,7 @@ class AgentResponse
     /**
      * Extract and validate the tools_used array from raw API data.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      *
      * @return list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}> Tool calls safe for app logs and UI.
      */
@@ -205,23 +217,29 @@ class AgentResponse
         $toolsUsed = [];
         $rawTools = is_array($data['tools_used'] ?? null) ? $data['tools_used'] : [];
 
+        // Each entry is one tool the agent called — the app shows these as a
+        // "used these tools" trail under the answer.
         foreach ($rawTools as $tool) {
+            // A tool with no usable name can't be displayed, so skip it.
             if (!is_array($tool) || !isset($tool['name']) || !is_string($tool['name'])) {
                 continue;
             }
 
             $entry = ['name' => $tool['name']];
 
+            // Include how long the tool took when the server timed it (a latency hint).
             if (isset($tool['duration_ms']) && is_int($tool['duration_ms'])) {
                 $entry['duration_ms'] = $tool['duration_ms'];
             }
 
+            // Keep the arguments the tool was called with when present (for a details view).
             if (isset($tool['input']) && is_array($tool['input'])) {
                 /** @var array<string, mixed> $input validated before app code uses it. */
                 $input = $tool['input'];
                 $entry['input'] = $input;
             }
 
+            // Keep what the tool returned when present, so the app can show its output.
             if (isset($tool['result']) && is_array($tool['result'])) {
                 /** @var array<string, mixed> $result validated before app code uses it. */
                 $result = $tool['result'];
@@ -238,9 +256,9 @@ class AgentResponse
     /**
      * Parse interrupt details from the raw API data.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      *
-     * @return list<InterruptDetail> Value returned to app code.
+     * @return list<InterruptDetail> Interrupts to surface as prompts; empty when the agent needs nothing from the user.
      */
     private static function parseInterrupts(array $data): array
     {
@@ -253,6 +271,7 @@ class AgentResponse
         $interrupts = [];
         // Each interrupt can become an approval card or follow-up question in the app.
         foreach ($rawInterrupts as $item) {
+            // Skip any malformed entry so one bad interrupt can't break the prompt.
             if (is_array($item)) {
                 /** @var array<string, mixed> $item validated before app code uses it. */
                 $interrupts[] = InterruptDetail::fromArray($item);
@@ -267,8 +286,8 @@ class AgentResponse
      *
      * Supports both `guardrail_trace` (top-level) and `trace.guardrail` (nested).
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
-     * @return ?GuardrailTrace Value returned to app code.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
+     * @return ?GuardrailTrace Guardrail trace, or null when the turn had no guardrail intervention.
      */
     private static function parseGuardrailTrace(array $data): ?GuardrailTrace
     {
@@ -278,11 +297,13 @@ class AgentResponse
         // Fall back to nested trace.guardrail for wrappers that keep trace data grouped.
         if (!is_array($raw)) {
             $trace = $data['trace'] ?? null;
+            // Some wrappers nest the guardrail block inside a broader trace object.
             if (is_array($trace)) {
                 $raw = $trace['guardrail'] ?? null;
             }
         }
 
+        // Neither shape was present — this turn had no guardrail activity to show.
         if (!is_array($raw)) {
             return null;
         }
@@ -294,28 +315,33 @@ class AgentResponse
     /**
      * Extract citation content blocks from message.content[].
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      *
      * @return list<array<string, mixed>> Citation blocks the app can render with the answer.
      */
     private static function parseCitations(array $data): array
     {
         $message = $data['message'] ?? null;
+        // No message envelope means there are no citations to pull out.
         if (!is_array($message)) {
             return [];
         }
 
         $content = $message['content'] ?? null;
+        // No content blocks means nothing was cited in this answer.
         if (!is_array($content)) {
             return [];
         }
 
         $citations = [];
+        // Scan the answer's blocks for the ones that carry citation data.
         foreach ($content as $block) {
+            // Ignore any malformed block so it can't break citation rendering.
             if (!is_array($block)) {
                 continue;
             }
             $type = $block['type'] ?? null;
+            // Keep only citation blocks; skip the plain text/tool blocks around them.
             if ($type === 'citationsContent' || $type === 'citation') {
                 /** @var array<string, mixed> $block validated before app code uses it. */
                 $citations[] = $block;
@@ -328,7 +354,7 @@ class AgentResponse
     /**
      * Extracts the normalized raw message envelope for advanced app displays.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      * @return ?Message Parsed message envelope, or null when it is absent.
      */
     private static function parseMessage(array $data): ?Message
@@ -343,21 +369,24 @@ class AgentResponse
     /**
      * Reads a token count field while tolerating numeric wire variations.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      * @param string $key response field that may contain a token count.
      * @return ?int Token count for UI hints, or null when unavailable.
      */
     private static function nullableIntField(array $data, string $key): ?int
     {
         $value = $data[$key] ?? null;
+        // Already a clean integer token count — hand it straight to the app.
         if (is_int($value)) {
             return $value;
         }
 
+        // Some wrappers report the count as a float; round to whole tokens.
         if (is_float($value)) {
             return (int) round($value);
         }
 
+        // Others send it as a numeric string (e.g. "8192"); accept those too.
         if (is_string($value) && is_numeric($value)) {
             return (int) round((float) $value);
         }
@@ -373,12 +402,15 @@ class AgentResponse
      */
     private static function stringKeyedArray(mixed $value): ?array
     {
+        // Not a map at all — there's no metadata here for the app to read.
         if (!is_array($value)) {
             return null;
         }
 
         $result = [];
+        // Keep only string keys so the app gets a predictable name => value map.
         foreach ($value as $key => $item) {
+            // Drop any stray numeric keys the wrapper may have mixed in.
             if (is_string($key)) {
                 $result[$key] = $item;
             }

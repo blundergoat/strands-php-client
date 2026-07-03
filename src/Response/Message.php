@@ -5,16 +5,21 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response;
 
 /**
- * Wrapper-normalized message envelope returned by an agent response.
+ * The raw message envelope behind an agent response, for advanced displays.
+ *
+ * Most apps just read AgentResponse::$text, but richer UIs can walk this
+ * envelope to render the individual content blocks (text, citations, tool
+ * output) in order, along with the assistant role and any per-message
+ * usage/metadata the wrapper attached. Absent fields come back empty or null.
  */
 class Message
 {
     /**
      * Builds the message wrapper returned with the agent answer.
      *
-     * @param list<array<string, mixed>> $content message blocks the app may inspect.
-     * @param ?string $role role attached to the message envelope.
-     * @param ?MessageMetadata $metadata optional usage and custom message metadata.
+     * @param ?string $role Speaker role on the envelope; null when the wrapper didn't label it.
+     * @param list<array<string, mixed>> $content Message blocks the app may inspect.
+     * @param ?MessageMetadata $metadata Per-message usage/custom metadata; null when none was sent.
      */
     public function __construct(
         public readonly ?string $role = null,
@@ -24,17 +29,20 @@ class Message
     }
 
     /**
-     * Hydrates caller-facing data from the agent response.
+     * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {
         $rawContent = $data['content'] ?? null;
         $content = [];
+        // The message body is a list of blocks the UI renders in order; skip if absent.
         if (is_array($rawContent)) {
+            // Each block is one piece of the answer — a paragraph, a citation, a tool result.
             foreach ($rawContent as $block) {
+                // Keep only well-formed blocks so a malformed one can't corrupt the display.
                 if (is_array($block)) {
                     /** @var array<string, mixed> $block validated before app code uses it. */
                     $content[] = $block;
@@ -60,12 +68,15 @@ class Message
      */
     private static function stringKeyedArray(mixed $value): ?array
     {
+        // No metadata map on the message means there is nothing for the app to read.
         if (!is_array($value)) {
             return null;
         }
 
         $result = [];
+        // Keep only string keys so the app always gets a predictable name => value map.
         foreach ($value as $key => $item) {
+            // Drop any stray numeric keys the wrapper may have mixed in.
             if (is_string($key)) {
                 $result[$key] = $item;
             }

@@ -13,6 +13,11 @@ namespace StrandsPhpClient\Auth;
 class ApiKeyAuth implements AuthStrategy
 {
     /**
+     * Configure API-key auth: the key plus which header carries it.
+     *
+     * Built once (often from config) and handed to the client, which then
+     * attaches the key to every request the app makes.
+     *
      * @param string $apiKey       The API key to send.
      * @param string $headerName   HTTP header name (default: "Authorization").
      * @param string $valuePrefix  Prefix before the key (default: "Bearer ").

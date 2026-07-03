@@ -5,11 +5,20 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response;
 
 /**
- * A typed guardrail assessment from a guardrail trace.
+ * One policy check the guardrail ran on a turn, in typed form.
+ *
+ * Each assessment records which policy fired (topic, content, word,
+ * sensitive-info, or grounding), what it did, and how confident it was. Apps
+ * read these to explain to the user why a response was blocked or altered.
+ * Every field is nullable because an assessment fills in only the parts that apply.
  */
 final readonly class GuardrailAssessment
 {
     /**
+     * Hold one policy check the guardrail ran on a turn.
+     *
+     * Usually built by fromArray() from a guardrail trace.
+     *
      * @param string|null               $type                         Assessment type.
      * @param string|null               $action                       Action taken (e.g. 'BLOCKED').
      * @param array<string, mixed>|null $topicPolicy                  Topic policy details.
@@ -36,9 +45,9 @@ final readonly class GuardrailAssessment
     }
 
     /**
-     * Hydrates caller-facing data from the agent response.
+     * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
@@ -69,20 +78,22 @@ final readonly class GuardrailAssessment
     }
 
     /**
-     * Supports the float step in the app-facing flow.
+     * Read a confidence score, tolerating number-or-string wire values.
      *
-     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
-     * @param string $key Payload field name being read or written.
-     * @return ?float Value returned to app code.
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
+     * @param string $key Assessment field holding the score (e.g. 'confidence').
+     * @return ?float Score the app can show as a percentage, or null when absent.
      */
     private static function float(array $data, string $key): ?float
     {
         $value = $data[$key] ?? null;
 
+        // Accept a plain number as-is (an int or float both become a float score).
         if (is_float($value) || is_int($value)) {
             return (float) $value;
         }
 
+        // Some wrappers send the score as a numeric string (e.g. "0.87").
         if (is_string($value) && is_numeric($value)) {
             return (float) $value;
         }

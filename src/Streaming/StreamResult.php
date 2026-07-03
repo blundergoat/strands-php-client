@@ -19,6 +19,11 @@ use StrandsPhpClient\Response\Usage;
 class StreamResult
 {
     /**
+     * Hold the assembled result of a finished stream() call.
+     *
+     * Built by the client once the stream ends; the app reads it for the final
+     * text, token usage, tools used, and why the agent stopped.
+     *
      * @param string          $text                    The full text assembled from all Text events.
      * @param string|null     $sessionId               Session ID from the Complete event.
      * @param Usage           $usage                   Token usage statistics.
@@ -57,7 +62,7 @@ class StreamResult
     /**
      * Whether the agent was interrupted and is waiting for user input.
      *
-     * @return bool true when the caller-facing condition is met.
+     * @return bool true when the agent paused and is waiting on the user.
      */
     public function isInterrupted(): bool
     {

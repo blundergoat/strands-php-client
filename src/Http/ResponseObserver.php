@@ -9,10 +9,12 @@ use StrandsPhpClient\Streaming\StreamResult;
 use StrandsPhpClient\Streaming\StreamSseSummary;
 
 /**
- * Observes parsed terminal operation data after HTTP calls complete.
+ * A place to watch the finished, parsed result of each agent call.
  *
- * This is intentionally separate from RequestMiddleware so existing
- * beforeRequest()/afterResponse() implementations remain source-compatible.
+ * Where RequestMiddleware sees raw HTTP, an observer receives the typed
+ * outcome — the AgentResponse, StreamResult, or sanitized SSE summary — after
+ * the client has parsed it. Ideal for metrics, tracing, and audit logging.
+ * Kept separate from RequestMiddleware so existing implementations still compile.
  */
 interface ResponseObserver
 {
@@ -39,7 +41,7 @@ interface ResponseObserver
     /**
      * Records parsed custom-endpoint data for app telemetry.
      *
-     * @param array<string, mixed> $response parsed agent result returned to the app.
+     * @param array<string, mixed> $response Parsed custom-endpoint result; empty when the endpoint returned no data.
      * @param string $url agent endpoint the app is calling.
      * @param float $durationMs elapsed time reported to app telemetry.
      * @return void No returned value; updates client or observer state.

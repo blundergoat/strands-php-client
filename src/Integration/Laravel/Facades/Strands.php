@@ -19,7 +19,11 @@ use Illuminate\Support\Facades\Facade;
 use StrandsPhpClient\StrandsClient;
 
 /**
- * Exposes the default client through Laravel's facade API.
+ * Static, app-friendly entry point to the default Strands client.
+ *
+ * Lets Laravel code call Strands::invoke(...) or Strands::stream(...) without
+ * resolving the client from the container by hand. It simply forwards to the
+ * default StrandsClient binding registered by the service provider.
  */
 class Strands extends Facade
 {

@@ -9,14 +9,21 @@ use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 
 /**
- * Symfony bundle for the Strands PHP Client.
+ * Registers the Strands client as a Symfony bundle.
+ *
+ * Symfony discovers this bundle at boot and loads its dependency-injection
+ * extension, which reads the app's `strands` config and wires up named agent
+ * clients so controllers and services can inject a ready-to-use client.
  */
 class StrandsBundle extends Bundle
 {
     /**
-     * Create the Symfony dependency-injection extension for this bundle.
+     * Hand Symfony the extension that turns app config into wired services.
      *
-     * @return ExtensionInterface|null Symfony extension instance for this bundle.
+     * Called once while the container is compiled; without it the bundle's
+     * config and service definitions would never be registered.
+     *
+     * @return ExtensionInterface|null The DI extension that loads Strands services.
      */
     public function getContainerExtension(): ?ExtensionInterface
     {

@@ -43,7 +43,7 @@ interface RequestMiddleware
      * @param string          $url        The request URL.
      * @param int             $statusCode HTTP status code (200 on success, 0 if cancelled or no response received).
      * @param float           $durationMs Total operation duration in milliseconds (including retries).
-     * @param \Throwable|null $error      The exception, if the operation failed.
+     * @param \Throwable|null $error      The failure that ended the operation, or null when the user's request succeeded.
      * @return void No returned value; updates client or observer state.
      */
     public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void;

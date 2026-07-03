@@ -1,12 +1,5 @@
 <?php
 
-/**
- * Laravel service provider for the Strands PHP Client.
- *
- * Registers StrandsClientFactory, binds the default StrandsClient, and
- * creates named "strands.client.<name>" bindings for each configured agent.
- */
-
 declare(strict_types=1);
 
 namespace StrandsPhpClient\Integration\Laravel;
@@ -21,7 +14,12 @@ use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
 /**
- * Registers configured Strands clients for Laravel applications.
+ * Wires Strands clients into a Laravel application's service container.
+ *
+ * Merges the package config, registers the shared factory, binds the default
+ * StrandsClient for type-hint injection, and adds a "strands.client.<name>"
+ * binding per configured agent. Also publishes the config file for `artisan
+ * vendor:publish`. Laravel calls this automatically at boot.
  */
 class StrandsServiceProvider extends ServiceProvider
 {
@@ -78,6 +76,8 @@ class StrandsServiceProvider extends ServiceProvider
         /** @var array<string, array<string, mixed>> $agents validated before app code uses it. */
         $agents = $config->get('strands.agents', []);
 
+        // Give every configured agent its own container binding so an app can inject a
+        // specific one (e.g. app('strands.client.support')) alongside the default client.
         foreach (array_keys($agents) as $name) {
             $binding = 'strands.client.' . $name;
             $this->app->singleton($binding, function (Application $application) use ($name): StrandsClient {
@@ -87,12 +87,13 @@ class StrandsServiceProvider extends ServiceProvider
     }
 
     /**
-     * Bootstrap application services.
+     * Publish the config file so `artisan vendor:publish` can copy it into the app.
      *
      * @return void No returned value; updates client or observer state.
      */
     public function boot(): void
     {
+        // Only offer the publishable config from the CLI, where vendor:publish runs.
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__ . '/config/strands.php' => $this->app->configPath('strands.php'),
