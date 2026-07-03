@@ -1,14 +1,14 @@
 ---
 name: goat-debug
-description: "Use when diagnosing a bug, unexpected behaviour, or system failure that needs structured investigation."
-goat-flow-skill-version: "1.7.0"
+description: "Use when diagnosing a bug, unexpected behaviour, system failure, or unfamiliar code that needs structured investigation."
+goat-flow-skill-version: "1.13.0"
 ---
 # /goat-debug
 
 ## Shared Conventions
 
-Read `.goat-flow/skill-reference/skill-preamble.md` for shared conventions.
-On full-depth, also read `.goat-flow/skill-reference/skill-conventions.md`.
+Read `.goat-flow/skill-docs/skill-preamble.md` for shared conventions.
+On full-depth, also read `.goat-flow/skill-docs/skill-conventions.md`.
 
 ## When to Use
 
@@ -30,13 +30,15 @@ Use when diagnosing a bug or understanding unfamiliar code. For onboarding, use 
 
 ## Step 0 - Choose Depth
 
-If depth is pre-decided, proceed. Otherwise confirm quick vs full, or auto-detect from available input.
+If depth is pre-decided, proceed. Otherwise choose:
+- **Quick** when the symptom is isolated to 1-2 files, the user wants diagnosis only, or the prompt already includes a reproduction/error output.
+- **Full** when the symptom crosses components, has no reproduction yet, affects CI/prod/user-visible behaviour, or a fix may follow. If uncertain, choose full.
 If vague, ask about: goal, symptom/error message, area involved.
 
-**Quick path:** diagnose and report; **full path:** run D1–D1.5–D2–D3–D4.
-**Footgun check:** Use the preamble's grep-first learning-loop retrieval on `.goat-flow/footguns/` and `.goat-flow/lessons/` for the target area. Surface matches or an explicit retrieval miss; do not broad-load either bucket.
+**Quick path (D1 + D1.5-or-`reproduction already minimal` + D2; no D3/D4):** diagnose and report; minimum evidence is primary file read, 2 hypothesis categories tested, reproduction attempted or no-repro gap stated. If presenting a D2 root cause, either run D1.5 or state `reproduction already minimal` with the literal input/command. **Full path:** run D1–D1.5–D2–D3–D4.
+**Footgun check:** Use the preamble's learning-loop retrieval on `.goat-flow/learning-loop/footguns/` and `.goat-flow/learning-loop/lessons/` for the target area. Surface matches or an explicit retrieval miss; do not broad-load either bucket.
 
-**Browser evidence detection:** Does the request reference a URL, local HTML page, localhost route, screenshot, UI element, visual rendering issue, browser DevTools output, or browser console/network symptom? If yes, read `.goat-flow/skill-playbooks/browser-use.md` for browser evidence tools. Check with `command -v browser-use || command -v browser-use-python`. If not installed, offer to install it (`pip install browser-use` or `scripts/install-browser-tools.sh`) and wait for the user's response - never install it without approval or silently fall back. If the user declines or installation fails, use the manual fallback in the reference.
+**Browser evidence detection:** Does the request reference a URL, local HTML page, localhost route, screenshot, UI element, visual rendering issue, browser DevTools output, or browser console/network symptom? If yes, read `.goat-flow/skill-docs/playbooks/browser-use.md` for browser evidence tools. Check with `command -v browser-use || command -v browser-use-python`. If not installed, offer to install it (`pip install browser-use`) and wait for the user's response - never install it without approval or silently fall back. If the user declines or installation fails, use the manual fallback in the reference.
 
 
 ## Diagnose Mode
@@ -49,7 +51,7 @@ Write 2-3 hypotheses spanning at least 2 of: Data, Logic, Timing, Environment, C
 
 **Multi-component failures** (CI → build → deploy, request → middleware → handler → DB, etc.): instrument each boundary before proposing any fix. For each component boundary, log what data enters and what exits, run once to gather evidence showing WHERE the chain breaks, THEN investigate the specific failing component. Do not guess the failing layer.
 
-**UI-visible bugs:** After writing hypotheses, use browser evidence to confirm or eliminate UI-related hypotheses. Follow the workflow in `.goat-flow/skill-playbooks/browser-use.md`. Browser output is OBSERVED; interpretations remain INFERRED until mapped to `file + semantic anchor`.
+**UI-visible bugs:** After writing hypotheses, use browser evidence to confirm or eliminate UI-related hypotheses. Follow the workflow in `.goat-flow/skill-docs/playbooks/browser-use.md`. Browser output is OBSERVED; interpretations remain INFERRED until mapped to `file + semantic anchor`.
 
 **Can't reproduce after 5 file reads?** Log what you checked, suggest logging additions, ask for more context.
 
@@ -76,9 +78,28 @@ Write 2-3 hypotheses spanning at least 2 of: Data, Logic, Timing, Environment, C
 
 Test cheap-and-likely first. Skip expensive-and-unlikely until cheap options are eliminated.
 
+### Worked Example - D1 to D4
+
+Use this as the output shape, not as a canned diagnosis. Real incident: a `goat-debug` quality review scored Examples `2/5` because the composed skill had no full phase walkthrough.
+
+- **D1 scope:** symptom boundary = Examples deduction; affected components = the target skill's `SKILL.md`, `skill-preamble.md`, `skill-conventions.md`; read estimate = 3 files.
+- **Hypotheses:**
+
+| # | Hypothesis | Category | Action | Expected outcome |
+|---|---|---|---|---|
+| 1 | `SKILL.md` lacks a worked phase example | Data | `rg -n '### Worked Example' SKILL.md` | No `### Worked Example` heading CONFIRMS the deduction. |
+| 2 | Shared references already supply the missing example | Configuration | `rg -n 'D1|Minimal Failing Case|worked' skill-preamble.md skill-conventions.md` | If only rules/templates appear, ELIMINATE this as a fix. |
+
+- **D1.5 minimal case:** the three composed files reproduce the score; dashboard metadata and unrelated skill copies are removed because the missing walkthrough is visible in the composed bundle.
+- **D2 root cause shape:** `SKILL.md` (search: `## Output Format`) had an output skeleton but no concrete phase walkthrough; confidence is HIGH only after reproducing the assessment or rerunning the quality report.
+- **D3 fix plan (human-approved):** add a concrete phase walkthrough (this D1-D4 section) to `SKILL.md`; blast radius = docs only, no `.goat-flow/architecture.md` constraint touched; verification = rerun the quality assessment, then re-grep the file.
+- **D4 post-fix verification:** rerun the original reproduction (the skill quality assessment); the "no full phase walkthrough" deduction no longer fires. Static follow-up only: `rg -n '### Worked Example' SKILL.md` now returns this section where D1's grep found none. A code change is not a fix until the original repro passes, so downgrade to **UNVERIFIED** if the assessment cannot be rerun.
+
 ### D2 - Diagnosis
 
 Present: root cause + confidence (HIGH = reproduced, MEDIUM = traced, LOW = inferred) + hypothesis table + reproduction steps. **Confidence floor:** All LOW --> return to D1 or present partial findings.
+
+**Confidence <-> proof-class:** carry both - confidence in Root Cause, proof-class in Debug Integrity. Map to the preamble's Proof Classification: HIGH <-> RUNTIME (executed the repro), MEDIUM <-> CONTRACT-GREP / STATIC (traced callers or read structure), LOW <-> STATIC (inferred), no reproduction <-> NOT-REPRODUCED.
 
 **Root cause validation before claiming HIGH confidence.** For each candidate root cause, run a causation / necessity / sufficiency check:
 - **Causation** - does the proposed cause mechanically produce the observed symptom? Trace the path with `file + semantic anchor`.
@@ -98,7 +119,7 @@ Rerun the **original reproduction** from D2 - a code change is not a fix until t
 
 **3-fix abort rule:** If three independent fixes have failed to resolve the symptom, STOP and reconsider whether the architecture or the root-cause hypothesis is wrong. Do not attempt a fourth patch without first re-entering D1 with a fresh hypothesis set.
 
-**UI bugs:** Rerun the original browser reproduction post-fix. Capture screenshot/state showing the symptom is gone. Follow `.goat-flow/skill-playbooks/browser-use.md`.
+**UI bugs:** Rerun the original browser reproduction post-fix. Capture screenshot/state showing the symptom is gone. Follow `.goat-flow/skill-docs/playbooks/browser-use.md`.
 
 **Proof Gate:** Apply the Proof Gate from `skill-preamble.md` to the "fixed" claim - rerun the original repro, cite the literal output, and downgrade to **UNVERIFIED** if the session cannot execute the proof.
 
@@ -111,6 +132,7 @@ Every diagnose-mode report ends with this section. It tells the reader how much 
 - **Categories covered:** which of Data/Logic/Timing/Environment/Configuration were tested
 - **Reproduction attempted:** yes / no / partial
 - **Confidence basis:** N OBSERVED / M INFERRED
+- **Proof class:** `RUNTIME | CONTRACT-GREP | STATIC | NOT-REPRODUCED` (per `skill-preamble.md` Proof Classification)
 - **Footgun retrieval:** hit (cite entry) / miss / skip
 - **What I Didn't Check:** files, paths, or components deliberately skipped with one-line reason each
 
@@ -167,6 +189,7 @@ Diagnose and investigate modes produce different artifacts. Use the block that m
 - Categories covered: [list]
 - Reproduction attempted: [yes/no/partial]
 - Confidence basis: [N] OBSERVED / [M] INFERRED
+- Proof class: [RUNTIME/CONTRACT-GREP/STATIC/NOT-REPRODUCED]
 - Footgun retrieval: [hit/miss/skip]
 - What I Didn't Check: [files/paths skipped + reason]
 ```

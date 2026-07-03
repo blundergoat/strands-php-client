@@ -1,5 +1,9 @@
 {
   "permissions": {
+    "allow": [
+      "Read(.env.example)",
+      "Read(**/.env.example)"
+    ],
     "deny": [
       "Bash(*git commit*)",
       "Bash(*git push*)",
@@ -10,21 +14,42 @@
       "Read(**/.env*)",
       "Edit(**/.env*)",
       "Write(**/.env*)",
+      "Read(**/secrets/**)",
       "Read(**/*.pem)",
-      "Edit(**/*.pem)",
-      "Write(**/*.pem)",
       "Read(**/*.key)",
-      "Edit(**/*.key)",
-      "Write(**/*.key)",
       "Read(**/.ssh/**)",
-      "Edit(**/.ssh/**)",
-      "Write(**/.ssh/**)",
       "Read(**/.aws/**)",
-      "Edit(**/.aws/**)",
-      "Write(**/.aws/**)",
+      "Read(**/.docker/config.json)",
+      "Read(**/.gnupg/**)",
+      "Read(**/.npmrc)",
+      "Read(**/.pypirc)",
+      "Read(**/*.pfx)",
       "Read(**/credentials*)",
+      "Read(**/.kube/config)",
+      "Write(**/secrets/**)",
+      "Write(**/*.pem)",
+      "Write(**/*.key)",
+      "Write(**/.ssh/**)",
+      "Write(**/.aws/**)",
+      "Write(**/.docker/config.json)",
+      "Write(**/.gnupg/**)",
+      "Write(**/.npmrc)",
+      "Write(**/.pypirc)",
+      "Write(**/*.pfx)",
+      "Write(**/credentials*)",
+      "Write(**/.kube/config)",
+      "Edit(**/secrets/**)",
+      "Edit(**/*.pem)",
+      "Edit(**/*.key)",
+      "Edit(**/.ssh/**)",
+      "Edit(**/.aws/**)",
+      "Edit(**/.docker/config.json)",
+      "Edit(**/.gnupg/**)",
+      "Edit(**/.npmrc)",
+      "Edit(**/.pypirc)",
+      "Edit(**/*.pfx)",
       "Edit(**/credentials*)",
-      "Write(**/credentials*)"
+      "Edit(**/.kube/config)"
     ]
   },
   "hooks": {
@@ -34,27 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/deny-dangerous.sh\""
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/guard-write-size.sh\""
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/format-file.sh\""
+            "command": "bash -c 'root=\"$(git rev-parse --show-toplevel 2>/dev/null || true)\"; [ -f \"$root/.goat-flow/hooks/deny-dangerous.sh\" ] || root=\"${CLAUDE_PROJECT_DIR:-}\"; [ -f \"$root/.goat-flow/hooks/deny-dangerous.sh\" ] || { printf '\\''BLOCKED: Policy hook unavailable: git repository root unavailable.\\n'\\'' >&2; exit 2; }; cd \"$root\" || { printf '\\''BLOCKED: Policy hook unavailable: git repository root unavailable.\\n'\\'' >&2; exit 2; }; bash \"$root/.goat-flow/hooks/deny-dangerous.sh\"'"
           }
         ]
       }
@@ -64,18 +69,30 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/stop-lint.sh\""
+            "command": "bash -c 'root=\"$(git rev-parse --show-toplevel 2>/dev/null || true)\"; [ -f \"$root/.goat-flow/hooks/post-turn-safety.sh\" ] || root=\"${CLAUDE_PROJECT_DIR:-}\"; [ -f \"$root/.goat-flow/hooks/post-turn-safety.sh\" ] || { printf '\\''post-turn-safety: hook unavailable: git repository root or hook script unavailable.\\n'\\'' >&2; exit 2; }; cd \"$root\" || { printf '\\''post-turn-safety: hook unavailable: git repository root or hook script unavailable.\\n'\\'' >&2; exit 2; }; bash \"$root/.goat-flow/hooks/post-turn-safety.sh\"'",
+            "timeout": 60
           }
         ]
       }
     ],
-    "Notification": [
+    "PostToolUse": [
       {
-        "matcher": "compact",
+        "matcher": "Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'CONTEXT AFTER COMPACTION:' && echo 'Modified files:' && git diff --name-only 2>/dev/null && echo '---' && echo 'Continuity surfaces: .goat-flow/tasks/ and .goat-flow/logs/sessions/' && echo '---' && echo 'Constraints: re-read CLAUDE.md Ask First boundaries before continuing'"
+            "command": "bash -c 'root=\"$(git rev-parse --show-toplevel 2>/dev/null || true)\"; [ -f \"$root/.goat-flow/hooks/gruff-code-quality.sh\" ] || root=\"${CLAUDE_PROJECT_DIR:-}\"; [ -f \"$root/.goat-flow/hooks/gruff-code-quality.sh\" ] || { printf '\\''gruff-code-quality: hook unavailable: git repository root or hook script unavailable; skipped.\\n'\\'' >&2; exit 0; }; cd \"$root\" || { printf '\\''gruff-code-quality: hook unavailable: git repository root or hook script unavailable; skipped.\\n'\\'' >&2; exit 0; }; bash \"$root/.goat-flow/hooks/gruff-code-quality.sh\"'",
+            "timeout": 90
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'root=\"$(git rev-parse --show-toplevel 2>/dev/null || true)\"; [ -f \"$root/.goat-flow/hooks/gruff-code-quality.sh\" ] || root=\"${CLAUDE_PROJECT_DIR:-}\"; [ -f \"$root/.goat-flow/hooks/gruff-code-quality.sh\" ] || { printf '\\''gruff-code-quality: hook unavailable: git repository root or hook script unavailable; skipped.\\n'\\'' >&2; exit 0; }; cd \"$root\" || { printf '\\''gruff-code-quality: hook unavailable: git repository root or hook script unavailable; skipped.\\n'\\'' >&2; exit 0; }; bash \"$root/.goat-flow/hooks/gruff-code-quality.sh\"'",
+            "timeout": 90
           }
         ]
       }

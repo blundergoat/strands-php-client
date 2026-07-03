@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/deny-dangerous.sh\"",
-            "statusMessage": "Checking command safety"
+            "command": "bash -c 'root=\"$(git rev-parse --show-toplevel 2>/dev/null || true)\"; [ -f \"$root/.goat-flow/hooks/deny-dangerous.sh\" ] || { printf '\\''BLOCKED: Policy hook unavailable: git repository root unavailable.\\n'\\'' >&2; exit 2; }; cd \"$root\" || { printf '\\''BLOCKED: Policy hook unavailable: git repository root unavailable.\\n'\\'' >&2; exit 2; }; bash \"$root/.goat-flow/hooks/deny-dangerous.sh\"'",
+            "statusMessage": "Deny dangerous hook"
           }
         ]
       }

@@ -4,11 +4,11 @@ PHP client library for consuming Strands Agents over HTTP. It supports `invoke()
 
 Core invariant: `HttpTransport` is an interface. Do not add default method bodies or turn it into an abstract class.
 
-Contract invariant: this client targets the Strands HTTP Wire Contract v1 (`docs/wire-contract.md`, `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`), not raw sdk-python `TypedDict` shapes.
+Contract invariant: this client targets the Strands HTTP Wire Contract v1 (`docs/wire-contract.md`, `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md`), not raw sdk-python `TypedDict` shapes.
 
 ## Goat-flow harness
 
-This project uses goat-flow (v1.7.0). For Claude-specific scope and the full execution loop, see `CLAUDE.md`. Architecture, code map, and glossary live under `.goat-flow/`. The learning loop (footguns / lessons / patterns / decisions) is under `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, `.goat-flow/decisions/` — grep before every change.
+This project uses goat-flow (v1.13.0). For Claude-specific scope and the full execution loop, see `CLAUDE.md`. Architecture, code map, and glossary live under `.goat-flow/`. The learning loop (footguns / lessons / patterns / decisions) is under `.goat-flow/learning-loop/` — grep before every change.
 
 ## Workspace Boundary
 
@@ -19,7 +19,7 @@ The controlling GOAT Flow workspace may differ from the selected target project.
 1. The user's explicit instruction for this session.
 2. This instruction file.
 3. `.goat-flow/architecture.md` and `.goat-flow/code-map.md`.
-4. `.goat-flow/decisions/` (ADRs including the wire-contract ADR).
+4. `.goat-flow/learning-loop/decisions/` (ADRs including the wire-contract ADR).
 5. Project docs in `README.md`, `CONTRIBUTING.md`, and `docs/`.
 6. GOAT skills/reference files loaded on demand.
 
@@ -54,8 +54,8 @@ Do not edit secrets or credential files. Do not push, commit, run destructive gi
 - Architecture: `.goat-flow/architecture.md`
 - Code map: `.goat-flow/code-map.md`
 - Glossary: `.goat-flow/glossary.md`
-- Learning loop: `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, `.goat-flow/decisions/`
-- Tool playbooks: `.goat-flow/skill-playbooks/` — read the matching playbook before declaring a tool unavailable.
+- Learning loop: `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, `.goat-flow/learning-loop/decisions/`
+- Tool playbooks: `.goat-flow/skill-docs/playbooks/` — read the matching playbook before declaring a tool unavailable.
 - Wire contract: `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`
 - Main docs: `README.md`, `CONTRIBUTING.md`, `docs/usage-guide.md`, `docs/auth.md`, `docs/laravel-config.md`, `docs/symfony-config.md`
 
@@ -78,7 +78,7 @@ vendor/bin/phpunit --filter testInvokeReturnsResponse
 
 ### READ
 
-MUST read relevant files before changes. Never fabricate codebase facts. Search `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, and `.goat-flow/decisions/` before code changes. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim — project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool".
+MUST read relevant files before changes. Never fabricate codebase facts. Search `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, and `.goat-flow/learning-loop/decisions/` before code changes. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-docs/playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim — project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool".
 
 ### SCOPE
 
@@ -99,7 +99,7 @@ Run focused checks for changed files. Do not claim checks passed without the lit
 3. **Fix verification.** Do not claim a fix works without running the reproduction steps that originally demonstrated the bug. "Looks correct" is not verification.
 4. **Hedged claims.** Do not use "should work", "probably fine", "looks good" as verification. These are guesses, not evidence.
 
-Rationalisations to reject — see `.goat-flow/skill-reference/skill-preamble.md` ("Rationalisations to reject" table) for the canonical Excuse / Reality pairs.
+Rationalisations to reject — see `.goat-flow/skill-docs/skill-preamble.md` ("Rationalisations to reject" table) for the canonical Excuse / Reality pairs.
 
 ## Definition of Done
 
@@ -109,10 +109,10 @@ Confirm the relevant gates: tests or focused checks pass, formatting/static anal
 
 | Artifact | Destination |
 | --- | --- |
-| Footgun or code trap | `.goat-flow/footguns/` |
-| Lesson from an agent mistake | `.goat-flow/lessons/` |
-| Architecture or policy decision | `.goat-flow/decisions/` |
-| Reusable implementation or testing pattern | `.goat-flow/patterns/` |
+| Footgun or code trap | `.goat-flow/learning-loop/footguns/` |
+| Lesson from an agent mistake | `.goat-flow/learning-loop/lessons/` |
+| Architecture or policy decision | `.goat-flow/learning-loop/decisions/` |
+| Reusable implementation or testing pattern | `.goat-flow/learning-loop/patterns/` |
 | Session continuity note | `.goat-flow/logs/sessions/` |
 | Scratch work | `.goat-flow/scratchpad/` |
 
@@ -122,15 +122,15 @@ Read the destination directory's `README.md` before editing GOAT Flow artifacts.
 
 | Surface | Path |
 | --- | --- |
-| Skill reference (meta) | `.goat-flow/skill-reference/` |
-| Tool playbooks (CLI/MCP availability checks: browser-use, page-capture, skill-quality-testing) | `.goat-flow/skill-playbooks/` — read BEFORE declaring a tool unavailable |
-| Learning loop | `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, `.goat-flow/decisions/` |
+| Skill reference (meta) | `.goat-flow/skill-docs/` |
+| Tool playbooks (CLI/MCP availability checks: browser-use, page-capture, skill-quality-testing) | `.goat-flow/skill-docs/playbooks/` — read BEFORE declaring a tool unavailable |
+| Learning loop | `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, `.goat-flow/learning-loop/decisions/` |
 | Architecture | `.goat-flow/architecture.md` |
 | Code map | `.goat-flow/code-map.md` |
 | Glossary | `.goat-flow/glossary.md` |
 | Claude instruction file | `CLAUDE.md` |
-| Claude skills + harness | `.claude/skills/`, `.claude/settings.json`, `.claude/hooks/` |
-| Wire contract | `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md` |
+| Claude skills + harness | `.claude/skills/`, `.claude/settings.json`, `.goat-flow/hooks/` |
+| Wire contract | `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md` |
 | Source code | `src/` |
 | Tests | `tests/` |
 | Documentation | `README.md`, `CONTRIBUTING.md`, `docs/` |

@@ -1,14 +1,13 @@
 ---
 name: goat-review
 description: "Use when reviewing a diff, PR, or set of code changes, or auditing a codebase area for quality issues. Triggers: 'review this', 'code review', 'audit X', 'look at these changes'."
-goat-flow-skill-version: "1.7.0"
+goat-flow-skill-version: "1.13.0"
 ---
 # /goat-review
 
 ## Shared Conventions
 
-Read `.goat-flow/skill-reference/skill-preamble.md` for shared conventions.
-On full-depth, also read `.goat-flow/skill-reference/skill-conventions.md`.
+Read `.goat-flow/skill-docs/skill-preamble.md`; on full-depth also read `.goat-flow/skill-docs/skill-conventions.md`.
 
 ## When to Use
 
@@ -24,24 +23,24 @@ Use when reviewing a diff, PR, or set of changes. Also for quality audits of a c
 
 - If user already says "quick", "PR", or "full", confirm and continue.
 - If arriving from the dispatcher with depth already chosen, skip the depth question.
-- If vague, ask one follow-up covering files, concerns, and diff / PR / audit.
-- Auto-detect scope: (1) explicit input, (2) staged changes, (3) unstaged changes, (4) PR-style when HEAD is on a non-default branch with commits ahead of the detected review base, (5) git diff.
+- If vague, ask one follow-up covering files, concerns, and mode.
+- Auto-detect: explicit input, staged, unstaged, PR-style branch ahead of base, then `git diff`.
 
-**PR mode (prefer PR link):** ask for PR URL/number first; it collapses base, head, description, and linked issues. Prompt: "PR URL or number? -- or say 'local' if not pushed." Resolve with `gh pr view <ref> --json baseRefName,headRefName,headRefOid,url,title,body`; diff via `gh pr diff <ref>`. Record PR URL and base SHA.
+**PR mode:** prefer PR URL/number because it supplies base, head, description, and linked issues. Prompt: "PR URL or number? -- or say 'local' if not pushed." Resolve with `gh pr view <ref> --json baseRefName,headRefName,headRefOid,url,title,body,reviews,comments`; diff via `gh pr diff <ref>`. Record URL/base SHA. See `references/automated-review.md` for overlap-tagging.
 
-**PR mode (base fallback):** when no PR link or `gh` unavailable, resolve base in order: (1) explicit user base, (2) `.goat-flow/config.yaml`'s `skills.goat-review.local_pr_base` (record `configured-base=<base>`, or `configured-base-unresolved=<base>` if unresolvable), (3) `git symbolic-ref --short refs/remotes/origin/HEAD` or `git remote show origin`, (4) ask user, (5) last-resort fallback `main` with `base-detection-failed`. Run `git fetch origin <base> --quiet`; diff via `git diff origin/<base>...HEAD`. On fetch failure, fall back to local `<base>` with `base-fetch-failed`. Record resolved base, source, and short SHA in Review Integrity.
+**Base fallback:** when no PR link or `gh` unavailable, resolve base from explicit user base, `skills.goat-review.local_pr_base`, remote HEAD, user prompt, then `main` with `base-detection-failed`. Prefer existing refs; only `git fetch origin <base> --quiet` after explicit network approval. Diff `origin/<base>...HEAD` if present, else local `<base>...HEAD` with `base-fetch-skipped` or `base-fetch-failed`. Record base/source/SHA in Review Integrity.
 
-**Size sizing (before Pass 1):** measure the diff. If it exceeds **20 files OR 3000 changed lines**, propose chunking by file group and ask. If the user proceeds un-chunked, record as `large-diff-unchunked` for Review Integrity.
+**Diff sizing:** before Pass 1, measure files/changed lines. If over **20 files OR 3000 changed lines**, propose file-group chunking; if user proceeds unchunked, record `large-diff-unchunked`.
 
-**Spec source (opt-in):** if `.goat-flow/tasks/.active` exists, read it to find the active plan subdir and scan for a milestone file with `Status: in-progress` or `testing-gate`. If found, offer: "Include Spec Drift check against M[NN] exit criteria?" Default: skip for quick, offer for full. Note the choice in Review Integrity.
+**Spec source (opt-in):** if `.goat-flow/plans/.active` points to an in-progress/testing milestone, offer: "Include Spec Drift check against M[NN] exit criteria?" Default skip for quick, offer for full. Note choice in Review Integrity.
 
-**Temporary review artifacts:** write under `.goat-flow/scratchpad/` only with a random suffix (`goat-review-<artifact>.<random>.txt`). Never write to repo root.
+**Temporary review artifacts:** write under `.goat-flow/logs/review/` only with a random suffix (`goat-review-<artifact>.<random>.txt`). Never write to repo root.
 
-**Footgun check:** Use the preamble's grep-first learning-loop retrieval on `.goat-flow/footguns/` for the target area. Present matches or an explicit retrieval miss; do not broad-load the bucket.
+**Footgun check:** use preamble learning-loop retrieval on `.goat-flow/learning-loop/footguns/` for the target area. Present matches or retrieval miss; do not broad-load.
 
 ### Review Scope Snapshot (mandatory)
 
-Before Pass 1, record the exact review surface:
+Before Pass 1, record the review surface:
 
 - **Source:** staged | unstaged | PR | branch diff | explicit path list
 - **Base/Head:** `<branch-or-sha>` / `<branch-or-sha>` (or n/a)
@@ -54,7 +53,7 @@ If any value is undetermined, write `unknown` and add a degradation flag.
 
 ### Step 0.5 - Intent Reconstruction (mandatory)
 
-Before Pass 1, reconstruct WHY this change exists. Read in priority order: (1) PR description and linked issues via `gh pr view <ref> --json body,title` and `gh issue view <n>`, (2) commit message of HEAD, (3) active milestone exit criteria from `.goat-flow/tasks/.active`. If none exist, flag `intent-unstated` in Review Integrity.
+Before Pass 1, reconstruct WHY the change exists. Read, in order: PR description/linked issues, HEAD commit message, active milestone exit criteria. If none exist, flag `intent-unstated`.
 
 Output three-bullet reconstruction:
 - **Stated intent:** what the change claims to do
@@ -67,21 +66,13 @@ Pass 1 and Pass 2 anchor to BOTH the diff and the stated intent.
 
 ## Diff Review (Quick) - Two-Pass Discipline
 
-The review runs two sequential passes. This is a deliberate reading discipline, not a doer-verifier split: you are the reviewer throughout, Pass 2 is the source of truth, and findings are only surfaced after Pass 2.
+The review runs two sequential passes. You are the reviewer throughout; Pass 2 is the source of truth, and findings surface only after Pass 2.
 
 ### Pass 1 - Blind Suspicion (diff only)
 
 Read the diff **without opening full files**. The point is to see what the diff reveals before surrounding code anchors you.
 
-Scan for:
-- **Severity cues:** auth/permission checks, secret handling, SQL/shell/API calls, data mutation, state transitions
-- **Edge-case sweep - 6 meta-categories, specifics bubble up as the diff warrants:**
-  - *Boundary conditions* - off-by-one, pagination/index bounds, empty collections, integer overflow
-  - *Nullish values* - null / undefined / default branches, missing optional fields
-  - *Concurrency* - race windows, shared state, concurrent access
-  - *Error handling* - timeouts, retries/backoff, silent exception swallowing
-  - *Contract changes* - signature, return type, error channel, status code, event shape
-  - *Observability & DDT testability* - state transitions, background tasks, retries, or async flows lacking logs, telemetry, or signals. Ask: "can a human tell if this succeeded without instrumenting it?" If no: `[SHOULD:needs-signal]` or `[MUST:needs-signal]` per risk
+Scan for severity cues (auth, secrets, SQL/shell/API calls, mutation, state transitions) and edge cases: boundary conditions, nullish/default branches, concurrency, error handling, contract changes, and observability/DDT testability. For opaque state transitions, background tasks, retries, or async flows, ask: "can a human tell if this succeeded without instrumenting it?" If no, consider `[SHOULD:needs-signal]` or `[MUST:needs-signal]` per risk.
 
 Write raw suspicions with `file + semantic anchor` drawn from the diff. Do NOT verify, confirm, or dismiss in this pass. Over-capture is fine; Pass 2 filters.
 
@@ -89,12 +80,12 @@ Write raw suspicions with `file + semantic anchor` drawn from the diff. Do NOT v
 
 ### Pass 2 - Grounded Verification (full files)
 
-Now read full files for context. For each Pass-1 suspicion:
+Now read full files. For each Pass-1 suspicion:
 
-- **Try to DISPROVE it** (negative verification). Re-read the `file + semantic anchor`, look for a guard, an upstream check, a framework mitigation, or a contract that removes the risk.
-- **Blast Radius Rule:** if a suspicion involves a contract change (signature, payload shape, exported type, event shape, error channel, status code), MUST run an external call-site search before resolving. Prefer `rg -n '<symbol>' -t ts -t js -t py -t php -t go -t rust`; if shell `rg` is unavailable, use the host search tool or `grep -rniE '<symbol>'` and record the fallback. Verify at least one consumer. If skipped, stays UNRESOLVED and gets `coverage-degraded`.
+- **Try to DISPROVE it** by re-reading the anchor and looking for guards, upstream checks, framework mitigation, or contracts that remove the risk.
+- **Blast Radius Rule:** for contract changes (signature, payload, exported type, event shape, error channel, status code), MUST run external call-site search before resolving. Prefer `rg -n '<symbol>' -t ts -t js -t py -t php -t go -t rust`; else use host search or `grep -rniE '<symbol>'` and record fallback. Verify at least one consumer. If skipped, stays UNRESOLVED with `coverage-degraded`.
 - Mark each suspicion: **CONFIRMED** / **REFUTED** / **UNRESOLVED**.
-- **Refutation Ledger:** REFUTED suspicions are not silently dropped. Write a ledger to `.goat-flow/scratchpad/goat-review-refutations.<random>.txt`. Each entry: original suspicion (verbatim), refuting evidence (`file + semantic anchor`), one-sentence rationale. Refuted suspicions do not appear in final output; the ledger is the audit trail.
+- **Refutation Ledger:** write REFUTED suspicions to `.goat-flow/logs/review/goat-review-refutations.<random>.txt` with original suspicion, refuting evidence, and one-sentence rationale. Do not surface refuted items in final output.
 - Add findings that only became visible with file context (integration breakage, call-site contract mismatch, regression in a sibling file).
 - Re-verify every `file + semantic anchor` reference exists before writing the final output.
 
@@ -108,25 +99,15 @@ Full Excuse/Reality table: `references/examples.md`. Key entries:
 
 ### Severity + Action Tagging
 
-Every surfaced finding gets two orthogonal tags:
-
-| Severity | Meaning |
-|----------|---------|
-| MUST | fix before merge; blocks approval |
-| SHOULD | fix before merge unless disputed |
-| MAY | nice-to-have |
-
-| Action | Meaning |
-|--------|---------|
-| patch | fix direction is unambiguous - a coding agent can apply it |
-| needs-decision | correct fix requires human input (policy, product call, trade-off) |
-| pre-existing | bug exists in unchanged code (see separation below) |
-| intent-mismatch | code is correct but does not match stated intent - needs author confirmation |
-| needs-signal | code is a black box that degrades manual testability - needs emitted signal, log, or observable return value |
+Every surfaced finding gets severity and action tags. Severity: `MUST` blocks approval, `SHOULD` fixes before merge unless disputed, `MAY` is optional. Action: `patch`, `needs-decision`, `pre-existing`, `intent-mismatch`, or `needs-signal`.
 
 Finding line prefix: `[SEVERITY:ACTION]`. Example: `[MUST:needs-decision]`.
 
 **Proof Capsule:** every finding includes a proof class per `skill-preamble.md` Proof Classification: `RUNTIME` | `CONTRACT-GREP` | `STATIC` | `NOT-REPRODUCED`. MUST/correctness-SHOULD should prefer RUNTIME or CONTRACT-GREP. NOT-REPRODUCED adds `not-reproduced-findings` to Review Integrity.
+
+### Systemic Patterns
+
+When 3+ surfaced findings share the same root cause, report one parent entry under `## Systemic Patterns` using the highest applicable severity and action tag. Include the affected file anchors, the repeated failure mode, and the concrete harm. Keep individual findings only when they have distinct harm or distinct fixes; otherwise the systemic pattern is the finding.
 
 ### Pre-existing Separation
 
@@ -135,9 +116,9 @@ Finding line prefix: `[SEVERITY:ACTION]`. Example: `[MUST:needs-decision]`.
 
 ### Footgun Cross-Check
 
-Check each finding with targeted grep-first retrieval against `.goat-flow/footguns/`. When a direct match exists, include it. Omit the footgun tag when no direct match is found after the one allowed reword.
+Check each finding with targeted INDEX-first retrieval against `.goat-flow/learning-loop/footguns/INDEX.md`. When a direct match exists, include it. Omit the footgun tag when no direct match is found after the one allowed reword.
 
-**BLOCKING GATE:** Present findings using Output Format below, then pause for human to drill in. After the human responds, evaluate Pass 3 auto-trigger conditions before presenting the Ship Verdict - do not skip the refuter when conditions are met.
+**BLOCKING GATE:** Present findings plus Top 5 Risks and Review Integrity, then pause. If Pass 3 is pending, Ship Verdict must be `PENDING REFUTER/HUMAN`; after response/refuter, present final verdict.
 
 **Review DoD gate:** for reporting-only review, verify findings, cross-references, and scope. No implementation tests unless a finding requires it. If user says "implement", switch to the instruction file's implementation DoD.
 
@@ -163,7 +144,7 @@ If none detected, emit "No drift detected against M[NN]" so the reader knows the
 
 Triggers when ANY of: (1) user opts in at Step 0, (2) Review Integrity would be `coverage-degraded` or `high-inference`, (3) any `[MUST:needs-decision]` finding exists, (4) any INTENT-MISMATCH finding exists.
 
-**Method:** Use an authenticated external refuter runtime, not the host model. Default host map: Claude -> `codex exec`; Codex/Copilot/Gemini -> `claude -p` unless a verified stronger opposite runtime is documented. Pass FINDINGS LIST, not the diff. Template: `references/refuter-spec.md`.
+**Method:** Use an authenticated external refuter runtime, not the host model. Default host map: Claude -> `codex exec`; Codex/Copilot/Antigravity -> `claude -p` unless a verified stronger opposite runtime is documented. Pass FINDINGS LIST, not the diff. Template: `references/refuter-spec.md`.
 
 **Synthesis:** REFUTER-CONFIRMED findings get `[CONFIRMED-CROSS-MODEL]` upgrade. REFUTER-REFUTED move to `## Refuted by Refuter` with reasoning preserved verbatim. REFUTER-UNRESOLVED keep original severity; add `cross-model-unresolved` to Review Integrity. Refuter leads do not become findings unless host verifies via Pass 2 rules.
 
@@ -178,7 +159,9 @@ Anti-hallucination surface -- tells the reader at a glance how confident the rev
 - **Size:** lines changed, files changed, chunking state. PR mode: resolved base, source annotation, short SHA.
 - **Scope snapshot:** source, base, head, uncommitted, chunking.
 - **Refutations logged:** `<N>`
-- **Degradation flags:** `chunked-partial`, `large-diff-unchunked`, `high-inference-ratio`, `files-not-opened`, `unfamiliar-area`, `missing-types`, `spec-drift-skipped`, `footguns-unread`, `not-reproduced-findings`, `coverage-degraded`, `configured-base-unresolved=<base>`, `base-detection-failed`, `base-fetch-failed`, `intent-unstated`, `cross-model-refuter-failed`.
+- **PR-mode extension:** when PR mode fetched `reviews,comments`, add `Automated-reviewer overlap: <K> overlap with <reviewer-list>, <M> net-new`; when no bot review exists, add `Automated-reviewer overlap: no-automated-review-present`; outside PR mode, omit or write `n/a`.
+- **Pass-3 extension:** when Pass 3 runs, is triggered, or is skipped after a trigger, add `Refuter pass: yes | no | skipped; confirmed=<N>, refuted=<M>, unresolved=<K>, leads-verified=<N>, model=<id|n/a>`.
+- **Degradation flags:** `chunked-partial`, `large-diff-unchunked`, `high-inference-ratio`, `files-not-opened`, `unfamiliar-area`, `missing-types`, `spec-drift-skipped`, `footguns-unread`, `not-reproduced-findings`, `coverage-degraded`, `configured-base-unresolved=<base>`, `base-detection-failed`, `base-fetch-skipped`, `base-fetch-failed`, `intent-unstated`, `automated-review-uningested`, `cross-model-refuter-failed`, `cross-model-unresolved`.
 - **Conclusion:** `confident` | `coverage-degraded` | `high-inference` | `partial`.
 
 Never leave this section empty. "confident - no degradation flags" is the minimum.
@@ -197,13 +180,13 @@ Never leave this section empty. "confident - no degradation flags" is the minimu
 **Both modes:**
 - MUST run external call-site search for any contract-change suspicion before resolving (Blast Radius Rule); prefer `rg`, fall back to host search or `grep -rniE`, and flag `coverage-degraded` if skipped
 - MUST tag every surfaced finding with `[SEVERITY:ACTION]`
-- MUST grep `.goat-flow/footguns/` per finding; omit the tag on no direct match after the allowed reword
+- MUST grep `.goat-flow/learning-loop/footguns/` per finding; omit the tag on no direct match after the allowed reword
 - MUST order findings by severity, not by file or discovery order
 - MUST emit Review Integrity on every run
 - MUST propose chunking when the diff exceeds 20 files OR 3000 changed lines
 - MUST emit Spec Drift only when opt-in triggered; if skipped, log `spec-drift-skipped` in Review Integrity
 - MUST split Spec Drift output by direction: exit-criteria drift as `[advisory]` (no severity tag), assumption invalidation as `[MUST:needs-decision]` under `## Findings`, open-criterion satisfaction as `[ready-to-tick]`
-- MUST store temporary artifacts under `.goat-flow/scratchpad/` with random suffix
+- MUST store temporary review artifacts under `.goat-flow/logs/review/` with random suffix
 - MUST attempt to disprove each Pass-1 suspicion during Pass 2
 - MUST group 3+ related findings as systemic patterns
 - MUST NOT edit files unless user says "implement"; MUST NOT frame Pass 1/Pass 2 as doer/verifier
@@ -223,6 +206,8 @@ Never leave this section empty. "confident - no degradation flags" is the minimu
 - Evidence: <N> OBSERVED / <M> INFERRED
 - Refutations logged: <N>
 - Size: <files> files, <lines> lines  (chunked: <group or "no">)
+- Automated-reviewer overlap: <K> overlap with <reviewer-list>, <M> net-new | no-automated-review-present | n/a
+- Refuter pass: yes | no | skipped; confirmed=<N>, refuted=<M>, unresolved=<K>, leads-verified=<N>, model=<id|n/a>
 - Degradation flags: <list or "none">
 - Conclusion: <confident | coverage-degraded | high-inference | partial>
 
@@ -230,6 +215,9 @@ Never leave this section empty. "confident - no degradation flags" is the minimu
 
 ### MUST / SHOULD / MAY
 - [SEVERITY:ACTION] **[title]** `file + semantic anchor` - [desc] | Footgun: [entry or none] | Evidence: OBSERVED/INFERRED | Proof: RUNTIME/CONTRACT-GREP/STATIC/NOT-REPRODUCED
+
+## Systemic Patterns  <!-- only when 3+ findings share one root cause -->
+- [SEVERITY:ACTION] **[pattern title]** - affected anchors: `<file + semantic anchor>`, `<file + semantic anchor>`; repeated failure: <one sentence>; harm: <one sentence>
 
 ## Spec Drift   <!-- only when opt-in triggered; otherwise omit and log spec-drift-skipped -->
 <!-- advisory-only entries (exit-criteria drift, ready-to-tick); assumption invalidation goes under ## Findings as [MUST:needs-decision] -->
@@ -247,7 +235,7 @@ Never leave this section empty. "confident - no degradation flags" is the minimu
 1. [SEVERITY:ACTION] **[title]** `file + semantic anchor` - one-sentence why
 
 ## Ship Verdict
-Decision: **YES** | **YES WITH CONDITIONS** | **NO** | **PARTIAL**
+Decision: **YES** | **YES WITH CONDITIONS** | **NO** | **PARTIAL** | **PENDING REFUTER/HUMAN**
 Reasoning: <2-3 sentences anchored to Top 5 Risks and Review Integrity>
 Conditions to ship: <numbered list, only when YES WITH CONDITIONS>
 Confidence: HIGH | MEDIUM | LOW

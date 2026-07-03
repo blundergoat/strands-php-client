@@ -19,22 +19,35 @@ strands-php-client/
 │   ├── Http/
 │   │   ├── HttpTransport.php                 = Interface — post() + stream(); no defaults (interface)
 │   │   ├── RequestMiddleware.php             = Middleware interface — beforeRequest() + afterResponse()
+│   │   ├── ResponseObserver.php              = Parsed response/stream observer interface
+│   │   ├── Middleware/
+│   │   │   └── OtelTracingMiddleware.php     = OpenTelemetry request middleware + response observer
 │   │   ├── SymfonyHttpTransport.php          = Full transport (invoke + SSE), requires symfony/http-client
 │   │   └── PsrHttpTransport.php              = PSR-18 transport, invoke only (stream() throws — PSR-18 spec limit)
 │   ├── Response/
 │   │   ├── AgentResponse.php                 = Invoke response DTO; ::fromArray() defensive hydrator
+│   │   ├── Message.php                       = Normalized message content DTO
+│   │   ├── MessageMetadata.php               = Model/session metadata DTO
 │   │   ├── GuardrailTrace.php                = Guardrail intervention data
+│   │   ├── GuardrailAssessment.php           = Flattened guardrail assessment record
 │   │   ├── InterruptDetail.php               = Human-in-the-loop interrupt payload
 │   │   ├── StopReason.php                    = Backed enum (EndTurn, ToolUse, MaxTokens, ...)
-│   │   └── Usage.php                         = Token usage; ::fromArray() is the single canonical hydrator
+│   │   ├── Usage.php                         = Token usage; ::fromArray() is the single canonical hydrator
+│   │   └── Citation/                         = Citation source/location/generated-content DTOs
 │   ├── Streaming/
 │   │   ├── StreamEvent.php                   = One parsed event; ::fromArray() throws on unknown, ::tryFromArray() returns null
 │   │   ├── StreamEventType.php               = Backed enum (Text, ToolUse, ToolResult, Complete, Error, ...)
+│   │   ├── StreamCallbackHandler.php         = Callback adapter for typed stream events
+│   │   ├── PrintingCallbackHandler.php       = Convenience callback handler for printing text events
 │   │   ├── StreamParser.php                  = Incremental SSE parser; 10 MB buffer cap; tolerates unknown event names
-│   │   └── StreamResult.php                  = Accumulated stream result + TTFT metric
+│   │   ├── StreamResult.php                  = Accumulated stream result + TTFT metric
+│   │   └── StreamSseSummary.php              = Sanitized raw SSE custom-endpoint summary
 │   ├── Exceptions/
 │   │   ├── StrandsException.php              = Base
 │   │   ├── AgentErrorException.php           = HTTP error; carries statusCode + responseBody for structured inspection
+│   │   ├── ContextOverflowException.php      = Agent context-window overflow error
+│   │   ├── MaxTokensException.php            = Agent max-token stop/error condition
+│   │   ├── ThrottledException.php            = Retryable throttling error
 │   │   └── StreamInterruptedException.php    = Stream ended without a terminal frame
 │   └── Integration/                          = Framework wiring
 │       ├── StrandsClientFactory.php          = Shared factory (Laravel + Symfony reuse)
@@ -67,7 +80,14 @@ strands-php-client/
 │   │   ├── ApiKeyAuthTest.php
 │   │   ├── SigV4AuthTest.php
 │   │   ├── RequestMiddlewareTest.php
+│   │   ├── ResponseObserverTest.php
+│   │   ├── Contract/                         = Wire-contract fixture and consumer-compatibility tests
+│   │   ├── Exceptions/                       = Exception DTO/error tests
+│   │   ├── Response/                         = Guardrail/citation DTO tests
+│   │   ├── Streaming/                        = Stream callback/citation event tests
 │   │   └── Integration/                      = Laravel + Symfony DI tests
+│   ├── Http/
+│   │   └── Middleware/                       = OpenTelemetry middleware and PHI-safety tests
 │   ├── Fixtures/                             = Captured JSON + SSE bodies
 │   │   └── wire-contract/                    = Canonical v1 wire-contract fixtures
 │   ├── Support/                              = Test helpers (mock transports, fixture loaders)
@@ -80,38 +100,61 @@ strands-php-client/
 │   ├── interrupts-and-guardrails.md
 │   ├── laravel-config.md
 │   ├── symfony-config.md
-│   └── wire-contract.md                      = Strands HTTP Wire Contract v1 (PHP-facing JSON/SSE shapes)
+│   ├── wire-contract.md                      = Strands HTTP Wire Contract v1 (PHP-facing JSON/SSE shapes)
+│   ├── wire-contract-audit.md                = Wrapper audit notes against the wire contract
+│   ├── wire-contract-consumer-matrix.md      = Consumer compatibility matrix
+│   └── coding-standards/git-commit.md        = Commit guidance
 │
 ├── scripts/
 │   ├── preflight-checks.sh                   = composer preflight runner (used in CI + locally)
 │   ├── check-cyclomatic-complexity.php       = Method CC ≤ 20 gate
-│   └── setup-initial.sh                      = One-shot dev bootstrap
+│   ├── setup-initial.sh                      = One-shot dev bootstrap
+│   ├── dependencies-install.sh               = Dependency install helper
+│   ├── dependencies-update.sh                = Dependency update helper
+│   └── bump-version.sh                       = Release version bump helper
 │
 ├── .goat-flow/                               = Goat-flow learning loop + skills metadata
 │   ├── architecture.md
 │   ├── code-map.md                           = This file
 │   ├── glossary.md
-│   ├── footguns/                             = contract, generated-files, integration, observability, transport, transport-and-streaming
-│   ├── lessons/                              = history, verification
-│   ├── decisions/                            = ADR-001 wire contract, ADR-002 OTEL response observation
-│   ├── patterns/, scratchpad/, tasks/        = Repeatable patterns + ephemeral notes + plan files
-│   ├── skill-reference/, skill-playbooks/    = Installed verbatim from goat-flow
+│   ├── learning-loop/                        = Footguns, lessons, patterns, decisions + generated indexes
+│   │   ├── footguns/                         = contract, generated-files, integration, observability, transport, transport-and-streaming
+│   │   ├── lessons/                          = history, verification, gruff learnings
+│   │   ├── decisions/                        = ADR-001 wire contract, ADR-002 OTEL response observation
+│   │   └── patterns/                         = Repeatable implementation/testing/release patterns
+│   ├── plans/                                = Local session plan files (gitignored by design)
+│   ├── scratchpad/                           = Local scratch notes (gitignored)
+│   ├── skill-docs/                           = Installed verbatim from goat-flow
+│   │   └── playbooks/                        = browser-use.md, changelog.md, code-comments.md, gruff-code-quality.md, observability.md, page-capture.md, release-notes.md
 │   ├── logs/sessions/                        = Local-only session continuity (gitignored)
+│   ├── hooks/                                = Shared goat-flow hook scripts and policy
 │   └── config.yaml                           = goat-flow version pin
 │
 ├── .claude/                                  = Claude-owned harness
 │   ├── settings.json                         = Permissions + hook registration
 │   ├── settings.local.json                   = Local overrides (gitignored)
-│   ├── skills/                               = 7 goat-* skills installed verbatim
-│   └── hooks/deny-dangerous.sh               = PreToolUse deny hook (+ self-test)
+│   └── skills/                               = 7 goat-* skills installed verbatim
 │
-├── .github/
-│   ├── workflows/                            = CI pipelines (ci.yml runs preflight)
+├── .agents/                                  = Codex goat-flow skills
+│   └── skills/                               = 7 goat-* skills installed verbatim
+│
+├── .codex/                                   = Codex-owned harness
+│   ├── config.toml                           = Permission profile + hooks feature flag
+│   └── hooks.json                            = Hook registrations pointing to .goat-flow/hooks/
+│
+├── .github/                                  = GitHub CI, issue templates, and Copilot harness surfaces
+│   ├── workflows/                            = CI pipelines
+│   ├── hooks/                                = Copilot hook registration
+│   ├── skills/                               = 7 goat-* skills installed for Copilot
+│   ├── copilot-instructions.md               = Copilot instruction file
 │   ├── ISSUE_TEMPLATE/, pull_request_template.md
 │   ├── git-commit-instructions.md            = Commit guidance (generated stub — needs human review)
 │   └── dependabot.yml
 │
-├── composer.json                             = Dependencies, scripts, branch-alias 1.4.x-dev
+├── node_modules/@blundergoat/goat-flow/      = Installed goat-flow package (never edit)
+│   └── dist/dashboard/views/                 = HTML view files (about, home, hooks, plans, projects, prompts, quality, settings, setup, skills, workspace)
+│
+├── composer.json                             = Dependencies, scripts, branch-alias 1.5.x-dev
 ├── composer.lock                             = Pinned dev deps
 ├── phpunit.xml                               = Test runner config
 ├── phpstan.neon                              = Static analysis (Level 10)
@@ -129,4 +172,4 @@ strands-php-client/
 
 **Never edit:** `vendor/`, `node_modules/`, `coverage.xml`, `.goat-flow/audit-cache.json`, `.goat-flow/dashboard-state.json`.
 
-**Generated/local-only:** `.claude/settings.local.json`, `.goat-flow/logs/sessions/`, `.goat-flow/scratchpad/`, `coverage.xml`, `coverage-html/`.
+**Generated/local-only:** `.claude/settings.local.json`, `.goat-flow/logs/sessions/`, `.goat-flow/plans/`, `.goat-flow/scratchpad/`, `coverage.xml`, `coverage-html/`.

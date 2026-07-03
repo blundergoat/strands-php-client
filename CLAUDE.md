@@ -1,8 +1,8 @@
 # CLAUDE.md — strands-php-client
 
-**Project identity.** `blundergoat/strands-php-client` is a PHP 8.2+ library that consumes [Strands Agents](https://github.com/strands-agents/strands-agents) over HTTP — invoke, SSE streaming, custom-endpoint passthrough — with Laravel and Symfony integrations. **Core invariant:** the library never runs an agentic loop in PHP; it only marshals requests/responses for a Python agent. **Contract invariant:** this client targets the Strands HTTP Wire Contract v1 emitted by wrapper services, not raw sdk-python `TypedDict` shapes — see `docs/wire-contract.md` and `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`. Cross-cutting concerns: PSR-3 logging, PSR-18/Symfony transport abstraction, immutable DTOs/builders, strict types, defensive parsing.
+**Project identity.** `blundergoat/strands-php-client` is a PHP 8.2+ library that consumes [Strands Agents](https://github.com/strands-agents/strands-agents) over HTTP — invoke, SSE streaming, custom-endpoint passthrough — with Laravel and Symfony integrations. **Core invariant:** the library never runs an agentic loop in PHP; it only marshals requests/responses for a Python agent. **Contract invariant:** this client targets the Strands HTTP Wire Contract v1 emitted by wrapper services, not raw sdk-python `TypedDict` shapes — see `docs/wire-contract.md` and `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md`. Cross-cutting concerns: PSR-3 logging, PSR-18/Symfony transport abstraction, immutable DTOs/builders, strict types, defensive parsing.
 
-**Goat-flow version:** 1.7.0
+**Goat-flow version:** 1.13.0
 
 **Workspace boundary.** The controlling goat-flow workspace (skills, templates, manifest) lives in `node_modules/@blundergoat/goat-flow/`. The selected target project is this repository root. Adapt commands, paths, and boundaries from the target — do not echo the controlling workspace's paths into installed surfaces.
 
@@ -11,7 +11,7 @@
 1. User's explicit instruction for this session
 2. This file (`CLAUDE.md`)
 3. `.goat-flow/architecture.md`, `.goat-flow/code-map.md`, `.goat-flow/glossary.md`
-4. `.goat-flow/decisions/` (ADRs, including the wire-contract ADR)
+4. `.goat-flow/learning-loop/decisions/` (ADRs, including the wire-contract ADR)
 5. Skills loaded on demand from `.claude/skills/`
 6. `AGENTS.md` (peer instruction; do not modify under Claude scope)
 
@@ -24,10 +24,10 @@
 - `src/Http/HttpTransport.php` (interface — every transport implementer breaks; rollback `git checkout src/Http/`)
 - `src/Auth/AuthStrategy.php` (interface — every auth driver breaks; rollback `git checkout src/Auth/`)
 - `src/Integration/Laravel/` and `src/Integration/Symfony/` (framework wiring — consumer apps depend on service IDs / config keys)
-- Wire-contract shapes (`docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`) — changes here break Python wrappers and PHP consumers simultaneously
+- Wire-contract shapes (`docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md`) — changes here break Python wrappers and PHP consumers simultaneously
 - `.github/workflows/`, `scripts/preflight-checks.sh`, `phpstan.neon`, `phpunit.xml`, `infection.json5` (CI / quality gates)
 - 3+ files renamed, moved, or deleted at once
-- `.claude/settings.json`, `.claude/hooks/` (harness configuration)
+- `.claude/settings.json`, `.goat-flow/hooks/` (harness configuration)
 
 **Never.** Freeze writes if interrupted. Do not edit `AGENTS.md`, `.codex/`, `.agents/`, `.gemini/` under Claude scope. Do not commit, push, branch, reset, or run destructive git operations — the user owns all git operations. Do not weaken PHPStan Level 10, PSR-12, or test coverage to make checks pass.
 
@@ -45,9 +45,9 @@
 
 ## Key Resources
 
-- **Learning loop** (grep before every change): `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, `.goat-flow/decisions/`
-- **Tool playbooks**: `.goat-flow/skill-playbooks/browser-use.md`, `.goat-flow/skill-playbooks/page-capture.md` — read BEFORE declaring a tool unavailable
-- **Wire contract**: `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`
+- **Learning loop** (grep before every change): `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, `.goat-flow/learning-loop/decisions/`
+- **Tool playbooks**: `.goat-flow/skill-docs/playbooks/browser-use.md`, `.goat-flow/skill-docs/playbooks/page-capture.md` — read BEFORE declaring a tool unavailable
+- **Wire contract**: `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md`
 - **Project orientation**: `.goat-flow/architecture.md`, `.goat-flow/code-map.md`, `.goat-flow/glossary.md`
 - **Peer instructions**: `AGENTS.md` (project conventions, coding patterns, testing patterns — read for context, do not modify)
 
@@ -62,7 +62,7 @@ composer analyse:complexity        # Cyclomatic complexity ≤ 20
 composer analyse:messdetector      # PHPMD
 composer preflight                 # Everything above, gate before commit
 composer mutate                    # Infection (slow; XDEBUG_MODE=coverage required)
-.claude/hooks/deny-dangerous.self-test.sh   # Hook self-test
+.goat-flow/hooks/deny-dangerous/deny-dangerous-self-test.sh   # Hook self-test
 ```
 
 Single file/method: `vendor/bin/phpunit tests/Unit/FooTest.php --filter testBar`
@@ -72,7 +72,7 @@ Single file/method: `vendor/bin/phpunit tests/Unit/FooTest.php --filter testBar`
 When a goat-* skill is active, its Step 0 replaces READ and selects the skill's mode/depth. SCOPE still applies before writes: a skill may write when its selected mode permits writes or the user explicitly approves them. `/goat-plan` File-Write may create gitignored milestone files without a separate approval gate; `/goat-debug` D3 still requires approval before fixes. Resume at ACT after Step 0 output or when a blocking gate releases.
 
 ### READ
-MUST read relevant files before changes. Never fabricate codebase facts. For URL, local HTML, localhost, screenshot, rendered UI, or browser-visible behaviour, check browser evidence first. Use grep-first retrieval across `.goat-flow/footguns/`, `.goat-flow/lessons/`, and `.goat-flow/patterns/`; include `.goat-flow/decisions/` for architecture or policy work. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim — project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool".
+MUST read relevant files before changes. Never fabricate codebase facts. For URL, local HTML, localhost, screenshot, rendered UI, or browser-visible behaviour, check browser evidence first. Use grep-first retrieval across `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, and `.goat-flow/learning-loop/patterns/`; include `.goat-flow/learning-loop/decisions/` for architecture or policy work. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-docs/playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim — project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool".
 
 ### SCOPE
 Declare intent, complexity tier (Hotfix / Standard Feature / System Change / Infrastructure), mode, files allowed to change, non-goals, blast radius. Expanding beyond scope means stop and re-scope with the human.
@@ -90,13 +90,13 @@ Run `composer analyse` and `composer test` on changed PHP. Run `shellcheck` on c
 3. **Fix verification.** Do not claim a fix works without running the reproduction steps that originally demonstrated the bug. "Looks correct" is not verification.
 4. **Hedged claims.** Do not use "should work", "probably fine", "looks good" as verification. These are guesses, not evidence.
 
-Rationalisations to reject — see `.goat-flow/skill-reference/skill-preamble.md` ("Rationalisations to reject" table) for the canonical Excuse / Reality pairs.
+Rationalisations to reject — see `.goat-flow/skill-docs/skill-preamble.md` ("Rationalisations to reject" table) for the canonical Excuse / Reality pairs.
 
 - **Stop-the-line:** When tests break, builds fail, or behaviour regresses — stop expanding scope. Preserve evidence, return to diagnosis, re-plan before continuing.
 - Level 1 (isolated): note, continue. Level 2 (cross-doc, broken refs, evidence): MUST full stop, wait for human. Two corrections on same approach = MUST rewind.
 - Recovery: missing context → read first. Out-of-scope → name boundary, redirect. Conflicting sources → flag, ask.
 
-If VERIFY caught a failure or you corrected course, update the learning loop before DoD: behavioural mistakes → `.goat-flow/lessons/<category>.md`, architectural traps → `.goat-flow/footguns/<category>.md` with `**Status:** active | **Created:** YYYY-MM-DD | **Evidence:** ACTUAL_MEASURED`, significant decisions → `.goat-flow/decisions/`, optional continuity → `.goat-flow/logs/sessions/`.
+If VERIFY caught a failure or you corrected course, update the learning loop before DoD: behavioural mistakes → `.goat-flow/learning-loop/lessons/<category>.md`, architectural traps → `.goat-flow/learning-loop/footguns/<category>.md` with `**Status:** active | **Created:** YYYY-MM-DD | **Evidence:** ACTUAL_MEASURED`, significant decisions → `.goat-flow/learning-loop/decisions/`, optional continuity → `.goat-flow/logs/sessions/`.
 
 ## Definition of Done
 
@@ -104,20 +104,20 @@ Confirm all six gates: (1) `composer analyse` clean on changed files; (2) `compo
 
 ## Artifact Routing
 
-Add footguns → `.goat-flow/footguns/<category>.md` (read `.goat-flow/footguns/README.md` first). Add lessons → `.goat-flow/lessons/<category>.md`. Add decisions → `.goat-flow/decisions/ADR-NNN-*.md`. Add patterns → `.goat-flow/patterns/<name>.md`. These are documentation artifacts, not runtime code.
+Add footguns → `.goat-flow/learning-loop/footguns/<category>.md` (read `.goat-flow/learning-loop/footguns/README.md` first). Add lessons → `.goat-flow/learning-loop/lessons/<category>.md`. Add decisions → `.goat-flow/learning-loop/decisions/ADR-NNN-*.md`. Add patterns → `.goat-flow/learning-loop/patterns/<name>.md`. These are documentation artifacts, not runtime code.
 
 ## Router Table
 
 | Resource | Path |
 |----------|------|
 | Instruction file (this file) | `CLAUDE.md` |
-| Learning loop | `.goat-flow/footguns/`, `.goat-flow/lessons/`, `.goat-flow/patterns/`, `.goat-flow/decisions/` |
-| Skill reference (meta) | `.goat-flow/skill-reference/` |
-| Tool playbooks (CLI/MCP availability checks: browser-use, page-capture, skill-quality-testing) | `.goat-flow/skill-playbooks/` — read BEFORE declaring a tool unavailable |
+| Learning loop | `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, `.goat-flow/learning-loop/decisions/` |
+| Skill reference (meta) | `.goat-flow/skill-docs/` |
+| Tool playbooks (CLI/MCP availability checks: browser-use, page-capture, skill-quality-testing) | `.goat-flow/skill-docs/playbooks/` — read BEFORE declaring a tool unavailable |
 | Architecture | `.goat-flow/architecture.md` |
 | Orientation | `.goat-flow/code-map.md`, `.goat-flow/glossary.md` |
-| Wire contract | `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md` |
-| Claude skills + harness | `.claude/skills/`, `.claude/settings.json`, `.claude/hooks/` |
+| Wire contract | `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md` |
+| Claude skills + harness | `.claude/skills/`, `.claude/settings.json`, `.goat-flow/hooks/` |
 | Source | `src/` (entry: `src/StrandsClient.php`) |
 | Tests | `tests/Unit/`, `tests/Fixtures/`, `tests/Support/` |
 | Project docs | `docs/usage-guide.md`, `docs/auth.md`, `docs/rich-input.md`, `docs/interrupts-and-guardrails.md`, `docs/laravel-config.md`, `docs/symfony-config.md`, `docs/wire-contract.md` |
@@ -125,5 +125,5 @@ Add footguns → `.goat-flow/footguns/<category>.md` (read `.goat-flow/footguns/
 | Scripts | `scripts/preflight-checks.sh`, `scripts/check-cyclomatic-complexity.php` |
 | CI | `.github/workflows/ci.yml` |
 | Commit guidance | `.github/git-commit-instructions.md` |
-| Workspace notes | `.goat-flow/logs/sessions/`, `.goat-flow/tasks/`, `.goat-flow/scratchpad/` |
+| Workspace notes | `.goat-flow/logs/sessions/`, `.goat-flow/plans/`, `.goat-flow/scratchpad/` |
 | Peer instructions | `AGENTS.md` (do not modify under Claude scope) |

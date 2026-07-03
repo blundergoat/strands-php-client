@@ -2,7 +2,7 @@
 # Preflight check: Run all quality gates before committing
 # Usage: ./scripts/preflight-checks.sh [--coverage-min=80] [--mutate]
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 # ── Colors & Symbols ──────────────────────────────────────────────
 RED='\033[0;31m'
@@ -88,7 +88,8 @@ divider() {
 
 elapsed_since() {
     local start=$1
-    local end=$(now_ns)
+    local end
+    end=$(now_ns)
     local ms=$(( (end - start) / 1000000 ))
     if [[ $ms -lt 1000 ]]; then
         echo "${ms}ms"
@@ -100,7 +101,8 @@ elapsed_since() {
 }
 
 summary() {
-    local end_time=$(now_ns)
+    local end_time
+    end_time=$(now_ns)
     local total_ms=$(( (end_time - START_TIME) / 1000000 ))
     local total_secs=$((total_ms / 1000))
     local total_frac=$((total_ms % 1000 / 100))
@@ -131,7 +133,7 @@ header
 step "Composer validate"
 t=$(now_ns)
 if composer validate --strict 2>&1 | grep -q "is valid"; then
-    pass "$(elapsed_since $t)"
+    pass "$(elapsed_since "$t")"
 else
     fail "Composer validate"
 fi
@@ -142,7 +144,7 @@ t=$(now_ns)
 audit_output=$(composer audit 2>&1)
 audit_exit=$?
 if [[ $audit_exit -eq 0 ]]; then
-    pass "$(elapsed_since $t)"
+    pass "$(elapsed_since "$t")"
 else
     vuln_count=$(echo "$audit_output" | grep -c "Advisory" || true)
     fail "Security audit (${vuln_count} advisories)"
@@ -154,6 +156,7 @@ fi
 # 3. Branch alias freshness
 step "Branch alias (composer.json)"
 t=$(now_ns)
+# shellcheck disable=SC2016
 alias_raw=$(php -r '
     $j = json_decode(file_get_contents("composer.json"), true);
     echo $j["extra"]["branch-alias"]["dev-main"] ?? "";' 2>/dev/null)
@@ -165,20 +168,49 @@ else
     if [[ -z "$changelog_minor" ]]; then
         skip "no version in CHANGELOG.md"
     elif [[ "$alias_minor" == "$changelog_minor" ]]; then
-        pass "${alias_raw} $(elapsed_since $t)"
+        pass "${alias_raw} $(elapsed_since "$t")"
     else
         fail "Branch alias stale: ${alias_raw} but CHANGELOG is at ${changelog_minor}.x"
     fi
 fi
 
-# 4. Code style (PHP-CS-Fixer)
+# 4. Shell scripts
+step "Shell scripts (shellcheck)"
+t=$(now_ns)
+if command -v shellcheck >/dev/null 2>&1; then
+    shell_files=()
+    while IFS= read -r shell_file; do
+        shell_files+=("$shell_file")
+    done < <(find scripts .goat-flow/hooks -type f -name '*.sh' | sort)
+
+    if [[ ${#shell_files[@]} -eq 0 ]]; then
+        skip "no shell scripts found"
+    else
+        shellcheck_output=$(shellcheck "${shell_files[@]}" 2>&1)
+        shellcheck_exit=$?
+        if [[ $shellcheck_exit -eq 0 ]]; then
+            pass "$(elapsed_since "$t")"
+        else
+            warning_count=$(echo "$shellcheck_output" | grep -c '^In ' || true)
+            fail "Shell scripts (${warning_count} shellcheck findings)"
+            echo "$shellcheck_output" | head -20 | while read -r line; do
+                echo -e "    ${DIM}${line}${RESET}"
+            done
+        fi
+    fi
+else
+    fail "Shell scripts (shellcheck not installed)"
+    echo -e "    ${DIM}Install shellcheck or run scripts/setup-initial.sh${RESET}"
+fi
+
+# 5. Code style (PHP-CS-Fixer)
 step "Code style (PHP-CS-Fixer)"
 t=$(now_ns)
 if [[ -x vendor/bin/php-cs-fixer ]]; then
     cs_output=$(vendor/bin/php-cs-fixer fix --dry-run --diff --sequential 2>&1)
     cs_exit=$?
     if [[ $cs_exit -eq 0 ]]; then
-        pass "$(elapsed_since $t)"
+        pass "$(elapsed_since "$t")"
     else
         fix_count=$(echo "$cs_output" | grep -c "^   [0-9]*)" || true)
         fail "Code style (${fix_count} files need fixing - run composer cs:fix)"
@@ -187,7 +219,7 @@ else
     skip "php-cs-fixer not installed"
 fi
 
-# 4. Cyclomatic complexity
+# 6. Cyclomatic complexity
 step "Cyclomatic complexity (max 20)"
 t=$(now_ns)
 complexity_script="$(dirname "$0")/check-cyclomatic-complexity.php"
@@ -195,7 +227,7 @@ if [[ -f "$complexity_script" ]]; then
     complexity_output=$(php "$complexity_script" --path=src --max=20 2>&1)
     complexity_exit=$?
     if [[ $complexity_exit -eq 0 ]]; then
-        pass "$(elapsed_since $t)"
+        pass "$(elapsed_since "$t")"
     else
         violation_count=$(echo "$complexity_output" | grep -c "^ - " || true)
         fail "Cyclomatic complexity (${violation_count} violations)"
@@ -207,7 +239,7 @@ else
     skip "scripts/check-cyclomatic-complexity.php not found"
 fi
 
-# 5. Mess detector (PHPMD)
+# 7. Mess detector (PHPMD)
 step "Mess detector (PHPMD)"
 t=$(now_ns)
 if [[ -x vendor/bin/phpmd ]]; then
@@ -218,7 +250,7 @@ if [[ -x vendor/bin/phpmd ]]; then
     fi
     phpmd_exit=$?
     if [[ $phpmd_exit -eq 0 ]]; then
-        pass "$(elapsed_since $t)"
+        pass "$(elapsed_since "$t")"
     else
         violation_count=$(echo "$phpmd_output" | grep -c "." || true)
         fail "Mess detector (${violation_count} violations)"
@@ -230,7 +262,7 @@ else
     skip "phpmd not installed"
 fi
 
-# 6. PHPStan
+# 8. PHPStan
 step "Static analysis (PHPStan L10)"
 t=$(now_ns)
 if [[ -x vendor/bin/phpstan ]]; then
@@ -252,7 +284,7 @@ if [[ -x vendor/bin/phpstan ]]; then
     fi
 
     if [[ $stan_exit -eq 0 ]]; then
-        pass "$(elapsed_since $t)"
+        pass "$(elapsed_since "$t")"
     else
         err_count=$(echo "$stan_output" | grep -cE "^/" || true)
         fail "Static analysis (${err_count} errors)"
@@ -264,7 +296,7 @@ else
     skip "phpstan not installed"
 fi
 
-# 7. PHPUnit
+# 9. PHPUnit
 step "Tests (PHPUnit)"
 t=$(now_ns)
 if [[ -x vendor/bin/phpunit ]]; then
@@ -272,7 +304,7 @@ if [[ -x vendor/bin/phpunit ]]; then
     test_exit=$?
     if [[ $test_exit -eq 0 ]]; then
         test_summary=$(echo "$test_output" | grep -oE '[0-9]+ tests, [0-9]+ assertions' || echo "")
-        pass "${test_summary:+$test_summary }$(elapsed_since $t)"
+        pass "${test_summary:+$test_summary }$(elapsed_since "$t")"
     else
         fail_count=$(echo "$test_output" | grep -oE '[0-9]+ failure' | grep -oE '[0-9]+' || echo "?")
         fail "Tests (${fail_count} failures)"
@@ -284,7 +316,7 @@ else
     skip "phpunit not installed"
 fi
 
-# 8. Coverage
+# 10. Coverage
 step "Coverage (PHPUnit)"
 t=$(now_ns)
 if ! php -m 2>/dev/null | grep -qi "xdebug\|pcov"; then
@@ -301,6 +333,7 @@ else
             echo -e "    ${DIM}${line}${RESET}"
         done
     else
+        # shellcheck disable=SC2016
         coverage_stats=$(php -r '
             $xml = @simplexml_load_file("coverage.xml");
             if ($xml === false || !isset($xml->project->metrics)) {
@@ -324,7 +357,7 @@ else
                 echo -e "    ${DIM}${line}${RESET}"
             done
         elif awk "BEGIN {exit !($coverage_pct >= $MIN_COVERAGE)}"; then
-            pass "${coverage_pct}% line coverage (${covered_lines}/${total_lines}, min ${MIN_COVERAGE}%) $(elapsed_since $t)"
+            pass "${coverage_pct}% line coverage (${covered_lines}/${total_lines}, min ${MIN_COVERAGE}%) $(elapsed_since "$t")"
         else
             fail "Coverage ${coverage_pct}% < ${MIN_COVERAGE}% (${covered_lines}/${total_lines} lines)"
             echo -e "    ${DIM}coverage.xml analyzed successfully; threshold not met${RESET}"
@@ -333,7 +366,7 @@ else
     fi
 fi
 
-# 9. Mutation testing (optional)
+# 11. Mutation testing (optional)
 if [[ "$RUN_MUTATE" == true ]]; then
     step "Mutation testing (Infection)"
     t=$(now_ns)
@@ -348,7 +381,7 @@ if [[ "$RUN_MUTATE" == true ]]; then
             msi=$(echo "$mutate_output" | grep -oE 'Covered Code MSI: [0-9]+%' | grep -oE '[0-9]+%' || echo "")
             killed=$(echo "$mutate_output" | grep -oE '[0-9]+ mutants were killed' | grep -oE '[0-9]+' || echo "")
             total_m=$(echo "$mutate_output" | grep -oE '[0-9]+ mutations were generated' | grep -oE '[0-9]+' || echo "")
-            pass "${killed:+${killed}/${total_m} killed }${msi:+(${msi} MSI) }$(elapsed_since $t)"
+            pass "${killed:+${killed}/${total_m} killed }${msi:+(${msi} MSI) }$(elapsed_since "$t")"
         else
             msi=$(echo "$mutate_output" | grep -oE 'MSI:[[:space:]]*[0-9]+%' | head -1 | grep -oE '[0-9]+%' || echo "")
             covered_msi=$(echo "$mutate_output" | grep -oE 'Covered Code MSI:[[:space:]]*[0-9]+%' | head -1 | grep -oE '[0-9]+%' || echo "")

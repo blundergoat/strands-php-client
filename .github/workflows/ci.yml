@@ -19,6 +19,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          find scripts .goat-flow/hooks -type f -name '*.sh' -print0 \
+            | xargs -0 shellcheck
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:

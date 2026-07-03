@@ -6,7 +6,7 @@ Domain and project-specific terms a new contributor needs.
 
 - **Strands agent** — A Python-side autonomous agent exposed over HTTP, built with the [strands-agents/sdk-python](https://github.com/strands-agents/strands-agents) framework. This PHP library only **consumes** them; it does not run the agentic loop.
 - **Agentic loop** — Server-side reasoning loop where the agent plans, calls tools, and iterates until it returns a terminal response. Lives in Python. The PHP client is intentionally loop-free.
-- **Strands HTTP Wire Contract v1** — The stable JSON / SSE contract between PHP and the Python wrapper service. Defined in `docs/wire-contract.md` and `.goat-flow/decisions/ADR-001-strands-http-wire-contract.md`. PHP-facing fields are `snake_case`; not the raw sdk-python `TypedDict` shapes.
+- **Strands HTTP Wire Contract v1** — The stable JSON / SSE contract between PHP and the Python wrapper service. Defined in `docs/wire-contract.md` and `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md`. PHP-facing fields are `snake_case`; not the raw sdk-python `TypedDict` shapes.
 - **Session** — Server-managed conversation history keyed by `sessionId`. The client passes the ID through; it does not persist history locally.
 - **Interrupt / human-in-the-loop** — The agent pauses and asks for caller approval before continuing (e.g., before executing a sensitive tool). Surfaced as `InterruptDetail[]`; resumed via `AgentInput::interruptResponse($id, $payload)`.
 - **Guardrail trace** — Content-safety intervention metadata (e.g., AWS Bedrock Guardrails). Returned on the `AgentResponse` as `GuardrailTrace`; `action` is typically `INTERVENED` or `NONE`.

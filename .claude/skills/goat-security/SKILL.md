@@ -1,14 +1,14 @@
 ---
 name: goat-security
 description: "Use when assessing security implications of code changes, architecture decisions, or new features."
-goat-flow-skill-version: "1.7.0"
+goat-flow-skill-version: "1.13.0"
 ---
 # /goat-security
 
 ## Shared Conventions
 
-Read `.goat-flow/skill-reference/skill-preamble.md` for shared conventions.
-On full-depth, also read `.goat-flow/skill-reference/skill-conventions.md`.
+Read `.goat-flow/skill-docs/skill-preamble.md` for shared conventions.
+On full-depth, also read `.goat-flow/skill-docs/skill-conventions.md`.
 
 ## When to Use
 
@@ -30,8 +30,8 @@ Use when assessing security posture before release, after auth/input/storage cha
   - `references/identity-and-data.md` - auth/authz, sessions, tokens, secrets, logs, prompts, artifacts
   - `references/file-upload-and-paths.md`
   - `references/supply-chain-and-cicd.md` - dependencies, install scripts, CI/CD, hooks, agent surfaces, active-testing gate
-  - `references/project-policy-template.md` is a setup template, not a scan reference - skip during reviews.
-- **Footgun check:** Use the preamble's grep-first learning-loop retrieval on `.goat-flow/footguns/` for the target area. Present matches or an explicit retrieval miss; do not broad-load the bucket.
+  - `references/project-policy-template.md` is a setup template. Load it only when asked to create or revise `.goat-flow/security-policy.md`; skip it during security reviews.
+- **Footgun check:** Use the preamble's learning-loop retrieval on `.goat-flow/learning-loop/footguns/` for the target area. Present matches or an explicit retrieval miss; do not broad-load the bucket.
 - **Threat Model Snapshot:** Output assets, trust boundaries, attacker types, and critical surfaces as an explicit artifact before scanning.
 
 ## Quick Scan Path
@@ -40,7 +40,7 @@ Use when assessing security posture before release, after auth/input/storage cha
 2. Scan by severity using the repo's real threat surface: secrets/command execution first, then authz and data exposure, then filesystem/config/agent surfaces, then dependency supply chain.
 3. Re-check framework or platform mitigations before keeping a finding.
 4. For diff mode, report changed file count, risky buckets touched, and whether each issue is on an added line, modified context, or clearly pre-existing context.
-5. Present `CONFIRMED` findings first, then `PROBABLE` only if the user asked for them. Note what was not checked.
+5. Present `CONFIRMED` findings first. If `PROBABLE`/`THEORETICAL` leads are withheld, include count, compact titles, and exact evidence needed. Note what was not checked.
 
 ## Full Assessment Path
 
@@ -59,12 +59,12 @@ Scan only the categories that fit the repo:
 - dependency/supply chain, install scripts, lockfiles, unpinned actions
 - CI/CD workflows, shell entrypoints, release automation
 - local HTTP/WebSocket/PTY runtime: bind address, Host/Origin checks, session IDs, browser-to-terminal input paths, workspace/cwd boundaries, terminal runner prompts
-- agent surfaces: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.github/instructions/**`, installed skill copies (`.claude/**`, `.agents/**`, `.github/**`), hooks, prompts, templates
+- agent surfaces: `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, `.github/instructions/**`, installed skill copies (`.claude/**`, `.agents/**`, `.github/**`), hooks, prompts, templates
 
 For diff/PR mode, bucket changed files explicitly:
 - `.github/workflows/**`, release automation, and other CI/CD files
 - `scripts/**`, shell entrypoints, installers, and maintenance scripts
-- local server/runtime files (`src/cli/server/dashboard*.ts`, `src/cli/server/terminal.ts`, WebSocket handlers, PTY/session bridges, terminal runners)
+- local server/runtime files (dashboard/server entrypoints, WebSocket handlers, PTY/session bridges, terminal runners)
 - application code (`src/**`, handlers, auth, serializers, query builders)
 - config/docs (`package.json`, lockfiles, Dockerfiles, devcontainer/editor config, docs with URLs or commands)
 - agent surfaces (`AGENTS.md`, `CLAUDE.md`, `.agents/**`, `.claude/**`, `.github/**`, hooks, prompts, templates)
@@ -87,6 +87,11 @@ Default false-positive suppression:
 - "user input exists" claims with no sink, privilege boundary, or impact
 - dependency findings with no reachable package, no vulnerable path, or no operational impact
 - prompt-injection claims where the suspicious text is already treated as inert data and never executed or elevated
+
+False-positive calibration example:
+- **Removed lead:** "Terminal WebSocket writes arbitrary input to `session.pty?.write`."
+- **Why removed:** This is intended terminal functionality, not a standalone vulnerability, when the path is gated by a crypto-random dashboard token plus Host and Origin checks.
+- **Evidence needed:** cite the token generation/check, WebSocket authorization guard, and PTY write sink before calling the lead false-positive.
 
 Also call out positive observations when they materially reduce risk.
 
@@ -127,6 +132,10 @@ Rank severity from exploitability first, then blast radius, then privileged-surf
 Worked examples:
 - external PR can smuggle `${{ github.event.* }}` into shell and execute secrets-bearing workflow step -> `Critical`
 - authenticated user can reset another account password due to missing ownership check -> `High`
+- local dashboard token is printed in a startup URL and accepted from `?token=`; a same-host process can replay it to attach a terminal WebSocket, while loopback-only bind and ephemeral token prevent a remote path -> `Low`
+
+Report calibration example:
+- S-01: local dashboard token parser (search: `return url.searchParams.get("token")`) | asset: local dashboard authorization token | entry->sink: query token in startup/dev logs -> local history or scrollback -> replay against API/WebSocket | trust boundary: process secret to local stores readable by same-host actors | preconditions: same-host read access while the process is alive | confidence: CONFIRMED | severity: Low | proof-class: STATIC | blast radius: local dashboard API and PTY attach as the running user | proof-of-fix: stop logging query tokens, prefer a header token, and verify no request logger prints raw URL search params.
 
 For Critical/High, write the attack scenario: "An [attacker] can [action] via [vector], resulting in [impact]."
 For diff reviews, map posture explicitly:
@@ -137,7 +146,7 @@ Run a narrow specialist cross-check when any of these are true:
 - any Critical/High candidate
 - any finding in auth, crypto, secrets, CI/CD, or agent surfaces
 - `PROBABLE` findings outnumber `CONFIRMED`
-- strong evidence and strong uncertainty coexist in the same cluster
+- strong evidence and strong uncertainty coexist in the same finding cluster (findings that share a root cause, file, or trust boundary)
 
 Use `/goat-critique` only for disagreement resolution or cross-examination, not as the default second pass. Keep unresolved items in the report as PROBABLE with exact evidence needed. Cap extra churn at one specialist pass per finding cluster. Outcomes: `promote to CONFIRMED`, `keep as PROBABLE`, or `kill as false positive`.
 
@@ -151,7 +160,7 @@ Re-read `file + semantic anchor` for Critical/High. Does the code or config stil
 
 **Dependency audit:** If the project uses dependency management, run the appropriate audit tool when available. If it is missing, note the gap with the install command. Do NOT fabricate results.
 
-**Proof Gate:** Apply the Proof Gate from `skill-preamble.md` - every CONFIRMED finding must have a fresh `file + semantic anchor` re-read in this session, and dependency-audit results must be from a tool run in this session, never paraphrased or fabricated.
+**Proof Gate:** Apply the Proof Gate from `skill-preamble.md` - every CONFIRMED finding must have a fresh `file + semantic anchor` re-read in this session, every finding must carry proof class `RUNTIME | CONTRACT-GREP | STATIC | NOT-REPRODUCED`, and dependency-audit results must be from a tool run in this session, never paraphrased or fabricated.
 
 If `PROBABLE > CONFIRMED`, suggest `/goat-critique` cross-examination before closing. If the user declines, close with those clusters marked PROBABLE and list the evidence needed to promote or kill each one.
 
@@ -176,7 +185,7 @@ For compliance checks, present gaps as: non-compliant, partially compliant, or n
 - MUST classify every finding as CONFIRMED, PROBABLE, or THEORETICAL
 - MUST show data flow path for CONFIRMED findings
 - MUST include diff metadata for diff/PR reviews
-- MUST default to confirmed-only report unless user requests full
+- MUST default to confirmed-only report unless user requests full; still summarize withheld lead counts and needed evidence
 
 ## Output Format
 
@@ -187,7 +196,7 @@ For compliance checks, present gaps as: non-compliant, partially compliant, or n
 ## Threat Surface / Risky Buckets
 ## Findings
 ### CONFIRMED
-- S-NN: `file + semantic anchor` | asset | entry→sink | trust boundary | preconditions | severity | blast radius | proof-of-fix
+- S-NN: `file + semantic anchor` | asset | entry→sink | trust boundary | preconditions | severity | proof-class | blast radius | proof-of-fix
 ### PROBABLE
 ### THEORETICAL
 ## Attack Path Summary  <!-- top 3 chained attack paths -->
@@ -197,6 +206,7 @@ For compliance checks, present gaps as: non-compliant, partially compliant, or n
 - Surfaces scanned: [list] | Surfaces skipped: [list or "none"]
 - Scanner tools: [used] | Unavailable: [list or "none"]
 - Evidence: <N> OBSERVED / <M> INFERRED
+- Proof classes: <N> RUNTIME / <M> CONTRACT-GREP / <K> STATIC / <L> NOT-REPRODUCED
 - Confidence: <N> CONFIRMED / <M> PROBABLE / <K> THEORETICAL
 - Degradation flags: [list or "none"]
 - Conclusion: confident | coverage-degraded | tool-limited

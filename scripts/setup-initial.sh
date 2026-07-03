@@ -3,6 +3,7 @@
 # Usage: ./scripts/setup-initial.sh
 #
 # Detects OS and installs:
+#   - shellcheck for shell-script validation in preflight
 #   - PHP extensions required by the project (pcov for coverage)
 #   - Composer dependencies
 
@@ -22,7 +23,7 @@ ok()    { echo -e "  ${GREEN}✔${RESET} $*"; }
 warn()  { echo -e "  ${YELLOW}!${RESET} $*"; }
 err()   { echo -e "  ${RED}✘${RESET} $*"; }
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 echo ""
 echo -e "${BOLD}  Setup - strands-php-client${RESET}"
@@ -32,6 +33,7 @@ echo ""
 # ── Detect OS ────────────────────────────────────────────────────
 detect_os() {
     if [[ -f /etc/os-release ]]; then
+        # shellcheck source=/dev/null
         . /etc/os-release
         case "$ID" in
             ubuntu|debian|pop|linuxmint|elementary)
@@ -84,6 +86,57 @@ fi
 
 PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')
 info "PHP version: ${BOLD}${PHP_VERSION}${RESET}"
+
+install_shellcheck() {
+    if command -v shellcheck &>/dev/null; then
+        ok "shellcheck already installed"
+        return 0
+    fi
+
+    info "Installing shellcheck..."
+
+    case "$OS" in
+        debian)
+            sudo apt-get update -qq
+            sudo apt-get install -y shellcheck
+            ;;
+        redhat)
+            if command -v dnf &>/dev/null; then
+                sudo dnf install -y ShellCheck || sudo dnf install -y shellcheck
+            else
+                sudo yum install -y ShellCheck || sudo yum install -y shellcheck
+            fi
+            ;;
+        alpine)
+            sudo apk add --no-cache shellcheck
+            ;;
+        arch)
+            sudo pacman -S --needed shellcheck
+            ;;
+        macos)
+            if command -v brew &>/dev/null; then
+                brew install shellcheck
+            else
+                err "Homebrew not found. Install shellcheck manually from https://www.shellcheck.net"
+                return 1
+            fi
+            ;;
+        *)
+            err "Cannot auto-install shellcheck on this OS."
+            echo -e "    ${DIM}Install it manually, then re-run this script.${RESET}"
+            return 1
+            ;;
+    esac
+
+    if command -v shellcheck &>/dev/null; then
+        ok "shellcheck installed successfully"
+    else
+        err "shellcheck installed but is not on PATH"
+        return 1
+    fi
+}
+
+install_shellcheck
 
 # ── Install PHP extensions ───────────────────────────────────────
 install_php_ext() {

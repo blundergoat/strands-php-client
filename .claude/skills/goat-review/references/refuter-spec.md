@@ -1,5 +1,5 @@
 ---
-goat-flow-reference-version: "1.7.0"
+goat-flow-reference-version: "1.13.0"
 ---
 # Cross-Model Refuter Specification
 
@@ -49,7 +49,7 @@ Output as structured JSON matching the schema below.
 }
 ```
 
-Output to: `.goat-flow/scratchpad/goat-review-refuter.<random>.json`
+Output to: `.goat-flow/logs/review/goat-review-refuter.<random>.json`
 
 ## Synthesis Rules
 
@@ -65,14 +65,16 @@ The host reviewer applies these rules to the refuter output:
 ## Review Integrity Extension
 
 When Pass 3 runs, add to Review Integrity:
-- Refuter pass: yes | no | skipped
-- Refuter confirmed: `<N>` | Refuted: `<M>` | Unresolved: `<K>`
-- Refuter leads verified by host: `<N>`
-- Refuter model: `<model-identifier>`
+
+```
+- Refuter pass: yes | no | skipped; confirmed=<N>, refuted=<M>, unresolved=<K>, leads-verified=<N>, model=<model-identifier|n/a>
+```
+
+Use `skipped` when Pass 3 was triggered but no authenticated external refuter was available. Use `n/a` for the model when no refuter actually ran.
 
 ## Pre-flight Check
 
-Before spawning the refuter, verify the target refuter runtime is both installed and authenticated. Host runtimes choose an external target: Claude Code usually targets Codex; Codex, Copilot, and Gemini usually target Claude. If that target is unavailable, use another authenticated non-host runtime only when the review output names it; otherwise skip Pass 3 and log `cross-model-refuter-failed`.
+Before spawning the refuter, verify the target refuter runtime is both installed and authenticated. Host runtimes choose an external target: Claude Code usually targets Codex; Codex, Copilot, and Antigravity usually target Claude. If that target is unavailable, use another authenticated non-host runtime only when the review output names it; otherwise skip Pass 3 and log `cross-model-refuter-failed`.
 ```bash
 # Before spawning Codex:
 command -v codex && codex login status
@@ -81,4 +83,4 @@ command -v codex && codex login status
 command -v claude && claude auth status
 ```
 
-Version-only commands such as `claude --version`, `codex --version`, `copilot --version`, or `gemini --version` prove installation only; they do not prove authentication. If the opposite runtime is not authenticated, skip Pass 3 and log `cross-model-refuter-failed` in Review Integrity. Do not attempt to authenticate during a review.
+Version-only commands such as `claude --version`, `codex --version`, `copilot --version`, or `agy --version` prove installation only; they do not prove authentication. If the opposite runtime is not authenticated, skip Pass 3 and log `cross-model-refuter-failed` in Review Integrity. Do not attempt to authenticate during a review.
