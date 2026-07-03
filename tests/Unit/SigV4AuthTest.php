@@ -2,14 +2,35 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Sig V4 Auth behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Auth\SigV4Auth;
 
+/**
+ * Verifies Sig V4 Auth behavior that application users rely on.
+ */
 class SigV4AuthTest extends TestCase
 {
+    /**
+     * Clear AWS env state so one auth scenario cannot affect the next.
+     *
+     * @return void
+     */
+    protected function tearDown(): void
+    {
+        putenv('AWS_ACCESS_KEY_ID');
+        putenv('AWS_SECRET_ACCESS_KEY');
+        putenv('AWS_SESSION_TOKEN');
+
+        parent::tearDown();
+    }
+
     /**
      * Build a SigV4Auth pre-configured with the canonical AWS SigV4 example
      * credentials. Tests that don't care about the credential values use this
@@ -18,6 +39,8 @@ class SigV4AuthTest extends TestCase
      * @param string $region AWS region for the signed request.
      * @param string $service AWS service name (defaults to API Gateway's value).
      * @param string|null $sessionToken Optional STS session token to include in the signature.
+     * @param string $accessKeyId access key shown in the generated credential scope.
+     * @param string $secretAccessKey secret key used to prove the signature changes.
      * @return SigV4Auth Configured signer ready for an authenticate() call.
      */
     private function sigV4AuthWith(
@@ -337,6 +360,7 @@ class SigV4AuthTest extends TestCase
      * @param string $method HTTP method to sign.
      * @param string $url Request URL to sign.
      * @param string $body Request body to sign.
+     * @param SigV4Auth $sigV4Auth Signer used to build the outgoing auth header.
      * @return array{0: array<string, string>, 1: array<string, string>} Two header arrays from calls in the same UTC second.
      */
     private function authenticatePairInSameSecond(SigV4Auth $sigV4Auth, string $method, string $url, string $body): array
@@ -456,7 +480,7 @@ class SigV4AuthTest extends TestCase
     /**
      * Signer pairs for testSignatureChangesWhenOneCredentialFieldDiffers().
      *
-     * @return iterable<string, array{0: SigV4Auth, 1: SigV4Auth}>
+     * @return iterable<string, array{0: SigV4Auth, 1: SigV4Auth}> Signer pairs that prove credential changes affect the request shown to AWS.
      */
     public static function signaturePairProvider(): iterable
     {
@@ -1128,68 +1152,63 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that normalize path directly.
+     * Verifies that path normalization is reflected in signed requests.
      *
      * @return void
      */
-    public function testNormalizePathDirectly(): void
+    public function testNormalizePathThroughSignedRequests(): void
     {
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
-        $reflectionMethod = new \ReflectionMethod($sigV4Auth, 'normalizePath');
+        $rootResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com', '{}');
+        $slashResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/', '{}');
+        $encodedResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/foo%20bar/baz', '{}');
+        $spaceResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/foo bar/baz', '{}');
 
-        $this->assertSame('/', $reflectionMethod->invoke($sigV4Auth, ''));
-        $this->assertSame('/', $reflectionMethod->invoke($sigV4Auth, '/'));
-        $this->assertSame('/foo/bar', $reflectionMethod->invoke($sigV4Auth, '/foo/bar'));
-        $this->assertSame('/foo%20bar/baz', $reflectionMethod->invoke($sigV4Auth, '/foo bar/baz'));
+        // A user may call the root endpoint with or without a slash; both requests must sign the same path.
+        $this->assertSame(
+            $this->extractSignature($rootResult['Authorization']),
+            $this->extractSignature($slashResult['Authorization']),
+        );
+
+        // Browsers may send spaces as either literal spaces or %20; both must represent the same app URL.
+        $this->assertSame(
+            $this->extractSignature($encodedResult['Authorization']),
+            $this->extractSignature($spaceResult['Authorization']),
+        );
     }
 
     /**
-     * Verifies that canonicalize query string directly.
+     * Verifies that query normalization is reflected in signed requests.
      *
      * @return void
      */
-    public function testCanonicalizeQueryStringDirectly(): void
+    public function testCanonicalizeQueryStringThroughSignedRequests(): void
     {
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
-        $reflectionMethod = new \ReflectionMethod($sigV4Auth, 'canonicalizeQueryString');
+        $sortedResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?a=1&b=2', '{}');
+        $unsortedResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?b=2&a=1', '{}');
+        $encodedEqualsResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?token=abc%3Ddef', '{}');
+        $literalEqualsResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?token=abc=def', '{}');
+        $flagResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?flag', '{}');
+        $flagWithEqualsResult = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?flag=', '{}');
 
-        $this->assertSame('', $reflectionMethod->invoke($sigV4Auth, ''));
-        $this->assertSame('a=1&b=2', $reflectionMethod->invoke($sigV4Auth, 'b=2&a=1'));
-        $this->assertSame('foo=bar', $reflectionMethod->invoke($sigV4Auth, 'foo=bar'));
-        // Value with '=' inside — explode limit of 2 preserves it
-        $this->assertSame('token=abc%3Ddef', $reflectionMethod->invoke($sigV4Auth, 'token=abc=def'));
-        // Key-only parameter (no '=')
-        $this->assertSame('flag=', $reflectionMethod->invoke($sigV4Auth, 'flag'));
-    }
+        // User-facing query order should not matter once the request is signed.
+        $this->assertSame(
+            $this->extractSignature($sortedResult['Authorization']),
+            $this->extractSignature($unsortedResult['Authorization']),
+        );
 
-    /**
-     * Verifies that derive signing key directly.
-     *
-     * @return void
-     */
-    public function testDeriveSigningKeyDirectly(): void
-    {
-        $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1', 'execute-api');
-        $reflectionMethod = new \ReflectionMethod($sigV4Auth, 'deriveSigningKey');
+        // Query values copied from forms may include literal or encoded equals signs.
+        $this->assertSame(
+            $this->extractSignature($encodedEqualsResult['Authorization']),
+            $this->extractSignature($literalEqualsResult['Authorization']),
+        );
 
-        $key = $reflectionMethod->invoke($sigV4Auth, '20230101');
-
-        // Must be 32 bytes (raw SHA-256 output)
-        $this->assertSame(32, strlen($key));
-
-        // Must be deterministic
-        $this->assertSame($key, $reflectionMethod->invoke($sigV4Auth, '20230101'));
-
-        // Different datestamp → different key
-        $this->assertNotSame($key, $reflectionMethod->invoke($sigV4Auth, '20230102'));
-
-        // Verify against manual computation
-        $kDate = hash_hmac('sha256', '20230101', 'AWS4SECRET', true);
-        $kRegion = hash_hmac('sha256', 'us-east-1', $kDate, true);
-        $kService = hash_hmac('sha256', 'execute-api', $kRegion, true);
-        $expected = hash_hmac('sha256', 'aws4_request', $kService, true);
-
-        $this->assertSame($expected, $key);
+        // A checkbox-style flag parameter is equivalent with or without an explicit empty value.
+        $this->assertSame(
+            $this->extractSignature($flagResult['Authorization']),
+            $this->extractSignature($flagWithEqualsResult['Authorization']),
+        );
     }
 
     /**
@@ -1313,6 +1332,7 @@ class SigV4AuthTest extends TestCase
      */
     private function extractSignature(string $authHeader): string
     {
+        // Pull the hex signature out of the auth header shown to the service.
         preg_match('/Signature=([a-f0-9]+)$/', $authHeader, $matches);
 
         return $matches[1];

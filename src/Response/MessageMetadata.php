@@ -10,8 +10,11 @@ namespace StrandsPhpClient\Response;
 class MessageMetadata
 {
     /**
-     * @param array<string, mixed> $metrics
-     * @param array<string, mixed> $custom
+     * Builds message metadata that app code can display or log.
+     *
+     * @param array<string, mixed> $metrics numeric or timing metadata from the wrapper.
+     * @param array<string, mixed> $custom app-owned metadata from the wrapper.
+     * @param ?Usage $usage optional token usage attached to the message.
      */
     public function __construct(
         public readonly ?Usage $usage = null,
@@ -21,7 +24,10 @@ class MessageMetadata
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Hydrates caller-facing data from the agent response.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {
@@ -41,7 +47,10 @@ class MessageMetadata
     }
 
     /**
-     * @return array<string, mixed>|null
+     * Keeps only string-keyed metadata so app code gets a stable map.
+     *
+     * @param mixed $value candidate metadata from the message wrapper.
+     * @return array<string, mixed>|null String-keyed metadata, or null for non-map input.
      */
     private static function stringKeyedArray(mixed $value): ?array
     {

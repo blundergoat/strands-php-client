@@ -38,7 +38,10 @@ final readonly class CitationLocation
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Hydrates caller-facing data from the agent response.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {
@@ -58,7 +61,11 @@ final readonly class CitationLocation
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Supports the string step in the app-facing flow.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param string $key Payload field name being read or written.
+     * @return ?string Value returned to app code.
      */
     private static function string(array $data, string $key): ?string
     {
@@ -68,7 +75,11 @@ final readonly class CitationLocation
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Supports the int step in the app-facing flow.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param string $key Payload field name being read or written.
+     * @return ?int Value returned to app code.
      */
     private static function int(array $data, string $key): ?int
     {

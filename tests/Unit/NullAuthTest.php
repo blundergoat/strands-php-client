@@ -2,11 +2,18 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Null Auth behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Auth\NullAuth;
 
+/**
+ * Verifies Null Auth behavior that application users rely on.
+ */
 class NullAuthTest extends TestCase
 {
     /**
@@ -26,7 +33,7 @@ class NullAuthTest extends TestCase
     /**
      * Test fixture for testPreservesAllMultipleHeaders().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep preserves all multiple headers behavior stable for app callers.
      */
     private function dataForPreservesAllMultipleHeaders(): array
     {

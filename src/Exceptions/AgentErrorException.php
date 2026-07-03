@@ -36,10 +36,11 @@ class AgentErrorException extends StrandsException
      * @param int    $statusCode  HTTP status code (400+).
      * @param string $content     Raw response body string.
      * @param mixed  $decoded     json_decode() result (array, null, or other scalar).
+     * @return self New instance ready for app code.
      */
     public static function fromHttpResponse(int $statusCode, string $content, mixed $decoded): self
     {
-        /** @var array<string, mixed> $errorData */
+        /** @var array<string, mixed> $errorData validated before app code uses it. */
         $errorData = is_array($decoded) ? $decoded : [];
         $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
         if (is_string($detail)) {
@@ -64,9 +65,13 @@ class AgentErrorException extends StrandsException
     }
 
     /**
-     * @param class-string<self> $default
+     * Selects the exception type the app can catch.
      *
-     * @return class-string<self>
+     * @param class-string<self> $default Fallback returned when app config is missing.
+     *
+     * @param int $statusCode HTTP status recorded for app diagnostics.
+     * @param ?string $errorCode Value supplied by app code.
+     * @return class-string<self> Value returned to app code.
      */
     private static function resolveExceptionClass(int $statusCode, ?string $errorCode, string $default = self::class): string
     {

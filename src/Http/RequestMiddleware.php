@@ -32,7 +32,7 @@ interface RequestMiddleware
      * @param array<string, string> $headers Current request headers.
      * @param string               $body    JSON-encoded request body.
      *
-     * @return array{headers: array<string, string>, body: string}
+     * @return array{headers: array<string, string>, body: string} Request values that will be sent to the agent.
      */
     public function beforeRequest(string $url, array $headers, string $body): array;
 
@@ -44,6 +44,7 @@ interface RequestMiddleware
      * @param int             $statusCode HTTP status code (200 on success, 0 if cancelled or no response received).
      * @param float           $durationMs Total operation duration in milliseconds (including retries).
      * @param \Throwable|null $error      The exception, if the operation failed.
+     * @return void No returned value; updates client or observer state.
      */
     public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void;
 }

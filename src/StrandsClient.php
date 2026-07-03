@@ -32,8 +32,10 @@ use StrandsPhpClient\Streaming\StreamSseSummary;
  */
 class StrandsClient
 {
+    /** Transport that performs the actual agent HTTP calls. */
     private HttpTransport $transport;
 
+    /** Logger used to report client activity without exposing request bodies. */
     private LoggerInterface $logger;
 
     /** @var list<RequestMiddleware> */
@@ -70,7 +72,7 @@ class StrandsClient
      * @param string|null        $sessionId       Optional session ID to continue a conversation.
      * @param int|null           $timeoutSeconds  Override the config timeout for this request only.
      *
-     * @return AgentResponse
+     * @return AgentResponse parsed agent result the app can render or inspect.
      *
      * @throws \InvalidArgumentException  If timeoutSeconds is less than 1.
      */
@@ -82,6 +84,7 @@ class StrandsClient
     ): AgentResponse {
         self::validateMessage($message);
 
+        // The app may pass this from a per-request UI control; reject values that would never let the user get a response.
         if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
             throw new \InvalidArgumentException('timeoutSeconds must be at least 1');
         }
@@ -113,11 +116,10 @@ class StrandsClient
         $this->notifyAfterResponse($url, 200, $durationMs);
 
         $this->logger->debug('Strands invoke response', [
-            'session_id' => $response->sessionId,
             'agent' => $response->agent,
-            'input_tokens' => $response->usage->inputTokens,
-            'output_tokens' => $response->usage->outputTokens,
             'tools_used' => count($response->toolsUsed),
+            'interrupted' => $response->isInterrupted(),
+            'structured_output' => $response->structuredOutput !== null,
         ]);
 
         return $response;
@@ -132,7 +134,7 @@ class StrandsClient
      * @param string|null        $sessionId       Optional session ID.
      * @param int|null           $timeoutSeconds  Override the config timeout for this request only.
      *
-     * @return StreamResult
+     * @return StreamResult stream summary the app can use after live updates finish.
      *
      * @throws Exceptions\StreamInterruptedException  If the stream ends without a terminal event.
      * @throws \InvalidArgumentException              If timeoutSeconds is less than 1.
@@ -164,18 +166,19 @@ class StrandsClient
         $accumulatedText = '';
         $textEvents = 0;
         $totalEvents = 0;
-        /** @var int|null $firstTextTokenTime */
+        /** @var int|null $firstTextTokenTime validated before app code uses it. */
         $firstTextTokenTime = null;
-        /** @var StreamEvent|null $completeEvent */
+        /** @var StreamEvent|null $completeEvent validated before app code uses it. */
         $completeEvent = null;
         $cancelled = false;
-        /** @var list<array<string, mixed>> $citations */
+        /** @var list<array<string, mixed>> $citations validated before app code uses it. */
         $citations = [];
 
         $startTime = hrtime(true);
 
         try {
             $this->transport->stream($url, $headers, $body, $timeout, $this->config->connectTimeout, function (string $chunk) use ($streamParser, $onEvent, &$receivedTerminal, &$cancelled, &$accumulatedText, &$textEvents, &$totalEvents, &$firstTextTokenTime, &$completeEvent, &$citations): bool {
+                // A previous callback return false means the user or app has already stopped live updates.
                 if ($cancelled) {
                     return false;
                 }
@@ -185,6 +188,7 @@ class StrandsClient
                 foreach ($events as $event) {
                     $totalEvents++;
 
+                    // Text events are what a chat UI would append token-by-token while the user waits.
                     if ($event->type === StreamEventType::Text && $event->text !== null) {
                         if ($firstTextTokenTime === null) {
                             $firstTextTokenTime = hrtime(true);
@@ -193,6 +197,7 @@ class StrandsClient
                         $textEvents++;
                     }
 
+                    // Citation events let the app show source links beside the streamed answer.
                     if ($event->type === StreamEventType::Citation && $event->citation !== null) {
                         $citations[] = $event->citation;
                     }
@@ -205,6 +210,7 @@ class StrandsClient
                         }
                     }
 
+                    // The callback can return false when the user clicks a stop button in the UI.
                     if ($onEvent($event) === false) {
                         $cancelled = true;
 
@@ -237,8 +243,8 @@ class StrandsClient
             throw $streamInterruptedException;
         }
 
-        /** @var int|null $firstTextTokenTime */
-        /** @var list<array<string, mixed>> $citations */
+        /** @var int|null $firstTextTokenTime validated before app code uses it. */
+        /** @var list<array<string, mixed>> $citations validated before app code uses it. */
         $result = $this->buildStreamResult(
             $accumulatedText,
             $textEvents,
@@ -255,13 +261,10 @@ class StrandsClient
         $this->logSkippedEvents($streamParser);
 
         $this->logger->debug('Strands stream complete', [
-            'session_id' => $result->sessionId,
             'text_events' => $result->textEvents,
             'total_events' => $result->totalEvents,
-            'text_length' => strlen($result->text),
-            'input_tokens' => $result->usage->inputTokens,
-            'output_tokens' => $result->usage->outputTokens,
-            'ttft_ms' => $result->timeToFirstTextTokenMs,
+            'tools_used' => count($result->toolsUsed),
+            'cancelled' => $result->cancelled,
         ]);
 
         return $result;
@@ -332,6 +335,7 @@ class StrandsClient
      * @param callable(array<string, mixed>): (void|bool) $onEvent  Called for each decoded SSE event. Return false to cancel.
      * @param int|null             $timeout   Per-request timeout in seconds (null = use config default).
      *
+     * @return void No returned value; updates client or observer state.
      * @throws StrandsException           If the request fails or the payload cannot be encoded.
      * @throws \InvalidArgumentException  If timeout is less than 1.
      */
@@ -425,12 +429,12 @@ class StrandsClient
     /**
      * Send a POST request with exponential-backoff retry on transient errors.
      *
-     * @param string $url
-     * @param array<string, string> $headers
-     * @param string $body
+     * @param string $url agent endpoint the app is calling.
+     * @param array<string, string> $headers headers that will reach the agent service.
+     * @param string $body request body the agent service will receive.
      * @param int|null $timeout  Per-request timeout override (null = use config default).
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Decoded response the caller receives after retries.
      */
     private function postWithRetry(string $url, array $headers, string $body, ?int $timeout = null): array
     {
@@ -480,7 +484,17 @@ class StrandsClient
     }
 
     /**
-     * @param list<array<string, mixed>> $citations
+     * Builds the final stream summary after live updates finish.
+     *
+     * @param list<array<string, mixed>> $citations Citation blocks collected for the final answer UI.
+     * @param string $accumulatedText Text streamed so far for the final app result.
+     * @param int $textEvents Number of text updates shown during streaming.
+     * @param int $totalEvents Total stream events received for the app call.
+     * @param bool $cancelled Whether the app callback stopped the stream early.
+     * @param int $startTime Request start timestamp used for duration metrics.
+     * @param ?int $firstTextTokenTime Timestamp used to report first-token latency.
+     * @param ?StreamEvent $completeEvent Terminal stream event with the final agent summary.
+     * @return StreamResult stream summary the app can use after live updates finish.
      */
     private function buildStreamResult(
         string $accumulatedText,
@@ -570,7 +584,14 @@ class StrandsClient
     }
 
     /**
-     * @return array{0: array<string, string>, 1: string}
+     * Builds the HTTP request sent for the caller action.
+     *
+     * @param string $url agent endpoint the app is calling.
+     * @param string|AgentInput $message user input or rich payload sent to the agent.
+     * @param ?AgentContext $context optional instructions and metadata for the agent turn.
+     * @param ?string $sessionId conversation id used to continue an app session.
+     * @param string $accept Accept header used for the app call.
+     * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the agent.
      *
      * @throws StrandsException  If the payload cannot be JSON-encoded.
      */
@@ -581,16 +602,19 @@ class StrandsClient
         ?string $sessionId,
         string $accept,
     ): array {
+        // Rich input means the user attached files, images, or asked for structured output.
         if ($message instanceof AgentInput) {
             $payload = ['message' => $message->toPayloadValue()];
         } else {
             $payload = ['message' => $message];
         }
 
+        // A session id means the user is continuing an existing conversation.
         if ($sessionId !== null) {
             $payload['session_id'] = $sessionId;
         }
 
+        // Context carries app-provided instructions, metadata, or documents for this turn.
         if ($context !== null) {
             $payload['context'] = $context->toArray();
         }
@@ -626,6 +650,9 @@ class StrandsClient
 
     /**
      * Build the full URL for a custom endpoint path.
+     *
+     * @param string $path request path that becomes part of the signed URL.
+     * @return string text value used in the caller-facing agent flow.
      */
     private function buildUrl(string $path): string
     {
@@ -646,7 +673,7 @@ class StrandsClient
      * @param array<string, mixed> $payload  The payload to JSON-encode.
      * @param string               $accept   The Accept header value.
      *
-     * @return array{0: array<string, string>, 1: string}
+     * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the custom endpoint.
      *
      * @throws StrandsException  If the payload cannot be JSON-encoded.
      */
@@ -683,6 +710,7 @@ class StrandsClient
     /**
      * Extract and decode JSON data from a single raw SSE event block.
      *
+     * @param string $rawEvent Raw SSE event block received from the stream.
      * @return array<string, mixed>|null  The decoded data, or null if empty/malformed.
      */
     private static function extractSseData(string $rawEvent): ?array
@@ -720,7 +748,7 @@ class StrandsClient
             return null;
         }
 
-        /** @var array<string, mixed> $decoded */
+        /** @var array<string, mixed> $decoded validated before app code uses it. */
         return $decoded;
     }
 
@@ -730,7 +758,12 @@ class StrandsClient
      * This intentionally reads only known-safe control fields. Raw custom
      * endpoint payloads remain app-owned and are not inspected for telemetry.
      *
-     * @param array<string, mixed> $event
+     * @param array<string, mixed> $event decoded SSE event delivered to the app callback.
+     * @param int $textEvents running count of text events emitted to the app.
+     * @param ?string $terminalType last complete/error event type seen by telemetry.
+     * @param ?Usage $usage token usage reported by the terminal event.
+     * @param ?string $stopReason finish reason reported by the terminal event.
+     * @return void No returned value; updates the stream summary used by observers.
      */
     private static function updateStreamSseSummary(
         array $event,
@@ -754,7 +787,7 @@ class StrandsClient
 
         $rawUsage = $event['usage'] ?? null;
         if (is_array($rawUsage)) {
-            /** @var array<string, mixed> $rawUsage */
+            /** @var array<string, mixed> $rawUsage validated before app code uses it. */
             $usage = Usage::fromArray($rawUsage);
         }
 
@@ -765,14 +798,16 @@ class StrandsClient
     }
 
     /**
-     * @param list<RequestMiddleware> $middleware
-     * @param list<ResponseObserver> $responseObservers
+     * Collects observers that receive parsed app results.
      *
-     * @return list<ResponseObserver>
+     * @param list<RequestMiddleware> $middleware request hooks applied before the agent call.
+     * @param list<ResponseObserver> $responseObservers observers that receive parsed caller results.
+     *
+     * @return list<ResponseObserver> Value returned to app code.
      */
     private function normaliseResponseObservers(array $middleware, array $responseObservers): array
     {
-        /** @var list<ResponseObserver> $observerMiddleware */
+        /** @var list<ResponseObserver> $observerMiddleware validated before app code uses it. */
         $observerMiddleware = array_values(array_filter(
             $middleware,
             static fn (RequestMiddleware $requestMiddleware): bool => $requestMiddleware instanceof ResponseObserver,
@@ -833,7 +868,12 @@ class StrandsClient
     }
 
     /**
-     * @param array<string, mixed> $response
+     * Notifies observers after a custom JSON call completes.
+     *
+     * @param array<string, mixed> $response parsed agent result returned to the app.
+     * @param string $url agent endpoint the app is calling.
+     * @param float $durationMs elapsed time reported to app telemetry.
+     * @return void No returned value; updates client or observer state.
      */
     private function notifyAfterPostJson(string $url, array $response, float $durationMs): void
     {
@@ -864,7 +904,11 @@ class StrandsClient
     }
 
     /**
-     * @param callable(ResponseObserver): void $notify
+     * Runs observer callbacks without breaking the app call.
+     *
+     * @param callable(ResponseObserver): void $notify Observer callback run after an app-facing hook.
+     * @param string $hook Observer hook name used in warning logs.
+     * @return void No returned value; updates client or observer state.
      */
     private function notifyResponseObservers(callable $notify, string $hook): void
     {
@@ -886,6 +930,12 @@ class StrandsClient
      * Exceptions from middleware are caught and logged - never propagated.
      * This prevents observability middleware (tracing, metrics) from breaking
      * the caller's error handling or masking the original exception.
+     *
+     * @param string $url agent endpoint the app is calling.
+     * @param int $statusCode HTTP status recorded for app diagnostics.
+     * @param float $durationMs elapsed time reported to app telemetry.
+     * @param ?\Throwable $error failure surfaced while the app waited for the agent.
+     * @return void No returned value; updates client or observer state.
      */
     private function notifyAfterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
     {
@@ -904,6 +954,8 @@ class StrandsClient
     /**
      * Reject empty messages early to avoid a confusing 400 from the API.
      *
+     * @param string|AgentInput $message user input or rich payload sent to the agent.
+     * @return void No returned value; updates client or observer state.
      * @throws \InvalidArgumentException  If the message text is empty.
      */
     private static function validateMessage(string|AgentInput $message): void
@@ -918,6 +970,9 @@ class StrandsClient
     }
 
     /**
+     * Chooses the HTTP transport used to reach the agent.
+     *
+     * @return HttpTransport Value returned to app code.
      * @throws StrandsException
      */
     private static function detectTransport(): HttpTransport

@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Consumer Compatibility behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Contract;
 
 use PHPUnit\Framework\TestCase;
@@ -12,6 +16,9 @@ use StrandsPhpClient\StrandsClient;
 use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 
+/**
+ * Verifies Consumer Compatibility behavior that application users rely on.
+ */
 class ConsumerCompatibilityTest extends TestCase
 {
     /**
@@ -188,7 +195,10 @@ class ConsumerCompatibilityTest extends TestCase
     }
 
     /**
-     * @param array<string, array<string, mixed>> $responses
+     * Supports the post transport step in the app-facing flow.
+     *
+     * @param array<string, array<string, mixed>> $responses Fixture responses returned by the mock transport.
+     * @return HttpTransport Value returned to app code.
      */
     private function postTransport(array $responses): HttpTransport
     {
@@ -235,14 +245,17 @@ class ConsumerCompatibilityTest extends TestCase
     }
 
     /**
-     * @return array<string, mixed>
+     * Supports the json fixture step in the app-facing flow.
+     *
+     * @param string $filename Fixture file used for wire-contract checks.
+     * @return array<string, mixed> Fixture data used to verify the public wire contract.
      */
     private function jsonFixture(string $filename): array
     {
         $data = json_decode($this->fixture($filename), true, flags: JSON_THROW_ON_ERROR);
         self::assertIsArray($data);
 
-        /** @var array<string, mixed> $data */
+        /** @var array<string, mixed> $data validated before app code uses it. */
         return $data;
     }
 }

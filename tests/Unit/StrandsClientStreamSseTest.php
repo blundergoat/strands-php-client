@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Strands Client Stream Sse behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
@@ -12,6 +16,9 @@ use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\StrandsClient;
 
+/**
+ * Verifies Strands Client Stream Sse behavior that application users rely on.
+ */
 class StrandsClientStreamSseTest extends TestCase
 {
     /**
@@ -380,7 +387,8 @@ class StrandsClientStreamSseTest extends TestCase
         $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
             $events[] = $event;
 
-            return count($events) < 2;  // cancel after 2nd event
+            // Stop after the second raw event to prove callback cancellation works.
+            return count($events) < 2;
         });
 
         $this->assertCount(2, $events);
@@ -439,7 +447,8 @@ class StrandsClientStreamSseTest extends TestCase
         $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
             $events[] = $event;
 
-            return false;  // cancel immediately
+            // Stop immediately so the app receives only the first raw event.
+            return false;
         });
 
         $this->assertCount(1, $events);

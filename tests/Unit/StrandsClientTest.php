@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Strands Client behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -18,8 +22,23 @@ use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\StrandsClient;
 
+/**
+ * Verifies Strands Client behavior that application users rely on.
+ */
 class StrandsClientTest extends TestCase
 {
+    /**
+     * Clear transport-detection overrides so later app scenarios use real discovery.
+     *
+     * @return void
+     */
+    protected function tearDown(): void
+    {
+        unset($GLOBALS['__strands_class_exists_overrides']);
+
+        parent::tearDown();
+    }
+
     /**
      * Load fixture for the test scenario.
      *
@@ -354,6 +373,7 @@ class StrandsClientTest extends TestCase
      * Verifies that invoke does not retry non retryable status code.
      *
      * @return void
+     * @throws AgentErrorException When the agent rejects the request without retry.
      */
     public function testInvokeDoesNotRetryNonRetryableStatusCode(): void
     {
@@ -417,6 +437,7 @@ class StrandsClientTest extends TestCase
      * Verifies that invoke does not retry on 401.
      *
      * @return void
+     * @throws AgentErrorException When authentication fails and retries are skipped.
      */
     public function testInvokeDoesNotRetryOnUnauthorized(): void
     {
@@ -485,7 +506,7 @@ class StrandsClientTest extends TestCase
     /**
      * Cases for testConfigRejectsInvalidFieldWithIdentifyingMessage().
      *
-     * @return iterable<string, array{0: \Closure(): void, 1: string}>
+     * @return iterable<string, array{0: \Closure(): void, 1: string}> Invalid configuration cases that should fail before user calls run.
      */
     public static function invalidConfigConstructorProvider(): iterable
     {
@@ -589,16 +610,15 @@ class StrandsClientTest extends TestCase
         $this->assertSame('http://localhost:8081/invoke', $debugCalls[0]['context']['url']);
         $this->assertSame('sess-log', $debugCalls[0]['context']['session_id']);
 
-        // Response log must include session_id, agent, input_tokens, output_tokens, tools_used
+        // Response logs avoid session IDs and token counters because users may treat logs as lower-trust.
         $this->assertSame('Strands invoke response', $debugCalls[1]['message']);
-        $this->assertArrayHasKey('session_id', $debugCalls[1]['context']);
         $this->assertArrayHasKey('agent', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('input_tokens', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('output_tokens', $debugCalls[1]['context']);
         $this->assertArrayHasKey('tools_used', $debugCalls[1]['context']);
-        $this->assertSame('test-session-001', $debugCalls[1]['context']['session_id']);
-        $this->assertSame(150, $debugCalls[1]['context']['input_tokens']);
-        $this->assertSame(280, $debugCalls[1]['context']['output_tokens']);
+        $this->assertArrayHasKey('interrupted', $debugCalls[1]['context']);
+        $this->assertArrayHasKey('structured_output', $debugCalls[1]['context']);
+        $this->assertArrayNotHasKey('session_id', $debugCalls[1]['context']);
+        $this->assertArrayNotHasKey('input_tokens', $debugCalls[1]['context']);
+        $this->assertArrayNotHasKey('output_tokens', $debugCalls[1]['context']);
         $this->assertSame(0, $debugCalls[1]['context']['tools_used']);
     }
 
@@ -687,7 +707,7 @@ class StrandsClientTest extends TestCase
     /**
      * Cases for testInvokeForwardsResolvedTimeoutToTransport().
      *
-     * @return iterable<string, array{0: int|null, 1: int, 2: int}>
+     * @return iterable<string, array{0: int|null, 1: int, 2: int}> Timeout cases that keep caller overrides predictable.
      */
     public static function invokeTimeoutResolutionProvider(): iterable
     {
@@ -738,7 +758,7 @@ class StrandsClientTest extends TestCase
     /**
      * Cases for testConfigPreservesValidRetryableStatusCodes().
      *
-     * @return iterable<string, array{0: list<int>}>
+     * @return iterable<string, array{0: list<int>}> Retry status codes accepted for caller-controlled recovery.
      */
     public static function validRetryableStatusCodesProvider(): iterable
     {
@@ -889,6 +909,7 @@ class StrandsClientTest extends TestCase
      * Verifies that middleware after response exception logs context.
      *
      * @return void
+     * @throws \RuntimeException When the observer stub simulates logging failure.
      */
     public function testMiddlewareAfterResponseExceptionLogsContext(): void
     {
@@ -920,6 +941,7 @@ class StrandsClientTest extends TestCase
              * @param \Throwable|null $error Optional transport or agent error raised by
              * the operation.
              * @return void
+             * @throws \RuntimeException When the stub simulates observer failure logging.
              */
             public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
             {

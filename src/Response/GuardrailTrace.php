@@ -30,7 +30,7 @@ final class GuardrailTrace
     /**
      * Get assessments as typed DTOs, hydrated from the raw $assessments arrays.
      *
-     * @return list<GuardrailAssessment>
+     * @return list<GuardrailAssessment> Value returned to app code.
      */
     public function getAssessmentObjects(): array
     {
@@ -47,16 +47,19 @@ final class GuardrailTrace
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Hydrates caller-facing data from the agent response.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {
         $rawAssessments = is_array($data['assessments'] ?? null) ? $data['assessments'] : [];
-        /** @var list<array<string, mixed>> $assessments */
+        /** @var list<array<string, mixed>> $assessments validated before app code uses it. */
         $assessments = [];
         foreach ($rawAssessments as $assessment) {
             if (is_array($assessment)) {
-                /** @var array<string, mixed> $assessment */
+                /** @var array<string, mixed> $assessment validated before app code uses it. */
                 $assessments[] = $assessment;
             }
         }

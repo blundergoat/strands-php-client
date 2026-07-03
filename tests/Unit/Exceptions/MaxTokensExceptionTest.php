@@ -2,12 +2,19 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Max Tokens Exception behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Exceptions;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\MaxTokensException;
 
+/**
+ * Verifies Max Tokens Exception behavior that application users rely on.
+ */
 class MaxTokensExceptionTest extends TestCase
 {
     /**
@@ -28,6 +35,7 @@ class MaxTokensExceptionTest extends TestCase
      * Verifies that caught by agent error exception catch.
      *
      * @return void
+     * @throws AgentErrorException When the max-token catch-path is exercised.
      */
     public function testCaughtByAgentErrorExceptionCatch(): void
     {

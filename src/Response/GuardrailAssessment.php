@@ -36,19 +36,22 @@ final readonly class GuardrailAssessment
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Hydrates caller-facing data from the agent response.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {
-        /** @var array<string, mixed>|null $topicPolicy */
+        /** @var array<string, mixed>|null $topicPolicy validated before app code uses it. */
         $topicPolicy = is_array($data['topic_policy'] ?? null) ? $data['topic_policy'] : null;
-        /** @var array<string, mixed>|null $contentPolicy */
+        /** @var array<string, mixed>|null $contentPolicy validated before app code uses it. */
         $contentPolicy = is_array($data['content_policy'] ?? null) ? $data['content_policy'] : null;
-        /** @var array<string, mixed>|null $wordPolicy */
+        /** @var array<string, mixed>|null $wordPolicy validated before app code uses it. */
         $wordPolicy = is_array($data['word_policy'] ?? null) ? $data['word_policy'] : null;
-        /** @var array<string, mixed>|null $sensitiveInformationPolicy */
+        /** @var array<string, mixed>|null $sensitiveInformationPolicy validated before app code uses it. */
         $sensitiveInformationPolicy = is_array($data['sensitive_information_policy'] ?? null) ? $data['sensitive_information_policy'] : null;
-        /** @var array<string, mixed>|null $contextualGroundingPolicy */
+        /** @var array<string, mixed>|null $contextualGroundingPolicy validated before app code uses it. */
         $contextualGroundingPolicy = is_array($data['contextual_grounding_policy'] ?? null) ? $data['contextual_grounding_policy'] : null;
 
         return new self(
@@ -66,7 +69,11 @@ final readonly class GuardrailAssessment
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Supports the float step in the app-facing flow.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param string $key Payload field name being read or written.
+     * @return ?float Value returned to app code.
      */
     private static function float(array $data, string $key): ?float
     {

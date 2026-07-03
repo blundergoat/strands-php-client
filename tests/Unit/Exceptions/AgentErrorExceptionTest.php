@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Agent Error Exception behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Exceptions;
 
 use PHPUnit\Framework\TestCase;
@@ -10,6 +14,9 @@ use StrandsPhpClient\Exceptions\ContextOverflowException;
 use StrandsPhpClient\Exceptions\MaxTokensException;
 use StrandsPhpClient\Exceptions\ThrottledException;
 
+/**
+ * Verifies Agent Error Exception behavior that application users rely on.
+ */
 class AgentErrorExceptionTest extends TestCase
 {
     /**
@@ -95,7 +102,7 @@ class AgentErrorExceptionTest extends TestCase
     /**
      * Data fixture for testAllSubclassesCaughtByParent().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Exception subclasses that app code can catch through the parent type.
      */
     private function dataForAllSubclassesCaughtByParent(): array
     {
@@ -111,6 +118,7 @@ class AgentErrorExceptionTest extends TestCase
      * Verifies that all subclasses caught by parent.
      *
      * @return void
+     * @throws AgentErrorException When the subclass catch-path is exercised.
      */
     public function testAllSubclassesCaughtByParent(): void
     {

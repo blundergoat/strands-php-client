@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Psr Http Transport behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -17,6 +21,9 @@ use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\PsrHttpTransport;
 
+/**
+ * Verifies Psr Http Transport behavior that application users rely on.
+ */
 class PsrHttpTransportTest extends TestCase
 {
     /**
@@ -109,7 +116,7 @@ class PsrHttpTransportTest extends TestCase
     /**
      * Cases for testPostThrowsAgentErrorOnDocumentedErrorShape().
      *
-     * @return iterable<string, array{0: string, 1: int, 2: string}>
+     * @return iterable<string, array{0: string, 1: int, 2: string}> Error body cases that keep transport failures clear to callers.
      */
     public static function postErrorBodyProvider(): iterable
     {

@@ -37,7 +37,12 @@ interface ResponseObserver
     public function afterStream(string $url, StreamResult $result, float $durationMs): void;
 
     /**
-     * @param array<string, mixed> $response
+     * Records parsed custom-endpoint data for app telemetry.
+     *
+     * @param array<string, mixed> $response parsed agent result returned to the app.
+     * @param string $url agent endpoint the app is calling.
+     * @param float $durationMs elapsed time reported to app telemetry.
+     * @return void No returned value; updates client or observer state.
      */
     public function afterPostJson(string $url, array $response, float $durationMs): void;
 

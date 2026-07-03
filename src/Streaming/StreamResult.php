@@ -56,6 +56,8 @@ class StreamResult
 
     /**
      * Whether the agent was interrupted and is waiting for user input.
+     *
+     * @return bool true when the caller-facing condition is met.
      */
     public function isInterrupted(): bool
     {

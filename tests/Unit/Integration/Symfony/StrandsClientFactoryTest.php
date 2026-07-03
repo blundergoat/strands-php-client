@@ -2,18 +2,25 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Strands Client Factory behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Integration\Symfony\DependencyInjection\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
+/**
+ * Verifies Strands Client Factory behavior that application users rely on.
+ */
 class StrandsClientFactoryTest extends TestCase
 {
     /**
      * Test fixture for testCreateReturnsClient().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateReturnsClient(): StrandsClientFactory
     {
@@ -42,7 +49,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateThrowsForUnknownAgent().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateThrowsForUnknownAgent(): StrandsClientFactory
     {
@@ -73,7 +80,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateThrowsForUnsupportedAuthDriver().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateThrowsForUnsupportedAuthDriver(): StrandsClientFactory
     {
@@ -104,7 +111,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithApiKeyAuth().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithApiKeyAuth(): StrandsClientFactory
     {
@@ -137,7 +144,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithApiKeyAuthThrowsWhenMissingKey().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithApiKeyAuthThrowsWhenMissingKey(): StrandsClientFactory
     {
@@ -168,7 +175,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithRetryConfig().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithRetryConfig(): StrandsClientFactory
     {
@@ -201,7 +208,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithApiKeyAuthCustomHeader().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithApiKeyAuthCustomHeader(): StrandsClientFactory
     {
@@ -236,7 +243,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithEmptyApiKeyThrows().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithEmptyApiKeyThrows(): StrandsClientFactory
     {
@@ -270,7 +277,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateUsesDefaultsWhenRetryFieldsMissing().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateUsesDefaultsWhenRetryFieldsMissing(): StrandsClientFactory
     {

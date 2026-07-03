@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Otel Tracing Phi Safety behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Http\Middleware;
 
 use OpenTelemetry\SDK\Trace\ImmutableSpan;
@@ -11,12 +15,18 @@ use OpenTelemetry\SDK\Trace\TracerProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Http\Middleware\OtelTracingMiddleware;
 
+/**
+ * Verifies Otel Tracing Phi Safety behavior that application users rely on.
+ */
 final class OtelTracingPhiSafetyTest extends TestCase
 {
+    /** Captures spans so tests can check for sensitive values. */
     private InMemoryExporter $exporter;
 
+    /** Owns the test tracer lifecycle for each PHI-safety scenario. */
     private TracerProvider $tracerProvider;
 
+    /** Middleware under test for safe app telemetry. */
     private OtelTracingMiddleware $middleware;
 
     /**
@@ -121,7 +131,10 @@ final class OtelTracingPhiSafetyTest extends TestCase
     }
 
     /**
-     * @return array<string, mixed>
+     * Supports the span attributes step in the app-facing flow.
+     *
+     * @param ImmutableSpan $immutableSpan Value supplied by app code.
+     * @return array<string, mixed> Span data used to prove telemetry stays safe for app users.
      */
     private function spanAttributes(ImmutableSpan $immutableSpan): array
     {

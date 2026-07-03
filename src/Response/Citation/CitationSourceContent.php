@@ -22,7 +22,10 @@ final readonly class CitationSourceContent
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Hydrates caller-facing data from the agent response.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {

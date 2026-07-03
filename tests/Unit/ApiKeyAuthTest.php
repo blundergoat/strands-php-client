@@ -2,11 +2,18 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Api Key Auth behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Auth\ApiKeyAuth;
 
+/**
+ * Verifies Api Key Auth behavior that application users rely on.
+ */
 class ApiKeyAuthTest extends TestCase
 {
     /**

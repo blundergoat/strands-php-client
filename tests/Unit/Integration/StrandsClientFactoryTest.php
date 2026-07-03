@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Strands Client Factory behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Integration;
 
 use PHPUnit\Framework\TestCase;
@@ -9,12 +13,15 @@ use StrandsPhpClient\Config\StrandsConfig;
 use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
+/**
+ * Verifies Strands Client Factory behavior that application users rely on.
+ */
 class StrandsClientFactoryTest extends TestCase
 {
     /**
      * Test fixture for testCreateReturnsClient().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateReturnsClient(): StrandsClientFactory
     {
@@ -43,7 +50,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateThrowsForUnknownAgent().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateThrowsForUnknownAgent(): StrandsClientFactory
     {
@@ -74,7 +81,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateThrowsForUnsupportedAuthDriver().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateThrowsForUnsupportedAuthDriver(): StrandsClientFactory
     {
@@ -105,7 +112,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithApiKeyAuth().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithApiKeyAuth(): StrandsClientFactory
     {
@@ -138,7 +145,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithApiKeyAuthThrowsWhenMissingKey().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithApiKeyAuthThrowsWhenMissingKey(): StrandsClientFactory
     {
@@ -169,7 +176,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithEmptyApiKeyThrows().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithEmptyApiKeyThrows(): StrandsClientFactory
     {
@@ -203,7 +210,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithApiKeyAuthCustomHeader().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithApiKeyAuthCustomHeader(): StrandsClientFactory
     {
@@ -238,7 +245,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithRetryConfig().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithRetryConfig(): StrandsClientFactory
     {
@@ -353,7 +360,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithSigv4Auth().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithSigv4Auth(): StrandsClientFactory
     {
@@ -387,7 +394,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithApiKeyCustomHeaderAndPrefix().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithApiKeyCustomHeaderAndPrefix(): StrandsClientFactory
     {
@@ -421,7 +428,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateWithApiKeyDefaultHeaderAndPrefix().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateWithApiKeyDefaultHeaderAndPrefix(): StrandsClientFactory
     {
@@ -510,7 +517,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateSigv4ThrowsWhenMissingRegion().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateSigv4ThrowsWhenMissingRegion(): StrandsClientFactory
     {
@@ -545,7 +552,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateSigv4ThrowsOnPartialCredentials().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateSigv4ThrowsOnPartialCredentials(): StrandsClientFactory
     {
@@ -581,7 +588,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateSigv4ThrowsOnPartialCredentialsReverse().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateSigv4ThrowsOnPartialCredentialsReverse(): StrandsClientFactory
     {
@@ -617,7 +624,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateSigv4WithSessionToken().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateSigv4WithSessionToken(): StrandsClientFactory
     {
@@ -652,7 +659,7 @@ class StrandsClientFactoryTest extends TestCase
     /**
      * Test fixture for testCreateSigv4WithCustomService().
      *
-     * @return StrandsClientFactory
+     * @return StrandsClientFactory Value returned to app code.
      */
     private function strandsClientFactoryForCreateSigv4WithCustomService(): StrandsClientFactory
     {

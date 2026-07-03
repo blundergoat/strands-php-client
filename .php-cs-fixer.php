@@ -1,5 +1,9 @@
 <?php
 
+/**
+ * Keeps formatting predictable for contributors editing the client.
+ */
+
 $finder = (new PhpCsFixer\Finder())
     ->in([
         __DIR__ . '/src',

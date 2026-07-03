@@ -18,6 +18,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 class SymfonyHttpTransport implements HttpTransport
 {
+    /** HTTP client used for invoke and live stream requests. */
     private HttpClientInterface $httpClient;
 
     /**
@@ -31,13 +32,15 @@ class SymfonyHttpTransport implements HttpTransport
     }
 
     /**
+     * Sends a synchronous agent request through Symfony HTTP Client.
+     *
      * @param string               $url             The URL to POST to.
      * @param array<string, string> $headers         Headers to include.
      * @param string               $body            JSON-encoded request body.
      * @param int                  $timeout         Overall request timeout in seconds.
      * @param int                  $connectTimeout  Connection/idle timeout in seconds.
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Decoded agent response returned to the client.
      *
      * @throws AgentErrorException  If the server returned an error (HTTP 400+).
      * @throws StrandsException     If the JSON is invalid or the request failed.
@@ -68,7 +71,7 @@ class SymfonyHttpTransport implements HttpTransport
                 ));
             }
 
-            /** @var array<string, mixed> $data */
+            /** @var array<string, mixed> $data validated before app code uses it. */
             return $data;
         } catch (StrandsException $e) {
             throw $e;
@@ -81,6 +84,8 @@ class SymfonyHttpTransport implements HttpTransport
     }
 
     /**
+     * Supports the stream step in the app-facing flow.
+     *
      * @param string               $url             The URL to POST to.
      * @param array<string, string> $headers         Headers to include.
      * @param string               $body            JSON-encoded request body.
@@ -88,6 +93,7 @@ class SymfonyHttpTransport implements HttpTransport
      * @param int                  $connectTimeout  Connection timeout in seconds.
      * @param callable(string): (void|bool) $onChunk  Called with each raw SSE data chunk. Return false to cancel.
      *
+     * @return void No returned value; updates client or observer state.
      * @throws AgentErrorException          If the server returned an error.
      * @throws StreamInterruptedException   If the stream times out.
      * @throws StrandsException             If the request failed.

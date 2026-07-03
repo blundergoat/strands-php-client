@@ -2,12 +2,19 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Context Overflow Exception behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Exceptions;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\ContextOverflowException;
 
+/**
+ * Verifies Context Overflow Exception behavior that application users rely on.
+ */
 class ContextOverflowExceptionTest extends TestCase
 {
     /**
@@ -28,6 +35,7 @@ class ContextOverflowExceptionTest extends TestCase
      * Verifies that caught by agent error exception catch.
      *
      * @return void
+     * @throws AgentErrorException When the context overflow catch-path is exercised.
      */
     public function testCaughtByAgentErrorExceptionCatch(): void
     {

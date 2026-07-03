@@ -2,17 +2,24 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Citation Location behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Response\Citation;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\Citation\CitationLocation;
 
+/**
+ * Verifies Citation Location behavior that application users rely on.
+ */
 class CitationLocationTest extends TestCase
 {
     /**
      * Data fixture for testFromArrayDocumentLocation().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array document location behavior stable for app callers.
      */
     private function dataForFromArrayDocumentLocation(): array
     {
@@ -46,7 +53,7 @@ class CitationLocationTest extends TestCase
     /**
      * Data fixture for testFromArrayWebLocation().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array web location behavior stable for app callers.
      */
     private function dataForFromArrayWebLocation(): array
     {
@@ -76,7 +83,7 @@ class CitationLocationTest extends TestCase
     /**
      * Data fixture for testFromArraySearchResultLocation().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array search result location behavior stable for app callers.
      */
     private function dataForFromArraySearchResultLocation(): array
     {
@@ -107,7 +114,7 @@ class CitationLocationTest extends TestCase
     /**
      * Data fixture for testFromArrayChunkLocation().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array chunk location behavior stable for app callers.
      */
     private function dataForFromArrayChunkLocation(): array
     {
@@ -152,7 +159,7 @@ class CitationLocationTest extends TestCase
     /**
      * Data fixture for testFromArrayAcceptsNumericStringsAndFloats().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array accepts numeric strings and floats behavior stable for app callers.
      */
     private function dataForFromArrayAcceptsNumericStringsAndFloats(): array
     {

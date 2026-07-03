@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Otel Tracing Middleware behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Http\Middleware;
 
 use OpenTelemetry\API\Trace\SpanKind;
@@ -16,12 +20,18 @@ use StrandsPhpClient\Http\Middleware\OtelTracingMiddleware;
 use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\Streaming\StreamSseSummary;
 
+/**
+ * Verifies Otel Tracing Middleware behavior that application users rely on.
+ */
 class OtelTracingMiddlewareTest extends TestCase
 {
+    /** Captures spans so tests can inspect what app telemetry would receive. */
     private InMemoryExporter $exporter;
 
+    /** Owns the test tracer lifecycle for each middleware scenario. */
     private TracerProvider $tracerProvider;
 
+    /** Middleware under test for agent request tracing. */
     private OtelTracingMiddleware $middleware;
 
     /**
@@ -48,7 +58,9 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * @return list<ImmutableSpan>
+     * Supports the get spans step in the app-facing flow.
+     *
+     * @return list<ImmutableSpan> Value returned to app code.
      */
     private function getSpans(): array
     {

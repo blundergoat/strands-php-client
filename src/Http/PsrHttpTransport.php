@@ -21,8 +21,10 @@ use StrandsPhpClient\Exceptions\StrandsException;
  */
 class PsrHttpTransport implements HttpTransport
 {
+    /** Logger that surfaces transport warnings without changing user flow. */
     private LoggerInterface $logger;
 
+    /** Tracks whether the one-time timeout warning has already been shown. */
     private bool $timeoutWarningLogged = false;
 
     /**
@@ -41,13 +43,15 @@ class PsrHttpTransport implements HttpTransport
     }
 
     /**
+     * Sends a synchronous agent request through a PSR-18 client.
+     *
      * @param string               $url             The URL to POST to.
      * @param array<string, string> $headers         Headers to include.
      * @param string               $body            JSON-encoded request body.
      * @param int                  $timeout         Ignored - configure on your PSR-18 client.
      * @param int                  $connectTimeout  Ignored - configure on your PSR-18 client.
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Decoded agent response returned to the client.
      *
      * @throws AgentErrorException  If the server returned an error (HTTP 400+).
      * @throws StrandsException     If the JSON response is invalid or the request failed.
@@ -92,7 +96,7 @@ class PsrHttpTransport implements HttpTransport
                 ));
             }
 
-            /** @var array<string, mixed> $data */
+            /** @var array<string, mixed> $data validated before app code uses it. */
             return $data;
         } catch (StrandsException $e) {
             throw $e;
@@ -107,6 +111,13 @@ class PsrHttpTransport implements HttpTransport
     /**
      * Streaming is not supported by PSR-18.
      *
+     * @param string $url agent endpoint the app is calling.
+     * @param array<string, string> $headers headers that will reach the agent service.
+     * @param string $body request body the agent service will receive.
+     * @param int $timeout Request timeout used for the agent call.
+     * @param int $connectTimeout Connection timeout used for the agent request.
+     * @param callable $onChunk Callback that receives raw stream chunks.
+     * @return void No returned value; updates client or observer state.
      * @throws StrandsException Always thrown.
      */
     public function stream(string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk): void

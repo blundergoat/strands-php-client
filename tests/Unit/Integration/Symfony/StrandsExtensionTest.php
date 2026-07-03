@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Strands Extension behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
 
 use PHPUnit\Framework\TestCase;
@@ -12,6 +16,9 @@ use StrandsPhpClient\StrandsClient;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 
+/**
+ * Verifies Strands Extension behavior that application users rely on.
+ */
 class StrandsExtensionTest extends TestCase
 {
     /**

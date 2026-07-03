@@ -40,8 +40,9 @@ class StrandsClientFactory
      *     retry_delay_ms?: int,
      *     retryable_status_codes?: list<int>,
      * }> $agents
-     * @param iterable<RequestMiddleware> $middleware
-     * @param iterable<ResponseObserver> $responseObservers
+     * @param iterable<RequestMiddleware> $middleware hooks applied around each agent call.
+     * @param iterable<ResponseObserver> $responseObservers observers that receive parsed agent results.
+     * @param LoggerInterface $logger logger shared by clients created for app agents.
      */
     public function __construct(
         private readonly array $agents,
@@ -66,10 +67,13 @@ class StrandsClientFactory
     /**
      * Create a StrandsClient for the given agent name.
      *
+     * @param string $agentName Configured agent selected by app code.
+     * @return StrandsClient Value returned to app code.
      * @throws \InvalidArgumentException  If the agent name doesn't exist in the configuration.
      */
     public function create(string $agentName): StrandsClient
     {
+        // The app may request a named agent from a route or UI choice, such as "support" or "analyst".
         if (!isset($this->agents[$agentName])) {
             throw new \InvalidArgumentException(sprintf(
                 'Unknown Strands agent "%s". Configured agents: %s',
@@ -99,7 +103,10 @@ class StrandsClientFactory
     }
 
     /**
-     * @param array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string, region?: string, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null} $authConfig
+     * Supports the resolve auth step in the app-facing flow.
+     *
+     * @param array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string, region?: string, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null} $authConfig Framework auth settings for the selected agent.
+     * @return AuthStrategy Value returned to app code.
      */
     private function resolveAuth(array $authConfig): AuthStrategy
     {
@@ -115,7 +122,10 @@ class StrandsClientFactory
     }
 
     /**
-     * @param array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string} $authConfig
+     * Supports the create api key auth step in the app-facing flow.
+     *
+     * @param array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string} $authConfig Framework auth settings for the selected agent.
+     * @return ApiKeyAuth Value returned to app code.
      */
     private function createApiKeyAuth(array $authConfig): ApiKeyAuth
     {
@@ -135,7 +145,10 @@ class StrandsClientFactory
     }
 
     /**
-     * @param array{driver: string, region?: string, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null} $authConfig
+     * Supports the create sig v4auth step in the app-facing flow.
+     *
+     * @param array{driver: string, region?: string, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null} $authConfig Framework auth settings for the selected agent.
+     * @return SigV4Auth Value returned to app code.
      */
     private function createSigV4Auth(array $authConfig): SigV4Auth
     {
@@ -166,8 +179,8 @@ class StrandsClientFactory
         }
 
         if ($hasAccessKey && $hasSecretKey) {
-            /** @var string $accessKeyId */
-            /** @var string $secretAccessKey */
+            /** @var string $accessKeyId validated before app code uses it. */
+            /** @var string $secretAccessKey validated before app code uses it. */
             return new SigV4Auth(
                 accessKeyId: $accessKeyId,
                 secretAccessKey: $secretAccessKey,

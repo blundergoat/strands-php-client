@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Stream Event Citation behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Streaming;
 
 use PHPUnit\Framework\TestCase;
@@ -9,6 +13,9 @@ use StrandsPhpClient\Response\Citation\Citation;
 use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 
+/**
+ * Verifies Stream Event Citation behavior that application users rely on.
+ */
 class StreamEventCitationTest extends TestCase
 {
     /**

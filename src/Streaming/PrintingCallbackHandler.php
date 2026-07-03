@@ -16,8 +16,10 @@ class PrintingCallbackHandler extends StreamCallbackHandler
     private readonly ?\Closure $errorWriter;
 
     /**
-     * @param callable(string): void|null $outputWriter
-     * @param callable(string): void|null $errorWriter
+     * Supports the __construct step in the app-facing flow.
+     *
+     * @param callable(string): void|null $outputWriter Writer used to show streamed text to the user.
+     * @param callable(string): void|null $errorWriter Writer used to show stream errors to the user.
      */
     public function __construct(?callable $outputWriter = null, ?callable $errorWriter = null)
     {

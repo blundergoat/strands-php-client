@@ -32,15 +32,18 @@ final readonly class Citation
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Hydrates caller-facing data from the agent response.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {
-        /** @var array<string, mixed> $locationData */
+        /** @var array<string, mixed> $locationData validated before app code uses it. */
         $locationData = is_array($data['location'] ?? null) ? $data['location'] : [];
-        /** @var array<string, mixed> $sourceData */
+        /** @var array<string, mixed> $sourceData validated before app code uses it. */
         $sourceData = is_array($data['source_content'] ?? null) ? $data['source_content'] : [];
-        /** @var array<string, mixed> $generatedData */
+        /** @var array<string, mixed> $generatedData validated before app code uses it. */
         $generatedData = is_array($data['generated_content'] ?? null) ? $data['generated_content'] : [];
         $source = self::string($data, 'source');
         $title = self::string($data, 'title');
@@ -65,7 +68,11 @@ final readonly class Citation
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Reads an optional citation string without leaking malformed wire values.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param string $key citation field to read.
+     * @return ?string Citation text the app can show, or null when absent.
      */
     private static function string(array $data, string $key): ?string
     {
@@ -75,7 +82,11 @@ final readonly class Citation
     }
 
     /**
-     * @return array<string, string>
+     * Converts legacy flat citation fields into a location block.
+     *
+     * @param ?string $source raw source value from the citation payload.
+     * @param ?string $title title shown beside the cited source.
+     * @return array<string, string> Location data the app can render as citation context.
      */
     private static function flatLocationData(?string $source, ?string $title): array
     {
@@ -93,7 +104,11 @@ final readonly class Citation
     }
 
     /**
-     * @return array<string, string>
+     * Converts legacy flat citation fields into source content.
+     *
+     * @param ?string $source raw source value from the citation payload.
+     * @param ?string $text cited text shown beside the answer.
+     * @return array<string, string> Source content data for the citation UI.
      */
     private static function flatSourceContentData(?string $source, ?string $text): array
     {

@@ -18,6 +18,9 @@ namespace StrandsPhpClient\Integration\Laravel\Facades;
 use Illuminate\Support\Facades\Facade;
 use StrandsPhpClient\StrandsClient;
 
+/**
+ * Exposes the default client through Laravel's facade API.
+ */
 class Strands extends Facade
 {
     /**

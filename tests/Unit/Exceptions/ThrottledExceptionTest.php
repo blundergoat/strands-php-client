@@ -2,12 +2,19 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Throttled Exception behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Exceptions;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\ThrottledException;
 
+/**
+ * Verifies Throttled Exception behavior that application users rely on.
+ */
 class ThrottledExceptionTest extends TestCase
 {
     /**
@@ -27,6 +34,7 @@ class ThrottledExceptionTest extends TestCase
      * Verifies that caught by agent error exception catch.
      *
      * @return void
+     * @throws AgentErrorException When the throttling catch-path is exercised.
      */
     public function testCaughtByAgentErrorExceptionCatch(): void
     {

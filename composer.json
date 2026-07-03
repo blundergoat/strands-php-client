@@ -16,13 +16,12 @@
         "source": "https://github.com/blundergoat/strands-php-client"
     },
     "require": {
-        "php": ">=8.2",
+        "php": ">=8.2 <9.0",
         "psr/http-client": "^1.0",
         "psr/http-factory": "^1.0",
         "psr/log": "^1.0 || ^2.0 || ^3.0"
     },
     "require-dev": {
-        "blundergoat/gruff-php": "^0.1.2",
         "friendsofphp/php-cs-fixer": "^3.0",
         "illuminate/support": "^10.0 || ^11.0 || ^12.0",
         "infection/infection": "^0.32.4",

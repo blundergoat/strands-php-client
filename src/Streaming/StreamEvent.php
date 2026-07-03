@@ -107,7 +107,9 @@ class StreamEvent
     /**
      * Build a StreamEvent from validated data and type.
      *
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param StreamEventType $type Payload type selected by app code.
+     * @return self New instance ready for app code.
      */
     private static function buildFromArray(array $data, StreamEventType $type): self
     {
@@ -139,6 +141,8 @@ class StreamEvent
 
     /**
      * Get the citation as a typed DTO, hydrated from the raw $citation array.
+     *
+     * @return ?Citation Value returned to app code.
      */
     public function getCitationObject(): ?Citation
     {
@@ -151,6 +155,8 @@ class StreamEvent
 
     /**
      * True if this is a terminal event (Complete or Error).
+     *
+     * @return bool true when the caller-facing condition is met.
      */
     public function isTerminal(): bool
     {
@@ -158,7 +164,11 @@ class StreamEvent
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Reads an optional string field from a stream event.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param string $key stream event field to read.
+     * @return ?string Text the app can show, or null when absent.
      */
     private static function string(array $data, string $key): ?string
     {
@@ -168,9 +178,12 @@ class StreamEvent
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Reads a map field while shielding app code from malformed event data.
      *
-     * @return array<string, mixed>
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     *
+     * @param string $key stream event field to read.
+     * @return array<string, mixed> Map data from the event, or an empty map.
      */
     private static function arrayField(array $data, string $key): array
     {
@@ -181,9 +194,11 @@ class StreamEvent
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Supports the tools used field step in the app-facing flow.
      *
-     * @return list<array{name: string, duration_ms?: int}>
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     *
+     * @return list<array{name: string, duration_ms?: int}> Tool calls reported during the stream.
      */
     private static function toolsUsedField(array $data): array
     {
@@ -201,7 +216,7 @@ class StreamEvent
                     $entry['duration_ms'] = $tool['duration_ms'];
                 }
 
-                /** @var array{name: string, duration_ms?: int} $entry */
+                /** @var array{name: string, duration_ms?: int} $entry validated before app code uses it. */
                 $tools[] = $entry;
             }
         }
@@ -210,9 +225,12 @@ class StreamEvent
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Reads an optional map field from a stream event.
      *
-     * @return array<string, mixed>|null
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     *
+     * @param string $key stream event field to read.
+     * @return array<string, mixed>|null Map data, or null when the event omits it.
      */
     private static function nullableArrayField(array $data, string $key): ?array
     {
@@ -223,21 +241,26 @@ class StreamEvent
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Reads a list of maps while dropping malformed entries.
      *
-     * @return list<array<string, mixed>>
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     *
+     * @param string $key stream event field to read.
+     * @return list<array<string, mixed>> List entries safe for DTO hydration.
      */
     private static function listOfArrays(array $data, string $key): array
     {
         $value = $data[$key] ?? null;
+        // Missing list fields are normal for stream events that do not need follow-up UI.
         if (!is_array($value)) {
             return [];
         }
 
         $result = [];
+        // Keep only valid list entries before the app turns them into interrupt or trace objects.
         foreach ($value as $item) {
             if (is_array($item)) {
-                /** @var array<string, mixed> $item */
+                /** @var array<string, mixed> $item validated before app code uses it. */
                 $result[] = $item;
             }
         }
@@ -248,22 +271,24 @@ class StreamEvent
     /**
      * Extract guardrail trace from top-level or nested trace.guardrail.
      *
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
      *
-     * @return array<string, mixed>|null
+     * @return array<string, mixed>|null Guardrail trace for UI warnings, or null when absent.
      */
     private static function parseGuardrailTrace(array $data): ?array
     {
         $raw = self::nullableArrayField($data, 'guardrail_trace');
+        // A guardrail trace is present when the UI needs to explain a safety intervention.
         if ($raw !== null) {
             return $raw;
         }
 
         $trace = $data['trace'] ?? null;
+        // Some servers nest guardrail details under trace for the same user-facing result.
         if (is_array($trace)) {
             $guardrail = $trace['guardrail'] ?? null;
             if (is_array($guardrail)) {
-                /** @var array<string, mixed> $guardrail */
+                /** @var array<string, mixed> $guardrail validated before app code uses it. */
                 return $guardrail;
             }
         }
@@ -292,7 +317,11 @@ class StreamEvent
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Reads a token count field while tolerating numeric wire variations.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param string $key stream event field that may contain a token count.
+     * @return ?int Token count for UI hints, or null when unavailable.
      */
     private static function nullableIntField(array $data, string $key): ?int
     {

@@ -19,14 +19,18 @@ use Symfony\Component\HttpKernel\DependencyInjection\Extension;
 class StrandsExtension extends Extension
 {
     /**
-     * @param array<int, array<string, mixed>> $configs
+     * Supports the load step in the app-facing flow.
+     *
+     * @param array<int, array<string, mixed>> $configs Symfony config arrays merged for the app.
+     * @param ContainerBuilder $container Symfony container receiving client services.
+     * @return void No returned value; updates client or observer state.
      */
     public function load(array $configs, ContainerBuilder $container): void
     {
         $configuration = new Configuration();
         $config = $this->processConfiguration($configuration, $configs);
 
-        /** @var array<string, array<string, mixed>> $agents */
+        /** @var array<string, array<string, mixed>> $agents validated before app code uses it. */
         $agents = is_array($config['agents'] ?? null) ? $config['agents'] : [];
 
         if ($agents === []) {

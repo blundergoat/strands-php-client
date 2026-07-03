@@ -14,14 +14,19 @@ namespace StrandsPhpClient\Auth;
  */
 class SigV4Auth implements AuthStrategy
 {
+    /** AWS key used to identify the caller to the protected agent endpoint. */
     private string $accessKeyId;
 
+    /** Secret key used only to sign the outgoing agent request. */
     private string $secretAccessKey;
 
+    /** AWS region that scopes the request signature. */
     private string $region;
 
+    /** AWS service name that scopes the request signature. */
     private string $service;
 
+    /** Temporary credential token forwarded when the app uses session credentials. */
     private ?string $sessionToken;
 
     /**
@@ -51,6 +56,7 @@ class SigV4Auth implements AuthStrategy
      * @param string $region   AWS region.
      * @param string $service  AWS service name (default: 'execute-api').
      *
+     * @return self New instance ready for app code.
      * @throws \RuntimeException If required environment variables are missing.
      */
     public static function fromEnvironment(string $region, string $service = 'execute-api'): self
@@ -78,9 +84,14 @@ class SigV4Auth implements AuthStrategy
     }
 
     /**
-     * @param array<string, string> $headers
+     * Prepares auth headers before the app request reaches the agent.
      *
-     * @return array<string, string>
+     * @param array<string, string> $headers headers that will reach the agent service.
+     *
+     * @param string $method HTTP method used for signing and middleware context.
+     * @param string $url agent endpoint the app is calling.
+     * @param string $body request body the agent service will receive.
+     * @return array<string, string> Headers with the AWS SigV4 signature attached.
      */
     public function authenticate(array $headers, string $method, string $url, string $body): array
     {
@@ -89,7 +100,7 @@ class SigV4Auth implements AuthStrategy
         $dateStamp = $now->format('Ymd');
 
         $parsed = parse_url($url);
-        /** @var string $hostname */
+        /** @var string $hostname validated before app code uses it. */
         $hostname = $parsed['host'] ?? '';
         $port = $parsed['port'] ?? null;
         $scheme = $parsed['scheme'] ?? 'https';
@@ -192,7 +203,7 @@ class SigV4Auth implements AuthStrategy
     /**
      * Prevent credential leakage in var_dump/print_r output.
      *
-     * @return array<string, string|null>
+     * @return array<string, string|null> Safe debug values with secrets masked.
      */
     public function __debugInfo(): array
     {
@@ -207,6 +218,9 @@ class SigV4Auth implements AuthStrategy
 
     /**
      * Derive the SigV4 signing key via a chain of HMAC operations.
+     *
+     * @param string $dateStamp request date used to scope the signing key.
+     * @return string Binary signing key used to authorize the agent call.
      */
     private function deriveSigningKey(string $dateStamp): string
     {
@@ -219,6 +233,9 @@ class SigV4Auth implements AuthStrategy
 
     /**
      * Normalize the URI path component per RFC 3986.
+     *
+     * @param string $path request path that becomes part of the signed URL.
+     * @return string Canonical path included in the AWS signature.
      */
     private function normalizePath(string $path): string
     {
@@ -238,6 +255,9 @@ class SigV4Auth implements AuthStrategy
 
     /**
      * Canonicalize the query string: sort by parameter name, URI-encode keys and values.
+     *
+     * @param string $queryString request query used to produce a stable signature.
+     * @return string text value used in the caller-facing agent flow.
      */
     private function canonicalizeQueryString(string $queryString): string
     {

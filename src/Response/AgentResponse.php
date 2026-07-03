@@ -61,6 +61,8 @@ class AgentResponse
 
     /**
      * Whether the agent was interrupted and is waiting for user input.
+     *
+     * @return bool true when the caller-facing condition is met.
      */
     public function isInterrupted(): bool
     {
@@ -70,7 +72,7 @@ class AgentResponse
     /**
      * Get citations as typed DTOs, hydrated from the raw $citations arrays.
      *
-     * @return list<Citation\Citation>
+     * @return list<Citation\Citation> Value returned to app code.
      */
     public function getCitationObjects(): array
     {
@@ -91,9 +93,9 @@ class AgentResponse
      *
      * @template T of object
      *
-     * @param class-string<T> $class
+     * @param class-string<T> $class DTO class used to hydrate structured output.
      *
-     * @return T
+     * @return T Value returned to app code.
      *
      * @throws StrandsException If no structured output is available or hydration fails.
      */
@@ -129,7 +131,8 @@ class AgentResponse
     /**
      * Create from the raw JSON array returned by the /invoke endpoint.
      *
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {
@@ -139,7 +142,8 @@ class AgentResponse
         $stopReason = is_string($rawStopReason) ? StopReason::tryFrom($rawStopReason) : null;
 
         $rawStructuredOutput = $data['structured_output'] ?? null;
-        /** @var array<string, mixed>|null $structuredOutput */
+        // This is present when the user asked the app for a structured answer instead of plain text only.
+        /** @var array<string, mixed>|null $structuredOutput validated before app code uses it. */
         $structuredOutput = is_array($rawStructuredOutput) ? $rawStructuredOutput : null;
 
         $knownKeys = [
@@ -148,10 +152,10 @@ class AgentResponse
             'interrupts', 'guardrail_trace', 'trace', 'message',
             'context_size', 'projected_context_size',
         ];
-        /** @var array<string, mixed> $metadata */
+        /** @var array<string, mixed> $metadata validated before app code uses it. */
         $metadata = array_diff_key($data, array_flip($knownKeys));
         $rawWrapperMetadata = $data['metadata'] ?? null;
-        /** @var array<string, mixed> $wrapperMetadata */
+        /** @var array<string, mixed> $wrapperMetadata validated before app code uses it. */
         $wrapperMetadata = is_array($rawWrapperMetadata) ? $rawWrapperMetadata : [];
 
         return new self(
@@ -178,11 +182,12 @@ class AgentResponse
     /**
      * Parse usage statistics from the raw API data.
      *
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return Usage Value returned to app code.
      */
     private static function parseUsage(array $data): Usage
     {
-        /** @var array<string, mixed> $usageData */
+        /** @var array<string, mixed> $usageData validated before app code uses it. */
         $usageData = is_array($data['usage'] ?? null) ? $data['usage'] : [];
 
         return Usage::fromArray($usageData);
@@ -191,9 +196,9 @@ class AgentResponse
     /**
      * Extract and validate the tools_used array from raw API data.
      *
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
      *
-     * @return list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}>
+     * @return list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}> Tool calls safe for app logs and UI.
      */
     private static function parseToolsUsed(array $data): array
     {
@@ -212,18 +217,18 @@ class AgentResponse
             }
 
             if (isset($tool['input']) && is_array($tool['input'])) {
-                /** @var array<string, mixed> $input */
+                /** @var array<string, mixed> $input validated before app code uses it. */
                 $input = $tool['input'];
                 $entry['input'] = $input;
             }
 
             if (isset($tool['result']) && is_array($tool['result'])) {
-                /** @var array<string, mixed> $result */
+                /** @var array<string, mixed> $result validated before app code uses it. */
                 $result = $tool['result'];
                 $entry['result'] = $result;
             }
 
-            /** @var array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>} $entry */
+            /** @var array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>} $entry validated before app code uses it. */
             $toolsUsed[] = $entry;
         }
 
@@ -233,21 +238,23 @@ class AgentResponse
     /**
      * Parse interrupt details from the raw API data.
      *
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
      *
-     * @return list<InterruptDetail>
+     * @return list<InterruptDetail> Value returned to app code.
      */
     private static function parseInterrupts(array $data): array
     {
         $rawInterrupts = $data['interrupts'] ?? null;
+        // Most answers do not ask the user for approval or extra input.
         if (!is_array($rawInterrupts)) {
             return [];
         }
 
         $interrupts = [];
+        // Each interrupt can become an approval card or follow-up question in the app.
         foreach ($rawInterrupts as $item) {
             if (is_array($item)) {
-                /** @var array<string, mixed> $item */
+                /** @var array<string, mixed> $item validated before app code uses it. */
                 $interrupts[] = InterruptDetail::fromArray($item);
             }
         }
@@ -260,14 +267,15 @@ class AgentResponse
      *
      * Supports both `guardrail_trace` (top-level) and `trace.guardrail` (nested).
      *
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return ?GuardrailTrace Value returned to app code.
      */
     private static function parseGuardrailTrace(array $data): ?GuardrailTrace
     {
-        // Try top-level first
+        // Try top-level first; this is what the app inspects after a visible guardrail intervention.
         $raw = $data['guardrail_trace'] ?? null;
 
-        // Fall back to nested trace.guardrail
+        // Fall back to nested trace.guardrail for wrappers that keep trace data grouped.
         if (!is_array($raw)) {
             $trace = $data['trace'] ?? null;
             if (is_array($trace)) {
@@ -279,16 +287,16 @@ class AgentResponse
             return null;
         }
 
-        /** @var array<string, mixed> $raw */
+        /** @var array<string, mixed> $raw validated before app code uses it. */
         return GuardrailTrace::fromArray($raw);
     }
 
     /**
      * Extract citation content blocks from message.content[].
      *
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
      *
-     * @return list<array<string, mixed>>
+     * @return list<array<string, mixed>> Citation blocks the app can render with the answer.
      */
     private static function parseCitations(array $data): array
     {
@@ -309,7 +317,7 @@ class AgentResponse
             }
             $type = $block['type'] ?? null;
             if ($type === 'citationsContent' || $type === 'citation') {
-                /** @var array<string, mixed> $block */
+                /** @var array<string, mixed> $block validated before app code uses it. */
                 $citations[] = $block;
             }
         }
@@ -318,7 +326,10 @@ class AgentResponse
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Extracts the normalized raw message envelope for advanced app displays.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return ?Message Parsed message envelope, or null when it is absent.
      */
     private static function parseMessage(array $data): ?Message
     {
@@ -330,7 +341,11 @@ class AgentResponse
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Reads a token count field while tolerating numeric wire variations.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param string $key response field that may contain a token count.
+     * @return ?int Token count for UI hints, or null when unavailable.
      */
     private static function nullableIntField(array $data, string $key): ?int
     {
@@ -351,7 +366,10 @@ class AgentResponse
     }
 
     /**
-     * @return array<string, mixed>|null
+     * Keeps only string-keyed metadata so app code gets a stable map.
+     *
+     * @param mixed $value candidate metadata from the agent payload.
+     * @return array<string, mixed>|null String-keyed metadata, or null for non-map input.
      */
     private static function stringKeyedArray(mixed $value): ?array
     {

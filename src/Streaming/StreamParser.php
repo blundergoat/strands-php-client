@@ -18,8 +18,10 @@ class StreamParser
     /** Maximum buffer size before throwing (10 MB). */
     private const MAX_BUFFER_SIZE = 10 * 1024 * 1024;
 
+    /** Partial SSE data kept until a full event reaches the app. */
     private string $buffer = '';
 
+    /** Count of malformed or future events skipped to keep streaming alive. */
     private int $skippedEvents = 0;
 
     /**
@@ -37,7 +39,8 @@ class StreamParser
      *
      * @param string $chunk  Raw SSE data from the HTTP response.
      *
-     * @return StreamEvent[]  Zero or more complete events.
+     * @return StreamEvent[]  Zero or more complete events ready for the app callback.
+     * @throws StreamInterruptedException If a broken stream grows beyond the safety limit.
      */
     public function feed(string $chunk): array
     {
@@ -76,6 +79,9 @@ class StreamParser
      *
      * Lines starting with ":" are SSE comments (heartbeats). Lines starting
      * with "data:" contain the JSON payload.
+     *
+     * @param string $rawEvent Raw SSE event block received from the stream.
+     * @return ?StreamEvent Value returned to app code.
      */
     private function parseEvent(string $rawEvent): ?StreamEvent
     {
@@ -117,7 +123,7 @@ class StreamParser
 
         // tryFromArray() returns null for unknown types rather than throwing,
         // ensuring forward compatibility with new server-side event types.
-        /** @var array<string, mixed> $decoded */
+        /** @var array<string, mixed> $decoded validated before app code uses it. */
         $event = StreamEvent::tryFromArray($decoded);
         if ($event === null) {
             $this->skippedEvents++;

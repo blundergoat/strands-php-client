@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Stream Parser behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -10,6 +14,9 @@ use StrandsPhpClient\Exceptions\StreamInterruptedException;
 use StrandsPhpClient\Streaming\StreamEventType;
 use StrandsPhpClient\Streaming\StreamParser;
 
+/**
+ * Verifies Stream Parser behavior that application users rely on.
+ */
 class StreamParserTest extends TestCase
 {
     /**
@@ -158,7 +165,7 @@ class StreamParserTest extends TestCase
     /**
      * Test fixture for testParseToolUseEvent().
      *
-     * @return string
+     * @return string text value used in the caller-facing agent flow.
      */
     private function rawForParseToolUseEvent(): string
     {
@@ -186,7 +193,7 @@ class StreamParserTest extends TestCase
     /**
      * Test fixture for testParseToolResultEvent().
      *
-     * @return string
+     * @return string text value used in the caller-facing agent flow.
      */
     private function rawForParseToolResultEvent(): string
     {
@@ -379,7 +386,7 @@ class StreamParserTest extends TestCase
     /**
      * Test fixture for testCompleteEventWithMultipleToolsUsed().
      *
-     * @return string
+     * @return string text value used in the caller-facing agent flow.
      */
     private function rawForCompleteEventWithMultipleToolsUsed(): string
     {
@@ -410,7 +417,7 @@ class StreamParserTest extends TestCase
     /**
      * Test fixture for testMultipleDataLinesJoinedWithNewline().
      *
-     * @return string
+     * @return string text value used in the caller-facing agent flow.
      */
     private function rawForMultipleDataLinesJoinedWithNewline(): string
     {
@@ -599,7 +606,7 @@ class StreamParserTest extends TestCase
     /**
      * Cases for testTryFromArrayReturnsNullForUnparseableEventShape().
      *
-     * @return iterable<string, array{0: array<string, mixed>}>
+     * @return iterable<string, array{0: array<string, mixed>}> Malformed stream payloads that should not break live app updates.
      */
     public static function unparseableEventPayloadProvider(): iterable
     {
@@ -847,7 +854,7 @@ class StreamParserTest extends TestCase
     /**
      * Test fixture for testToolsUsedFiltersMalformedEntries().
      *
-     * @return string
+     * @return string text value used in the caller-facing agent flow.
      */
     private function rawForToolsUsedFiltersMalformedEntries(): string
     {

@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Strands Client Post Json behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
@@ -13,6 +17,9 @@ use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\StrandsClient;
 
+/**
+ * Verifies Strands Client Post Json behavior that application users rely on.
+ */
 class StrandsClientPostJsonTest extends TestCase
 {
     /**
@@ -211,6 +218,7 @@ class StrandsClientPostJsonTest extends TestCase
      * Verifies that post JSON does not retry on 400.
      *
      * @return void
+     * @throws AgentErrorException When the custom endpoint rejects the request.
      */
     public function testPostJsonDoesNotRetryOnBadRequest(): void
     {

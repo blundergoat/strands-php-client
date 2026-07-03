@@ -31,6 +31,8 @@ class Usage
 
     /**
      * Total tokens consumed (input + output).
+     *
+     * @return int number used by the app or telemetry layer.
      */
     public function totalTokens(): int
     {
@@ -44,7 +46,8 @@ class Usage
     /**
      * Create a Usage instance from a raw usage array (e.g. from API response).
      *
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {
@@ -60,7 +63,12 @@ class Usage
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Supports the int field step in the app-facing flow.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @param string $snakeKey Snake-case usage field from the wire payload.
+     * @param ?string $camelKey Camel-case fallback usage field from older payloads.
+     * @return int number used by the app or telemetry layer.
      */
     private static function intField(array $data, string $snakeKey, ?string $camelKey = null): int
     {

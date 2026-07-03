@@ -14,6 +14,7 @@ class AgentContext
     /** @var array<string, mixed> */
     private array $metadata = [];
 
+    /** System instruction sent with the user-visible agent turn. */
     private ?string $systemPrompt = null;
 
     /** @var list<string> */
@@ -43,6 +44,10 @@ class AgentContext
     }
 
     /**
+     * Supports the with metadata step in the app-facing flow.
+     *
+     * @param string $key Payload field name being read or written.
+     * @param mixed $value Payload value stored for the agent call.
      * @return self  A new instance with the metadata added.
      */
     public function withMetadata(string $key, mixed $value): self
@@ -54,6 +59,9 @@ class AgentContext
     }
 
     /**
+     * Supports the with system prompt step in the app-facing flow.
+     *
+     * @param string $systemPrompt System instruction sent with the agent turn.
      * @return self  A new instance with the system prompt set.
      */
     public function withSystemPrompt(string $systemPrompt): self
@@ -68,6 +76,7 @@ class AgentContext
      * Add an informational permission token the agent can reference in reasoning.
      * Not an enforcement mechanism - authorization belongs in your API Gateway.
      *
+     * @param string $permission Permission label sent as agent context.
      * @return self  A new instance with the permission added.
      */
     public function withPermission(string $permission): self
@@ -98,6 +107,10 @@ class AgentContext
     }
 
     /**
+     * Supports the with structured data step in the app-facing flow.
+     *
+     * @param string $key Payload field name being read or written.
+     * @param mixed $value Payload value stored for the agent call.
      * @return self  A new instance with the structured data added.
      */
     public function withStructuredData(string $key, mixed $value): self
@@ -111,7 +124,7 @@ class AgentContext
     /**
      * Serialize to the API contract schema. Empty fields are omitted.
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Context payload sent beside the user message.
      */
     public function toArray(): array
     {

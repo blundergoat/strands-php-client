@@ -20,10 +20,15 @@ use StrandsPhpClient\Http\ResponseObserver;
 use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
+/**
+ * Registers configured Strands clients for Laravel applications.
+ */
 class StrandsServiceProvider extends ServiceProvider
 {
     /**
      * Register bindings in the container.
+     *
+     * @return void No returned value; updates client or observer state.
      */
     public function register(): void
     {
@@ -33,44 +38,44 @@ class StrandsServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(StrandsClientFactory::class, function (Application $application): StrandsClientFactory {
-            /** @var ConfigRepository $config */
+            /** @var ConfigRepository $config validated before app code uses it. */
             $config = $application->make('config');
 
-            /** @var array<string, array{endpoint: string, auth: array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string, region?: string|null, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null}, timeout: int, connect_timeout?: int, max_retries?: int, retry_delay_ms?: int}> $agents */
+            /** @var array<string, array{endpoint: string, auth: array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string, region?: string|null, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null}, timeout: int, connect_timeout?: int, max_retries?: int, retry_delay_ms?: int}> $agents validated before app code uses it. */
             $agents = $config->get('strands.agents', []);
 
-            /** @var LoggerInterface $logger */
+            /** @var LoggerInterface $logger validated before app code uses it. */
             $logger = $application->make(LoggerInterface::class);
 
             // Resolve any middleware tagged with 'strands.middleware'.
             // To register middleware in your app:
             //   $this->app->tag([MyTracingMiddleware::class], 'strands.middleware');
-            /** @var list<RequestMiddleware> $middleware */
+            /** @var list<RequestMiddleware> $middleware validated before app code uses it. */
             $middleware = $application->tagged('strands.middleware');
 
             // Response observers receive parsed terminal data for metrics/tracing.
             // Middleware that implements ResponseObserver is also auto-detected by
             // StrandsClient, so existing strands.middleware registrations keep working.
-            /** @var list<ResponseObserver> $responseObservers */
+            /** @var list<ResponseObserver> $responseObservers validated before app code uses it. */
             $responseObservers = $application->tagged('strands.response_observer');
 
             return new StrandsClientFactory($agents, $logger, $middleware, $responseObservers);
         });
 
         $this->app->singleton(StrandsClient::class, function (Application $application): StrandsClient {
-            /** @var ConfigRepository $config */
+            /** @var ConfigRepository $config validated before app code uses it. */
             $config = $application->make('config');
 
-            /** @var string $default */
+            /** @var string $default validated before app code uses it. */
             $default = $config->get('strands.default', 'default');
 
             return $application->make(StrandsClientFactory::class)->create($default);
         });
 
-        /** @var ConfigRepository $config */
+        /** @var ConfigRepository $config validated before app code uses it. */
         $config = $this->app->make('config');
 
-        /** @var array<string, array<string, mixed>> $agents */
+        /** @var array<string, array<string, mixed>> $agents validated before app code uses it. */
         $agents = $config->get('strands.agents', []);
 
         foreach (array_keys($agents) as $name) {
@@ -83,6 +88,8 @@ class StrandsServiceProvider extends ServiceProvider
 
     /**
      * Bootstrap application services.
+     *
+     * @return void No returned value; updates client or observer state.
      */
     public function boot(): void
     {

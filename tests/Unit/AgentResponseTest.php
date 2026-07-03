@@ -1,5 +1,9 @@
 <?php
 
+/**
+ * Tests caller-visible Agent Response behavior for app integrations.
+ */
+
 declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -12,6 +16,9 @@ use StrandsPhpClient\Response\GuardrailTrace;
 use StrandsPhpClient\Response\InterruptDetail;
 use StrandsPhpClient\Response\StopReason;
 
+/**
+ * Verifies agent responses are shaped for application display and control flow.
+ */
 class AgentResponseTest extends TestCase
 {
     /**
@@ -32,7 +39,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayHydratesAllFields().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array hydrates all fields behavior stable for app callers.
      */
     private function dataForFromArrayHydratesAllFields(): array
     {
@@ -95,7 +102,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayHandlesEmptyUsage().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array handles empty usage behavior stable for app callers.
      */
     private function dataForFromArrayHandlesEmptyUsage(): array
     {
@@ -123,7 +130,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayFiltersMalformedToolsUsed().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array filters malformed tools used behavior stable for app callers.
      */
     private function dataForFromArrayFiltersMalformedToolsUsed(): array
     {
@@ -175,7 +182,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayHandlesNonIntUsageValues().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array handles non int usage values behavior stable for app callers.
      */
     private function dataForFromArrayHandlesNonIntUsageValues(): array
     {
@@ -223,7 +230,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayStripsNonIntDurationMs().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array strips non int duration ms behavior stable for app callers.
      */
     private function dataForFromArrayStripsNonIntDurationMs(): array
     {
@@ -255,7 +262,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayStripsExtraKeysFromToolsUsed().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array strips extra keys from tools used behavior stable for app callers.
      */
     private function dataForFromArrayStripsExtraKeysFromToolsUsed(): array
     {
@@ -321,7 +328,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayHandlesUnknownStopReason().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array handles unknown stop reason behavior stable for app callers.
      */
     private function dataForFromArrayHandlesUnknownStopReason(): array
     {
@@ -370,7 +377,7 @@ class AgentResponseTest extends TestCase
     /**
      * Cases for testFromArrayDefaultsOmittedFieldToNull().
      *
-     * @return iterable<string, array{0: string}>
+     * @return iterable<string, array{0: string}> Scenario data for omitted field defaults to null behavior.
      */
     public static function omittedFieldDefaultsToNullProvider(): iterable
     {
@@ -398,7 +405,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayHydratesCacheTokens().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array hydrates cache tokens behavior stable for app callers.
      */
     private function dataForFromArrayHydratesCacheTokens(): array
     {
@@ -484,7 +491,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testUsageDefaultsToZeroForMissingCacheFields().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep usage defaults to zero for missing cache fields behavior stable for app callers.
      */
     private function dataForUsageDefaultsToZeroForMissingCacheFields(): array
     {
@@ -537,7 +544,7 @@ class AgentResponseTest extends TestCase
     /**
      * Cases for testTotalTokensFollowsDocumentedFallbackChain().
      *
-     * @return iterable<string, array{0: \Closure(): \StrandsPhpClient\Response\Usage, 1: int}>
+     * @return iterable<string, array{0: \Closure(): \StrandsPhpClient\Response\Usage, 1: int}> Scenario data for total tokens behavior.
      */
     public static function totalTokensProvider(): iterable
     {
@@ -632,7 +639,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayMetadataEmptyWhenNoUnknownKeys().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array metadata empty when no unknown keys behavior stable for app callers.
      */
     private function dataForFromArrayMetadataEmptyWhenNoUnknownKeys(): array
     {
@@ -665,7 +672,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayMetadataExcludesKnownKeys().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array metadata excludes known keys behavior stable for app callers.
      */
     private function dataForFromArrayMetadataExcludesKnownKeys(): array
     {
@@ -697,7 +704,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayHandlesAllStopReasons().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array handles all stop reasons behavior stable for app callers.
      */
     private function dataForFromArrayHandlesAllStopReasons(): array
     {
@@ -787,7 +794,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayGuardrailTraceFromNestedTrace().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array guardrail trace from nested trace behavior stable for app callers.
      */
     private function dataForFromArrayGuardrailTraceFromNestedTrace(): array
     {
@@ -865,7 +872,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testFromArrayCitationsIgnoresNonCitationBlocks().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array citations ignores non citation blocks behavior stable for app callers.
      */
     private function dataForFromArrayCitationsIgnoresNonCitationBlocks(): array
     {
@@ -899,7 +906,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testInterruptsExcludedFromMetadata().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep interrupts excluded from metadata behavior stable for app callers.
      */
     private function dataForInterruptsExcludedFromMetadata(): array
     {
@@ -928,7 +935,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testGuardrailTraceExcludedFromMetadata().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep guardrail trace excluded from metadata behavior stable for app callers.
      */
     private function dataForGuardrailTraceExcludedFromMetadata(): array
     {
@@ -971,7 +978,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testMultipleInterruptsAllReturned().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep multiple interrupts all returned behavior stable for app callers.
      */
     private function dataForMultipleInterruptsAllReturned(): array
     {
@@ -1016,7 +1023,7 @@ class AgentResponseTest extends TestCase
     /**
      * Data fixture for testMultipleCitationsAllReturned().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep multiple citations all returned behavior stable for app callers.
      */
     private function dataForMultipleCitationsAllReturned(): array
     {
@@ -1242,7 +1249,10 @@ class TestStructuredDto
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Hydrates caller-facing data from the agent response.
+     *
+     * @param array<string, mixed> $data decoded payload shape received at the client boundary.
+     * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {

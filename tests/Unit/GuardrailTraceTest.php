@@ -2,18 +2,25 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Guardrail Trace behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\GuardrailAssessment;
 use StrandsPhpClient\Response\GuardrailTrace;
 
+/**
+ * Verifies Guardrail Trace behavior that application users rely on.
+ */
 class GuardrailTraceTest extends TestCase
 {
     /**
      * Data fixture for testFromArrayHydratesAllFields().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array hydrates all fields behavior stable for app callers.
      */
     private function dataForFromArrayHydratesAllFields(): array
     {
@@ -61,7 +68,7 @@ class GuardrailTraceTest extends TestCase
     /**
      * Data fixture for testFromArrayFiltersNonArrayAssessments().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array filters non array assessments behavior stable for app callers.
      */
     private function dataForFromArrayFiltersNonArrayAssessments(): array
     {

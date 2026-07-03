@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Wire Contract Fixture behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Contract;
 
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -10,12 +14,18 @@ use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\Streaming\StreamEventType;
 use StrandsPhpClient\Streaming\StreamParser;
 
+/**
+ * Verifies Wire Contract Fixture behavior that application users rely on.
+ */
 final class WireContractFixtureTest extends TestCase
 {
+    /** Shared fixture path for contract examples that app callers depend on. */
     private const FIXTURE_DIR = __DIR__ . '/../../Fixtures/wire-contract';
 
     /**
-     * @return iterable<string, array{string}>
+     * Provides app-facing scenarios for invoke response fixture.
+     *
+     * @return iterable<string, array{string}> Scenario data for invoke response fixture behavior.
      */
     public static function invokeResponseFixtureProvider(): iterable
     {
@@ -28,7 +38,9 @@ final class WireContractFixtureTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{string}>
+     * Provides app-facing scenarios for invoke request fixture.
+     *
+     * @return iterable<string, array{string}> Scenario data for invoke request fixture behavior.
      */
     public static function invokeRequestFixtureProvider(): iterable
     {
@@ -41,7 +53,9 @@ final class WireContractFixtureTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{string}>
+     * Provides app-facing scenarios for stream fixture.
+     *
+     * @return iterable<string, array{string}> Scenario data for stream fixture behavior.
      */
     public static function streamFixtureProvider(): iterable
     {
@@ -54,7 +68,9 @@ final class WireContractFixtureTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{string}>
+     * Provides app-facing scenarios for non invoke json fixture.
+     *
+     * @return iterable<string, array{string}> Scenario data for non invoke json fixture behavior.
      */
     public static function nonInvokeJsonFixtureProvider(): iterable
     {
@@ -178,7 +194,10 @@ final class WireContractFixtureTest extends TestCase
     }
 
     /**
-     * @return array<string, mixed>
+     * Supports the json fixture step in the app-facing flow.
+     *
+     * @param string $path request path that becomes part of the signed URL.
+     * @return array<string, mixed> Fixture data used to verify the public wire contract.
      */
     private static function jsonFixture(string $path): array
     {
@@ -187,7 +206,7 @@ final class WireContractFixtureTest extends TestCase
 
         self::assertIsArray($decoded, basename($path));
 
-        /** @var array<string, mixed> $decoded */
+        /** @var array<string, mixed> $decoded validated before app code uses it. */
         return $decoded;
     }
 

@@ -2,12 +2,19 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Agent Input behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Context\AgentInput;
 
+/**
+ * Verifies Agent Input behavior that application users rely on.
+ */
 class AgentInputTest extends TestCase
 {
     /**
@@ -283,7 +290,7 @@ class AgentInputTest extends TestCase
     /**
      * Document extension → expected MIME type cases for testWithDocumentResolvesMediaTypeForFormat().
      *
-     * @return iterable<string, array{0: string, 1: string, 2: string}>
+     * @return iterable<string, array{0: string, 1: string, 2: string}> Document format cases that keep rich user input encoded correctly.
      */
     public static function documentFormatProvider(): iterable
     {

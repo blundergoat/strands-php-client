@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Strands Client Stream behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -20,6 +24,9 @@ use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 use StrandsPhpClient\Streaming\StreamResult;
 
+/**
+ * Verifies Strands Client Stream behavior that application users rely on.
+ */
 class StrandsClientStreamTest extends TestCase
 {
     /**
@@ -356,13 +363,15 @@ class StrandsClientStreamTest extends TestCase
 
         // Completion log
         $this->assertSame('Strands stream complete', $debugCalls[1]['message']);
-        $this->assertArrayHasKey('session_id', $debugCalls[1]['context']);
         $this->assertArrayHasKey('text_events', $debugCalls[1]['context']);
         $this->assertArrayHasKey('total_events', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('text_length', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('input_tokens', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('output_tokens', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('ttft_ms', $debugCalls[1]['context']);
+        $this->assertArrayHasKey('tools_used', $debugCalls[1]['context']);
+        $this->assertArrayHasKey('cancelled', $debugCalls[1]['context']);
+        $this->assertArrayNotHasKey('session_id', $debugCalls[1]['context']);
+        $this->assertArrayNotHasKey('text_length', $debugCalls[1]['context']);
+        $this->assertArrayNotHasKey('input_tokens', $debugCalls[1]['context']);
+        $this->assertArrayNotHasKey('output_tokens', $debugCalls[1]['context']);
+        $this->assertArrayNotHasKey('ttft_ms', $debugCalls[1]['context']);
     }
 
     /**
@@ -559,7 +568,7 @@ class StrandsClientStreamTest extends TestCase
     /**
      * Cases for testStreamResultDefaultsOptionalFieldToNull().
      *
-     * @return iterable<string, array{0: string}>
+     * @return iterable<string, array{0: string}> Missing stream fields that should stay null for app callers.
      */
     public static function streamResultDefaultsToNullProvider(): iterable
     {
@@ -591,7 +600,8 @@ class StrandsClientStreamTest extends TestCase
             onEvent: function (StreamEvent $event) use (&$events): bool {
                 $events[] = $event;
 
-                return false;  // cancel after first event
+                // Stop after the first live update so the app gets a partial result.
+                return false;
             },
         );
 
@@ -948,22 +958,23 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream TTFT included in debug log.
+     * Verifies that stream debug logs omit token-timing fields.
      *
      * @return void
      */
-    public function testStreamTtftIncludedInDebugLog(): void
+    public function testStreamDebugLogOmitsTokenTimingFields(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
             . "data: {\"type\": \"complete\", \"text\": \"Hello\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
         $logger = $this->createMock(LoggerInterface::class);
+        $debugCalls = [];
         $logger->expects($this->exactly(2))
             ->method('debug')
-            ->willReturnCallback($this->assertDebugContextKeys([
-                'Strands stream complete' => ['ttft_ms'],
-            ]));
+            ->willReturnCallback(function (string $message, array $context) use (&$debugCalls): void {
+                $debugCalls[] = ['message' => $message, 'context' => $context];
+            });
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -976,6 +987,9 @@ class StrandsClientStreamTest extends TestCase
             onEvent: function (): void {
             },
         );
+
+        $this->assertSame('Strands stream complete', $debugCalls[1]['message']);
+        $this->assertArrayNotHasKey('ttft_ms', $debugCalls[1]['context']);
     }
 
     /**
@@ -1164,13 +1178,10 @@ class StrandsClientStreamTest extends TestCase
             ->willReturnCallback($this->assertDebugContextKeys([
                 'Strands stream request' => ['url', 'session_id'],
                 'Strands stream complete' => [
-                    'session_id',
                     'text_events',
                     'total_events',
-                    'text_length',
-                    'input_tokens',
-                    'output_tokens',
-                    'ttft_ms',
+                    'tools_used',
+                    'cancelled',
                 ],
             ]));
 
@@ -1267,7 +1278,8 @@ class StrandsClientStreamTest extends TestCase
             onEvent: function () use (&$count): bool {
                 $count++;
 
-                return $count < 2; // Cancel after first event
+                // Stop after the first live update so cancellation stays caller-controlled.
+                return $count < 2;
             },
         );
 
@@ -1362,6 +1374,7 @@ class StrandsClientStreamTest extends TestCase
      * Verifies that stream retry exhausts max retries exactly.
      *
      * @return void
+     * @throws AgentErrorException When all retry attempts receive a retryable error.
      */
     public function testStreamRetryExhaustsMaxRetriesExactly(): void
     {

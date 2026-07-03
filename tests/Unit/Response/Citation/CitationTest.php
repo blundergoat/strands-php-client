@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Citation behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Response\Citation;
 
 use PHPUnit\Framework\TestCase;
@@ -10,12 +14,15 @@ use StrandsPhpClient\Response\Citation\CitationGeneratedContent;
 use StrandsPhpClient\Response\Citation\CitationLocation;
 use StrandsPhpClient\Response\Citation\CitationSourceContent;
 
+/**
+ * Verifies Citation behavior that application users rely on.
+ */
 class CitationTest extends TestCase
 {
     /**
      * Data fixture for testFromArrayWithFullData().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array with full data behavior stable for app callers.
      */
     private function dataForFromArrayWithFullData(): array
     {
@@ -71,7 +78,7 @@ class CitationTest extends TestCase
     /**
      * Data fixture for testFromArrayWithPartialData().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array with partial data behavior stable for app callers.
      */
     private function dataForFromArrayWithPartialData(): array
     {
@@ -105,7 +112,7 @@ class CitationTest extends TestCase
     /**
      * Data fixture for testFromArrayPreservesFlatCitationData().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array preserves flat citation data behavior stable for app callers.
      */
     private function dataForFromArrayPreservesFlatCitationData(): array
     {

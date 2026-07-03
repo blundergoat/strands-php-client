@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Response Observer behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
@@ -13,6 +17,9 @@ use StrandsPhpClient\StrandsClient;
 use StrandsPhpClient\Streaming\StreamResult;
 use StrandsPhpClient\Streaming\StreamSseSummary;
 
+/**
+ * Verifies Response Observer behavior that application users rely on.
+ */
 final class ResponseObserverTest extends TestCase
 {
     /**

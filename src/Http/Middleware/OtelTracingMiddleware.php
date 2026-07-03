@@ -35,6 +35,7 @@ use StrandsPhpClient\Streaming\StreamSseSummary;
  */
 class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
 {
+    /** Policy marker used so telemetry consumers can identify this attribute set. */
     private const ATTRIBUTE_POLICY = 'strands-otel-v1';
 
     /** @var \SplStack<array{0: SpanInterface, 1: ScopeInterface}> */
@@ -68,9 +69,14 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * @param array<string, string> $headers
+     * Starts request tracing before the app waits for the agent.
      *
-     * @return array{headers: array<string, string>, body: string}
+     * @param array<string, string> $headers headers that will reach the agent service.
+     *
+     * @param string $url agent endpoint the app is calling.
+     * @param string $body request body the agent service will receive.
+     * @return array{headers: array<string, string>, body: string} Request values with trace headers added.
+     * @throws \Throwable If the propagator fails while injecting trace headers.
      */
     public function beforeRequest(string $url, array $headers, string $body): array
     {
@@ -124,7 +130,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
 
         $this->spanStack->push([$span, $scope]);
 
-        /** @var array<string, string> $injectedHeaders */
+        /** @var array<string, string> $injectedHeaders validated before app code uses it. */
         $injectedHeaders = $carrier;
 
         return ['headers' => $injectedHeaders, 'body' => $body];
@@ -246,7 +252,12 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * @param array<string, mixed> $response
+     * Records parsed custom-endpoint data for app telemetry.
+     *
+     * @param array<string, mixed> $response parsed agent result returned to the app.
+     * @param string $url agent endpoint the app is calling.
+     * @param float $durationMs elapsed time reported to app telemetry.
+     * @return void No returned value; updates client or observer state.
      */
     public function afterPostJson(string $url, array $response, float $durationMs): void
     {
@@ -287,7 +298,11 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * @return non-empty-string
+     * Names the span so traces show the app action clearly.
+     *
+     * @param string $route Sanitized endpoint route shown in telemetry.
+     * @param string $operation Telemetry operation name shown for the app call.
+     * @return non-empty-string Value returned to app code.
      */
     private function deriveSpanName(string $route, string $operation): string
     {
@@ -308,7 +323,11 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * @param array<string, string> $headers
+     * Groups telemetry by the app-level client operation.
+     *
+     * @param array<string, string> $headers headers that will reach the agent service.
+     * @param string $route Sanitized endpoint route shown in telemetry.
+     * @return string text value used in the caller-facing agent flow.
      */
     private static function deriveOperationName(string $route, array $headers): string
     {
@@ -407,6 +426,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         $sanitized = [];
         foreach ($segments as $index => $segment) {
             $previous = $sanitized[$index - 1] ?? null;
+            // Collapse unsafe path characters before the route is shown in telemetry.
             $safeSegment = preg_replace('/[^A-Za-z0-9._~-]+/', '-', $segment) ?? '';
             $sanitized[] = self::isDynamicRouteSegment($safeSegment, $previous) ? '{id}' : $safeSegment;
         }
@@ -431,10 +451,12 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             return true;
         }
 
+        // UUID-like path parts usually identify user records and should not appear in traces.
         if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $segment) === 1) {
             return true;
         }
 
+        // Long opaque tokens are treated as identifiers before telemetry is emitted.
         if (preg_match('/^[A-Za-z0-9_-]{24,}$/', $segment) === 1) {
             return true;
         }
@@ -488,7 +510,11 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * @param list<array<string, mixed>> $toolsUsed
+     * Records tool use so the app can explain agent actions.
+     *
+     * @param list<array<string, mixed>> $toolsUsed Value supplied by app code.
+     * @param SpanInterface $span Telemetry span updated for the app request.
+     * @return void No returned value; updates client or observer state.
      */
     private static function setToolsAttributes(SpanInterface $span, array $toolsUsed): void
     {
@@ -508,13 +534,17 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * @param array<string, mixed> $response
+     * Copies safe response summary fields into telemetry.
+     *
+     * @param array<string, mixed> $response parsed agent result returned to the app.
+     * @param SpanInterface $span Telemetry span updated for the app request.
+     * @return void No returned value; updates client or observer state.
      */
     private static function setRawResponseSummaryAttributes(SpanInterface $span, array $response): void
     {
         $rawUsage = $response['usage'] ?? null;
         if (is_array($rawUsage)) {
-            /** @var array<string, mixed> $rawUsage */
+            /** @var array<string, mixed> $rawUsage validated before app code uses it. */
             self::setUsageAttributes($span, Usage::fromArray($rawUsage));
         }
 
@@ -528,7 +558,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
 
         $toolsUsed = $response['tools_used'] ?? null;
         if (is_array($toolsUsed)) {
-            /** @var list<array<string, mixed>> $toolsUsed */
+            /** @var list<array<string, mixed>> $toolsUsed validated before app code uses it. */
             self::setToolsAttributes($span, $toolsUsed);
         }
 
@@ -563,7 +593,10 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * @param class-string $class
+     * Shortens class names for readable app telemetry.
+     *
+     * @param class-string $class DTO class used to hydrate structured output.
+     * @return string text value used in the caller-facing agent flow.
      */
     private static function classBasename(string $class): string
     {

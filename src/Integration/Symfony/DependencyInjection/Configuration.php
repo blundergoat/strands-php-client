@@ -14,12 +14,14 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
 class Configuration implements ConfigurationInterface
 {
     /**
-     * @return TreeBuilder
+     * Supports the get config tree builder step in the app-facing flow.
+     *
+     * @return TreeBuilder Value returned to app code.
      */
     public function getConfigTreeBuilder(): TreeBuilder
     {
         $treeBuilder = new TreeBuilder('strands');
-        /** @var ArrayNodeDefinition $rootNode */
+        /** @var ArrayNodeDefinition $rootNode validated before app code uses it. */
         $rootNode = $treeBuilder->getRootNode();
 
         $rootNode
@@ -67,11 +69,13 @@ class Configuration implements ConfigurationInterface
      *   'null'    - NullAuth (no authentication, default)
      *   'api_key' - ApiKeyAuth (sends API key in an HTTP header)
      *   'sigv4'   - SigV4Auth (AWS Signature V4 for IAM-protected endpoints)
+     *
+     * @return ArrayNodeDefinition payload shape passed to the agent, framework, or observer.
      */
     private function authNode(): ArrayNodeDefinition
     {
         $treeBuilder = new TreeBuilder('auth');
-        /** @var ArrayNodeDefinition $node */
+        /** @var ArrayNodeDefinition $node validated before app code uses it. */
         $node = $treeBuilder->getRootNode();
 
         $node
@@ -126,12 +130,12 @@ class Configuration implements ConfigurationInterface
      * @param int    $default      The default value in seconds
      * @param string $description  Human-readable description
      *
-     * @return \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition
+     * @return \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition Value returned to app code.
      */
     private function timeoutNode(string $name, int $default, string $description): \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition
     {
         $treeBuilder = new TreeBuilder($name, 'integer');
-        /** @var \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition $node */
+        /** @var \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition $node validated before app code uses it. */
         $node = $treeBuilder->getRootNode();
 
         $node

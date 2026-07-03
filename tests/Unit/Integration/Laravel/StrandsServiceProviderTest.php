@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Strands Service Provider behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Integration\Laravel;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
@@ -15,6 +19,9 @@ use StrandsPhpClient\Integration\Laravel\StrandsServiceProvider;
 use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
+/**
+ * Verifies Strands Service Provider behavior that application users rely on.
+ */
 class StrandsServiceProviderTest extends TestCase
 {
     /**
@@ -212,17 +219,19 @@ class StrandsServiceProviderTest extends TestCase
      *     retry_delay_ms?: int
      *   }>
      * } $strandsConfig
-     * @param list<RequestMiddleware> $taggedMiddleware
+     * @param list<RequestMiddleware> $taggedMiddleware Laravel middleware services tagged for the client.
+     * @param array $strandsConfig Laravel config used to build the test app.
+     * @return Application Value returned to app code.
      */
     private function createRegisteredApplication(array $strandsConfig, array $taggedMiddleware = []): Application
     {
-        /** @var array<string, mixed> $configState */
+        /** @var array<string, mixed> $configState validated before app code uses it. */
         $configState = ['strands' => $strandsConfig];
 
-        /** @var array<string, callable(Application): mixed> $bindings */
+        /** @var array<string, callable(Application): mixed> $bindings validated before app code uses it. */
         $bindings = [];
 
-        /** @var array<string, mixed> $instances */
+        /** @var array<string, mixed> $instances validated before app code uses it. */
         $instances = [];
 
         $config = $this->createMock(ConfigRepository::class);
@@ -307,7 +316,12 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $config
+     * Supports the get nested config value step in the app-facing flow.
+     *
+     * @param array<string, mixed> $config client settings chosen by the application.
+     * @param string $path request path that becomes part of the signed URL.
+     * @param mixed $default Fallback returned when app config is missing.
+     * @return mixed Value returned to app code.
      */
     private function getNestedConfigValue(array $config, string $path, mixed $default = null): mixed
     {
@@ -325,7 +339,12 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $config
+     * Supports the set nested config value step in the app-facing flow.
+     *
+     * @param array<string, mixed> $config client settings chosen by the application.
+     * @param string $path request path that becomes part of the signed URL.
+     * @param mixed $value Payload value stored for the agent call.
+     * @return void No returned value; updates client or observer state.
      */
     private function setNestedConfigValue(array &$config, string $path, mixed $value): void
     {
@@ -343,7 +362,7 @@ class StrandsServiceProviderTest extends TestCase
                 $node[$segment] = [];
             }
 
-            /** @var array<string, mixed> $node */
+            /** @var array<string, mixed> $node validated before app code uses it. */
             $node = &$node[$segment];
         }
 

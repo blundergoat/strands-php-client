@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Symfony Http Transport behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -17,16 +21,27 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\HttpClient\ResponseStreamInterface;
 
+/**
+ * Verifies Symfony Http Transport behavior that application users rely on.
+ */
 class SymfonyHttpTransportTest extends TestCase
 {
     /**
-     * @param list<ChunkInterface> $chunks
+     * Builds a mock stream so tests can assert live updates delivered to app callbacks.
+     *
+     * @param list<ChunkInterface> $chunks stream chunks delivered by the mock client.
+     * @param ResponseInterface $response parsed agent result returned to the app.
+     * @return ResponseStreamInterface mock stream used by Symfony transport tests.
      */
     private function createResponseStream(ResponseInterface $response, array $chunks): ResponseStreamInterface
     {
         return new class ($response, $chunks) implements ResponseStreamInterface {
             /**
-             * @param list<ChunkInterface> $chunks
+             * Stores mock stream state for one simulated app request.
+             *
+             * @param list<ChunkInterface> $chunks stream chunks delivered by the mock client.
+             * @param ResponseInterface $response response paired with each stream chunk.
+             * @param int $position iterator position for the next chunk.
              */
             public function __construct(
                 private readonly ResponseInterface $response,
@@ -89,7 +104,12 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * @param list<ChunkInterface> $chunks
+     * Creates a transport that streams controlled chunks to the app callback.
+     *
+     * @param list<ChunkInterface> $chunks stream chunks delivered by the mock client.
+     * @param int $statusCode HTTP status recorded for app diagnostics.
+     * @param string $body request body the agent service will receive.
+     * @return SymfonyHttpTransport transport wired to the mock stream.
      */
     private function createTransportWithStreamChunks(array $chunks, int $statusCode = 200, string $body = ''): SymfonyHttpTransport
     {
@@ -150,6 +170,7 @@ class SymfonyHttpTransportTest extends TestCase
      * or timeout values forwarded by SymfonyHttpTransport without spelling out
      * the closure-mock plumbing in each test body.
      *
+     * @param array<string, mixed> $capturedOptions options captured for assertions about user-facing request behavior.
      * @param-out array<string, mixed> $capturedOptions Reference filled with the options array passed to the mock client.
      * @return SymfonyHttpTransport Configured transport.
      */
@@ -207,7 +228,7 @@ class SymfonyHttpTransportTest extends TestCase
     /**
      * Cases for testPostThrowsAgentErrorOnDocumentedErrorShape().
      *
-     * @return iterable<string, array{0: string, 1: int, 2: string}>
+     * @return iterable<string, array{0: string, 1: int, 2: string}> Error body cases that keep transport failures clear to callers.
      */
     public static function postErrorBodyProvider(): iterable
     {
@@ -352,7 +373,8 @@ class SymfonyHttpTransportTest extends TestCase
         $symfonyHttpTransport->stream('http://example.com/stream', [], '{}', 30, 10, function (string $chunk) use (&$received): bool {
             $received[] = $chunk;
 
-            return false;  // cancel after first chunk
+            // Stop after the first chunk so the caller can cancel streaming.
+            return false;
         });
 
         $this->assertCount(1, $received);
@@ -718,7 +740,7 @@ class SymfonyHttpTransportTest extends TestCase
     /**
      * Cases for testPostErrorCodeExtractedFromDocumentedShape().
      *
-     * @return iterable<string, array{0: string, 1: int, 2: string|null}>
+     * @return iterable<string, array{0: string, 1: int, 2: string|null}> HTTP error code cases that keep caller exceptions consistent.
      */
     public static function postErrorCodeProvider(): iterable
     {

@@ -17,11 +17,13 @@ namespace StrandsPhpClient\Context;
  */
 class AgentInput
 {
+    /** Main text the user wants the agent to respond to. */
     private string $text;
 
     /** @var list<array<string, mixed>> */
     private array $contentBlocks = [];
 
+    /** Prompt that asks the agent for a structured response shape. */
     private ?string $structuredOutputPrompt = null;
 
     /**
@@ -36,6 +38,9 @@ class AgentInput
 
     /**
      * Create an input starting with a text message.
+     *
+     * @param string $text Value supplied by app code.
+     * @return self New instance ready for app code.
      */
     public static function text(string $text): self
     {
@@ -47,6 +52,7 @@ class AgentInput
      *
      * @param string $interruptId  The interrupt ID from InterruptDetail.
      * @param mixed  $response     The approval/denial response value.
+     * @return self New instance ready for app code.
      */
     public static function interruptResponse(string $interruptId, mixed $response): self
     {
@@ -139,7 +145,7 @@ class AgentInput
         ?array $citations = null,
     ): self {
         $clone = clone $this;
-        /** @var array<string, mixed> $source */
+        /** @var array<string, mixed> $source validated before app code uses it. */
         $source = [
             'type' => 's3_location',
             'uri' => $s3Uri,
@@ -166,7 +172,7 @@ class AgentInput
     public function withImageFromS3(string $s3Uri, string $format, ?string $bucketOwner = null): self
     {
         $clone = clone $this;
-        /** @var array<string, mixed> $source */
+        /** @var array<string, mixed> $source validated before app code uses it. */
         $source = [
             'type' => 's3_location',
             'uri' => $s3Uri,
@@ -301,7 +307,7 @@ class AgentInput
     public function withVideoFromS3(string $s3Uri, string $format, ?string $bucketOwner = null): self
     {
         $clone = clone $this;
-        /** @var array<string, mixed> $source */
+        /** @var array<string, mixed> $source validated before app code uses it. */
         $source = [
             'type' => 's3_location',
             'uri' => $s3Uri,
@@ -323,6 +329,8 @@ class AgentInput
     /**
      * Add a cache point content block.
      *
+     * @param string $type Payload type selected by app code.
+     * @param ?string $ttl Cache lifetime label sent with the cache point.
      * @return self  A new instance with the cache point added.
      */
     public function withCachePoint(string $type = 'default', ?string $ttl = null): self
@@ -345,6 +353,7 @@ class AgentInput
     /**
      * Set a structured output prompt to control output format.
      *
+     * @param string $prompt Structured-output instruction sent to the agent.
      * @return self  A new instance with the structured output prompt set.
      */
     public function withStructuredOutputPrompt(string $prompt): self
@@ -357,6 +366,8 @@ class AgentInput
 
     /**
      * Get the text portion of this input.
+     *
+     * @return string text value used in the caller-facing agent flow.
      */
     public function getText(): string
     {
@@ -369,17 +380,19 @@ class AgentInput
      * If no content blocks are attached, returns just the text string
      * for backward compatibility. Otherwise returns the content block array.
      *
-     * @return string|array<string, mixed>
+     * @return string|array<string, mixed> Message value sent in the agent request.
      */
     public function toPayloadValue(): string|array
     {
+        // A simple chat prompt with no attachments keeps the original string payload.
         if ($this->contentBlocks === [] && $this->structuredOutputPrompt === null) {
             return $this->text;
         }
 
-        /** @var list<array<string, mixed>> $content */
+        /** @var list<array<string, mixed>> $content validated before app code uses it. */
         $content = [];
 
+        // Rich requests still include the user's typed prompt before attachments.
         if ($this->text !== '') {
             $content[] = [
                 'type' => 'text',
@@ -387,13 +400,15 @@ class AgentInput
             ];
         }
 
+        // Each block represents something the user added, such as an image or document.
         foreach ($this->contentBlocks as $block) {
             $content[] = $block;
         }
 
-        /** @var array<string, mixed> $payload */
+        /** @var array<string, mixed> $payload validated before app code uses it. */
         $payload = ['content' => $content];
 
+        // The UI may ask for a structured answer, such as JSON for a form preview.
         if ($this->structuredOutputPrompt !== null) {
             $payload['structured_output_prompt'] = $this->structuredOutputPrompt;
         }
@@ -406,6 +421,9 @@ class AgentInput
      *
      * "image/png" -> "png", "image/jpeg" -> "jpeg". Unknown media types
      * fall back to the input unchanged.
+     *
+     * @param string $mediaType MIME type used to describe the attachment.
+     * @return string text value used in the caller-facing agent flow.
      */
     private static function deriveImageFormat(string $mediaType): string
     {
@@ -419,6 +437,9 @@ class AgentInput
      *
      * Handles common text, office, and document formats. Unknown formats
      * fall back to "application/{format}".
+     *
+     * @param string $format Attachment format sent with the user message.
+     * @return string text value used in the caller-facing agent flow.
      */
     private static function formatToMimeType(string $format): string
     {
@@ -442,10 +463,15 @@ class AgentInput
     }
 
     /**
-     * @param array<string, mixed> $source
-     * @param array<string, mixed>|null $citations
+     * Builds a document payload block for the agent request.
      *
-     * @return array<string, mixed>
+     * @param array<string, mixed> $source Attachment source sent in the request payload.
+     * @param array<string, mixed>|null $citations Citation blocks collected for the final answer UI.
+     *
+     * @param string $format document format shown to the agent.
+     * @param string $name document name shown in citations and agent context.
+     * @param ?string $context optional instructions and metadata for the agent turn.
+     * @return array<string, mixed> Document content block sent with the user message.
      */
     private static function documentBlock(
         string $format,

@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Request Middleware behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
@@ -14,10 +18,16 @@ use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\StrandsClient;
 use StrandsPhpClient\Streaming\StreamResult;
 
+/**
+ * Verifies Request Middleware behavior that application users rely on.
+ */
 class RequestMiddlewareTest extends TestCase
 {
     /**
-     * @return array<string, mixed>
+     * Supports the load fixture step in the app-facing flow.
+     *
+     * @param string $name Fixture or attachment name used in the test flow.
+     * @return array<string, mixed> Fixture payload used to simulate an agent response.
      */
     private function loadFixture(string $name): array
     {
@@ -27,7 +37,7 @@ class RequestMiddlewareTest extends TestCase
             throw new \RuntimeException("Fixture not found: $path");
         }
 
-        /** @var array<string, mixed> $data */
+        /** @var array<string, mixed> $data validated before app code uses it. */
         $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
 
         return $data;

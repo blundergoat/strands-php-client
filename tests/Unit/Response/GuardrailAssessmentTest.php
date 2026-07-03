@@ -2,17 +2,24 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Guardrail Assessment behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Response;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\GuardrailAssessment;
 
+/**
+ * Verifies Guardrail Assessment behavior that application users rely on.
+ */
 class GuardrailAssessmentTest extends TestCase
 {
     /**
      * Data fixture for testFromArrayWithAllPolicies().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array with all policies behavior stable for app callers.
      */
     private function dataForFromArrayWithAllPolicies(): array
     {
@@ -49,7 +56,7 @@ class GuardrailAssessmentTest extends TestCase
     /**
      * Data fixture for testFromArrayWithMinimalData().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array with minimal data behavior stable for app callers.
      */
     private function dataForFromArrayWithMinimalData(): array
     {
@@ -95,7 +102,7 @@ class GuardrailAssessmentTest extends TestCase
     /**
      * Data fixture for testFromArrayIgnoresNonArrayPolicies().
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed> Scenarios that keep from array ignores non array policies behavior stable for app callers.
      */
     private function dataForFromArrayIgnoresNonArrayPolicies(): array
     {

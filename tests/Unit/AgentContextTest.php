@@ -2,11 +2,18 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Agent Context behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Context\AgentContext;
 
+/**
+ * Verifies Agent Context behavior that application users rely on.
+ */
 class AgentContextTest extends TestCase
 {
     /**

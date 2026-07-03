@@ -21,6 +21,7 @@ abstract class StreamCallbackHandler
     /**
      * Dispatch a stream event to the appropriate typed handler.
      *
+     * @param StreamEvent $event Decoded event delivered to the app callback.
      * @return bool|null  Return false to cancel the stream; null to continue.
      */
     public function __invoke(StreamEvent $event): ?bool
@@ -46,7 +47,7 @@ abstract class StreamCallbackHandler
      */
     protected function onText(StreamEvent $event): ?bool
     {
-        return null;
+        return self::continueStream($event);
     }
 
     /**
@@ -57,7 +58,7 @@ abstract class StreamCallbackHandler
      */
     protected function onToolUse(StreamEvent $event): ?bool
     {
-        return null;
+        return self::continueStream($event);
     }
 
     /**
@@ -68,7 +69,7 @@ abstract class StreamCallbackHandler
      */
     protected function onToolResult(StreamEvent $event): ?bool
     {
-        return null;
+        return self::continueStream($event);
     }
 
     /**
@@ -79,7 +80,7 @@ abstract class StreamCallbackHandler
      */
     protected function onThinking(StreamEvent $event): ?bool
     {
-        return null;
+        return self::continueStream($event);
     }
 
     /**
@@ -90,7 +91,7 @@ abstract class StreamCallbackHandler
      */
     protected function onCitation(StreamEvent $event): ?bool
     {
-        return null;
+        return self::continueStream($event);
     }
 
     /**
@@ -101,7 +102,7 @@ abstract class StreamCallbackHandler
      */
     protected function onReasoningSignature(StreamEvent $event): ?bool
     {
-        return null;
+        return self::continueStream($event);
     }
 
     /**
@@ -112,7 +113,7 @@ abstract class StreamCallbackHandler
      */
     protected function onReasoningRedacted(StreamEvent $event): ?bool
     {
-        return null;
+        return self::continueStream($event);
     }
 
     /**
@@ -123,7 +124,7 @@ abstract class StreamCallbackHandler
      */
     protected function onComplete(StreamEvent $event): ?bool
     {
-        return null;
+        return self::continueStream($event);
     }
 
     /**
@@ -134,6 +135,19 @@ abstract class StreamCallbackHandler
      */
     protected function onError(StreamEvent $event): ?bool
     {
-        return null;
+        return self::continueStream($event);
+    }
+
+    /**
+     * Keeps default hooks non-cancelling while still accepting the typed event.
+     *
+     * @param StreamEvent $event event type that reached an unhandled hook.
+     * @return null Null tells StrandsClient to keep streaming to the app.
+     */
+    private static function continueStream(StreamEvent $event): null
+    {
+        return match ($event->type) {
+            default => null,
+        };
     }
 }

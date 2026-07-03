@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+/**
+ * Tests caller-visible Printing Callback Handler behavior for app integrations.
+ */
+
 namespace StrandsPhpClient\Tests\Unit\Streaming;
 
 use PHPUnit\Framework\TestCase;
@@ -9,6 +13,9 @@ use StrandsPhpClient\Streaming\PrintingCallbackHandler;
 use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 
+/**
+ * Verifies Printing Callback Handler behavior that application users rely on.
+ */
 class PrintingCallbackHandlerTest extends TestCase
 {
     /**
@@ -47,7 +54,7 @@ class PrintingCallbackHandlerTest extends TestCase
     /**
      * Test fixture for testErrorEventWritesToStderr().
      *
-     * @return string
+     * @return string text value used in the caller-facing agent flow.
      */
     private function rawForErrorEventWritesToStderr(): string
     {
@@ -80,7 +87,7 @@ class PrintingCallbackHandlerTest extends TestCase
     /**
      * Test fixture for testNonTextEventsProduceNoOutput().
      *
-     * @return string
+     * @return string text value used in the caller-facing agent flow.
      */
     private function rawForNonTextEventsProduceNoOutput(): string
     {
