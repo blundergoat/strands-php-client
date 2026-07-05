@@ -8,8 +8,12 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Http\Middleware;
 
+use OpenTelemetry\API\Trace\SpanBuilderInterface;
+use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
+use OpenTelemetry\API\Trace\TracerInterface;
+use OpenTelemetry\Context\ScopeInterface;
 use OpenTelemetry\SDK\Trace\ImmutableSpan;
 use OpenTelemetry\SDK\Trace\SpanExporter\InMemoryExporter;
 use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
@@ -361,5 +365,35 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertFalse($span->getAttributes()->get('strands.stream.cancelled'));
         $this->assertSame(20, $span->getAttributes()->get('gen_ai.usage.input_tokens'));
         $this->assertSame('end_turn', $span->getAttributes()->get('gen_ai.response.finish_reason'));
+    }
+
+    /**
+     * Verifies that after response swallows span lifecycle exceptions.
+     *
+     * @return void
+     */
+    public function testAfterResponseSwallowsSpanLifecycleExceptions(): void
+    {
+        $scope = $this->createMock(ScopeInterface::class);
+        $scope->expects($this->once())->method('detach');
+
+        $span = $this->createMock(SpanInterface::class);
+        $span->method('activate')->willReturn($scope);
+        $span->expects($this->once())->method('end')
+            ->willThrowException(new \RuntimeException('span end failed'));
+
+        $spanBuilder = $this->createMock(SpanBuilderInterface::class);
+        $spanBuilder->method('setSpanKind')->willReturnSelf();
+        $spanBuilder->method('startSpan')->willReturn($span);
+
+        $tracer = $this->createMock(TracerInterface::class);
+        $tracer->method('spanBuilder')->willReturn($spanBuilder);
+
+        $throwingSpanMiddleware = OtelTracingMiddleware::create($tracer);
+        $throwingSpanMiddleware->beforeRequest('https://agent.example.com/invoke', [], '{}');
+
+        // Tracing must never break the user's request: a span whose end() throws
+        // inside afterResponse() is swallowed per the middleware contract.
+        $throwingSpanMiddleware->afterResponse('https://agent.example.com/invoke', 200, 12.5);
     }
 }

@@ -1,6 +1,6 @@
 ---
 category: verification
-last_reviewed: 2026-07-04
+last_reviewed: 2026-07-05
 ---
 
 ## Lesson: Verify Generated PHPDoc Formatting And Phrasing
@@ -32,3 +32,10 @@ last_reviewed: 2026-07-04
 **What happened:** While registering the Antigravity deny hook, the first `.agents/hooks.json` command string started `bash -c '` but missed the final closing quote. Aggregate harness audit could still detect the registered path, but the Antigravity-specific runtime smoke failed with `unexpected EOF while looking for matching \`''`.
 **Evidence:** `.agents/hooks.json` (search: `"deny-dangerous"`) was corrected after the configured-command smoke failed; `.goat-flow/plans/antigravity-deny-hook/M01-register-antigravity-deny-hook.md` (search: `Runtime smoke shows`) records the verification target.
 **Prevention:** For manually authored agent hook registrations, run the configured command through the same `printf %s "$GOAT_HOOK_SMOKE_PAYLOAD" | { <command>; }` wrapper used by goat-flow audit before trusting a structural registration pass.
+
+## Lesson: Release Closeout Evidence Goes Stale — Re-Verify Gates And CHANGELOG At HEAD Before Tagging
+
+**Created:** 2026-07-05
+**What happened:** The 1.5.0 closeout (M11) ran its gates and wrote the CHANGELOG on 2026-05-24, but nine later commits (PHPDoc pass, Symfony `^8.0` constraint widening, test refactors) landed before any tag existed. At HEAD, `composer preflight` failed (PHPMD: `StrandsClient` at 1001 lines vs the 1000 threshold) and the CHANGELOG's "593 tests, 1827 assertions" no longer matched the suite. Separately, two M01 checkboxes (the `class_exists` constructor guard and its swallow test) were ticked although `git log -S` showed the code never existed in any commit.
+**Evidence:** `CHANGELOG.md` (search: `## [1.5.0]`) versus the preflight PHPUnit line captured in the 2026-07-05 audit session; `.goat-flow/plans/1.5.0/M01-otel-tracing-middleware.md` (search: `Post-audit correction (2026-07-05)`).
+**Prevention:** Release readiness is a property of the tag commit, not of the closeout session — re-run `composer preflight` and re-check every CHANGELOG count/claim at the exact commit being tagged. And a ticked checkbox requires an artifact greppable in the tree; tick with the artifact name, never from intent.

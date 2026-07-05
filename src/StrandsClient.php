@@ -14,6 +14,7 @@ use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\Http\RequestMiddleware;
 use StrandsPhpClient\Http\ResponseObserver;
+use StrandsPhpClient\Http\ResponseObserverNotifier;
 use StrandsPhpClient\Http\SymfonyHttpTransport;
 use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\Response\Usage;
@@ -41,8 +42,8 @@ class StrandsClient
     /** @var list<RequestMiddleware> */
     private readonly array $middleware;
 
-    /** @var list<ResponseObserver> */
-    private readonly array $responseObservers;
+    /** Fans parsed results out to every registered response observer. */
+    private readonly ResponseObserverNotifier $observerNotifier;
 
     /**
      * Wire up the client for one agent.
@@ -66,7 +67,7 @@ class StrandsClient
         $this->transport = $transport ?? self::detectTransport();
         $this->logger = $logger ?? new NullLogger();
         $this->middleware = $middleware;
-        $this->responseObservers = $this->normaliseResponseObservers($middleware, $responseObservers);
+        $this->observerNotifier = new ResponseObserverNotifier($middleware, $responseObservers, $this->logger);
     }
 
     /**
@@ -117,7 +118,7 @@ class StrandsClient
 
         $response = AgentResponse::fromArray($data);
         $durationMs = (hrtime(true) - $startTime) / 1e6;
-        $this->notifyAfterInvoke($url, $response, $durationMs);
+        $this->observerNotifier->afterInvoke($url, $response, $durationMs);
         $this->notifyAfterResponse($url, 200, $durationMs);
 
         $this->logger->debug('Strands invoke response', [
@@ -268,7 +269,7 @@ class StrandsClient
             $citations,
         );
 
-        $this->notifyAfterStream($url, $result, $durationMs);
+        $this->observerNotifier->afterStream($url, $result, $durationMs);
         $this->notifyAfterResponse($url, $cancelled ? 0 : 200, $durationMs);
         $this->logSkippedEvents($streamParser);
 
@@ -326,7 +327,7 @@ class StrandsClient
         }
 
         $durationMs = (hrtime(true) - $startTime) / 1e6;
-        $this->notifyAfterPostJson($url, $data, $durationMs);
+        $this->observerNotifier->afterPostJson($url, $data, $durationMs);
         $this->notifyAfterResponse($url, 200, $durationMs);
 
         $this->logger->debug('Strands postJson response', [
@@ -436,7 +437,7 @@ class StrandsClient
             usage: $usage,
             stopReason: $stopReason,
         );
-        $this->notifyAfterStreamSse($url, $streamSseSummary, $durationMs);
+        $this->observerNotifier->afterStreamSse($url, $streamSseSummary, $durationMs);
         $this->notifyAfterResponse($url, $cancelled ? 0 : 200, $durationMs);
 
         $this->logger->debug('Strands streamSse complete', [
@@ -832,134 +833,6 @@ class StrandsClient
         // Record why the agent stopped, when the event says so.
         if (is_string($rawStopReason)) {
             $stopReason = $rawStopReason;
-        }
-    }
-
-    /**
-     * Collects observers that receive parsed app results.
-     *
-     * @param list<RequestMiddleware> $middleware request hooks applied before the agent call.
-     * @param list<ResponseObserver> $responseObservers observers that receive parsed caller results.
-     *
-     * @return list<ResponseObserver> Deduplicated observers to notify; empty when the app registered none.
-     */
-    private function normaliseResponseObservers(array $middleware, array $responseObservers): array
-    {
-        /** @var list<ResponseObserver> $observerMiddleware validated before app code uses it. */
-        $observerMiddleware = array_values(array_filter(
-            $middleware,
-            static fn (RequestMiddleware $requestMiddleware): bool => $requestMiddleware instanceof ResponseObserver,
-        ));
-
-        // Dedupe by object identity. A class implementing both RequestMiddleware
-        // and ResponseObserver is auto-tagged into both lists under Symfony's
-        // registerForAutoconfiguration, so without dedup each afterInvoke /
-        // afterStream / afterResponse would fire twice for the same observer.
-        $seen = [];
-
-        return array_values(array_filter(
-            [...$observerMiddleware, ...$responseObservers],
-            static function (ResponseObserver $responseObserver) use (&$seen): bool {
-                $id = spl_object_id($responseObserver);
-                $isNew = !isset($seen[$id]);
-                $seen[$id] = true;
-
-                return $isNew;
-            },
-        ));
-    }
-
-    /**
-     * Notify response observers after an invoke call completes.
-     *
-     * @param string $url Request URL being observed.
-     * @param AgentResponse $response Parsed response data for the operation.
-     * @param float $durationMs Operation duration in milliseconds.
-     * @return void
-     */
-    private function notifyAfterInvoke(string $url, AgentResponse $response, float $durationMs): void
-    {
-        $this->notifyResponseObservers(
-            static function (ResponseObserver $responseObserver) use ($url, $response, $durationMs): void {
-                $responseObserver->afterInvoke($url, $response, $durationMs);
-            },
-            'afterInvoke',
-        );
-    }
-
-    /**
-     * Notify response observers after a typed stream call completes.
-     *
-     * @param string $url Request URL being observed.
-     * @param StreamResult $result Parsed stream result for the operation.
-     * @param float $durationMs Operation duration in milliseconds.
-     * @return void
-     */
-    private function notifyAfterStream(string $url, StreamResult $result, float $durationMs): void
-    {
-        $this->notifyResponseObservers(
-            static function (ResponseObserver $responseObserver) use ($url, $result, $durationMs): void {
-                $responseObserver->afterStream($url, $result, $durationMs);
-            },
-            'afterStream',
-        );
-    }
-
-    /**
-     * Notifies observers after a custom JSON call completes.
-     *
-     * @param array<string, mixed> $response parsed agent result returned to the app.
-     * @param string $url agent endpoint the app is calling.
-     * @param float $durationMs elapsed time reported to app telemetry.
-     * @return void No returned value; updates client or observer state.
-     */
-    private function notifyAfterPostJson(string $url, array $response, float $durationMs): void
-    {
-        $this->notifyResponseObservers(
-            static function (ResponseObserver $responseObserver) use ($url, $response, $durationMs): void {
-                $responseObserver->afterPostJson($url, $response, $durationMs);
-            },
-            'afterPostJson',
-        );
-    }
-
-    /**
-     * Notify response observers after a raw SSE stream call completes.
-     *
-     * @param string $url Request URL being observed.
-     * @param StreamSseSummary $summary Sanitized raw SSE stream summary.
-     * @param float $durationMs Operation duration in milliseconds.
-     * @return void
-     */
-    private function notifyAfterStreamSse(string $url, StreamSseSummary $summary, float $durationMs): void
-    {
-        $this->notifyResponseObservers(
-            static function (ResponseObserver $responseObserver) use ($url, $summary, $durationMs): void {
-                $responseObserver->afterStreamSse($url, $summary, $durationMs);
-            },
-            'afterStreamSse',
-        );
-    }
-
-    /**
-     * Runs observer callbacks without breaking the app call.
-     *
-     * @param callable(ResponseObserver): void $notify Observer callback run after an app-facing hook.
-     * @param string $hook Observer hook name used in warning logs.
-     * @return void No returned value; updates client or observer state.
-     */
-    private function notifyResponseObservers(callable $notify, string $hook): void
-    {
-        // Fan out to each observer; one that throws is logged, never breaking the user's call.
-        foreach ($this->responseObservers as $observer) {
-            try {
-                $notify($observer);
-            } catch (\Throwable $e) {
-                $this->logger->warning(sprintf('Response observer %s threw an exception', $hook), [
-                    'observer' => $observer::class,
-                    'error' => $e->getMessage(),
-                ]);
-            }
         }
     }
 

@@ -8,9 +8,11 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit;
 
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Config\StrandsConfig;
 use StrandsPhpClient\Http\HttpTransport;
+use StrandsPhpClient\Http\RequestMiddleware;
 use StrandsPhpClient\Http\ResponseObserver;
 use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\StrandsClient;
@@ -157,5 +159,75 @@ final class ResponseObserverTest extends TestCase
         });
 
         $this->assertCount(2, $events, 'onEvent must receive every parsed SSE event delivered to the observer');
+    }
+
+    /**
+     * Verifies that middleware implementing ResponseObserver is auto-detected and notified.
+     *
+     * @return void
+     */
+    public function testMiddlewareImplementingObserverIsAutoDetected(): void
+    {
+        $observerMiddleware = $this->createObserverMiddleware();
+        $observerMiddleware->expects($this->once())->method('afterInvoke');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('post')->willReturn(['text' => 'ok']);
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+            middleware: [$observerMiddleware],
+        );
+
+        $response = $strandsClient->invoke('hello');
+
+        $this->assertSame('ok', $response->text);
+    }
+
+    /**
+     * Verifies that an observer registered as middleware and observer is notified once.
+     *
+     * @return void
+     */
+    public function testObserverRegisteredAsMiddlewareAndObserverIsNotifiedOnce(): void
+    {
+        $observerMiddleware = $this->createObserverMiddleware();
+        // Symfony auto-configuration tags a dual-interface class into both lists;
+        // the client must dedupe so the observer hears each result exactly once.
+        $observerMiddleware->expects($this->once())->method('afterInvoke');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->any())->method('post')->willReturn(['text' => 'ok']);
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+            middleware: [$observerMiddleware],
+            responseObservers: [$observerMiddleware],
+        );
+
+        $response = $strandsClient->invoke('hello');
+
+        $this->assertSame('ok', $response->text);
+    }
+
+    /**
+     * Builds a middleware double that also observes responses, for auto-detection tests.
+     *
+     * @return MockObject&RequestMiddleware&ResponseObserver Double the client should treat as one observer.
+     */
+    private function createObserverMiddleware(): MockObject
+    {
+        /** @var MockObject&RequestMiddleware&ResponseObserver $observerMiddleware validated before app code uses it. */
+        $observerMiddleware = $this->createMockForIntersectionOfInterfaces([
+            RequestMiddleware::class,
+            ResponseObserver::class,
+        ]);
+        $observerMiddleware->method('beforeRequest')->willReturnCallback(
+            static fn (string $url, array $headers, string $body): array => ['headers' => $headers, 'body' => $body],
+        );
+
+        return $observerMiddleware;
     }
 }

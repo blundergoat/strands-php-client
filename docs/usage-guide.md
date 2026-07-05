@@ -24,6 +24,8 @@ This guide walks through real-world usage patterns for the Strands PHP Client, b
 - [Multi-Agent Orchestration](#multi-agent-orchestration)
 - [Streaming to the Browser with Mercure](#streaming-to-the-browser-with-mercure)
 - [Building Your Python Agent](#building-your-python-agent)
+- [Migrating an Existing Wrapper](#migrating-an-existing-wrapper)
+- [Troubleshooting](#troubleshooting)
 - [Testing](#testing)
 
 ## Architecture Overview
@@ -1180,6 +1182,45 @@ async def invoke(req: AgentRequest):
 ```
 
 This is how [the-summit-chat](https://github.com/blundergoat/the-summit-chat) implements its council debate - all three agents share the same `session_id`, so the Skeptic sees the Analyst's response and the Strategist sees both.
+
+## Migrating an Existing Wrapper
+
+Projects that already run a hand-copied FastAPI wrapper do not need to rewrite anything for this release - existing `invoke()`, `stream()`, `postJson()`, and `streamSse()` call sites keep working unchanged. To converge on the shared contract incrementally:
+
+1. **Keep your custom routes.** App-owned endpoints stay app-owned; the wire contract only standardizes `/invoke`, `/stream`, and the optional discovery response. Nothing forces custom request/response schemas into the canonical shapes.
+2. **Adopt the normalization helpers first.** Replace your copied usage/event mapping with [`extract_usage()` and `map_sdk_event()`](../examples/python-gateway/contract.py) from the reference gateway (or port their behavior). This removes the most common drift source: usage casing and event shape differences.
+3. **Add trace continuation.** Drop in [`TraceContextMiddleware`](../examples/python-gateway/tracing.py) so the `traceparent` header sent by `OtelTracingMiddleware` becomes the parent of your wrapper's spans.
+4. **Validate against the shared fixtures.** Your wrapper's responses should match the JSON/SSE fixtures in `tests/Fixtures/wire-contract/` - the same files the PHP contract tests parse. Diffing one real response per endpoint against the matching fixture is usually enough to catch drift.
+
+The wrapper stays yours; only the helpers and the canonical envelope shapes are shared.
+
+## Troubleshooting
+
+Symptoms the user sees, and what to check on each side of the wire.
+
+### Token counts show as zero
+
+`Usage::fromArray()` reads canonical snake_case fields (`input_tokens`, `latency_ms`, ...) and tolerates camelCase fallbacks, float values (rounded), and numeric strings. If the app's cost readout shows zeros, the wrapper is emitting different key names entirely - not a casing variant. Compare the wrapper's `usage` block against `tests/Fixtures/wire-contract/invoke-response-success.json` and normalize with the gateway's `extract_usage()` helper.
+
+### Stream stops with StreamInterruptedException
+
+`stream()` throws this when the connection ends without a terminal `complete` or `error` event. The wrapper must always emit one terminal event per stream, including on server-side failures - a Python exception that kills the response mid-stream is exactly what this exception surfaces to the user. Two related limits: SSE comment lines (`: ping`) are safe as heartbeats and never reach the app callback, and `StreamParser` aborts if it buffers 10 MB without seeing a complete `\n\n`-delimited event (a proxy that strips SSE delimiters triggers this).
+
+### Stream will not cancel
+
+Cancellation requires the callback to return the literal `false`. A `void` callback or a falsy value like `null` or `0` keeps the stream running by design, so an existing observer callback can never cancel by accident. If the user's stop button does nothing, check that the callback actually reaches `return false;`.
+
+### URL media is rejected or ignored
+
+URL sources (`withImageFromUrl()`, `withDocumentFromUrl()`, `withVideoFromUrl()`) are wrapper-owned: the PHP client only serializes the block; your wrapper must fetch, validate, and translate the resource before sdk-python sees it. The reference gateway ships [`assert_safe_url_source()`](../examples/python-gateway/contract.py) for SSRF-safe validation (blocks localhost, private ranges, the cloud metadata IP, and non-HTTP schemes) but deliberately does not fetch. Also check hand-rolled payloads for the top-level `format` field - every image, document, and video block requires one, and the builder methods emit it automatically.
+
+### Response fields silently null (wrapper drift)
+
+When `AgentResponse` fields the app expects come back null, the wrapper's JSON shape has drifted from the contract. `docs/wire-contract.md` is the source of truth; the fixtures under `tests/Fixtures/wire-contract/` are its executable form. Diff the wrapper's actual response against the matching fixture - unknown fields are preserved in `$metadata`, so inspecting `$response->metadata` usually reveals where the data actually landed.
+
+### Traces do not stitch across PHP and Python
+
+If the outbound request has no `traceparent` header, the middleware is not registered on the client (or was constructed without a tracer). If the header arrives but Python spans start a new trace, the wrapper is not extracting the incoming context - add the FastAPI middleware from `examples/python-gateway/tracing.py` or the equivalent OTEL instrumentation. Note that custom-endpoint spans use sanitized names (`strands.client.custom.<route>` with dynamic segments collapsed to `{id}`), and session IDs never appear on spans - only a `strands.session.present` boolean.
 
 ## Testing
 

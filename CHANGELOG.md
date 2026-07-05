@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-## [1.5.0] - 2026-05-24
+## [1.5.0] - 2026-07-05
 
 ### Added
 
@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Project workflow scaffolding** — GOAT Flow workspace files, architecture/code-map docs, decisions/footguns/lessons/patterns directories, skill references, agent skill bundles, Codex/Claude hooks, and repository agent instructions for structured implementation/review/debug/QA/security workflows.
 - **Dependency and version scripts** — `scripts/dependencies-install.sh`, `scripts/dependencies-update.sh`, and `scripts/bump-version.sh` cover Composer/npm installs and updates plus changelog-driven version bumping.
 - **npm-based goat-flow tooling** — `package.json` and `package-lock.json` add `@blundergoat/goat-flow` as the project workflow dev dependency.
-- 593 tests, 1827 assertions.
+- 596 tests, 1884 assertions.
 
 ### Changed
 
@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `StrandsClient` now auto-detects `ResponseObserver` instances already present in the middleware stack and supports explicitly configured response observers.
 - Composer metadata now includes OTEL development dependencies, OTEL suggestion text, PSR discovery plugin allowance, and a `1.5.x-dev` branch alias.
 - Development dependency management moved to npm lockfile tooling for `@blundergoat/goat-flow`.
+- Symfony development and suggest constraints now allow Symfony 8 (`^6.4 || ^7.0 || ^8.0`) for the bundle integration packages.
+- Response-observer fan-out moved from `StrandsClient` into an internal `ResponseObserverNotifier` collaborator; observer auto-detection and dedup behavior are unchanged and now covered by dedicated tests.
+- Documentation pass: UI-focused PHPDoc across `src/` and tests, plus new usage-guide Troubleshooting and wrapper-migration sections.
+- Development tooling: `blundergoat/gruff-php` static analysis added to `require-dev`.
 
 ### Fixed
 
