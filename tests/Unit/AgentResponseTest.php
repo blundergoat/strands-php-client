@@ -467,8 +467,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame(151, $agentResponse->usage->totalTokens());
         $this->assertSame(10, $agentResponse->usage->cacheReadInputTokens);
         $this->assertSame(5, $agentResponse->usage->cacheWriteInputTokens);
-        $this->assertSame(843, $agentResponse->usage->latencyMs);
-        $this->assertSame(210, $agentResponse->usage->timeToFirstByteMs);
+        $this->assertSame(842.5, $agentResponse->usage->latencyMs);
+        $this->assertSame(210.1, $agentResponse->usage->timeToFirstByteMs);
     }
 
     /**
@@ -600,7 +600,7 @@ class AgentResponseTest extends TestCase
         $agentResponse = AgentResponse::fromArray($data);
 
         $this->assertSame(['document_type' => 'referral', 'confidence' => 0.91], $agentResponse->wrapperMetadata);
-        $this->assertArrayHasKey('metadata', $agentResponse->metadata);
+        $this->assertArrayNotHasKey('metadata', $agentResponse->metadata);
     }
 
     /**
@@ -716,6 +716,7 @@ class AgentResponseTest extends TestCase
             'content_filtered' => StopReason::ContentFiltered,
             'guardrail_intervened' => StopReason::GuardrailIntervened,
             'interrupt' => StopReason::Interrupt,
+            'error' => StopReason::Error,
             'cancelled' => StopReason::Cancelled,
             'checkpoint' => StopReason::Checkpoint,
         ];

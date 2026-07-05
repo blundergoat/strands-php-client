@@ -97,14 +97,20 @@ class StrandsClient
 
         $timeout = $timeoutSeconds ?? $this->config->timeout;
         $url = rtrim($this->config->endpoint, '/') . '/invoke';
-        [$headers, $body] = $this->buildRequest($url, $message, $context, $sessionId, 'application/json');
+        $startTime = hrtime(true);
+        [$headers, $body] = $this->prepareAgentRequest(
+            $url,
+            $message,
+            $context,
+            $sessionId,
+            'application/json',
+            $startTime,
+        );
 
         $this->logger->debug('Strands invoke request', [
             'url' => $url,
             'session_id' => $sessionId,
         ]);
-
-        $startTime = hrtime(true);
 
         try {
             $data = $this->postWithRetry($url, $headers, $body, $timeout);
@@ -161,7 +167,15 @@ class StrandsClient
 
         $timeout = $timeoutSeconds ?? $this->config->timeout;
         $url = rtrim($this->config->endpoint, '/') . '/stream';
-        [$headers, $body] = $this->buildRequest($url, $message, $context, $sessionId, 'text/event-stream');
+        $startTime = hrtime(true);
+        [$headers, $body] = $this->prepareAgentRequest(
+            $url,
+            $message,
+            $context,
+            $sessionId,
+            'text/event-stream',
+            $startTime,
+        );
 
         $this->logger->debug('Strands stream request', [
             'url' => $url,
@@ -177,14 +191,14 @@ class StrandsClient
         $firstTextTokenTime = null;
         /** @var StreamEvent|null $completeEvent validated before app code uses it. */
         $completeEvent = null;
+        /** @var StreamEvent|null $terminalEvent validated before app code uses it. */
+        $terminalEvent = null;
         $cancelled = false;
         /** @var list<array<string, mixed>> $citations validated before app code uses it. */
         $citations = [];
 
-        $startTime = hrtime(true);
-
         try {
-            $this->transport->stream($url, $headers, $body, $timeout, $this->config->connectTimeout, function (string $chunk) use ($streamParser, $onEvent, &$receivedTerminal, &$cancelled, &$accumulatedText, &$textEvents, &$totalEvents, &$firstTextTokenTime, &$completeEvent, &$citations): bool {
+            $this->transport->stream($url, $headers, $body, $timeout, $this->config->connectTimeout, function (string $chunk) use ($streamParser, $onEvent, &$receivedTerminal, &$cancelled, &$accumulatedText, &$textEvents, &$totalEvents, &$firstTextTokenTime, &$completeEvent, &$terminalEvent, &$citations): bool {
                 // A previous callback return false means the user or app has already stopped live updates.
                 if ($cancelled) {
                     return false;
@@ -214,6 +228,7 @@ class StrandsClient
                     // A terminal event means the agent is done (or errored) — remember that.
                     if ($event->isTerminal()) {
                         $receivedTerminal = true;
+                        $terminalEvent = $event;
 
                         // Keep the Complete event; it carries the final usage, tools, and session id.
                         if ($event->type === StreamEventType::Complete) {
@@ -266,6 +281,7 @@ class StrandsClient
             $startTime,
             $firstTextTokenTime,
             $completeEvent,
+            $terminalEvent,
             $citations,
         );
 
@@ -307,14 +323,13 @@ class StrandsClient
         }
 
         $url = $this->buildUrl($path);
-        [$headers, $body] = $this->buildJsonRequest($url, $payload, 'application/json');
+        $startTime = hrtime(true);
+        [$headers, $body] = $this->prepareJsonRequest($url, $payload, 'application/json', $startTime);
 
         $this->logger->debug('Strands postJson request', [
             'url' => $url,
             'path' => $path,
         ]);
-
-        $startTime = hrtime(true);
 
         try {
             $data = $this->postWithRetry($url, $headers, $body, $timeout);
@@ -361,7 +376,8 @@ class StrandsClient
         }
 
         $url = $this->buildUrl($path);
-        [$headers, $body] = $this->buildJsonRequest($url, $payload, 'text/event-stream');
+        $startTime = hrtime(true);
+        [$headers, $body] = $this->prepareJsonRequest($url, $payload, 'text/event-stream', $startTime);
 
         $this->logger->debug('Strands streamSse request', [
             'url' => $url,
@@ -376,8 +392,6 @@ class StrandsClient
         $terminalType = null;
         $usage = null;
         $stopReason = null;
-
-        $startTime = hrtime(true);
 
         try {
             $this->transport->stream($url, $headers, $body, $effectiveTimeout, $this->config->connectTimeout, function (string $chunk) use (&$buffer, &$cancelled, &$totalEvents, &$textEvents, &$terminalType, &$usage, &$stopReason, $onEvent): bool {
@@ -505,6 +519,89 @@ class StrandsClient
     }
 
     /**
+     * Build a standard invoke/stream request and close middleware setup on late setup failure.
+     *
+     * @param string $url agent endpoint the app is calling.
+     * @param string|AgentInput $message user input or rich payload sent to the agent.
+     * @param ?AgentContext $context Optional context for the turn; null sends just the message.
+     * @param ?string $sessionId Conversation id to continue; null starts a brand-new conversation.
+     * @param string $accept Accept header used for the app call.
+     * @param int $startTime Request start timestamp used for duration metrics.
+     * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the agent.
+     */
+    private function prepareAgentRequest(
+        string $url,
+        string|AgentInput $message,
+        ?AgentContext $context,
+        ?string $sessionId,
+        string $accept,
+        int $startTime,
+    ): array {
+        $middlewareStarted = false;
+
+        try {
+            return $this->buildRequest(
+                $url,
+                $message,
+                $context,
+                $sessionId,
+                $accept,
+                $middlewareStarted,
+            );
+        } catch (\Throwable $e) {
+            $this->notifyAfterRequestSetupFailure($url, $startTime, $middlewareStarted, $e);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Build a custom JSON/SSE request and close middleware setup on late setup failure.
+     *
+     * @param string $url agent endpoint the app is calling.
+     * @param array<string, mixed> $payload Payload the app wants to send.
+     * @param string $accept Accept header used for the app call.
+     * @param int $startTime Request start timestamp used for duration metrics.
+     * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the agent.
+     */
+    private function prepareJsonRequest(string $url, array $payload, string $accept, int $startTime): array
+    {
+        $middlewareStarted = false;
+
+        try {
+            return $this->buildJsonRequest($url, $payload, $accept, $middlewareStarted);
+        } catch (\Throwable $e) {
+            $this->notifyAfterRequestSetupFailure($url, $startTime, $middlewareStarted, $e);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Notify middleware only when request setup failed after middleware started.
+     *
+     * @param string $url agent endpoint the app is calling.
+     * @param int $startTime Request start timestamp used for duration metrics.
+     * @param bool $middlewareStarted Whether any middleware started observing this operation.
+     * @param \Throwable $error Failure surfaced while preparing the agent request.
+     * @return void No returned value; closes middleware state for setup failures.
+     */
+    private function notifyAfterRequestSetupFailure(
+        string $url,
+        int $startTime,
+        bool $middlewareStarted,
+        \Throwable $error,
+    ): void {
+        // A JSON encoding failure happens before middleware starts, so there is no operation to close.
+        if (!$middlewareStarted) {
+            return;
+        }
+
+        $durationMs = (hrtime(true) - $startTime) / 1e6;
+        $this->notifyAfterResponse($url, 0, $durationMs, $error);
+    }
+
+    /**
      * Builds the final stream summary after live updates finish.
      *
      * @param list<array<string, mixed>> $citations Citation blocks collected for the final answer UI.
@@ -515,6 +612,7 @@ class StrandsClient
      * @param int $startTime Request start timestamp used for duration metrics.
      * @param ?int $firstTextTokenTime Timestamp for first-token latency; null when no text arrived (cancelled/error-only).
      * @param ?StreamEvent $completeEvent Final Complete event; null when the stream ended without one (error/cancel/drop).
+     * @param ?StreamEvent $terminalEvent Final terminal event; null when no terminal event arrived.
      * @return StreamResult stream summary the app can use after live updates finish.
      */
     private function buildStreamResult(
@@ -525,6 +623,7 @@ class StrandsClient
         int $startTime,
         ?int $firstTextTokenTime,
         ?StreamEvent $completeEvent,
+        ?StreamEvent $terminalEvent,
         array $citations = [],
     ): StreamResult {
         $ttftMs = $firstTextTokenTime !== null
@@ -543,6 +642,9 @@ class StrandsClient
         $finalText = $accumulatedText;
         $contextSize = null;
         $projectedContextSize = null;
+        $terminalType = $terminalEvent?->type->value;
+        $errorCode = $terminalEvent?->type === StreamEventType::Error ? $terminalEvent->errorCode : null;
+        $errorMessage = $terminalEvent?->type === StreamEventType::Error ? $terminalEvent->errorMessage : null;
 
         // A Complete event arrived, so fill the final result from it; otherwise the
         // safe defaults above stand (the stream errored, was cancelled, or dropped).
@@ -590,6 +692,9 @@ class StrandsClient
             citations: $citations,
             contextSize: $contextSize,
             projectedContextSize: $projectedContextSize,
+            terminalType: $terminalType,
+            errorCode: $errorCode,
+            errorMessage: $errorMessage,
         );
     }
 
@@ -620,6 +725,7 @@ class StrandsClient
      * @param ?AgentContext $context Optional context for the turn; null sends just the message.
      * @param ?string $sessionId Conversation id to continue; null starts a brand-new conversation.
      * @param string $accept Accept header used for the app call.
+     * @param bool $middlewareStarted Whether any middleware has started observing this operation.
      * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the agent.
      *
      * @throws StrandsException  If the payload cannot be JSON-encoded.
@@ -630,6 +736,7 @@ class StrandsClient
         ?AgentContext $context,
         ?string $sessionId,
         string $accept,
+        bool &$middlewareStarted,
     ): array {
         // Rich input means the user attached files, images, or asked for structured output.
         if ($message instanceof AgentInput) {
@@ -666,6 +773,7 @@ class StrandsClient
         // (e.g. payload enrichment) doesn't invalidate SigV4 signatures.
         foreach ($this->middleware as $mw) {
             $result = $mw->beforeRequest($url, $headers, $body);
+            $middlewareStarted = true;
             $headers = $result['headers'];
             $body = $result['body'];
         }
@@ -702,12 +810,13 @@ class StrandsClient
      * @param string               $url      The full URL.
      * @param array<string, mixed> $payload  The payload to JSON-encode.
      * @param string               $accept   The Accept header value.
+     * @param bool                 $middlewareStarted Whether any middleware has started observing this operation.
      *
      * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the custom endpoint.
      *
      * @throws StrandsException  If the payload cannot be JSON-encoded.
      */
-    private function buildJsonRequest(string $url, array $payload, string $accept): array
+    private function buildJsonRequest(string $url, array $payload, string $accept, bool &$middlewareStarted): array
     {
         try {
             $body = json_encode($payload, JSON_THROW_ON_ERROR);
@@ -727,6 +836,7 @@ class StrandsClient
         // doesn't invalidate SigV4 signatures.
         foreach ($this->middleware as $mw) {
             $result = $mw->beforeRequest($url, $headers, $body);
+            $middlewareStarted = true;
             $headers = $result['headers'];
             $body = $result['body'];
         }

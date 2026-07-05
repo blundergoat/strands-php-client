@@ -162,7 +162,7 @@ class AgentResponse
             'text', 'agent', 'session_id', 'usage', 'tools_used',
             'has_objective', 'stop_reason', 'structured_output',
             'interrupts', 'guardrail_trace', 'trace', 'message',
-            'context_size', 'projected_context_size',
+            'context_size', 'projected_context_size', 'metadata',
         ];
         /** @var array<string, mixed> $metadata validated before app code uses it. */
         $metadata = array_diff_key($data, array_flip($knownKeys));

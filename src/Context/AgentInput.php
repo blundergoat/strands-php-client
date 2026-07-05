@@ -436,9 +436,10 @@ class AgentInput
      */
     private static function deriveImageFormat(string $mediaType): string
     {
-        $parts = explode('/', $mediaType, 2);
+        $normalizedMediaType = strtolower(trim(explode(';', $mediaType, 2)[0]));
+        $parts = explode('/', $normalizedMediaType, 2);
 
-        return $parts[1] ?? $mediaType;
+        return $parts[1] ?? $normalizedMediaType;
     }
 
     /**

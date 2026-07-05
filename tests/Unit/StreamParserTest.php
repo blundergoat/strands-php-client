@@ -390,7 +390,7 @@ class StreamParserTest extends TestCase
      */
     private function rawForCompleteEventWithMultipleToolsUsed(): string
     {
-        return "data: {\"type\": \"complete\", \"text\": \"Result\", \"session_id\": \"s1\", \"usage\": {}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100}, {\"name\": \"calc\", \"duration_ms\": 50}]}\n\n";
+        return "data: {\"type\": \"complete\", \"text\": \"Result\", \"session_id\": \"s1\", \"usage\": {}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100, \"input\": {\"query\": \"docs\"}, \"result\": {\"count\": 2}}, {\"name\": \"calc\", \"duration_ms\": 50}]}\n\n";
     }
 
 
@@ -411,6 +411,8 @@ class StreamParserTest extends TestCase
         $this->assertCount(2, $events[0]->toolsUsed);
         $this->assertSame('search', $events[0]->toolsUsed[0]['name']);
         $this->assertSame(100, $events[0]->toolsUsed[0]['duration_ms']);
+        $this->assertSame(['query' => 'docs'], $events[0]->toolsUsed[0]['input']);
+        $this->assertSame(['count' => 2], $events[0]->toolsUsed[0]['result']);
         $this->assertSame('calc', $events[0]->toolsUsed[1]['name']);
         $this->assertSame(50, $events[0]->toolsUsed[1]['duration_ms']);
     }

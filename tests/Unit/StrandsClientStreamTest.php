@@ -259,7 +259,7 @@ class StrandsClientStreamTest extends TestCase
         );
 
         $events = [];
-        $strandsClient->stream(
+        $streamResult = $strandsClient->stream(
             message: 'Test',
             onEvent: function (StreamEvent $event) use (&$events) {
                 $events[] = $event;
@@ -268,6 +268,9 @@ class StrandsClientStreamTest extends TestCase
 
         $this->assertCount(2, $events);
         $this->assertSame(StreamEventType::Error, $events[1]->type);
+        $this->assertSame('error', $streamResult->terminalType);
+        $this->assertSame($events[1]->errorCode, $streamResult->errorCode);
+        $this->assertSame($events[1]->errorMessage, $streamResult->errorMessage);
     }
 
     /**
@@ -382,7 +385,7 @@ class StrandsClientStreamTest extends TestCase
     public function testStreamToolsUsedPassedFromCompleteEvent(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Done\"}\n\n"
-            . "data: {\"type\": \"complete\", \"text\": \"Done\", \"session_id\": \"s-2\", \"usage\": {\"input_tokens\": 30, \"output_tokens\": 15}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100}, {\"name\": \"calc\"}]}\n\n";
+            . "data: {\"type\": \"complete\", \"text\": \"Done\", \"session_id\": \"s-2\", \"usage\": {\"input_tokens\": 30, \"output_tokens\": 15}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100, \"input\": {\"query\": \"docs\"}, \"result\": {\"count\": 2}}, {\"name\": \"calc\"}]}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
         $strandsClient = new StrandsClient(
@@ -399,6 +402,8 @@ class StrandsClientStreamTest extends TestCase
         $this->assertCount(2, $streamResult->toolsUsed);
         $this->assertSame('search', $streamResult->toolsUsed[0]['name']);
         $this->assertSame(100, $streamResult->toolsUsed[0]['duration_ms']);
+        $this->assertSame(['query' => 'docs'], $streamResult->toolsUsed[0]['input']);
+        $this->assertSame(['count' => 2], $streamResult->toolsUsed[0]['result']);
         $this->assertSame('calc', $streamResult->toolsUsed[1]['name']);
     }
 
@@ -999,7 +1004,7 @@ class StrandsClientStreamTest extends TestCase
      */
     public function testStreamUsageHydratesCacheTokens(): void
     {
-        $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {\"input_tokens\": 100, \"output_tokens\": 50, \"cache_read_input_tokens\": 80, \"cache_write_input_tokens\": 20, \"latency_ms\": 1500, \"time_to_first_byte_ms\": 200}, \"tools_used\": []}\n\n";
+        $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {\"input_tokens\": 100, \"output_tokens\": 50, \"cache_read_input_tokens\": 80, \"cache_write_input_tokens\": 20, \"latency_ms\": 1500.5, \"time_to_first_byte_ms\": 200.25}, \"tools_used\": []}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
         $strandsClient = new StrandsClient(
@@ -1015,8 +1020,8 @@ class StrandsClientStreamTest extends TestCase
 
         $this->assertSame(80, $streamResult->usage->cacheReadInputTokens);
         $this->assertSame(20, $streamResult->usage->cacheWriteInputTokens);
-        $this->assertSame(1500, $streamResult->usage->latencyMs);
-        $this->assertSame(200, $streamResult->usage->timeToFirstByteMs);
+        $this->assertSame(1500.5, $streamResult->usage->latencyMs);
+        $this->assertSame(200.25, $streamResult->usage->timeToFirstByteMs);
     }
 
     /**

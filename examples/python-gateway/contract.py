@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import socket
 from collections.abc import Iterable, Mapping
 from typing import Any
 from urllib.parse import urlparse
@@ -174,7 +175,12 @@ def assert_safe_url_source(
         raise ValueError("URL media host is required")
 
     _reject_blocked_ip(parsed.hostname)
-    for resolved_ip in resolved_ips:
+
+    checked_ips = tuple(resolved_ips)
+    if not checked_ips:
+        checked_ips = tuple(_resolve_host_ips(parsed.hostname))
+
+    for resolved_ip in checked_ips:
         _reject_blocked_ip(resolved_ip)
 
     if content_length is not None and content_length > MAX_URL_MEDIA_BYTES:
@@ -217,3 +223,16 @@ def _reject_blocked_ip(host_or_ip: str) -> None:
         or ip == ipaddress.ip_address("169.254.169.254")
     ):
         raise ValueError("URL media host resolves to a blocked network")
+
+
+def _resolve_host_ips(hostname: str) -> set[str]:
+    try:
+        results = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
+    except OSError as exc:
+        raise ValueError("URL media host could not be resolved") from exc
+
+    ips = {str(result[4][0]) for result in results if result[4]}
+    if not ips:
+        raise ValueError("URL media host could not be resolved")
+
+    return ips

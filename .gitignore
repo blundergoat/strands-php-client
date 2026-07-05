@@ -1,10 +1,6 @@
 # Dependencies
 /vendor/
-<<<<<<< Updated upstream
 /node_modules/
-=======
-node_modules/
->>>>>>> Stashed changes
 composer.lock
 
 # PHPUnit
@@ -20,6 +16,10 @@ composer.lock
 # Infection
 .infection/
 infection.log
+
+# Python
+__pycache__/
+*.py[cod]
 
 # Code coverage
 coverage-html/

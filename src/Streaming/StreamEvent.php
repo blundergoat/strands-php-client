@@ -30,7 +30,7 @@ class StreamEvent
      * @param string|null      $errorCode           Error code for Error events.
      * @param string|null      $errorMessage        Human-readable error description for Error events.
      * @param array<string, mixed>  $usage          Token usage statistics.
-     * @param list<array{name: string, duration_ms?: int}>  $toolsUsed  Tools the agent used.
+     * @param list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}>  $toolsUsed  Tools the agent used.
      * @param string|null      $toolName            Tool name (for ToolUse/ToolResult events).
      * @param array<string, mixed>  $toolInput      Input/arguments passed to the tool.
      * @param string|null      $toolResult          Result/output from a tool (for ToolResult events).
@@ -206,7 +206,7 @@ class StreamEvent
      *
      * @param array<string, mixed> $data raw decoded JSON from the agent.
      *
-     * @return list<array{name: string, duration_ms?: int}> Tool calls reported during the stream.
+     * @return list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}> Tool calls reported during the stream.
      */
     private static function toolsUsedField(array $data): array
     {
@@ -228,7 +228,20 @@ class StreamEvent
                     $entry['duration_ms'] = $tool['duration_ms'];
                 }
 
-                /** @var array{name: string, duration_ms?: int} $entry validated before app code uses it. */
+                // Preserve safe tool detail summaries on streams just like invoke() does.
+                if (isset($tool['input']) && is_array($tool['input'])) {
+                    /** @var array<string, mixed> $input validated before app code uses it. */
+                    $input = $tool['input'];
+                    $entry['input'] = $input;
+                }
+
+                if (isset($tool['result']) && is_array($tool['result'])) {
+                    /** @var array<string, mixed> $result validated before app code uses it. */
+                    $result = $tool['result'];
+                    $entry['result'] = $result;
+                }
+
+                /** @var array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>} $entry validated before app code uses it. */
                 $tools[] = $entry;
             }
         }

@@ -10,8 +10,10 @@ namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use StrandsPhpClient\Auth\AuthStrategy;
 use StrandsPhpClient\Config\StrandsConfig;
 use StrandsPhpClient\Exceptions\AgentErrorException;
+use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\Http\RequestMiddleware;
 use StrandsPhpClient\Response\AgentResponse;
@@ -164,6 +166,75 @@ class RequestMiddlewareTest extends TestCase
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessage('Bad request');
         $strandsClient->invoke(message: 'Test');
+    }
+
+    /**
+     * Verifies that middleware after response runs when request setup fails after beforeRequest.
+     *
+     * @return void
+     */
+    public function testMiddlewareAfterResponseCalledWhenRequestSetupFailsAfterBeforeRequest(): void
+    {
+        $setupException = new \RuntimeException('auth failed');
+
+        $middleware = $this->createMock(RequestMiddleware::class);
+        $middleware->expects($this->once())
+            ->method('beforeRequest')
+            ->willReturnCallback(fn (string $url, array $headers, string $body) => [
+                'headers' => $headers,
+                'body' => $body,
+            ]);
+        $middleware->expects($this->once())
+            ->method('afterResponse')
+            ->with(
+                'http://localhost:8081/invoke',
+                0,
+                $this->greaterThanOrEqual(0),
+                $this->identicalTo($setupException),
+            );
+
+        $auth = $this->createMock(AuthStrategy::class);
+        $auth->expects($this->once())
+            ->method('authenticate')
+            ->willThrowException($setupException);
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081', auth: $auth),
+            transport: $transport,
+            middleware: [$middleware],
+        );
+
+        $this->expectExceptionObject($setupException);
+        $strandsClient->invoke(message: 'Test');
+    }
+
+    /**
+     * Verifies that setup failures before middleware starts do not send after response.
+     *
+     * @return void
+     */
+    public function testMiddlewareAfterResponseNotCalledWhenEncodingFailsBeforeBeforeRequest(): void
+    {
+        $middleware = $this->createMock(RequestMiddleware::class);
+        $middleware->expects($this->never())->method('beforeRequest');
+        $middleware->expects($this->never())->method('afterResponse');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+            middleware: [$middleware],
+        );
+
+        $this->expectException(StrandsException::class);
+        $this->expectExceptionMessage('Failed to encode request payload');
+
+        $strandsClient->postJson('/file-summarise', ['bad_value' => NAN]);
     }
 
     /**

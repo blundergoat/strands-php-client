@@ -59,6 +59,12 @@ def test_url_media_guard() -> None:
         pass
     else:
         raise AssertionError("metadata service IP must be rejected")
+    try:
+        assert_safe_url_source("http://localhost/file.pdf")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("localhost must be rejected after hostname resolution")
 
 
 def test_discovery() -> None:

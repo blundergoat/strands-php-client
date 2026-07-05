@@ -951,6 +951,14 @@ Every stream **must** end with either `complete` or `error`. If the connection d
 Example SSE output:
 
 ```
+data: {"type": "text", "content": "The"}
+
+data: {"type": "text", "content": " answer"}
+
+data: {"type": "text", "content": " is 42."}
+
+data: {"type": "complete", "text": "The answer is 42.", "session_id": "abc-123", "usage": {}, "tools_used": []}
+```
 
 ### OpenTelemetry trace continuation
 
@@ -959,15 +967,6 @@ The PHP client injects W3C `traceparent` and `tracestate` headers when `OtelTrac
 The reference middleware lives in `examples/python-gateway/tracing.py`. It continues the inbound trace and records only safe wrapper metadata such as operation, route, and wire version. Do not attach prompts, response text, document content, filenames, raw context metadata, raw tool payloads, or session ID values to spans.
 
 Custom endpoints should follow the same rule. `postJson()` and `streamSse()` may carry app-owned payloads, so telemetry should summarize them by route, status, duration, event counts, terminal state, and safe usage counters only.
-data: {"type": "text", "content": "The"}
-
-data: {"type": "text", "content": " answer"}
-
-data: {"type": "text", "content": " is 42."}
-
-data: {"type": "complete", "text": "The answer is 42.", "session_id": "abc-123", "usage": {}, "tools_used": []}
-
-```
 
 ### Calling the Strands SDK correctly
 

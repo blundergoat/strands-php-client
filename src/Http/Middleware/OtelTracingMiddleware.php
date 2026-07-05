@@ -80,12 +80,6 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
      */
     public function beforeRequest(string $url, array $headers, string $body): array
     {
-        // Drain any spans left over from a previous request whose afterResponse()
-        // never fired (e.g. buildRequest() failed before the try/catch in
-        // StrandsClient::invoke()). Without this, the active scope leaks into
-        // subsequent operations and produces incorrect parent-child traces.
-        $this->endOrphanedSpans();
-
         $route = self::sanitizeRoute($url);
         $operation = self::deriveOperationName($route, $headers);
         $spanName = $this->deriveSpanName($route, $operation);
@@ -261,6 +255,11 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         if ($result->stopReason !== null) {
             $span->setAttribute('gen_ai.response.finish_reason', $result->stopReason->value);
         }
+
+        if ($result->terminalType === 'error') {
+            $span->setAttribute('error.type', $result->errorCode ?? 'stream_error');
+            $span->setStatus(StatusCode::STATUS_ERROR, $result->errorMessage ?? 'stream error');
+        }
     }
 
     /**
@@ -311,6 +310,11 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         if ($summary->stopReason !== null) {
             $span->setAttribute('gen_ai.response.finish_reason', $summary->stopReason);
         }
+
+        if ($summary->terminalType === 'error') {
+            $span->setAttribute('error.type', 'stream_sse_error');
+            $span->setStatus(StatusCode::STATUS_ERROR, 'stream_sse terminal error');
+        }
     }
 
     /**
@@ -350,16 +354,16 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     private static function deriveOperationName(string $route, array $headers): string
     {
         // The standard invoke path maps straight to its operation name.
-        if ($route === '/invoke') {
+        if (str_ends_with($route, '/invoke')) {
             return 'invoke';
         }
 
         // Same for the standard streaming path.
-        if ($route === '/stream') {
+        if (str_ends_with($route, '/stream')) {
             return 'stream';
         }
 
-        $accept = $headers['Accept'] ?? '';
+        $accept = self::headerValue($headers, 'Accept');
 
         return str_contains($accept, 'text/event-stream')
             ? 'stream_sse'
@@ -381,22 +385,6 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         [$span] = $this->spanStack->top();
 
         return $span;
-    }
-
-    /**
-     * Close spans left open by failed request setup before starting a new span.
-     *
-     * @return void
-     */
-    private function endOrphanedSpans(): void
-    {
-        // Close every span a failed setup left open, so it can't corrupt the next request's trace.
-        while (!$this->spanStack->isEmpty()) {
-            [$span, $scope] = $this->spanStack->pop();
-            $span->setStatus(StatusCode::STATUS_ERROR, 'orphaned span: setup failed before afterResponse');
-            $scope->detach();
-            $span->end();
-        }
     }
 
     /**
@@ -429,6 +417,24 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         $result .= self::sanitizeRoute($url);
 
         return $result;
+    }
+
+    /**
+     * Read a header value without assuming caller-controlled casing.
+     *
+     * @param array<string, string> $headers Request headers.
+     * @param string $name Header name to read.
+     * @return string Header value, or empty string when absent.
+     */
+    private static function headerValue(array $headers, string $name): string
+    {
+        foreach ($headers as $key => $value) {
+            if (strcasecmp($key, $name) === 0) {
+                return $value;
+            }
+        }
+
+        return '';
     }
 
     /**

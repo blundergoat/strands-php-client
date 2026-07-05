@@ -22,6 +22,7 @@ use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Http\Middleware\OtelTracingMiddleware;
 use StrandsPhpClient\Response\AgentResponse;
+use StrandsPhpClient\Streaming\StreamResult;
 use StrandsPhpClient\Streaming\StreamSseSummary;
 
 /**
@@ -214,6 +215,25 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
+     * Verifies that nested operations keep both active spans until their own responses finish.
+     *
+     * @return void
+     */
+    public function testNestedOperationsPreserveOuterSpan(): void
+    {
+        $this->middleware->beforeRequest('https://x/stream', [], '{}');
+        $this->middleware->beforeRequest('https://x/invoke', [], '{}');
+        $this->middleware->afterResponse('https://x/invoke', 200, 5.0);
+        $this->middleware->afterResponse('https://x/stream', 200, 10.0);
+
+        $spans = $this->getSpans();
+        $this->assertCount(2, $spans);
+        $this->assertSame('strands.client.invoke', $spans[0]->getName());
+        $this->assertSame('strands.client.stream', $spans[1]->getName());
+        $this->assertSame(StatusCode::STATUS_UNSET, $spans[1]->getStatus()->getCode());
+    }
+
+    /**
      * Verifies that query string stripping.
      *
      * @return void
@@ -365,6 +385,82 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertFalse($span->getAttributes()->get('strands.stream.cancelled'));
         $this->assertSame(20, $span->getAttributes()->get('gen_ai.usage.input_tokens'));
         $this->assertSame('end_turn', $span->getAttributes()->get('gen_ai.response.finish_reason'));
+    }
+
+    /**
+     * Verifies that base-path endpoints still classify standard invoke and stream operations.
+     *
+     * @return void
+     */
+    public function testBasePathStandardOperationsAreClassifiedByFinalSegment(): void
+    {
+        $this->middleware->beforeRequest('https://agent.example.com/prod/invoke', ['Accept' => 'application/json'], '{}');
+        $this->middleware->afterResponse('https://agent.example.com/prod/invoke', 200, 10.0);
+        $this->middleware->beforeRequest('https://agent.example.com/agent/stream', ['accept' => 'text/event-stream'], '{}');
+        $this->middleware->afterResponse('https://agent.example.com/agent/stream', 200, 10.0);
+
+        $spans = $this->getSpans();
+        $this->assertSame('strands.client.invoke', $spans[0]->getName());
+        $this->assertSame('invoke', $spans[0]->getAttributes()->get('gen_ai.operation.name'));
+        $this->assertSame('strands.client.stream', $spans[1]->getName());
+        $this->assertSame('stream', $spans[1]->getAttributes()->get('gen_ai.operation.name'));
+    }
+
+    /**
+     * Verifies that custom SSE operation detection reads Accept case-insensitively.
+     *
+     * @return void
+     */
+    public function testCustomSseOperationUsesCaseInsensitiveAcceptHeader(): void
+    {
+        $this->middleware->beforeRequest('https://agent.example.com/custom-events', ['accept' => 'text/event-stream'], '{}');
+        $this->middleware->afterResponse('https://agent.example.com/custom-events', 200, 10.0);
+
+        $span = $this->getSpans()[0];
+        $this->assertSame('stream_sse', $span->getAttributes()->get('gen_ai.operation.name'));
+        $this->assertSame('strands.client.custom.custom-events', $span->getName());
+    }
+
+    /**
+     * Verifies that typed stream terminal error events mark spans as failed.
+     *
+     * @return void
+     */
+    public function testStreamObserverMarksTerminalErrorAsFailed(): void
+    {
+        $this->middleware->beforeRequest('https://agent.example.com/stream', ['Accept' => 'text/event-stream'], '{}');
+        $this->middleware->afterStream('https://agent.example.com/stream', new StreamResult(
+            text: '',
+            terminalType: 'error',
+            errorCode: 'agent_error',
+            errorMessage: 'Agent failed',
+        ), 40.0);
+        $this->middleware->afterResponse('https://agent.example.com/stream', 200, 40.0);
+
+        $span = $this->getSpans()[0];
+        $this->assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
+        $this->assertSame('Agent failed', $span->getStatus()->getDescription());
+        $this->assertSame('agent_error', $span->getAttributes()->get('error.type'));
+    }
+
+    /**
+     * Verifies that raw SSE terminal error events mark spans as failed.
+     *
+     * @return void
+     */
+    public function testStreamSseObserverMarksTerminalErrorAsFailed(): void
+    {
+        $this->middleware->beforeRequest('https://agent.example.com/custom-events', ['Accept' => 'text/event-stream'], '{}');
+        $this->middleware->afterStreamSse('https://agent.example.com/custom-events', new StreamSseSummary(
+            totalEvents: 1,
+            terminalType: 'error',
+        ), 20.0);
+        $this->middleware->afterResponse('https://agent.example.com/custom-events', 200, 20.0);
+
+        $span = $this->getSpans()[0];
+        $this->assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
+        $this->assertSame('stream_sse terminal error', $span->getStatus()->getDescription());
+        $this->assertSame('stream_sse_error', $span->getAttributes()->get('error.type'));
     }
 
     /**

@@ -22,8 +22,8 @@ class Usage
      * @param int $outputTokens           Number of output tokens generated.
      * @param int $cacheReadInputTokens   Input tokens served from cache.
      * @param int $cacheWriteInputTokens  Input tokens written to cache.
-     * @param int $latencyMs              Server-reported total latency in milliseconds.
-     * @param int $timeToFirstByteMs      Server-reported time from request receipt to first byte sent.
+     * @param int|float $latencyMs              Server-reported total latency in milliseconds.
+     * @param int|float $timeToFirstByteMs      Server-reported time from request receipt to first byte sent.
      * @param int $totalTokens            Server-reported total tokens, when emitted.
      */
     public function __construct(
@@ -31,8 +31,8 @@ class Usage
         public readonly int $outputTokens = 0,
         public readonly int $cacheReadInputTokens = 0,
         public readonly int $cacheWriteInputTokens = 0,
-        public readonly int $latencyMs = 0,
-        public readonly int $timeToFirstByteMs = 0,
+        public readonly int|float $latencyMs = 0,
+        public readonly int|float $timeToFirstByteMs = 0,
         public readonly int $totalTokens = 0,
     ) {
     }
@@ -65,8 +65,8 @@ class Usage
             outputTokens: self::intField($data, 'output_tokens', 'outputTokens'),
             cacheReadInputTokens: self::intField($data, 'cache_read_input_tokens', 'cacheReadInputTokens'),
             cacheWriteInputTokens: self::intField($data, 'cache_write_input_tokens', 'cacheWriteInputTokens'),
-            latencyMs: self::intField($data, 'latency_ms', 'latencyMs'),
-            timeToFirstByteMs: self::intField($data, 'time_to_first_byte_ms', 'timeToFirstByteMs'),
+            latencyMs: self::numberField($data, 'latency_ms', 'latencyMs'),
+            timeToFirstByteMs: self::numberField($data, 'time_to_first_byte_ms', 'timeToFirstByteMs'),
             totalTokens: self::intField($data, 'total_tokens', 'totalTokens'),
         );
     }
@@ -84,6 +84,21 @@ class Usage
      */
     private static function intField(array $data, string $snakeKey, ?string $camelKey = null): int
     {
+        $value = self::numberField($data, $snakeKey, $camelKey);
+
+        return (int) round($value);
+    }
+
+    /**
+     * Read one numeric count or timing value, preserving fractional timings.
+     *
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
+     * @param string $snakeKey Snake-case usage field from the wire payload.
+     * @param ?string $camelKey Camel-case fallback field from older payloads; null when there's no fallback to try.
+     * @return int|float Numeric value for app readouts, or 0 when the field is missing.
+     */
+    private static function numberField(array $data, string $snakeKey, ?string $camelKey = null): int|float
+    {
         $value = $data[$snakeKey] ?? ($camelKey !== null ? ($data[$camelKey] ?? 0) : 0);
 
         // Already a clean integer — the common case, hand it straight back.
@@ -91,14 +106,14 @@ class Usage
             return $value;
         }
 
-        // Some wrappers report counts as floats; round to whole tokens.
+        // Timing fields may be fractional milliseconds; preserve them.
         if (is_float($value)) {
-            return (int) round($value);
+            return $value;
         }
 
         // Others send counts as numeric strings (e.g. "1024"); accept those too.
         if (is_string($value) && is_numeric($value)) {
-            return (int) round((float) $value);
+            return str_contains($value, '.') ? (float) $value : (int) $value;
         }
 
         return 0;

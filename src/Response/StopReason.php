@@ -35,6 +35,9 @@ enum StopReason: string
     /** Human-in-the-loop pause - agent needs user input. */
     case Interrupt = 'interrupt';
 
+    /** Agent or wrapper reported a terminal error. */
+    case Error = 'error';
+
     /** The operation was cancelled before completing. */
     case Cancelled = 'cancelled';
 

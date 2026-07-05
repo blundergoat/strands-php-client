@@ -479,6 +479,39 @@ class AgentInputTest extends TestCase
     }
 
     /**
+     * Verifies that image MIME parameters are stripped before deriving format.
+     *
+     * @return void
+     */
+    public function testWithImageStripsMimeParametersBeforeDerivingFormat(): void
+    {
+        $input = AgentInput::text('Analyse')
+            ->withImage('base64data', 'image/jpeg; charset=binary');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('jpeg', $payload['content'][1]['format']);
+        $this->assertSame('image/jpeg; charset=binary', $payload['content'][1]['source']['media_type']);
+    }
+
+    /**
+     * Verifies that image format derivation preserves compound subtypes.
+     *
+     * @return void
+     */
+    public function testWithImagePreservesCompoundSubtypeFormat(): void
+    {
+        $input = AgentInput::text('Analyse')
+            ->withImage('base64data', 'image/svg+xml');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('svg+xml', $payload['content'][1]['format']);
+    }
+
+    /**
      * Verifies that with image from URL returns new instance.
      *
      * @return void
