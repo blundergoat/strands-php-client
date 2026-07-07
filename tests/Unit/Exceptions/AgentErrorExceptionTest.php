@@ -136,4 +136,40 @@ class AgentErrorExceptionTest extends TestCase
             $this->assertTrue($caught, sprintf('%s not caught by AgentErrorException', $e::class));
         }
     }
+
+    /**
+     * Verifies that the wire contract's human-readable message wins over structured detail.
+     *
+     * @return void
+     */
+    public function testFromHttpResponsePrefersContractMessageOverStructuredDetail(): void
+    {
+        // Mirrors tests/Fixtures/wire-contract/error-response.json: the wrapper
+        // sends a human-readable "message" plus a structured "detail" object.
+        $e = AgentErrorException::fromHttpResponse(
+            400,
+            '{"message":"Validation failed.","code":"validation_error","detail":{"field":"message"}}',
+            ['message' => 'Validation failed.', 'code' => 'validation_error', 'detail' => ['field' => 'message']],
+        );
+
+        $this->assertSame('Agent returned HTTP 400: Validation failed.', $e->getMessage());
+        $this->assertSame('validation_error', $e->errorCode);
+        $this->assertSame(['field' => 'message'], $e->responseBody['detail'] ?? null);
+    }
+
+    /**
+     * Verifies that an empty message falls back to the detail field.
+     *
+     * @return void
+     */
+    public function testFromHttpResponseFallsBackToDetailWhenMessageEmpty(): void
+    {
+        $e = AgentErrorException::fromHttpResponse(
+            502,
+            '{"message":"","detail":"Upstream agent unavailable"}',
+            ['message' => '', 'detail' => 'Upstream agent unavailable'],
+        );
+
+        $this->assertSame('Agent returned HTTP 502: Upstream agent unavailable', $e->getMessage());
+    }
 }

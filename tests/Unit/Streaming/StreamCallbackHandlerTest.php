@@ -26,7 +26,6 @@ class StreamCallbackHandlerTest extends TestCase
      */
     public function testTextEventDispatchesToOnText(): void
     {
-        $received = null;
         $handler = new class () extends StreamCallbackHandler {
             private ?StreamEvent $received = null;
 

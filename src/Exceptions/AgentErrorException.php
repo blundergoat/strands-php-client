@@ -47,9 +47,14 @@ class AgentErrorException extends StrandsException
     {
         /** @var array<string, mixed> $errorData validated before app code uses it. */
         $errorData = is_array($decoded) ? $decoded : [];
+        $contractMessage = $errorData['message'] ?? null;
         $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
-        // Prefer a plain-text detail the app can show the user; JSON-encode structured ones.
-        if (is_string($detail)) {
+        // The wire contract puts the human-readable text in "message"; show that
+        // to the app first. FastAPI-style bodies carry it in "detail"/"error"
+        // instead, so fall back there, JSON-encoding structured values.
+        if (is_string($contractMessage) && $contractMessage !== '') {
+            $detailText = $contractMessage;
+        } elseif (is_string($detail)) {
             $detailText = $detail;
         } else {
             $detailText = json_encode($detail) ?: 'Unknown agent error';

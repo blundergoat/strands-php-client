@@ -658,6 +658,19 @@ run_full() {
   expect_allow shell "xargs -a list.txt echo rm -rf" "xargs arg-file echo literal allowed"
   expect_allow shell 'find . -name "*.log" -print' "find print read-only"
   expect_block shell "true && rm -rf /" "chained rm"
+  # --- Bare-& chaining. Regression: the segment splitter once split only on
+  # && / || / ; / newline, so "echo ok & rm -rf /" hid the rm behind echo's
+  # verb; redirection ampersands (2>&1, &>file) must stay unsplit. ---
+  expect_block shell "echo ok & rm -rf /" "ampersand chained rm"
+  expect_block shell "echo ok&rm -rf /" "no-space ampersand chained rm"
+  expect_allow shell "ls 2>&1" "stderr dup ampersand not split"
+  expect_allow shell "ls &> /tmp/goat-out.log" "combined redirect ampersand not split"
+  # --- Lockfile writes. Regression: the redirect pattern once required
+  # whitespace after the operator, so `echo x>package-lock.json` bypassed it. ---
+  expect_block shell 'echo "{}" > package-lock.json' "lockfile redirect write"
+  expect_block shell 'echo "{}">package-lock.json' "no-space lockfile redirect write"
+  expect_block shell 'echo "{}" >>composer.lock' "no-space lockfile append"
+  expect_allow shell "cat package-lock.json" "lockfile read"
   expect_block shell 'bash -c "echo ok; rm -rf /"' "bash -c chained rm"
   expect_block shell 'bash -c "echo safe" | python3 -c "x"' "bash -c pipe to interpreter"
   expect_block shell 'echo Z2l0IHB1c2g= | base64 -d | sh' "base64 pipe shell"

@@ -64,6 +64,11 @@ class StrandsExtension extends Extension
             $definition = new Definition(StrandsClient::class);
             $definition->setFactory([new Reference('strands.client_factory'), 'create']);
             $definition->setArgument(0, $name);
+            // Public so the documented `$container->get('strands.client.<name>')`
+            // works at runtime: private definitions are inlined or removed when
+            // Symfony compiles the container, leaving named clients reachable
+            // only through #[Autowire] injection.
+            $definition->setPublic(true);
 
             $container->setDefinition($serviceId, $definition);
 

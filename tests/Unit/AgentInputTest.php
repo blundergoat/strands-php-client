@@ -542,6 +542,7 @@ class AgentInputTest extends TestCase
         $this->assertSame('document', $payload['content'][1]['type']);
         $this->assertSame('url', $payload['content'][1]['source']['type']);
         $this->assertSame('https://example.com/report.pdf', $payload['content'][1]['source']['url']);
+        $this->assertSame('application/pdf', $payload['content'][1]['source']['media_type']);
         $this->assertSame('pdf', $payload['content'][1]['format']);
         $this->assertSame('report', $payload['content'][1]['name']);
     }
@@ -650,6 +651,7 @@ class AgentInputTest extends TestCase
         $this->assertSame('video', $payload['content'][1]['type']);
         $this->assertSame('url', $payload['content'][1]['source']['type']);
         $this->assertSame('https://example.com/clip.mp4', $payload['content'][1]['source']['url']);
+        $this->assertSame('video/mp4', $payload['content'][1]['source']['media_type']);
         $this->assertSame('mp4', $payload['content'][1]['format']);
     }
 

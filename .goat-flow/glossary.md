@@ -17,7 +17,7 @@ Domain and project-specific terms a new contributor needs.
 - **`SymfonyHttpTransport`** vs **`PsrHttpTransport`** — The two shipped transports. Symfony supports real streaming; PSR-18 does not (spec limitation, not a project bug). Auto-detected when no transport is passed.
 - **SSE (Server-Sent Events)** — The streaming protocol used by Strands agent `/stream` endpoints. Events are delimited by double newlines (`\n\n`) with `data:` prefixed JSON payloads.
 - **`StreamParser`** — Incremental SSE parser. Buffers raw HTTP chunks up to a 10 MB cap; emits typed `StreamEvent` objects; tolerates unknown event types via `tryFromArray()`; counts (does not throw on) malformed JSON.
-- **`StreamEvent`** — One typed event. Types: `Text`, `Thinking`, `ToolUse`, `ToolResult`, `Citation`, `Complete`, `Error`, `ReasoningSignature`. Terminal: `Complete` and `Error`. `::fromArray()` throws on unknown types; `::tryFromArray()` returns `null`.
+- **`StreamEvent`** — One typed event. Types: `Text`, `Thinking`, `ToolUse`, `ToolResult`, `Citation`, `Complete`, `Error`, `ReasoningSignature`, `ReasoningRedacted`. Terminal: `Complete` and `Error`. `::fromArray()` throws on unknown types; `::tryFromArray()` returns `null`.
 - **`StreamResult`** — Accumulated streaming session result: text, sessionId, usage, tools, TTFT, interrupts, guardrail trace, citations.
 - **TTFT** — Time to First Text token. Client-measured in `StreamResult.timeToFirstTextTokenMs` for latency observability.
 
@@ -33,7 +33,7 @@ Domain and project-specific terms a new contributor needs.
 - **`AgentInput`** — Immutable builder for rich request payloads: text, images (base64/URL), documents (base64/S3), interrupt-response. Clone-and-mutate.
 - **`AgentContext`** — Immutable builder for request context: system prompts, metadata, permissions, documents, structured data. Clone-and-mutate.
 - **`Usage`** — Token usage stats. `::fromArray()` is the **single canonical hydrator** — `AgentResponse::parseUsage()` and `StrandsClient::usageFromArray()` delegate to it.
-- **`StopReason`** — Backed enum for why an agent stopped: `EndTurn`, `ToolUse`, `MaxTokens`, `StopSequence`, `GuardrailIntervened`, `Interrupted`.
+- **`StopReason`** — Backed enum for why an agent stopped: `EndTurn`, `ToolUse`, `MaxTokens`, `StopSequence`, `ContentFiltered`, `GuardrailIntervened`, `Interrupt`, `Error`, `Cancelled`, `Checkpoint`. Unknown wire values stay readable via the response's raw stop reason.
 
 ## Quality / Tooling
 

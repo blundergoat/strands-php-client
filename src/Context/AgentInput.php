@@ -265,9 +265,12 @@ class AgentInput
         $clone->contentBlocks[] = self::documentBlock(
             format:    $format,
             name:      $name,
+            // media_type lets wrappers validate the URL's content before
+            // fetching it, matching the contract's URL source shape.
             source:    [
-                           'type' => 'url',
-                           'url'  => $url,
+                           'type'       => 'url',
+                           'url'        => $url,
+                           'media_type' => self::formatToMimeType($format),
                        ],
             context:   $context,
             citations: $citations,
@@ -289,9 +292,12 @@ class AgentInput
         $clone                  = clone $this;
         $clone->contentBlocks[] = [
             'type'   => 'video',
+            // media_type lets wrappers validate the URL's content before
+            // fetching it, matching the contract's URL source shape.
             'source' => [
-                'type' => 'url',
-                'url'  => $url,
+                'type'       => 'url',
+                'url'        => $url,
+                'media_type' => 'video/' . $format,
             ],
             'format' => $format,
         ];

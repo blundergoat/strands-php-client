@@ -77,6 +77,24 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
+     * Verifies that named clients stay retrievable via `$container->get()` after compile.
+     *
+     * @return void
+     */
+    public function testNamedAgentServicesArePublic(): void
+    {
+        $containerBuilder = $this->loadExtension([
+            'agents' => [
+                'analyst' => ['endpoint' => 'http://agent:8000'],
+            ],
+        ]);
+
+        // The docs promise `$container->get('strands.client.analyst')`; a private
+        // definition would be inlined or removed when the container compiles.
+        $this->assertTrue($containerBuilder->getDefinition('strands.client.analyst')->isPublic());
+    }
+
+    /**
      * Verifies that first agent is default alias.
      *
      * @return void

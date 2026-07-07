@@ -1631,6 +1631,7 @@ split_command_segments_into() {
   local current=""
   local char=""
   local next=""
+  local prev=""
   local in_single=0
   local in_double=0
   local escaped=0
@@ -1701,6 +1702,20 @@ split_command_segments_into() {
         current=""
         i=$((i + 1))
         continue
+      fi
+      # Bare & (background/job control) also separates commands: without this
+      # split, "echo ok & rm -rf /" stays one segment and the rm part is never
+      # inspected. Not a separator inside redirections - 2>&1 / >&2 keep their
+      # & literal (prev is a redirect char), as do &>file / &>>file (next is >).
+      # && never reaches here: the branch above consumes both characters.
+      if [[ "$char" == "&" && "$next" != "&" && "$next" != ">" ]]; then
+        prev=""
+        (( i > 0 )) && prev="${input:i-1:1}"
+        if [[ "$prev" != ">" && "$prev" != "<" ]]; then
+          __goat_split_out__+=("$current")
+          current=""
+          continue
+        fi
       fi
       if [[ "$char" == ";" || "$char" == $'\n' ]]; then
         __goat_split_out__+=("$current")

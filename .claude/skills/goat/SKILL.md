@@ -30,7 +30,7 @@ Use when the user gives an outcome and needs the right goat-* route. **If the us
    - Do not emit the preamble's `Relevant prior learnings` line - that belongs to the routed skill's Step 0
 3. **ROUTE** - dispatch using the route map. Emit a Route Snapshot (`Intent` / `Route` / `Rationale`), e.g.:
 
-```
+```text
 Intent: Diagnose a slow endpoint
 Route: /goat-debug
 Rationale: "slow" is a symptom to investigate; no file named -> target-files=unknown
