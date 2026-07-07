@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-## [1.5.0] - 2026-07-05
+## [1.5.0] - 2026-07-07
 
 ### Added
 
@@ -23,20 +23,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Strands HTTP Wire Contract v1** — new contract docs, ADR, audit notes, compatibility matrix, and canonical fixtures define the wrapper-owned JSON/SSE shapes used between PHP apps and Python sdk-python gateways.
 - **Reference Python gateway template** — `examples/python-gateway/` includes a FastAPI `/invoke`, `/stream`, `/health`, custom endpoint blueprint, usage/event normalization helpers, trace-context continuation, URL-media guard helpers, and dependency-free smoke checks.
 - **Wire-contract and consumer compatibility tests** — executable fixture smoke tests parse canonical JSON/SSE fixtures and consumer-shaped custom endpoint fixtures for `ambient-scribe`, `the-summit-chatroom`, `halaxy-agents-lab`, and `healthkit`.
-- **Typed citation DTOs** — `Citation`, `CitationLocation`, `CitationSourceContent`, and `CitationGeneratedContent` under `Response\Citation\`, plus `AgentResponse::getCitationObjects()` and `StreamEvent::getCitationObject()` accessors. Raw citation arrays remain available.
-- **Typed guardrail assessment DTO** — `GuardrailAssessment` plus `GuardrailTrace::getAssessmentObjects()` for wrapper-normalized guardrail assessments. Raw assessment arrays remain available.
+- **Typed citation DTOs** — `Citation`, `CitationLocation`, `CitationSourceContent`, and `CitationGeneratedContent` under `Response\Citation\`, plus `AgentResponse::getCitationObjects()` and `StreamEvent::getCitationObject()` accessors. Flat `source`/`title`/`text` fields are preserved as first-class properties and rebuilt into location/source-content data when wrappers send only the flat shape; location indices tolerate int, float, and numeric-string values. Raw citation arrays remain available.
+- **Typed guardrail assessment DTO** — `GuardrailAssessment` plus `GuardrailTrace::getAssessmentObjects()` for wrapper-normalized guardrail assessments, including the normalized `name`/`result`/`confidence` fields alongside the Bedrock policy blocks. Raw assessment arrays remain available.
 - **Richer agent exceptions** — `ThrottledException`, `ContextOverflowException`, and `MaxTokensException` extend `AgentErrorException`; `AgentErrorException::fromHttpResponse()` returns the specific subtype where possible.
-- **StopReason additions** — `Cancelled` and `Checkpoint` enum cases for forward compatibility with Python SDK stop reasons.
+- **StopReason additions** — `Error`, `Cancelled`, and `Checkpoint` enum cases covering the wire contract's terminal states and forward compatibility with Python SDK stop reasons.
 - **AgentInput media and cache coverage** — `withImageFromS3()`, `withVideo()`, `withImageFromUrl()`, `withDocumentFromUrl()`, `withVideoFromUrl()`, `withCachePoint()`, and document `context`/`citations` options.
 - **Structured output hydration** — `AgentResponse::structuredOutputAs(string $class)` hydrates structured output into typed DTOs via `fromArray()` or constructor named-argument unpacking.
 - **Nested message metadata support** — typed `Message` and `MessageMetadata` DTOs preserve `message.role`, `message.content`, `message.metadata.usage`, `message.metadata.metrics`, and `message.metadata.custom`.
 - **Wrapper metadata and context visibility** — `AgentResponse::$wrapperMetadata`, `AgentResponse::$contextSize`, `AgentResponse::$projectedContextSize`, and matching stream complete/result context-size fields.
 - **Raw stop-reason preservation** — `AgentResponse::$rawStopReason` preserves unknown future `stop_reason` strings even when the enum parser cannot hydrate them.
-- **Stream callback handler** — `StreamCallbackHandler` dispatches typed stream events to `on*()` methods, and `PrintingCallbackHandler` provides a stdout/stderr reference implementation.
+- **Stream terminal metadata** — `StreamResult::$terminalType`, `::$errorCode`, and `::$errorMessage` record whether a stream ended with a `complete` or `error` event and why; `StreamSseSummary` carries the same terminal type for raw SSE streams.
+- **Stream callback handler** — `StreamCallbackHandler` dispatches typed stream events to `on*()` methods; hooks can return `false` to cancel the stream. `PrintingCallbackHandler` provides a stdout/stderr reference implementation with injectable output/error writers.
 - **Project workflow scaffolding** — GOAT Flow workspace files, architecture/code-map docs, decisions/footguns/lessons/patterns directories, skill references, agent skill bundles, Codex/Claude hooks, and repository agent instructions for structured implementation/review/debug/QA/security workflows.
 - **Dependency and version scripts** — `scripts/dependencies-install.sh`, `scripts/dependencies-update.sh`, and `scripts/bump-version.sh` cover Composer/npm installs and updates plus changelog-driven version bumping.
 - **npm-based goat-flow tooling** — `package.json` and `package-lock.json` add `@blundergoat/goat-flow` as the project workflow dev dependency.
-- 596 tests, 1884 assertions.
+- 623 tests, 2002 assertions.
 
 ### Changed
 
@@ -44,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rich-input docs now cover wrapper-owned URL media, cache points, document context/citation controls, and the Python gateway translation boundary.
 - `docs/wire-contract.md` now enumerates request envelopes, rich content blocks, optional response fields, usage fields, stop reasons, flattened citation/guardrail shapes, stream SSE events, discovery responses, and observability constraints.
 - `AgentResponse` now preserves top-level wrapper metadata separately from unknown forward-compatible fields while keeping the existing `$metadata` bucket for backward compatibility.
-- `AgentResponse::parseToolsUsed()` now preserves safe `tools_used[].input` and `tools_used[].result` summaries when wrappers emit them.
+- `AgentResponse::parseToolsUsed()` and `StreamEvent` complete events now preserve safe `tools_used[].input` and `tools_used[].result` summaries when wrappers emit them, so streamed `tools_used` carries the same detail as `invoke()`.
 - `Usage::fromArray()` now accepts canonical snake_case and tolerant camelCase fields, supports `total_tokens`, and accepts numeric strings.
 - `StreamEvent` and `StreamResult` now expose `contextSize` and `projectedContextSize` when a stream `complete` event includes them.
 - `OtelTracingMiddleware` now uses sanitized route-aware span names for custom endpoints, safe error attributes/events, and response/stream usage attributes from the new observer surface.
@@ -58,13 +59,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed silent zeroing of float `latency_ms` and `time_to_first_byte_ms` values by rounding compatible numeric values instead of requiring native integers.
+- Fixed silent zeroing of float `latency_ms` and `time_to_first_byte_ms` values — `Usage::$latencyMs` and `Usage::$timeToFirstByteMs` are now `int|float` and preserve fractional milliseconds; token counts continue to coerce int/float/numeric-string inputs.
 - Fixed casing drift risk for usage counters by accepting both snake_case wrapper fields and camelCase upstream-style fields.
 - Fixed nested `message.metadata` loss by preserving the raw message and hydrating typed message metadata.
 - Fixed top-level `metadata` ambiguity by adding a dedicated wrapper metadata accessor while preserving the existing forward-compatible metadata behavior.
 - Fixed telemetry leakage risk by forbidding prompt/response text, filenames, raw context metadata, raw document content, citation source text, raw tool payloads, credentials, session ID values, and unsanitized exception messages in span attributes.
 - Fixed custom endpoint observability gaps by summarizing `postJson()` and `streamSse()` outcomes without inspecting app-owned payload content.
 - Fixed PHPMD/preflight regressions from the new observer and stream context surfaces while keeping `HttpTransport` and `RequestMiddleware` backward compatible.
+- Fixed `AgentErrorException::fromHttpResponse()` ignoring the wire contract's human-readable `message` field — it now takes precedence in the exception text, with the FastAPI-style `detail`/`error` fallback unchanged.
+- Fixed URL document and video sources omitting `media_type` — `withDocumentFromUrl()` and `withVideoFromUrl()` now include it (as `withImageFromUrl()` already did) so wrappers can validate URL media before fetching.
+- Fixed named Symfony client services being unreachable at runtime — `strands.client.<name>` definitions are now public, so the documented `$container->get('strands.client.<name>')` survives container compilation.
+- Fixed OTel tracing accuracy gaps — spans now close when request setup fails after middleware starts, stream/stream_sse spans are marked as errors on terminal `error` events, `Accept` header detection is case-insensitive, and `invoke`/`stream` operations are classified correctly behind base paths (e.g. API Gateway stage prefixes).
+- Fixed OTel middleware tests being silently skipped — `phpunit.xml` now registers the `tests/Http` suite (plus `failOnDeprecation` and `beStrictAbout*` strictness flags), so those tests run under `composer test` and in CI.
+- Fixed `deny-dangerous` hook bypasses — bare `&` command chaining and no-space lockfile redirects (e.g. `>composer.lock`) are now blocked, with regression cases added to the hook self-test.
 
 ## [1.4.0] - 2026-03-08
 
