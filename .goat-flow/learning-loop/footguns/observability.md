@@ -1,6 +1,6 @@
 ---
 category: observability
-last_reviewed: 2026-07-05
+last_reviewed: 2026-08-08
 ---
 
 ## Footgun: RequestMiddleware Cannot Observe Parsed Results
@@ -29,15 +29,16 @@ last_reviewed: 2026-07-05
 
 **Prevention:** Any code that fans observer-derived middleware back into the observer list MUST dedupe by object identity. Adding a new observer interface beside `ResponseObserver` would re-create this trap — give it the same dedup or document the merge contract.
 
+## Resolved Entries
+
 ## Footgun: afterResponse skipped when buildRequest throws
 
-**Status:** active | **Created:** 2026-05-24 | **Evidence:** OBSERVED
-**hallucination-risk:** medium
+**Status:** resolved | **Created:** 2026-05-24 | **Evidence:** OBSERVED
+**Decision changed:** Keep every request-construction path behind the cleanup wrappers so late setup failures close middleware state.
+**Trigger phase:** ACT
 
-**Symptoms:** A `RequestMiddleware` whose `beforeRequest()` acquired some state (active OTel scope, lock, counter increment) never sees `afterResponse()` when auth or a sibling middleware later throws. The state leaks into the next request — wrong parent/child traces, stuck counters, or "active" instrumentation that no longer corresponds to an in-flight call.
+**Resolution:** Request preparation now tracks whether middleware started and catches later setup failures around both standard and custom requests.
 
-**Why it happens:** `src/StrandsClient.php` (search: `private function buildRequest`) invokes the middleware chain inside `buildRequest()` BEFORE the `try { postWithRetry(...) } catch` block. Exceptions thrown by middleware after the first one, or by `AuthStrategy::authenticate()` (which runs last inside `buildRequest`), escape the try and `notifyAfterResponse` is never called. The same shape exists in `stream()`, `postJson()`, and `streamSse()`.
+**Evidence:** `src/StrandsClient.php` (search: `notifyAfterRequestSetupFailure`) closes middleware after `prepareAgentRequest()` or `prepareJsonRequest()` catches a setup exception. `src/Http/Middleware/OtelTracingMiddleware.php` (search: `$this->spanStack->pop()`) then detaches and ends the active span.
 
-**Evidence:** `src/StrandsClient.php` (search: `notifyAfterResponse`) is called inside the try/catch but `buildRequest()` callsites in `invoke()`, `stream()`, `postJson()`, and `streamSse()` happen outside it — grep for `= $this->buildRequest(` to see each callsite. `src/Http/Middleware/OtelTracingMiddleware.php` (search: `endOrphanedSpans`) is the reference implementation — it self-heals by draining stale spans at the start of every `beforeRequest()`.
-
-**Prevention:** A middleware that pairs before/after state MUST be self-recovering. Either drain orphaned state at the next `beforeRequest()` call (cheapest), or wrap the activation step in a try/catch that cleans up locally if a partial failure happens inside `beforeRequest()` itself. Do not assume `afterResponse()` is guaranteed to run.
+**Prevention:** Keep standard requests routed through `prepareAgentRequest()` and custom requests through `prepareJsonRequest()`. Any new request builder must preserve the same cleanup wrapper.

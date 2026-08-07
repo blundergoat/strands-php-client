@@ -1,6 +1,6 @@
 # Git Commit Instructions
 
-Use the repository standard in `docs/coding-standards/git-commit.md`.
+Use the repository standard in `docs/coding-standards/git-commit-message.md`.
 
 ## Required Shape
 

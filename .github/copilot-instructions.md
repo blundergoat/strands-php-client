@@ -2,7 +2,7 @@
 
 PHP 8.2+ client library for consuming Strands Agents over HTTP. Core invariant: `HttpTransport` is an interface. Contract invariant: this client targets Strands HTTP Wire Contract v1, not raw sdk-python `TypedDict` shapes.
 
-**Goat-flow version:** 1.13.0
+**Goat-flow version:** 1.15.0
 
 ## Workspace Boundary
 
@@ -39,7 +39,7 @@ The controlling goat-flow workspace lives in `node_modules/@blundergoat/goat-flo
 
 ## Commit Messages
 
-Recent history is mixed: conventional commits are common but not universal. Prefer clear conventional-commit subjects when committing is explicitly requested, and see `docs/coding-standards/git-commit.md` before preparing commit text.
+Recent history is mixed: conventional commits are common but not universal. Prefer clear conventional-commit subjects when committing is explicitly requested, and see `docs/coding-standards/git-commit-message.md` before preparing commit text.
 
 ## Key Resources
 
@@ -121,7 +121,7 @@ Read the destination directory's `README.md` before editing GOAT Flow artifacts.
 | Skill playbooks (tools) | `.goat-flow/skill-docs/playbooks/` |
 | Architecture | `.goat-flow/architecture.md` |
 | Orientation | `.goat-flow/code-map.md`, `.goat-flow/glossary.md` |
-| Copilot skills/config | `.github/skills/`, `.github/hooks/`, `docs/coding-standards/git-commit.md` |
+| Copilot skills/config | `.github/skills/`, `.github/hooks/`, `docs/coding-standards/git-commit-message.md` |
 | Peer instructions | `AGENTS.md`, `CLAUDE.md` |
 | Source | `src/` |
 | Tests | `tests/` |

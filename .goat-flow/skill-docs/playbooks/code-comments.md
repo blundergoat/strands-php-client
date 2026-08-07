@@ -1,11 +1,11 @@
 ---
-goat-flow-reference-version: "1.13.0"
+goat-flow-reference-version: "1.15.0"
 ---
 # Code Comments
 
-Use this when writing or editing source code in any language, before naming an identifier or adding a comment, docstring, or annotation. The primary reader is the coding agent doing the work; the beneficiary is the human maintainer who later reads the code cold - often someone who knows the product well and the codebase not at all. Write every comment and name in plain English from the UI/user perspective: say what the user did, sees, or gets next, never restate the mechanics the code already shows.
+Use this before naming an identifier or adding/editing a comment, docstring, or annotation. Write for the coding agent and the maintainer who later reads the code cold. Use plain English from the UI/user perspective: what the user did, sees, or gets next, never mechanics already shown by code.
 
-This project wants a specific, consistent set of comments - the standard below is not a menu to weigh but the house style every file meets. Portable across TypeScript, Python, Go, Rust, PHP, and shell: defer to each language's docstring SYNTAX (JSDoc, PHPDoc, PEP 257, godoc, rustdoc), while this playbook owns the WHEN/WHY decision plus the house layout conventions (tag separator, blank line before tags, ~110-char wrap) that override language defaults.
+House style is mandatory. It applies across TypeScript, Python, Go, Rust, PHP, and shell: defer to each language's docstring syntax, while this playbook owns when/why to comment plus tag separators, blank lines before tags, and ~110-char wrapping.
 
 ## Availability Check
 
@@ -16,22 +16,26 @@ This is a discipline reference, not a runnable tool. Load it when:
 - Editing existing code that contains comments - to decide keep / tighten / rewrite / delete.
 - Authoring a TODO / FIXME / HACK marker, or reviewing a diff that changes comments.
 
-Enforcement is partial: static tools may flag mechanical items (missing doc comments, marker expiry) but not the `[judge]` semantic checks. The gate below is the spec; do not claim more enforcement than the project runs.
+Enforcement is partial: static tools may flag mechanical items, not `[judge]` semantic checks. Do not claim more enforcement than the project runs.
 
 ## The Comment Standard
 
 These are the comments we want, all in plain English from the UI/user perspective. Rules 1-4 are mandatory whenever their construct exists and are **not** subject to any "omit by default" rule. Rule 5 is mandatory at flow entry points and hard-to-reconstruct junctions, but not on every method. If you are unsure whether one of the first four applies, it does.
 
-1. **Doc comment on every class/file (3-8 lines) and every method (1-3 lines).** Say what it does, **when to use it from the user's perspective**, and how it fits the bigger user-facing process. A class/file also names the screen, flow, or capability it serves.
+1. **Doc comment on every file/module or class boundary (3-8 lines) and every method (1-3 lines).**
+   Say what it does, **when to use it from the user's perspective**, and how it fits the bigger
+   user-facing process. A class/file boundary also names the screen, flow, or capability it serves.
+   For PHP class files, the class PHPDoc is the file/class boundary comment; do not also add a
+   separate top-of-file PHPDoc above `declare`, `namespace`, or `use`.
 2. **Self-documenting names in the user's vocabulary.** Every variable and method named for what the user sees and does - `$data` -> `$overdueInvoices`, `handleSubmit` -> `sendRebookingRequest` - not internal mechanics. If the UI says "appointment", the code does not say "booking".
 3. **A context line above every `if`, every loop (`for` / `foreach` / `while`), and every null/empty check.** One brief plain-English line: what is happening here and what it means for the user.
 4. **Null/empty meaning on every `@param` and `@returns` / `@return`.** Say what an absent, null, or empty value means on screen - "no folder chosen yet", "the user sees the empty state, not an error" - since the signature cannot.
 5. **A user-journey anchor at flow entry points and non-obvious triggers.** Add a concrete example of what the user did to arrive here when the trigger is hard to reconstruct.
 
-Alongside these: **tighten** verbose comments to plain English but **never delete a `@param` / `@returns`** while doing so (trimming cuts words, not contract); **verified rationale only** (no guessed "for performance", no hedging like `probably` / `should be fine`); wrap ~110 chars (hard max 120); a `YYYY-MM-DD` date or trigger on every TODO / FIXME / HACK; and never write markdown/emoji, commented-out code, secrets, or line-number references. A comment that no longer matches the code is deleted or rewritten on sight - incorrect is worse than missing.
+Also: tighten verbose comments without deleting `@param` / `@returns`; use verified rationale only; wrap ~110 chars (hard max 120); put a `YYYY-MM-DD` date or trigger on every TODO / FIXME / HACK; and never write markdown/emoji, commented-out code, secrets, or line-number references. Delete or rewrite stale comments on sight - incorrect is worse than missing.
 
 ```text
-Class / file / method?              -> doc comment (3-8 / 1-3 lines): what, UI when-to-use, bigger-picture fit
+File/module, class, or method?      -> doc comment (3-8 / 1-3 lines): what, UI when-to-use, bigger-picture fit
 if / for / foreach / while / null-empty check?  -> context line: what happens + what it means for the user
 @param / @returns?                  -> real meaning + what null/empty/absent means on screen
 Naming anything?                    -> self-documenting, in the words the user sees
@@ -82,13 +86,23 @@ public function emailOverdueInvoiceReminders(Practice $practice, array $selected
 }
 ```
 
-The doc says what it does, when to use it, and why it matters to a busy practice; the name and its arguments read in the user's words; every tag says what empty/null means on screen; a journey anchor shows how the user got here; and each `if`, the `foreach`, and the null check carry their user meaning.
+The doc states what, when, and why; names use the user's words; tags explain empty/null screen meaning; the journey anchor shows entry context; each branch and loop carries user meaning.
 
 ## Doc Comments and Tags (tiers 1 and 4)
 
-Every function/method and every class/file carries one - trivial and private units included. Size to the unit: 1-3 lines for a method, 3-8 for a class/file (tags excluded). The description orients a product-minded reader: what this does, when to use it (and when not to) from the UI/user perspective, and where it sits in the user's flow.
+Every function/method and every file/module or class boundary carries one - trivial and private
+units included. Size to the unit: 1-3 lines for a method, 3-8 for a file/module or class boundary
+(tags excluded). The description orients a product-minded reader: what this does, when to use it
+(and when not to) from the UI/user perspective, and where it sits in the user's flow.
 
-Why mandatory even on a private one-liner: the doc comment is a verification surface. An agent can produce code that superficially works while misunderstanding the requirement; stated intent lets a reviewer diff promise against implementation - a doc that promises a sort the body never performs is a review signal.
+PHP class files are the exception to "file plus class": do not write both. In a normal one-class
+PHP file, the class PHPDoc carries the file-level description and the class contract together. A
+separate file PHPDoc is used only for PHP files without a class, such as procedural scripts,
+bootstrap/config files, or generated entry files. TypeScript, JavaScript, Python, Go, Rust, and
+similar module-oriented files may still have a file/module comment when the file itself is the
+useful boundary, especially when it contains several functions, exports, or classes.
+
+Even private one-liners need this verification surface: stated intent lets a reviewer compare promise with implementation.
 
 - **Real descriptions, not restated types**, in the language's structured form (JSDoc, PHPDoc, PEP 257, godoc, rustdoc). Every `@param` / `@returns` carries meaning **and** its null/empty/absent consequence for the user.
 - **Hyphen-separate each tag's subject from its description** (`@param value - parsed JSON ...`), with a **blank ` *` line between the description block and the tags**.
@@ -105,7 +119,7 @@ function trimDir(path: string | undefined): string | null {
 }
 ```
 
-After - renamed into the user's terms, with when-to-use and the null meaning stated:
+After - renamed into the user's terms, with when-to-use and null meaning:
 
 ```ts
 /**
@@ -127,7 +141,7 @@ function trimTrailingDirectorySlash(directoryPath: string | undefined): string |
 
 ## Context Comments (tier 3)
 
-Above every `if`, every loop (`for` / `foreach` / `while`; one line above a chained `.filter().map()` pipeline too), and every null/empty check or fallback (`?? default`, `empty()`, early return on missing data), write one brief plain-English line: what is happening, and what it means from the UI/user perspective. Equivalent branch/default constructs (`else`, `switch` / `case`, `match`, ternary, default return) follow the same rule when they choose a user-visible path.
+Above every `if`, loop (`for` / `foreach` / `while`; also chained `.filter().map()`), and null/empty fallback (`?? default`, `empty()`, early return on missing data), write one brief line: what happens and what it means to the user. Equivalent constructs (`else`, `switch` / `case`, `match`, ternary, default return) follow the same rule when they choose a user-visible path.
 
 The line must translate, not restate. `// check if invoice is paid` is banned; "Paid invoices are locked - the user gets a read-only view instead of the edit form" earns its place because that consequence is visible nowhere in the condition. In an `if` chain, each branch gets its own line - here, what each project state tells the user to do next:
 
@@ -217,7 +231,9 @@ const raw: any = await client.invoke(params);
 The WHEN and WHY rules are portable; syntax is not. Defer to each language, then apply the house layout.
 
 - **TypeScript / JavaScript.** JSDoc for contracts; plain `//` inline.
-- **PHP.** PHPDoc (`/** ... */`) for contracts, with null/empty meaning on `@param` / `@return`; `//` inline.
+- **PHP.** PHPDoc (`/** ... */`) for contracts, with null/empty meaning on `@param` / `@return`;
+  `//` inline. In class files, put the 3-8 line file/class description on the class PHPDoc only.
+  Use a top-of-file PHPDoc only for PHP files without a class.
 - **Python.** PEP 257 docstrings; `#` inline.
 - **Go.** godoc syntax for exported AND private identifiers; `//` inline.
 - **Rust.** rustdoc (`///` and `//!`) for public AND private items; `//` inline.
@@ -225,21 +241,24 @@ The WHEN and WHY rules are portable; syntax is not. Defer to each language, then
 
 ## Security
 
-Comments ship with code and get indexed. Never include secrets, tokens, API keys, customer or patient identifiers, internal-only URLs, production hostnames, account IDs, or infrastructure topology; redact any found while editing. User-journey anchors describe a generic user ("the practitioner"), never a real one.
+Comments ship with code and get indexed. Never include secrets, tokens, API keys, customer/patient identifiers, internal URLs, production hostnames, account IDs, or infrastructure topology; redact any found while editing. User-journey anchors describe generic users, never real people.
 
 ## Troubleshooting
 
 **A linter rejects the house doc format.** Keep `@param name - desc` / `@returns value - desc`; suppress the specific rule with rationale rather than restating types.
 
-**A context line on every branch feels like noise.** The cure is better content, not omission: state the user consequence. A branch with no stateable user meaning is a naming or design smell worth surfacing - not a licence to restate mechanics.
+**A context line on every branch feels like noise.** State the user consequence. A branch with no user meaning is a naming or design smell, not permission to restate mechanics.
 
-**No UI exists (library, daemon, build tool).** Use the nearest consumer's perspective - the developer calling the API, the operator reading the log - in the same plain-English, outcome-focused register.
+**No UI exists (library, daemon, build tool).** Use the nearest consumer's perspective: the developer calling the API or the operator reading the log.
 
 ## Verification Gate
 
 Before claiming a code change is done, check names and comments. **[static]** = mechanical, linter-checkable; **[judge]** = semantic, for a review-judge or human reviewer.
 
-1. **[static]+[judge] Every class/file (3-8 lines) and method (1-3 lines) has a doc comment.** Sizes and the blank separator line are mechanical; UI when-to-use, bigger-picture fit, real parameter/return meaning, and non-restated types are semantic.
+1. **[static]+[judge] Every file/module or class boundary (3-8 lines) and method (1-3 lines) has a
+   doc comment.** Sizes and the blank separator line are mechanical; UI when-to-use, bigger-picture
+   fit, real parameter/return meaning, and non-restated types are semantic. PHP class files must
+   not duplicate a top-of-file PHPDoc and a class PHPDoc for the same boundary.
 2. **[static]+[judge] Every `if`, loop, and null/empty check has one brief context line above it** that translates the moment into user meaning rather than restating mechanics.
 3. **[judge] Every `@param` / `@returns` states what null/empty/absent means for the user**, and no tag was deleted while tightening a verbose comment.
 4. **[judge] Names are self-documenting in the product's vocabulary** - identifiers match the words the user sees wherever a UI exists.
@@ -255,5 +274,6 @@ If a comment fails any check, fix it before merging.
 
 ## Related References
 
+- `writing-style.md` - comments and docstrings follow this playbook; other human-read prose follows `writing-style.md`.
 - Sibling playbooks installed alongside this one share the same scaffold.
 - Project instruction files may point here as the canonical comment policy.

@@ -20,6 +20,7 @@ strands-php-client/
 │   │   ├── HttpTransport.php                 = Interface — post() + stream(); no defaults (interface)
 │   │   ├── RequestMiddleware.php             = Middleware interface — beforeRequest() + afterResponse()
 │   │   ├── ResponseObserver.php              = Parsed response/stream observer interface
+│   │   ├── ResponseObserverNotifier.php      = Observer normalization, deduplication, and callback dispatch
 │   │   ├── Middleware/
 │   │   │   └── OtelTracingMiddleware.php     = OpenTelemetry request middleware + response observer
 │   │   ├── SymfonyHttpTransport.php          = Full transport (invoke + SSE), requires symfony/http-client
@@ -103,7 +104,7 @@ strands-php-client/
 │   ├── wire-contract.md                      = Strands HTTP Wire Contract v1 (PHP-facing JSON/SSE shapes)
 │   ├── wire-contract-audit.md                = Wrapper audit notes against the wire contract
 │   ├── wire-contract-consumer-matrix.md      = Consumer compatibility matrix
-│   └── coding-standards/git-commit.md        = Commit guidance
+│   └── coding-standards/git-commit-message.md = Commit guidance
 │
 ├── scripts/
 │   ├── preflight-checks.sh                   = composer preflight runner (used in CI + locally)
@@ -125,7 +126,7 @@ strands-php-client/
 │   ├── plans/                                = Local session plan files (gitignored by design)
 │   ├── scratchpad/                           = Local scratch notes (gitignored)
 │   ├── skill-docs/                           = Installed verbatim from goat-flow
-│   │   └── playbooks/                        = browser-use.md, changelog.md, code-comments.md, gruff-code-quality.md, observability.md, page-capture.md, release-notes.md
+│   │   └── playbooks/                        = browser-use.md, changelog.md, code-comments.md, gruff-code-quality.md, hook-policy-testing.md, observability.md, page-capture.md, release-notes.md, skill-playbook-authoring-sync.md, writing-style.md
 │   ├── logs/sessions/                        = Local-only session continuity (gitignored)
 │   ├── hooks/                                = Shared goat-flow hook scripts and policy
 │   └── config.yaml                           = goat-flow version pin
@@ -148,7 +149,7 @@ strands-php-client/
 │   ├── skills/                               = 7 goat-* skills installed for Copilot
 │   ├── copilot-instructions.md               = Copilot instruction file
 │   ├── ISSUE_TEMPLATE/, pull_request_template.md
-│   ├── git-commit-instructions.md            = Commit guidance (generated stub — needs human review)
+│   ├── git-commit-instructions.md            = Copilot commit guidance pointing to the project standard
 │   └── dependabot.yml
 │
 ├── node_modules/@blundergoat/goat-flow/      = Installed goat-flow package (never edit)

@@ -11,7 +11,7 @@ Six cooperating components, separated so a host application can swap any of them
 - **`AuthStrategy`** (`src/Auth/AuthStrategy.php`) — interface. Three implementations: `NullAuth` (Null-Object, local dev), `ApiKeyAuth` (bearer/custom header), `SigV4Auth` (AWS IAM, standalone — no aws-sdk-php dependency). Applied to outgoing headers before the request leaves the transport.
 - **`Context` / `Input` builders** (`src/Context/`) — `AgentContext` (immutable clone-and-mutate for system prompts, metadata, permissions, documents), `AgentInput` (multi-modal text/image/document/interrupt-response payload). Both serialize defensively.
 - **Response/Streaming DTOs** (`src/Response/`, `src/Streaming/`) — `AgentResponse`, `Message`, `MessageMetadata`, `Usage`, `StopReason`, `GuardrailTrace`, `GuardrailAssessment`, `InterruptDetail`, citation DTOs, `StreamEvent`, `StreamEventType`, `StreamResult`, `StreamSseSummary`. All readonly, all hydrated via static `fromArray()` factories with defensive type checks.
-- **Observation surface** (`src/Http/ResponseObserver.php`, `src/Http/Middleware/OtelTracingMiddleware.php`) — additive parsed-response hooks for observability. `RequestMiddleware` stays source-compatible for request lifecycle work; `ResponseObserver` receives parsed `AgentResponse`, `StreamResult`, raw JSON summaries, and sanitized raw-SSE summaries after client parsing.
+- **Observation surface** (`src/Http/ResponseObserver.php`, `src/Http/ResponseObserverNotifier.php`, `src/Http/Middleware/OtelTracingMiddleware.php`) — additive parsed-response hooks for observability. `ResponseObserverNotifier` normalises parsed-response observers and deduplicates middleware observers. `RequestMiddleware` stays source-compatible for request lifecycle work; `ResponseObserver` receives parsed `AgentResponse`, `StreamResult`, raw JSON summaries, and sanitized raw-SSE summaries after client parsing.
 
 Boundary rationale: transport and auth are interfaces so the library never depends on a specific HTTP client; DTOs are readonly so caller code cannot corrupt accumulated state; the agent loop is server-side so PHP processes stay short-lived and request-scoped.
 
@@ -51,6 +51,12 @@ The client holds **no durable state**. Session continuity is the agent's respons
 - Both integrations share `StrandsClientFactory` (`src/Integration/StrandsClientFactory.php`) so transport detection, auth-driver resolution, middleware wiring, and response-observer wiring stay identical across frameworks.
 - Response observers use the `strands.response_observer` tag in framework integrations. `OtelTracingMiddleware` may be registered as normal request middleware and still receive parsed response callbacks because `StrandsClient` auto-detects observer middleware and deduplicates it.
 
+## Local Data and Evidence Budget
+
+Plans, scratchpad entries, session notes, and generated quality, event, critique, review, and security reports are checkout-local evidence. Their directories keep only control anchors such as READMEs and ignore rules in version control; run artifacts are gitignored and are not durable project truth. Use them to resume or orient work, not to prove current behavior or authorize an external action.
+
+Promote only a verified conclusion into the appropriate learning-loop bucket. Redact durable text before writing it. goat-flow does not purge local artifacts automatically; the user controls retention.
+
 ## Deployment / Operations
 
 This is a library — there is no runtime to deploy. Quality gates run locally via `composer preflight` and as explicit steps in `.github/workflows/ci.yml` on every push:
@@ -62,6 +68,6 @@ This is a library — there is no runtime to deploy. Quality gates run locally v
 - Cyclomatic complexity ≤ 20 per method (`scripts/check-cyclomatic-complexity.php`).
 - Infection mutation testing (`composer mutate`) — slow, optional locally, but ≥ 90% MSI target per `infection.json5`.
 
-goat-flow shared skill-doc playbooks live under `.goat-flow/skill-docs/playbooks/`: `browser-use.md`, `changelog.md`, `code-comments.md`, `gruff-code-quality.md`, `observability.md`, `page-capture.md`, and `release-notes.md`.
+goat-flow shared skill-doc playbooks live under `.goat-flow/skill-docs/playbooks/`: `browser-use.md`, `changelog.md`, `code-comments.md`, `gruff-code-quality.md`, `hook-policy-testing.md`, `observability.md`, `page-capture.md`, `release-notes.md`, `skill-playbook-authoring-sync.md`, and `writing-style.md`.
 
 Releases tag from `main`. Branch alias `dev-main` → `1.5.x-dev` in `composer.json`. Packagist publishes on tag.

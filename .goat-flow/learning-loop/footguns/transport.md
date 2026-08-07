@@ -1,6 +1,6 @@
 ---
 category: transport
-last_reviewed: 2026-05-08
+last_reviewed: 2026-08-08
 ---
 
 ## Footgun: HttpTransport is an interface, not an abstract class
@@ -19,13 +19,13 @@ last_reviewed: 2026-05-08
 
 **Status:** active | **Created:** 2026-05-08 | **Evidence:** OBSERVED
 
-In `StrandsClient::buildJsonRequest()` (search: `buildJsonRequest`), middleware `beforeRequest()` runs first, then `AuthStrategy::authenticate()`. This ordering is intentional so that SigV4 signatures cover the final request body after middleware mutations. Reversing this order breaks SigV4 auth silently (signatures won't match).
+Both `StrandsClient::buildRequest()` (search: `private function buildRequest`) and `StrandsClient::buildJsonRequest()` (search: `private function buildJsonRequest`) run `RequestMiddleware::beforeRequest()` before `AuthStrategy::authenticate()`. This ordering lets SigV4 cover the final headers and body after middleware mutations. Reversing it invalidates signatures.
 
 ## Footgun: StreamParser 10 MB buffer limit
 
 **Status:** active | **Created:** 2026-05-08 | **Evidence:** OBSERVED
 
-`StreamParser` (search: `MAX_BUFFER_SIZE`) throws `StreamInterruptedException` if the buffer exceeds 10 MB without encountering a complete SSE event delimiter (`\n\n`). This protects against unbounded memory growth from broken proxies, but can trigger on legitimate large payloads from agents that produce very large single events.
+`StreamParser::feed()` (search: `strlen($this->buffer) + strlen($chunk)`) checks the combined buffered byte count before parsing the new chunk for event delimiters. A chunk that takes the combined size over 10 MB throws `StreamInterruptedException`, including a chunk containing delimiters later in that same chunk. Keep individual chunks and events below the cap; do not assume delimiters inside an oversized incoming chunk are parsed first.
 
 ## Footgun: PsrHttpTransport silently ignores timeout parameters
 

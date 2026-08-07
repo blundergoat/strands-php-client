@@ -2,7 +2,7 @@
 
 **Project identity.** `blundergoat/strands-php-client` is a PHP 8.2+ library that consumes [Strands Agents](https://github.com/strands-agents/strands-agents) over HTTP — invoke, SSE streaming, custom-endpoint passthrough — with Laravel and Symfony integrations. **Core invariant:** the library never runs an agentic loop in PHP; it only marshals requests/responses for a Python agent. **Contract invariant:** this client targets the Strands HTTP Wire Contract v1 emitted by wrapper services, not raw sdk-python `TypedDict` shapes — see `docs/wire-contract.md` and `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md`. Cross-cutting concerns: PSR-3 logging, PSR-18/Symfony transport abstraction, immutable DTOs/builders, strict types, defensive parsing.
 
-**Goat-flow version:** 1.13.0
+**Goat-flow version:** 1.15.0
 
 **Workspace boundary.** The controlling goat-flow workspace (skills, templates, manifest) lives in `node_modules/@blundergoat/goat-flow/`. The selected target project is this repository root. Adapt commands, paths, and boundaries from the target — do not echo the controlling workspace's paths into installed surfaces.
 

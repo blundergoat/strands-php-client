@@ -1,6 +1,6 @@
 ---
 category: transport-and-streaming
-last_reviewed: 2026-05-24
+last_reviewed: 2026-08-08
 ---
 
 # Footguns — Transport & Streaming
@@ -43,6 +43,7 @@ Architectural traps that exist because of how the client is structured. Read bef
 
 ## Footgun: `src/StrandsClient.php` is a coordination hot-spot
 
-**Status:** active | **Created:** 2026-05-24 | **Evidence:** git history (9 commits, last `a508e69`) | **Source:** git history (auto-seeded)
+**Status:** active | **Created:** 2026-05-24 | **Evidence:** ACTUAL_MEASURED
+**Source:** git history through `a4e30ff`
 
-`src/StrandsClient.php` accumulates four cooperating concerns: retry-with-backoff, middleware ordering, message validation, and stream-cancellation propagation. Changes here ripple into `src/Streaming/StreamParser.php` (7 commits, last `a508e69`) and `src/Http/PsrHttpTransport.php` (7 commits, last `5c3a819`) — the three files are repeatedly co-committed when features cross the transport boundary. Before editing, check: does the change belong in the transport (one concern), in middleware (cross-cutting), or in the client (orchestration)? Wrong layer = broken retry semantics or skipped middleware.
+As of `a4e30ff`, repository history contains 18 commits touching `src/StrandsClient.php`, 11 touching `src/Streaming/StreamParser.php`, and 9 touching `src/Http/PsrHttpTransport.php`. `StrandsClient` coordinates retry-with-backoff, middleware ordering, message validation, and stream-cancellation propagation, so it is the hotter change surface. Before editing, decide whether the behavior belongs in one transport, cross-cutting middleware, or client orchestration; the wrong layer can change retry or middleware semantics.

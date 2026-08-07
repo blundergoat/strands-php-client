@@ -8,7 +8,7 @@ Contract invariant: this client targets the Strands HTTP Wire Contract v1 (`docs
 
 ## Goat-flow harness
 
-This project uses goat-flow (v1.13.0). For Claude-specific scope and the full execution loop, see `CLAUDE.md`. Architecture, code map, and glossary live under `.goat-flow/`. The learning loop (footguns / lessons / patterns / decisions) is under `.goat-flow/learning-loop/` — grep before every change.
+This project uses goat-flow (v1.15.0). For Claude-specific scope and the full execution loop, see `CLAUDE.md`. Architecture, code map, and glossary live under `.goat-flow/`. The learning loop (footguns / lessons / patterns / decisions) is under `.goat-flow/learning-loop/` — grep before every change.
 
 ## Workspace Boundary
 

