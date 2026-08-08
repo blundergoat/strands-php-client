@@ -21,7 +21,7 @@ Every `StrandsClient` has a `StrandsConfig`, and every `StrandsConfig` has an `A
 $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
 ```
 
-The auth strategy receives the current headers, HTTP method, URL, and body, then returns a new set of headers with any authentication data added. This happens transparently -your application code doesn't need to think about auth after initial setup.
+The auth strategy receives the current headers, HTTP method, URL, and body, then returns a new set of headers with any authentication data added. This happens transparently - your application code doesn't need to think about auth after initial setup.
 
 ```
 Your Code                StrandsClient              AuthStrategy
@@ -40,17 +40,17 @@ Your Code                StrandsClient              AuthStrategy
 
 **Use for:** Local development, Docker Compose setups, any environment where the agent doesn't require auth.
 
-`NullAuth` does nothing -it returns the headers exactly as received. This is the default, so you don't need to specify it:
+`NullAuth` does nothing - it returns the headers exactly as received. This is the default, so you don't need to specify it:
 
 ```php
 use StrandsPhpClient\Config\StrandsConfig;
 
-// These are equivalent -NullAuth is the default
+// These are equivalent - NullAuth is the default
 $config = new StrandsConfig(endpoint: 'http://localhost:8081');
 $config = new StrandsConfig(endpoint: 'http://localhost:8081', auth: new NullAuth());
 ```
 
-`NullAuth` follows the **Null Object Pattern** -instead of checking `if ($auth !== null)` everywhere, we use a real object that simply does nothing. This keeps the code clean and avoids null checks.
+`NullAuth` follows the **Null Object Pattern** - instead of checking `if ($auth !== null)` everywhere, we use a real object that simply does nothing. This keeps the code clean and avoids null checks.
 
 ### ApiKeyAuth
 
@@ -58,7 +58,7 @@ $config = new StrandsConfig(endpoint: 'http://localhost:8081', auth: new NullAut
 
 #### Basic usage (Bearer token)
 
-The most common pattern -sends `Authorization: Bearer <key>`:
+The most common pattern - sends `Authorization: Bearer <key>`:
 
 ```php
 use StrandsPhpClient\Auth\ApiKeyAuth;
@@ -199,7 +199,7 @@ strands:
     agents:
         default:
             endpoint: 'http://localhost:8081'
-            # auth.driver defaults to 'null' -no config needed
+            # auth.driver defaults to 'null' - no config needed
 ```
 
 ### API key auth

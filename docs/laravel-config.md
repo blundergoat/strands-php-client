@@ -149,7 +149,7 @@ The name of the agent to use as the default `StrandsClient` binding. Must match 
 'default' => env('STRANDS_DEFAULT_AGENT', 'default'),
 ```
 
-Unlike Symfony (where the first agent is the default), Laravel uses an explicit `default` key -more idiomatic for Laravel config.
+Unlike Symfony (where the first agent is the default), Laravel uses an explicit `default` key - more idiomatic for Laravel config.
 
 ### endpoint (required)
 
@@ -273,7 +273,7 @@ Retries apply to `invoke()` and `postJson()` calls. Streaming requests (`stream(
 
 ### retry_delay_ms
 
-Base delay between retries in milliseconds. Uses **exponential backoff** -the delay doubles after each retry:
+Base delay between retries in milliseconds. Uses **exponential backoff** - the delay doubles after each retry:
 
 | Retry | Delay (500ms base) | Delay (1000ms base) |
 |-------|--------------------|---------------------|
@@ -469,12 +469,12 @@ STRANDS_TIMEOUT=60
 
 When Laravel boots, the service provider processes your config through two steps:
 
-1. **`StrandsServiceProvider::register()`** -Merges the default config, then registers:
+1. **`StrandsServiceProvider::register()`** - Merges the default config, then registers:
    - A `StrandsClientFactory` singleton (holds all agent configs)
    - A `StrandsClient` singleton for the default agent
    - Named `strands.client.<name>` bindings for each agent
 
-2. **`StrandsClientFactory::create()`** -Called at runtime (lazy) to create each `StrandsClient`. It:
+2. **`StrandsClientFactory::create()`** - Called at runtime (lazy) to create each `StrandsClient`. It:
    - Looks up the agent config by name
    - Resolves the auth driver (`'null'` -> `NullAuth`, `'api_key'` -> `ApiKeyAuth`, `'sigv4'` -> `SigV4Auth`)
    - Builds a `StrandsConfig` with all settings
@@ -484,4 +484,4 @@ When Laravel boots, the service provider processes your config through two steps
 Config Array -> StrandsServiceProvider (register bindings) -> StrandsClientFactory (create clients)
 ```
 
-The factory is shared between Laravel and Symfony integrations -it contains zero framework-specific code.
+The factory is shared between Laravel and Symfony integrations - it contains zero framework-specific code.

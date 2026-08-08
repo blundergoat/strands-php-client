@@ -5,9 +5,9 @@
 [![PHP Version](https://img.shields.io/packagist/dependency-v/blundergoat/strands-php-client/php.svg)](https://packagist.org/packages/blundergoat/strands-php-client)
 [![License](https://img.shields.io/packagist/l/blundergoat/strands-php-client.svg)](https://github.com/blundergoat/strands-php-client/blob/main/LICENSE)
 
-PHP client library for consuming [Strands](https://github.com/strands-agents/strands-agents) AI agents via HTTP. Invoke agents, stream responses via SSE, manage sessions -without running an agentic loop in PHP.
+PHP client library for consuming [Strands](https://github.com/strands-agents/strands-agents) AI agents via HTTP. Invoke agents, stream responses via SSE, manage sessions - without running an agentic loop in PHP.
 
-Works with **any PHP framework** -Laravel, Symfony, Slim, or vanilla PHP.
+Works with **any PHP framework** - Laravel, Symfony, Slim, or vanilla PHP.
 
 *"Your PHP app doesn't need to become an AI platform. It just needs to talk to one."*
 
@@ -17,7 +17,7 @@ composer require blundergoat/strands-php-client
 
 ## Why This Exists
 
-[Strands Agents](https://github.com/strands-agents/strands-agents) is an open-source Python SDK from AWS for building autonomous AI agents. It handles the hard parts -reasoning loops, tool orchestration, model routing (Claude, Nova, GPT, Ollama). In production PHP apps, those agents are exposed through a small HTTP wrapper.
+[Strands Agents](https://github.com/strands-agents/strands-agents) is an open-source Python SDK from AWS for building autonomous AI agents. It handles the hard parts - reasoning loops, tool orchestration, model routing (Claude, Nova, GPT, Ollama). In production PHP apps, those agents are exposed through a small HTTP wrapper.
 
 But most web applications aren't written in Python. If your product runs on Symfony or any PHP framework, you need a way to **consume** those agents without reimplementing the agentic loop in PHP. That's what this library does.
 
@@ -45,7 +45,7 @@ Need a Python wrapper to start from? See the [reference FastAPI gateway](example
 
 ### Symfony (with auto-detection)
 
-If `symfony/http-client` is installed, the transport is auto-detected -just create a client and go:
+If `symfony/http-client` is installed, the transport is auto-detected - just create a client and go:
 
 ```php
 use StrandsPhpClient\StrandsClient;
@@ -62,7 +62,7 @@ echo $response->agent;               // Which agent handled it (e.g. "analyst")
 echo $response->usage->inputTokens;
 ```
 
-For Symfony projects, the bundle adds YAML config and autowiring -see [Symfony Bundle Integration](#symfony-bundle-integration) below.
+For Symfony projects, the bundle adds YAML config and autowiring - see [Symfony Bundle Integration](#symfony-bundle-integration) below.
 
 ### PSR-18 (Guzzle, Buzz, etc.)
 
@@ -193,7 +193,7 @@ echo $result->timeToFirstTextTokenMs;        // Client-measured TTFT in ms
 echo $result->isInterrupted() ? 'yes' : 'no'; // Whether the agent was interrupted
 ```
 
-> **Note:** SSE streaming requires `symfony/http-client` via `SymfonyHttpTransport`. PSR-18 clients only support `invoke()` -this is a limitation of the PSR-18 spec, not this library.
+> **Note:** SSE streaming requires `symfony/http-client` via `SymfonyHttpTransport`. PSR-18 clients only support `invoke()` - this is a limitation of the PSR-18 spec, not this library.
 
 ### Custom Endpoints (postJson / streamSse)
 
@@ -238,7 +238,7 @@ try {
 
 ### Sessions & Context
 
-Pass `sessionId` for multi-turn conversations -the server manages all state:
+Pass `sessionId` for multi-turn conversations - the server manages all state:
 
 ```php
 $r1 = $client->invoke('Draft a referral letter', sessionId: 'consult-001');
@@ -336,7 +336,7 @@ class MyHandler extends StreamCallbackHandler
 
 **Auto-detection:** If no transport is passed to the constructor, the client checks for `symfony/http-client` and uses `SymfonyHttpTransport` automatically. If Symfony isn't available, it throws with guidance to pass a `PsrHttpTransport`.
 
-**Timeout:** `SymfonyHttpTransport` uses the `timeout` from `StrandsConfig` (default 120s). `connectTimeout` (default 10s) controls how long to wait for the initial TCP connection -separate from the read timeout so a down server fails fast without affecting slow LLM generation. For `PsrHttpTransport`, configure timeout on your PSR-18 client directly (e.g. `new GuzzleHttp\Client(['timeout' => 120])`).
+**Timeout:** `SymfonyHttpTransport` uses the `timeout` from `StrandsConfig` (default 120s). `connectTimeout` (default 10s) controls how long to wait for the initial TCP connection - separate from the read timeout so a down server fails fast without affecting slow LLM generation. For `PsrHttpTransport`, configure timeout on your PSR-18 client directly (e.g. `new GuzzleHttp\Client(['timeout' => 120])`).
 
 ## Auth Strategies
 
@@ -350,7 +350,7 @@ class MyHandler extends StreamCallbackHandler
 use StrandsPhpClient\Auth\NullAuth;
 use StrandsPhpClient\Auth\ApiKeyAuth;
 
-// No auth (default -local development)
+// No auth (default - local development)
 $config = new StrandsConfig(
     endpoint: 'http://localhost:8081',
 );
@@ -485,16 +485,18 @@ use StrandsPhpClient\Integration\Laravel\Facades\Strands;
 $response = Strands::invoke('Analyse this proposal');
 ```
 
-Auto-discovery is configured via `composer.json` -no manual provider registration needed.
+Auto-discovery is configured via `composer.json` - no manual provider registration needed.
 
 For the full configuration reference, see [docs/laravel-config.md](docs/laravel-config.md).
 
 ## Requirements
 
-- PHP 8.2+
+- PHP 8.2, 8.3, or 8.4. The constraint is `>=8.2 <9.0`, so PHP 9 is not yet supported.
 - One of:
-  - `symfony/http-client` ^6.4 or ^7.0 -for full support (invoke + streaming), auto-detected
-  - Any PSR-18 HTTP client (e.g. `guzzlehttp/guzzle`) -for invoke only, via `PsrHttpTransport`
+  - `symfony/http-client` ^6.4, ^7.0, or ^8.0 - for full support (invoke + streaming), auto-detected
+  - Any PSR-18 HTTP client (e.g. `guzzlehttp/guzzle`) - for invoke only, via `PsrHttpTransport`
+
+CI exercises Symfony ^6.4 and ^7.0. Symfony 8 is allowed and nothing in the library blocks it, but it is not yet covered by the test matrix - see [CONTRIBUTING](CONTRIBUTING.md#what-ci-covers) for why.
 
 ## Installation
 
@@ -509,7 +511,7 @@ php artisan vendor:publish --tag=strands-config
 
 ```bash
 composer require blundergoat/strands-php-client
-# symfony/http-client is likely already installed -transport auto-detects
+# symfony/http-client is likely already installed - transport auto-detects
 ```
 
 **PSR-18 / Guzzle projects:**
@@ -546,7 +548,7 @@ composer install
 vendor/bin/phpunit
 ```
 
-All tests use mocked HTTP responses -no Docker, no API keys, no network calls.
+All tests use mocked HTTP responses - no Docker, no API keys, no network calls.
 
 ## Related
 

@@ -13,13 +13,15 @@ This matrix records how active projects use `strands-php-client` today. It is a 
 
 ## Project Details
 
+Evidence paths are relative to each consumer project's repository root, not this client. Searches resolve against the project named in the heading above them.
+
 ### `ambient-scribe`
 
 Evidence:
 
-- `/home/devgoat/projects/ambient-scribe/src/Controller/ScribeController.php` (search: `postJson`) calls `postJson("/session/{$sessionId}/history", [], timeout: 10)`.
-- `/home/devgoat/projects/ambient-scribe/src/Service/RoleInferenceService.php` (search: `postJson`) calls `postJson("/session/{$sessionId}/roles", [], timeout: self::ROLE_SNAPSHOT_TIMEOUT)`.
-- `/home/devgoat/projects/ambient-scribe/config/packages/strands.yaml` (search: `streamSse`) documents future role streaming through `streamSse`.
+- `src/Controller/ScribeController.php` (search: `postJson`) calls `postJson("/session/{$sessionId}/history", [], timeout: 10)`.
+- `src/Service/RoleInferenceService.php` (search: `postJson`) calls `postJson("/session/{$sessionId}/roles", [], timeout: self::ROLE_SNAPSHOT_TIMEOUT)`.
+- `config/packages/strands.yaml` (search: `streamSse`) documents future role streaming through `streamSse`.
 
 Compatibility notes:
 
@@ -30,7 +32,7 @@ Compatibility notes:
 
 Evidence:
 
-- `/home/devgoat/projects/the-summit-chatroom/src/Service/SummitStreamOrchestrator.php` (search: `stream(`) calls standard `stream()` with `AgentContext` metadata.
+- `src/Service/SummitStreamOrchestrator.php` (search: `stream(`) calls standard `stream()` with `AgentContext` metadata.
 - The stream callback reads typed `StreamEvent` values including `Text`, `ToolUse`, `ToolResult`, `Thinking`, and `Complete`.
 
 Compatibility notes:
@@ -42,9 +44,9 @@ Compatibility notes:
 
 Evidence:
 
-- `/home/devgoat/projects/halaxy-agents-lab/src/Service/FileSummariserStreamOrchestrator.php` (search: `streamSse('/file-summarise-stream'`) streams raw file summariser events and later calls `postJson('/file-metadata', ...)`.
-- `/home/devgoat/projects/halaxy-agents-lab/src/Service/SuggestedActionsStreamOrchestrator.php` (search: `postJson('/suggested-actions/analyse'`) calls custom JSON analysis endpoints.
-- `/home/devgoat/projects/halaxy-agents-lab/src/Service/OnlineBookingStreamOrchestrator.php` (search: `streamSse`) calls custom booking responder streams.
+- `src/Service/FileSummariserStreamOrchestrator.php` (search: `streamSse('/file-summarise-stream'`) streams raw file summariser events and later calls `postJson('/file-metadata', ...)`.
+- `src/Service/SuggestedActionsStreamOrchestrator.php` (search: `postJson('/suggested-actions/analyse'`) calls custom JSON analysis endpoints.
+- `src/Service/OnlineBookingStreamOrchestrator.php` (search: `streamSse`) calls custom booking responder streams.
 
 Compatibility notes:
 
@@ -55,9 +57,9 @@ Compatibility notes:
 
 Evidence:
 
-- `/home/devgoat/projects/healthkit/src/App/ExternalProvider/AI/StrandsAgents/FileSummariserStreamOrchestrator.php` (search: `streamSse`) streams file summariser events and forwards sanitized app payloads.
-- `/home/devgoat/projects/healthkit/src/App/ExternalProvider/AI/ChatAssistant/ChatAssistantOrchestrator.php` (search: `postJson('/chat'`) calls custom `/chat` and `/intent` endpoints.
-- `/home/devgoat/projects/healthkit/src/App/ExternalProvider/AI/ChatOnlineBooking/OnlineBookingChatOrchestrator.php` (search: `streamSse`) calls custom booking responder streams.
+- `src/App/ExternalProvider/AI/StrandsAgents/FileSummariserStreamOrchestrator.php` (search: `streamSse`) streams file summariser events and forwards sanitized app payloads.
+- `src/App/ExternalProvider/AI/ChatAssistant/ChatAssistantOrchestrator.php` (search: `postJson('/chat'`) calls custom `/chat` and `/intent` endpoints.
+- `src/App/ExternalProvider/AI/ChatOnlineBooking/OnlineBookingChatOrchestrator.php` (search: `streamSse`) calls custom booking responder streams.
 
 Compatibility notes:
 
@@ -66,10 +68,10 @@ Compatibility notes:
 
 ## Test Coverage Status
 
-| Surface | Current coverage | Follow-up owner |
+| Surface | Current coverage | Keep true when changing the contract |
 | --- | --- | --- |
-| Canonical JSON fixtures | `tests/Unit/Contract/WireContractFixtureTest.php` smoke-loads request/response/error/discovery JSON. | M09 expands assertions for new M08 accessors. |
-| Canonical SSE fixtures | `tests/Unit/Contract/WireContractFixtureTest.php` parses stream fixtures through `StreamParser`. | M09 adds consumer-shaped stream fixtures. |
-| `postJson()` custom raw arrays | `tests/Unit/Contract/ConsumerCompatibilityTest.php` covers Ambient, Halaxy, and Healthkit consumer-shaped fixtures. | Keep fixture names aligned with active endpoint examples. |
-| `streamSse()` custom raw arrays | `tests/Unit/Contract/ConsumerCompatibilityTest.php` covers Halaxy and Healthkit raw SSE callback profiles. | Add more app fixtures when new custom stream event families appear. |
-| OTEL observer summaries | M05 response observer tests and `OtelTracingPhiSafetyTest` cover sanitized summaries and forbidden content. | Manual wrapper trace continuation remains an M11 gate. |
+| Canonical JSON fixtures | `tests/Unit/Contract/WireContractFixtureTest.php` smoke-loads request, response, error, and discovery JSON. | Add a fixture and an assertion for each new response accessor. |
+| Canonical SSE fixtures | `tests/Unit/Contract/WireContractFixtureTest.php` parses stream fixtures through `StreamParser`. | Add a consumer-shaped fixture whenever a new stream event family appears. |
+| `postJson()` custom raw arrays | `tests/Unit/Contract/ConsumerCompatibilityTest.php` covers Ambient, Halaxy, and Healthkit consumer-shaped fixtures. | Keep fixture names aligned with the endpoints those projects actually call. |
+| `streamSse()` custom raw arrays | `tests/Unit/Contract/ConsumerCompatibilityTest.php` covers Halaxy and Healthkit raw SSE callback profiles. | Unknown fields must keep reaching the callback untouched. |
+| OTEL observer summaries | Response observer tests plus `tests/Http/Middleware/OtelTracingPhiSafetyTest.php` cover sanitized summaries and forbidden content. | Wrapper trace continuation stays a manual check against `examples/python-gateway/tracing.py`. |

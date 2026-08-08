@@ -45,7 +45,7 @@
         "symfony/http-client": "Required for SSE streaming support via SymfonyHttpTransport. Without it, only invoke() is available via PsrHttpTransport.",
         "symfony/framework-bundle": "Required for Symfony bundle integration (^6.4|^7.0|^8.0)",
         "illuminate/support": "Required for Laravel service provider integration (^10.0|^11.0|^12.0)",
-        "guzzlehttp/guzzle": "PSR-18 HTTP client -use with PsrHttpTransport for invoke() support without Symfony.",
+        "guzzlehttp/guzzle": "PSR-18 HTTP client - use with PsrHttpTransport for invoke() support without Symfony.",
         "open-telemetry/api": "Required to use OtelTracingMiddleware for distributed tracing of agent calls",
         "open-telemetry/context": "Required with open-telemetry/api when OtelTracingMiddleware injects trace context",
         "open-telemetry/sdk": "Useful for applications that need an OpenTelemetry tracer provider/exporter setup"

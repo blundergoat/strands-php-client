@@ -17,27 +17,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **OpenTelemetry tracing middleware** — `OtelTracingMiddleware` emits `KIND_CLIENT` spans for `invoke()`, `stream()`, `postJson()`, and `streamSse()`, injects W3C `traceparent`/`tracestate` headers, and records safe `strands-otel-v1` attributes. OTEL packages stay in `require-dev`/`suggest`; projects that do not configure the middleware pay no runtime cost.
-- **Response-aware observability** — `ResponseObserver` and `StreamSseSummary` provide additive terminal hooks for parsed `AgentResponse`, accumulated `StreamResult`, raw `postJson()` responses, and sanitized `streamSse()` summaries without changing `RequestMiddleware`.
-- **Symfony and Laravel observer wiring** — Symfony autoconfigures `ResponseObserver` services with `strands.response_observer`; Laravel resolves the same tag, while middleware that also implements `ResponseObserver` continues to work from the existing `strands.middleware` stack.
-- **Strands HTTP Wire Contract v1** — new contract docs, ADR, audit notes, compatibility matrix, and canonical fixtures define the wrapper-owned JSON/SSE shapes used between PHP apps and Python sdk-python gateways.
-- **Reference Python gateway template** — `examples/python-gateway/` includes a FastAPI `/invoke`, `/stream`, `/health`, custom endpoint blueprint, usage/event normalization helpers, trace-context continuation, URL-media guard helpers, and dependency-free smoke checks.
-- **Wire-contract and consumer compatibility tests** — executable fixture smoke tests parse canonical JSON/SSE fixtures and consumer-shaped custom endpoint fixtures for `ambient-scribe`, `the-summit-chatroom`, `halaxy-agents-lab`, and `healthkit`.
-- **Typed citation DTOs** — `Citation`, `CitationLocation`, `CitationSourceContent`, and `CitationGeneratedContent` under `Response\Citation\`, plus `AgentResponse::getCitationObjects()` and `StreamEvent::getCitationObject()` accessors. Flat `source`/`title`/`text` fields are preserved as first-class properties and rebuilt into location/source-content data when wrappers send only the flat shape; location indices tolerate int, float, and numeric-string values. Raw citation arrays remain available.
-- **Typed guardrail assessment DTO** — `GuardrailAssessment` plus `GuardrailTrace::getAssessmentObjects()` for wrapper-normalized guardrail assessments, including the normalized `name`/`result`/`confidence` fields alongside the Bedrock policy blocks. Raw assessment arrays remain available.
-- **Richer agent exceptions** — `ThrottledException`, `ContextOverflowException`, and `MaxTokensException` extend `AgentErrorException`; `AgentErrorException::fromHttpResponse()` returns the specific subtype where possible.
-- **StopReason additions** — `Error`, `Cancelled`, and `Checkpoint` enum cases covering the wire contract's terminal states and forward compatibility with Python SDK stop reasons.
-- **AgentInput media and cache coverage** — `withImageFromS3()`, `withVideo()`, `withImageFromUrl()`, `withDocumentFromUrl()`, `withVideoFromUrl()`, `withCachePoint()`, and document `context`/`citations` options.
-- **Structured output hydration** — `AgentResponse::structuredOutputAs(string $class)` hydrates structured output into typed DTOs via `fromArray()` or constructor named-argument unpacking.
-- **Nested message metadata support** — typed `Message` and `MessageMetadata` DTOs preserve `message.role`, `message.content`, `message.metadata.usage`, `message.metadata.metrics`, and `message.metadata.custom`.
-- **Wrapper metadata and context visibility** — `AgentResponse::$wrapperMetadata`, `AgentResponse::$contextSize`, `AgentResponse::$projectedContextSize`, and matching stream complete/result context-size fields.
-- **Raw stop-reason preservation** — `AgentResponse::$rawStopReason` preserves unknown future `stop_reason` strings even when the enum parser cannot hydrate them.
-- **Stream terminal metadata** — `StreamResult::$terminalType`, `::$errorCode`, and `::$errorMessage` record whether a stream ended with a `complete` or `error` event and why; `StreamSseSummary` carries the same terminal type for raw SSE streams.
-- **Stream callback handler** — `StreamCallbackHandler` dispatches typed stream events to `on*()` methods; hooks can return `false` to cancel the stream. `PrintingCallbackHandler` provides a stdout/stderr reference implementation with injectable output/error writers.
-- **Project workflow scaffolding** — GOAT Flow workspace files, architecture/code-map docs, decisions/footguns/lessons/patterns directories, skill references, agent skill bundles, Codex/Claude hooks, and repository agent instructions for structured implementation/review/debug/QA/security workflows.
-- **Dependency and version scripts** — `scripts/dependencies-install.sh`, `scripts/dependencies-update.sh`, and `scripts/bump-version.sh` cover Composer/npm installs and updates plus changelog-driven version bumping.
+- **OpenTelemetry tracing middleware** — `OtelTracingMiddleware` emits a `KIND_CLIENT` span per `invoke()`, `stream()`, `postJson()`, `streamSse()`.
+  - Injects W3C `traceparent`/`tracestate` headers and records safe `strands-otel-v1` attributes.
+  - OTEL packages stay in `require-dev`/`suggest`, so an app that never configures the middleware pays no runtime cost.
+- **Response-aware observability** — `ResponseObserver` and `StreamSseSummary` add terminal hooks without changing `RequestMiddleware`.
+  - Covers parsed `AgentResponse`, accumulated `StreamResult`, raw `postJson()` responses, and sanitized `streamSse()` summaries.
+- **Symfony and Laravel observer wiring** — both frameworks resolve the `strands.response_observer` tag; Symfony autoconfigures it.
+  - Middleware that also implements `ResponseObserver` keeps working from the existing `strands.middleware` stack.
+- **Strands HTTP Wire Contract v1** — contract docs, ADR, audit notes, compatibility matrix, and canonical fixtures.
+  - Defines the wrapper-owned JSON/SSE shapes exchanged between PHP apps and Python sdk-python gateways.
+- **Reference Python gateway template** — `examples/python-gateway/` ships a FastAPI blueprint for `/invoke`, `/stream`, `/health`, custom endpoints.
+  - Includes usage/event normalization helpers, trace-context continuation, URL-media guards, and dependency-free smoke checks.
+- **Wire-contract and consumer compatibility tests** — fixture smoke tests parse the canonical JSON/SSE fixtures.
+  - Consumer-shaped custom endpoint fixtures cover `ambient-scribe`, `the-summit-chatroom`, `halaxy-agents-lab`, and `healthkit`.
+- **Typed citation DTOs** — `Citation`, `CitationLocation`, `CitationSourceContent`, and `CitationGeneratedContent` under `Response\Citation\`.
+  - Read them via `AgentResponse::getCitationObjects()` and `StreamEvent::getCitationObject()`; raw citation arrays remain available.
+  - Flat `source`/`title`/`text` stay first-class and rebuild into location/source-content data when a wrapper sends only the flat shape.
+  - Location indices accept int, float, and numeric-string values.
+- **Typed guardrail assessment DTO** — `GuardrailAssessment` plus `GuardrailTrace::getAssessmentObjects()`.
+  - Exposes normalized `name`/`result`/`confidence` alongside the Bedrock policy blocks; raw assessment arrays remain available.
+- **Richer agent exceptions** — `ThrottledException`, `ContextOverflowException`, and `MaxTokensException` extend `AgentErrorException`.
+  - `AgentErrorException::fromHttpResponse()` returns the specific subtype where the response identifies one.
+- **StopReason additions** — `Error`, `Cancelled`, and `Checkpoint` cover the contract's terminal states and future Python SDK stop reasons.
+- **AgentInput media and cache coverage** — `withImageFromS3()`, `withVideo()`, and `withCachePoint()`.
+  - URL sources: `withImageFromUrl()`, `withDocumentFromUrl()`, `withVideoFromUrl()`.
+  - Documents also accept `context` and `citations` options.
+- **Structured output hydration** — `AgentResponse::structuredOutputAs(string $class)` hydrates a typed DTO.
+  - Uses the target's `fromArray()`, or constructor named arguments.
+- **Nested message metadata support** — typed `Message` and `MessageMetadata` DTOs preserve `message.role` and `message.content`.
+  - Also preserves `message.metadata.usage`, `message.metadata.metrics`, and `message.metadata.custom`.
+- **Wrapper metadata and context visibility** — `AgentResponse::$wrapperMetadata`, `::$contextSize`, and `::$projectedContextSize`.
+  - Stream complete events and results carry matching context-size fields.
+- **Raw stop-reason preservation** — `AgentResponse::$rawStopReason` keeps unknown future `stop_reason` strings the enum parser cannot hydrate.
+- **Stream terminal metadata** — `StreamResult::$terminalType`, `::$errorCode`, and `::$errorMessage`.
+  - Record whether a stream ended on `complete` or `error`, and why.
+  - `StreamSseSummary` carries the same terminal type for raw SSE streams.
+- **Stream callback handler** — `StreamCallbackHandler` dispatches typed events to `on*()` methods; a hook returning `false` cancels the stream.
+  - `PrintingCallbackHandler` is a stdout/stderr reference implementation with injectable output and error writers.
+- **Project workflow scaffolding** — GOAT Flow workspace: architecture and code-map docs, learning-loop directories, agent skill bundles, and hooks.
+  - Supports contributors; `.gitattributes` does not yet `export-ignore` it, so it is present in the distributed archive.
+- **Dependency and version scripts** — `scripts/dependencies-install.sh`, `scripts/dependencies-update.sh`, and `scripts/bump-version.sh`.
+  - Cover Composer and npm install/update, plus changelog-driven version bumping.
 - **npm-based goat-flow tooling** — `package.json` and `package-lock.json` add `@blundergoat/goat-flow` as the project workflow dev dependency.
-- 623 tests, 2002 assertions.
 
 ### Changed
 
@@ -190,9 +211,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Laravel service provider integration -config-driven agent registration, DI container bindings, and `Strands` facade.
-- `StrandsServiceProvider` -Registers `StrandsClientFactory`, default `StrandsClient` binding, and named `strands.client.<name>` bindings.
-- `Strands` facade -Proxies to the default `StrandsClient` with `@method` PHPDoc for IDE completion.
+- Laravel service provider integration - config-driven agent registration, DI container bindings, and `Strands` facade.
+- `StrandsServiceProvider` - Registers `StrandsClientFactory`, default `StrandsClient` binding, and named `strands.client.<name>` bindings.
+- `Strands` facade - Proxies to the default `StrandsClient` with `@method` PHPDoc for IDE completion.
 - Publishable `config/strands.php` with `default` agent key, `agents` array, and `env()` helpers.
 - Auto-discovery via `extra.laravel` in `composer.json` - no manual provider registration needed.
 - `docs/laravel-config.md` - Full configuration reference for Laravel.
@@ -207,21 +228,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `StrandsClient` with `invoke()` (blocking) and `stream()` (SSE) methods.
-- `SymfonyHttpTransport` -Full support for invoke + SSE streaming via `symfony/http-client`.
-- `PsrHttpTransport` -Invoke-only support via any PSR-18 HTTP client.
-- `AgentResponse` -Typed response object with text, agent name, session ID, usage stats, tools used.
+- `SymfonyHttpTransport` - Full support for invoke + SSE streaming via `symfony/http-client`.
+- `PsrHttpTransport` - Invoke-only support via any PSR-18 HTTP client.
+- `AgentResponse` - Typed response object with text, agent name, session ID, usage stats, tools used.
 - `StreamResult` -`stream()` returns accumulated text, session ID, usage stats, and event counts.
-- `StreamEvent` -Typed event object for SSE streaming (Text, ToolUse, ToolResult, Thinking, Complete, Error).
-- `StreamParser` -Incremental SSE parser that handles chunked delivery, CRLF/LF line endings, and malformed JSON recovery. Includes `getSkippedEvents()` for post-stream diagnostics.
-- `AgentContext` -Immutable builder for system prompts, metadata, permissions, documents, structured data.
-- `NullAuth` -No-op auth strategy for local development.
-- `ApiKeyAuth` -Authentication strategy for API key / Bearer token auth. Configurable header name and value prefix.
-- `AuthStrategy` interface -Strategy pattern for pluggable authentication.
+- `StreamEvent` - Typed event object for SSE streaming (Text, ToolUse, ToolResult, Thinking, Complete, Error).
+- `StreamParser` - Incremental SSE parser that handles chunked delivery, CRLF/LF line endings, and malformed JSON recovery. Includes `getSkippedEvents()` for post-stream diagnostics.
+- `AgentContext` - Immutable builder for system prompts, metadata, permissions, documents, structured data.
+- `NullAuth` - No-op auth strategy for local development.
+- `ApiKeyAuth` - Authentication strategy for API key / Bearer token auth. Configurable header name and value prefix.
+- `AuthStrategy` interface - Strategy pattern for pluggable authentication.
 - Retry with exponential backoff and jitter -`maxRetries` and `retryDelayMs` on `StrandsConfig`. Retries on transient HTTP errors (429, 502, 503, 504). Permanent errors (400, 401, 403) fail immediately.
 - Connect timeout -`connectTimeout` option (default 10s) separate from read `timeout` (default 120s).
-- PSR-3 logging -Optional `LoggerInterface` on `StrandsClient`. Logs requests at `debug`, retries at `warning`.
-- Symfony bundle integration -YAML config, named agent services, autowiring, auto-detected transport, automatic logger injection, `api_key` auth driver.
-- `StrandsException`, `AgentErrorException`, `StreamInterruptedException` -Exception hierarchy.
+- PSR-3 logging - Optional `LoggerInterface` on `StrandsClient`. Logs requests at `debug`, retries at `warning`.
+- Symfony bundle integration - YAML config, named agent services, autowiring, auto-detected transport, automatic logger injection, `api_key` auth driver.
+- `StrandsException`, `AgentErrorException`, `StreamInterruptedException` - Exception hierarchy.
 - PHPStan Level 10, PHP-CS-Fixer (PSR-12), PHPMD, cyclomatic complexity checks.
 - CI matrix: PHP 8.2/8.3/8.4, Symfony 6.4/7.0.
 - 100+ unit tests with fixture-based mocks (no network calls).

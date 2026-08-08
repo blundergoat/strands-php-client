@@ -380,6 +380,15 @@ export function runHookWithBash(
       PATH: `${dirname(bashExecutable)}${delimiter}${existingPath}`,
     };
   }
+  // stdio is inherited, so this call blocks the agent's tool invocation until the
+  // hook exits. Without a bound, a wedged analyzer or a stuck child leaves the
+  // session with no output and no recovery path. The default sits above the
+  // hooks' own 60s budgets so they still bail gracefully first, and below the
+  // 90s host timeout so the fail-closed reason below reaches the user instead of
+  // a silent kill. On timeout Node returns a null status and sets error, which
+  // the checks below already route to reportUnavailable.
+  const hookTimeoutMilliseconds =
+    Number(process.env.GOAT_FLOW_HOOK_LAUNCH_TIMEOUT_MS) || 75000;
   const hookExecution = spawnSync(
     bashExecutable,
     [hookScriptPath.replace(/\\/gu, "/")],
@@ -387,14 +396,21 @@ export function runHookWithBash(
       cwd: projectRoot,
       env: hookEnvironment,
       stdio: "inherit",
+      timeout: hookTimeoutMilliseconds,
       windowsHide: true,
     },
   );
-  // For example, endpoint protection may stop Git Bash before the user's hook starts.
+  // For example, endpoint protection may stop Git Bash before the user's hook
+  // starts, or the hook can exceed the budget above and be killed mid-run. Name
+  // the two apart so the user knows whether to check their security tooling or a
+  // wedged hook.
   if (hookExecution.error) {
+    const timedOut = hookExecution.error.code === "ETIMEDOUT";
     return reportUnavailable(
       hookResponseMode,
-      `Bash could not start: ${hookExecution.error.message}`,
+      timedOut
+        ? `hook exceeded ${hookTimeoutMilliseconds}ms and was killed: ${hookExecution.error.message}`
+        : `Bash could not start: ${hookExecution.error.message}`,
     );
   }
   // A numeric status is the hook's real allow, deny, or advisory result for the user.

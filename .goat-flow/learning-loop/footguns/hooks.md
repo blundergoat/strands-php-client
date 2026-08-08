@@ -5,6 +5,20 @@ last_reviewed: 2026-08-08
 
 # Hooks Footguns
 
+## Footgun: `run-with-bash.mjs` is deliberately patched to bound hook runtime
+
+**Status:** active | **Created:** 2026-08-08 | **Evidence:** ACTUAL_MEASURED
+**Decision changed:** When `goat-flow audit` reports drift on this file, do not restore it from the template; re-apply the timeout instead.
+**Trigger phase:** VERIFY
+
+**Symptoms:** Before the patch, a wedged hook froze the agent session with no output and no recovery path. The launcher runs the hook with `stdio: "inherit"`, so the call blocks the tool invocation until the hook exits, and the shipped template passed no `timeout`.
+
+**Why it happens:** The template's hook `spawnSync` (search: `const hookExecution = spawnSync`) omitted `timeout`, while the same file already establishes the pattern for its Windows path lookup (search: `timeout: 5000`). The `gruff` and `post-turn` modes start analyzers, which can hang on a stuck child process.
+
+**Evidence:** the patch adds `GOAT_FLOW_HOOK_LAUNCH_TIMEOUT_MS` defaulting to 75000, chosen to sit above the hooks' own 60s budgets (`GOAT_FLOW_POST_TURN_SAFETY_MAX_SECONDS`, `GRUFF_CODE_QUALITY_TIMEOUT_SECONDS`) so they still bail gracefully, and below the 90s host timeout in `.claude/settings.json` so the fail-closed reason reaches the user rather than a silent kill. Verified both directions: a benign command still exits 0, and `GOAT_FLOW_HOOK_LAUNCH_TIMEOUT_MS=1` produces `BLOCKED: Policy hook unavailable: hook exceeded 1ms and was killed` with exit 2.
+
+**Prevention:** Keep the patch through any `goat-flow install` or hook sync. Node reports a timeout as `error.code === "ETIMEDOUT"` with a null status, which the launcher's existing unavailable path already treats as fail-closed for `policy` and `post-turn`.
+
 ## Footgun: `post-turn-safety.sh` is deliberately patched away from the published template
 
 **Status:** active | **Created:** 2026-08-08 | **Evidence:** ACTUAL_MEASURED

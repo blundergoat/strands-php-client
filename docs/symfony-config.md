@@ -100,7 +100,7 @@ strands:
         # Each key becomes a service: strands.client.<name>
         my_agent:
 
-            # REQUIRED -The URL where the Strands agent is running.
+            # REQUIRED - the URL where the Strands agent is running.
             endpoint: 'http://localhost:8081'
 
             # Authentication settings
@@ -121,7 +121,7 @@ strands:
                 session_token: ~                  # default: null
 
             # How long to wait for the agent to respond (seconds).
-            # LLMs can be slow -120s is generous but safe.
+            # LLMs can be slow - 120s is generous but safe.
             timeout: 120                          # default: 120
 
             # How long to wait for the initial TCP connection (seconds).
@@ -253,7 +253,7 @@ connect_timeout: 5     # fail faster if the server is unreachable
 Maximum number of retries on transient HTTP errors. When a request fails with a retryable status code (429, 502, 503, 504), the client will retry up to this many times before throwing an exception.
 
 ```yaml
-max_retries: 0     # default -no retries, fail immediately
+max_retries: 0     # default - no retries, fail immediately
 max_retries: 2     # retry twice (3 total attempts)
 max_retries: 5     # retry 5 times (for critical production workloads)
 ```
@@ -262,7 +262,7 @@ Retries apply to `invoke()` and `postJson()` calls. Streaming requests (`stream(
 
 ### retry_delay_ms
 
-Base delay between retries in milliseconds. Uses **exponential backoff** -the delay doubles after each retry:
+Base delay between retries in milliseconds. Uses **exponential backoff** - the delay doubles after each retry:
 
 | Retry | Delay (500ms base) | Delay (1000ms base) |
 |-------|--------------------|---------------------|
@@ -438,14 +438,14 @@ AGENT_TIMEOUT=60
 
 When Symfony boots, the bundle processes your config through three classes:
 
-1. **`Configuration`** -Defines the schema (what keys are allowed, their types, defaults). Validates your YAML against this schema. If you typo a key name or use the wrong type, Symfony throws a clear error at boot time.
+1. **`Configuration`** - Defines the schema (what keys are allowed, their types, defaults). Validates your YAML against this schema. If you typo a key name or use the wrong type, Symfony throws a clear error at boot time.
 
-2. **`StrandsExtension`** -Reads the validated config and registers services in the DI container:
+2. **`StrandsExtension`** - Reads the validated config and registers services in the DI container:
    - One `StrandsClientFactory` service (holds all agent configs)
    - One `StrandsClient` service per agent (created via the factory)
    - An alias from `StrandsClient::class` to the first agent
 
-3. **`StrandsClientFactory`** -Called at runtime to create each `StrandsClient`. It:
+3. **`StrandsClientFactory`** - Called at runtime to create each `StrandsClient`. It:
    - Looks up the agent config by name
    - Resolves the auth driver (`'null'` → `NullAuth`, `'api_key'` → `ApiKeyAuth`, `'sigv4'` → `SigV4Auth`)
    - Builds a `StrandsConfig` with all settings
