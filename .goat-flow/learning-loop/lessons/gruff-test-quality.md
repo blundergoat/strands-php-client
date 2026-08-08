@@ -19,6 +19,17 @@ For the workflow-level "how to triage gruff" notes that apply across pillars
 `.goat-flow/learning-loop/footguns/gruff-php.md`, `.goat-flow/learning-loop/lessons/gruff-php.md`, and
 `.goat-flow/learning-loop/patterns/gruff-php.md`.
 
+## Lesson: Extract into a private helper before rewriting a test-quality finding
+
+**Created:** 2026-07-04
+**Decision changed:** When a `gruff-php` test-quality finding lands, read the per-rule section in this file before editing the test — most of the 18 rules that fired here are fixed by extracting setup into a private helper, not by restructuring assertions.
+**Trigger phase:** ACT
+**What happened:** A multi-wave cleanup took this repo from 529 to 205 test-quality findings. Four rules that look unrelated — `mystery-guest`, `conditional-logic`, `test-longer-than-sut`, and `eager-test` — all resolve the same way, because most rules in the pillar walk only `TestQualityNodeHelper::testScopes()` and are blind to private helpers, `setUp`, and fixtures.
+**Evidence:** `vendor/blundergoat/gruff-php/src/Rules/TestQuality/TestQualityNodeHelper.php` (search: `isTestMethod`) is the upstream cause, re-verified against v0.5.1. `.gruff-php.yaml` (search: `test-quality.conditional-logic`) carries the tuned thresholds for the pillar, and `.goat-flow/learning-loop/patterns/gruff-php.md` (search: `mystery-guest workaround`) holds the extraction patterns this lesson generalises. Per-rule mechanics and refused anti-patterns live in the numbered sections of this file, starting at `## 3. Per-rule notes`.
+**Prevention:** Treat this file as the reference for the whole test-quality pillar; this entry is its index row. Retrieval-wise, the numbered sections below are deliberately not separate `## Lesson:` blocks — 18 index rows for one analyzer would drown the lessons INDEX.
+
+> **Version boundary (2026-08-08).** This document was written against `blundergoat/gruff-php` **v0.1.x**; the package is now pinned at **^0.5.1** in `require-dev` and the `gruff-code-quality` PostToolUse hook resolves it. The analyzer's rule directory was renamed from Rule to Rules, so the evidence paths here have been re-pointed and re-verified — all four TestQuality classes cited below still exist with their cited symbols intact. Rule *thresholds* and message wording may have shifted across four minor releases: check `vendor/blundergoat/gruff-php/src/Rules/RuleRegistry.php` for the current rule set before treating a per-rule section as exact.
+
 ---
 
 ## 1. The single most important fact
@@ -41,7 +52,7 @@ look unrelated:
 This isn't gaming the rule — extracted setup actually improves test
 readability, which is what the rule is nudging toward.
 
-**Evidence:** `vendor/blundergoat/gruff-php/src/Rule/TestQuality/TestQualityNodeHelper.php (search: "isTestMethod")`.
+**Evidence:** `vendor/blundergoat/gruff-php/src/Rules/TestQuality/TestQualityNodeHelper.php (search: "isTestMethod")`.
 
 ---
 

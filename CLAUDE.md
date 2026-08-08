@@ -37,7 +37,7 @@
 - Severity order: SECURITY > CORRECTNESS > INTEGRATION > PERFORMANCE > STYLE.
 - `declare(strict_types=1)` in every PHP file. `readonly` on DTO properties. Fully qualified PHPDoc array shapes (`array<string, string>`), never bare `array` or `mixed` without justification.
 - Cite file evidence with semantic anchors (function name, unique string, or `(search: "pattern")`) — never bare line numbers.
-- Preserve cross-file consistency for the same concept (e.g., `Usage::fromArray()` is the canonical hydrator — `AgentResponse::parseUsage()` and `StrandsClient::usageFromArray()` delegate to it; keep that contract).
+- Preserve cross-file consistency for the same concept (e.g., `Usage::fromArray()` is the canonical hydrator — `AgentResponse::parseUsage()`, `MessageMetadata`, `OtelTracingMiddleware`, and `StrandsClient` all route through it; never fork or re-wrap it).
 - Stream-cancellation callbacks compare with `=== false` (preserves void-returning callers). Do not collapse to `if (!$onChunk(...))`.
 - Sub-agents get one objective, structured return, and a 5-call budget.
 - No features, abstractions, or error handling beyond what was asked.
@@ -45,8 +45,8 @@
 
 ## Key Resources
 
-- **Learning loop** (grep before every change): `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, `.goat-flow/learning-loop/decisions/`
-- **Tool playbooks**: `.goat-flow/skill-docs/playbooks/browser-use.md`, `.goat-flow/skill-docs/playbooks/page-capture.md` — read BEFORE declaring a tool unavailable
+- **Learning loop** (read each `INDEX.md` first, open entries only on hits): `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, `.goat-flow/learning-loop/decisions/`
+- **Playbooks**: `.goat-flow/skill-docs/playbooks/README.md` is the full index — tool availability (`browser-use.md`, `page-capture.md`) plus discipline playbooks for changelog, release notes, writing style, code comments, observability, and hook-policy testing
 - **Wire contract**: `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md`
 - **Project orientation**: `.goat-flow/architecture.md`, `.goat-flow/code-map.md`, `.goat-flow/glossary.md`
 - **Peer instructions**: `AGENTS.md` (project conventions, coding patterns, testing patterns — read for context, do not modify)
@@ -72,7 +72,7 @@ Single file/method: `vendor/bin/phpunit tests/Unit/FooTest.php --filter testBar`
 When a goat-* skill is active, its Step 0 replaces READ and selects the skill's mode/depth. SCOPE still applies before writes: a skill may write when its selected mode permits writes or the user explicitly approves them. `/goat-plan` File-Write may create gitignored milestone files without a separate approval gate; `/goat-debug` D3 still requires approval before fixes. Resume at ACT after Step 0 output or when a blocking gate releases.
 
 ### READ
-MUST read relevant files before changes. Never fabricate codebase facts. For URL, local HTML, localhost, screenshot, rendered UI, or browser-visible behaviour, check browser evidence first. Use grep-first retrieval across `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, and `.goat-flow/learning-loop/patterns/`; include `.goat-flow/learning-loop/decisions/` for architecture or policy work. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-docs/playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim — project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool".
+MUST read relevant files before changes. Never fabricate codebase facts. For URL, local HTML, localhost, screenshot, rendered UI, or browser-visible behaviour, check browser evidence first. Use INDEX-first retrieval: read the `INDEX.md` rows in `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, and `.goat-flow/learning-loop/patterns/` first and open entries only on hits; include `.goat-flow/learning-loop/decisions/INDEX.md` for architecture or policy work. Grep buckets only after the INDEX pass or a known retrieval miss. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-docs/playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim — project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool". Discipline playbooks have no availability check and need their own trigger: read the matching one before editing `CHANGELOG.md`, release notes, `README.md` or `docs/` prose, PR/issue text, learning-loop entry bodies, source comments, or instrumentation.
 
 ### SCOPE
 Declare intent, complexity tier (Hotfix / Standard Feature / System Change / Infrastructure), mode, files allowed to change, non-goals, blast radius. Expanding beyond scope means stop and re-scope with the human.
@@ -113,7 +113,7 @@ Add footguns → `.goat-flow/learning-loop/footguns/<category>.md` (read `.goat-
 | Instruction file (this file) | `CLAUDE.md` |
 | Learning loop | `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, `.goat-flow/learning-loop/decisions/` |
 | Skill reference (meta) | `.goat-flow/skill-docs/` |
-| Tool playbooks (CLI/MCP availability checks: browser-use, page-capture, skill-quality-testing) | `.goat-flow/skill-docs/playbooks/` — read BEFORE declaring a tool unavailable |
+| Skill playbooks (`README.md` index: tool availability plus changelog, release-notes, writing-style, code-comments, observability, hook-policy-testing) | `.goat-flow/skill-docs/playbooks/` — read BEFORE declaring a tool unavailable, and before editing changelog, release, docs, or comment prose |
 | Architecture | `.goat-flow/architecture.md` |
 | Orientation | `.goat-flow/code-map.md`, `.goat-flow/glossary.md` |
 | Wire contract | `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md` |

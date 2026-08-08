@@ -32,7 +32,7 @@ Domain and project-specific terms a new contributor needs.
 - **`AgentResponse`** — Typed DTO returned by `invoke()`. Hydrated from JSON via the defensive `::fromArray()` factory.
 - **`AgentInput`** — Immutable builder for rich request payloads: text, images (base64/URL), documents (base64/S3), interrupt-response. Clone-and-mutate.
 - **`AgentContext`** — Immutable builder for request context: system prompts, metadata, permissions, documents, structured data. Clone-and-mutate.
-- **`Usage`** — Token usage stats. `::fromArray()` is the **single canonical hydrator** — `AgentResponse::parseUsage()` and `StrandsClient::usageFromArray()` delegate to it.
+- **`Usage`** — Token usage stats. `::fromArray()` is the **single canonical hydrator** — `AgentResponse::parseUsage()` delegates to it, and `MessageMetadata`, `OtelTracingMiddleware`, and `StrandsClient` call it directly. Never fork a parallel hydrator.
 - **`StopReason`** — Backed enum for why an agent stopped: `EndTurn`, `ToolUse`, `MaxTokens`, `StopSequence`, `ContentFiltered`, `GuardrailIntervened`, `Interrupt`, `Error`, `Cancelled`, `Checkpoint`. Unknown wire values stay readable via the response's raw stop reason.
 
 ## Quality / Tooling

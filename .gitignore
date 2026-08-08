@@ -13,6 +13,9 @@ composer.lock
 # PHPStan
 .phpstan-cache/
 
+# gruff-php
+.gruff-cache/
+
 # Infection
 .infection/
 infection.log

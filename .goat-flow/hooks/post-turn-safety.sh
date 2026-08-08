@@ -1440,12 +1440,12 @@ main() {
   root="$(repo_root)"
   if [ -z "$root" ]; then
     printf 'post-turn-safety: git repository root unavailable; cannot scan changed content.\n' >&2
-    return 1
+    return 2
   fi
 
   cd "$root" || {
     printf 'post-turn-safety: cannot enter repository root %s.\n' "$root" >&2
-    return 1
+    return 2
   }
 
   local head_present=0
@@ -1473,7 +1473,7 @@ main() {
   WORKDIR="$(mktemp -d 2>/dev/null)" || WORKDIR=""
   if [ -z "$WORKDIR" ]; then
     printf 'post-turn-safety: cannot create scan work directory; cannot scan changed content.\n' >&2
-    return 1
+    return 2
   fi
   # shellcheck disable=SC2064
   trap "rm -rf '$WORKDIR'" EXIT

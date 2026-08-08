@@ -1,11 +1,15 @@
 ---
 category: gruff-php
-last_reviewed: 2026-07-04
+last_reviewed: 2026-08-08
 ---
+
+> **Version boundary (2026-08-08).** These lessons were written against `blundergoat/gruff-php` **v0.1.x**; the package is now pinned at **^0.5.1** in `require-dev`. The analyzer's rule directory was renamed from Rule to Rules, and `naming.parameter-type-name` was **removed** in favour of `naming.identifier-quality`, whose single global `ignoredNames` option replaces the old parameter-only allowlist. Evidence paths have been re-pointed and re-verified against v0.5.1 where the class survives. Lessons whose mechanics belonged to the removed rule carry their own supersession note — the workflow advice in them still holds, the rule internals do not.
 
 ## Lesson: Don't bulk-rename across the codebase without classifying findings first
 
 **Created:** 2026-05-25
+
+*Rule renamed since: the 466 findings came from `naming.parameter-type-name` under v0.1.x; v0.5.1 raises the equivalent through `naming.identifier-quality`. The classification workflow below is rule-agnostic and still the right first move.*
 
 `naming.parameter-type-name` returned 466 findings in this repo. Charging into a global rename would have broken BC (named-argument callers), made code strictly worse (`$now` → `$dateTimeImmutable`), and touched Ask-First boundaries (`AuthStrategy`, `HttpTransport`, `StrandsClient` ctors, Citation/Message DTOs, Laravel/Symfony integrations). The right move was a one-pass classification of every finding into:
 
@@ -29,7 +33,9 @@ So in a test that builds two SigV4Auths to compare regions, both `$sigV4AuthUsEa
 
 **Practical rule when fixing collisions:** name variants `<expected-name><Discriminator>`, where `<Discriminator>` is one or more camelCase tokens describing what differs between the variants. Examples that pass: `$strandsConfigMaxRetries`, `$strandsConfigZeroRetries`, `$sigV4AuthExecuteApi`, `$sigV4AuthLambda`.
 
-**Evidence:** `vendor/blundergoat/gruff-php/src/Rule/Naming/ParameterTypeNameRule.php (search: "isSpecificDuplicateName")`, tokenizer at `vendor/blundergoat/gruff-php/src/Rule/Naming/IdentifierTokenizer.php`.
+**Superseded by v0.5.1.** `isSpecificDuplicateName` and its host rule `naming.parameter-type-name` no longer exist — the symbol appears nowhere under `vendor/blundergoat/gruff-php/src/Rules/Naming/`. Treat the token-sequence mechanics above as v0.1.x history. The `<expected-name><Discriminator>` naming convention it produced is still good practice and still reads well, but do not expect `naming.identifier-quality` to accept or reject variants by the same rule.
+
+**Evidence:** the tokenizer survives at `vendor/blundergoat/gruff-php/src/Rules/Naming/IdentifierTokenizer.php` (search: `class IdentifierTokenizer`); the rule that consumed it does not.
 
 ## Lesson: `naming.abbreviation-allowlist` is global, not parameter-scoped
 
@@ -56,7 +62,7 @@ Rules with no config knobs encountered in this repo:
 
 `MockWithoutExpectationRule::isMockCreationExpression` treats `createMock`, `createStub`, `getMockBuilder`, `mock`, `partialMock`, `spy`, and `prophesize` identically. Converting `createMock` to `createStub` does change the **severity** from Warning (`dead-mock`) to Advisory (`stub-only`), but the finding still appears. Use the conversion when you want to communicate intent to readers AND drop the gate from blocking, but expect the advisory count to remain. To actually clear the finding you must add a real verification: `$stub->expects($this->once())->method('foo')->with(...)` or remove the mock entirely.
 
-**Evidence:** `vendor/blundergoat/gruff-php/src/Rule/TestQuality/MockWithoutExpectationRule.php (search: "stub-only")`, plus `vendor/blundergoat/gruff-php/src/Rule/TestQuality/TestQualityNodeHelper.php (search: "createstub")`.
+**Evidence:** `vendor/blundergoat/gruff-php/src/Rules/TestQuality/MockWithoutExpectationRule.php (search: "stub-only")`, plus `vendor/blundergoat/gruff-php/src/Rules/TestQuality/TestQualityNodeHelper.php (search: "createstub")`.
 
 ## Lesson: `test-quality.mock-only-test` does not recognise `$mock->expects(...)->with(...)` as a SUT assertion
 
@@ -139,7 +145,7 @@ The literals are **inherently** paired with their fixture-data counterparts; the
 
 **Recommendation:** accept these 96 findings as Advisory debt. The rule ships with `Confidence::Low` and `Severity::Advisory` precisely because the rule's own author knows this is heuristic. If gruff-php ever exposes `additionalContextualNames` as a config option, add `inputTokens`/`outputTokens`/`latencyMs`/`textEvents`/`totalEvents` and revisit.
 
-**Evidence:** `vendor/blundergoat/gruff-php/src/Rule/TestQuality/MagicNumberAssertionRule.php (search: "CONTEXTUAL_NUMERIC_NAMES")` — hardcoded list at the top of the file.
+**Evidence:** `vendor/blundergoat/gruff-php/src/Rules/TestQuality/MagicNumberAssertionRule.php (search: "CONTEXTUAL_NUMERIC_NAMES")` — hardcoded list at the top of the file.
 
 ## Lesson: `sensitive-data.high-entropy-string` flags long MIME types and rule references
 

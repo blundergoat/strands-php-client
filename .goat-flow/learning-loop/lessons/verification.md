@@ -3,6 +3,15 @@ category: verification
 last_reviewed: 2026-08-08
 ---
 
+## Lesson: A Passing Checker Can Mean Unchecked, Not Clean
+
+**Created:** 2026-08-08
+**Decision changed:** When a validator reports zero problems over content that looks suspect, confirm the validator actually parsed that content before treating the pass as evidence.
+**Trigger phase:** VERIFY
+**What happened:** A quality assessment found six learning-loop entries citing `vendor/blundergoat/gruff-php/...` paths that do not exist in this checkout, while `goat-flow stats --check` reported `totalStaleRefs: 0`. The natural reading was that the checker had no stale-ref rule. It does — adding one new entry whose citation used the two-span anchor form made the identical class of dead path fail the check on the next run. The six pre-existing entries had simply been written in a form the scanner does not resolve, so they were never checked at all.
+**Evidence:** `.goat-flow/learning-loop/footguns/learning-loop.md` (search: `validates only one semantic-anchor form`) records the mechanism and both anchor forms.
+**Prevention:** Treat a green validator over doubtful content as a hypothesis, not a result. Prove the rule exists by making it fire once — a deliberate violation that the checker catches converts "no findings" from ambiguous into meaningful. Then fix the violation rather than restyling it into the form the checker ignores.
+
 ## Lesson: Verify Generated PHPDoc Formatting And Phrasing
 
 **Created:** 2026-05-24

@@ -1,9 +1,24 @@
 ---
 category: hooks
-last_reviewed: 2026-07-07
+last_reviewed: 2026-08-08
 ---
 
 # Hooks Footguns
+
+## Footgun: `post-turn-safety.sh` is deliberately patched away from the published template
+
+**Status:** active | **Created:** 2026-08-08 | **Evidence:** ACTUAL_MEASURED
+**Decision changed:** When `goat-flow audit` reports drift on this one hook, do NOT restore it from the template. The drift is intentional and the template is the broken side.
+**Trigger phase:** VERIFY
+**hallucination-risk:** high
+
+**Symptoms:** `goat-flow audit . --harness` returns `overall: fail` with a single drift finding — `hook template (workflow/hooks/post-turn-safety.sh) and installed copy differ` — and `.goat-flow/install-state/*.json` records a sha256 for this file that no longer matches. Everything else in the audit passes.
+
+**Why it happens:** The published `@blundergoat/goat-flow` 1.15.0 tarball ships a `main()` whose three infrastructure-failure paths `return 1` instead of `2`. Because `main "$@"` is the last statement, that return becomes the script's exit code, and a Stop hook exiting 1 is non-blocking — so when the safety scan cannot run at all, the turn ends looking clean. This contradicts the same function's own budget-exhaustion path, which returns 2 under the comment `An incomplete native scan must block instead of showing a clean turn`, and contradicts the hook's registration wrapper in `.claude/settings.json`, whose `reportUnavailable` exits 2. This repo patched the three returns to 2 on 2026-08-08, which is what the audit now flags.
+
+**Evidence:** reproduced twice — outside a git repository, and with a dirty worktree plus an unwritable `TMPDIR` so `mktemp -d` fails; the shipped script exited 1 with `post-turn-safety: cannot create scan work directory; cannot scan changed content.` The published tarball for 1.15.0 (md5 `b99a333872d46ef3ffef45aa9373a8ad`) carries the `return 1` form, so the fault is in the release, not in this checkout. Restoring from the template reintroduces it.
+
+**Prevention:** Keep the patch. Re-apply it after any `goat-flow install`, `npm update`, or hook sync, and re-run the two reproductions before trusting a green turn. Treat drift on this specific path as expected until a goat-flow release ships the fail-closed returns; drift on any *other* managed hook is still a real finding. Note that a same-version unpublished build of 1.15.0 (md5 `5f6756b80ae70f4dd2b09c6576a290dd`) does contain the fix, so "the template has it" depends entirely on which build is installed — check the bytes, not the version string.
 
 ## Footgun: Hook policy fixes regress silently unless the self-test encodes them
 

@@ -22,6 +22,7 @@
         "psr/log": "^1.0 || ^2.0 || ^3.0"
     },
     "require-dev": {
+        "blundergoat/gruff-php": "^0.5.1",
         "friendsofphp/php-cs-fixer": "^3.0",
         "illuminate/support": "^10.0 || ^11.0 || ^12.0",
         "infection/infection": "^0.32.4",

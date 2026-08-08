@@ -119,8 +119,8 @@ strands-php-client/
 │   ├── code-map.md                           = This file
 │   ├── glossary.md
 │   ├── learning-loop/                        = Footguns, lessons, patterns, decisions + generated indexes
-│   │   ├── footguns/                         = contract, generated-files, integration, observability, transport, transport-and-streaming
-│   │   ├── lessons/                          = history, verification, gruff learnings
+│   │   ├── footguns/                         = contract, generated-files, gruff-php, hooks, integration, learning-loop, observability, transport-and-streaming
+│   │   ├── lessons/                          = gruff-php, gruff-test-quality, history, verification
 │   │   ├── decisions/                        = ADR-001 wire contract, ADR-002 OTEL response observation
 │   │   └── patterns/                         = Repeatable implementation/testing/release patterns
 │   ├── plans/                                = Local session plan files (gitignored by design)
