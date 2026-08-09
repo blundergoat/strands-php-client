@@ -13,6 +13,7 @@ use OpenTelemetry\SDK\Trace\SpanExporter\InMemoryExporter;
 use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
 use OpenTelemetry\SDK\Trace\TracerProvider;
 use PHPUnit\Framework\TestCase;
+use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Http\Middleware\OtelTracingMiddleware;
 
 /**
@@ -65,6 +66,10 @@ final class OtelTracingPhiSafetyTest extends TestCase
         $filename = 'referral-secret.pdf';
         $toolInput = 'raw private tool input';
         $citationSource = 'source text containing PHI';
+        $agentName = 'patient-secret-agent';
+        $modelName = 'patient-secret-model';
+        $toolName = 'patient-secret-tool';
+        $stopReason = 'patient-secret-stop-reason';
 
         $this->middleware->beforeRequest(
             "https://agent.example.com/session/{$sessionId}/history?token=secret",
@@ -84,9 +89,12 @@ final class OtelTracingPhiSafetyTest extends TestCase
                 'text' => $responseText,
                 'session_id' => $sessionId,
                 'usage' => ['input_tokens' => 10, 'output_tokens' => 4],
+                'agent' => $agentName,
+                'model' => $modelName,
+                'stop_reason' => $stopReason,
                 'tools_used' => [
                     [
-                        'name' => 'lookup',
+                        'name' => $toolName,
                         'input' => ['raw' => $toolInput],
                         'result' => ['source' => $citationSource],
                     ],
@@ -102,18 +110,47 @@ final class OtelTracingPhiSafetyTest extends TestCase
         );
 
         $immutableSpan = $this->getOnlySpan();
-        $serializedAttributes = json_encode($this->spanAttributes($immutableSpan), JSON_THROW_ON_ERROR);
+        $serializedSpan = $this->serializeSpan($immutableSpan);
 
-        foreach ([$sessionId, $prompt, $responseText, $documentBase64, $filename, $toolInput, $citationSource, 'private context', 'secret'] as $forbidden) {
+        foreach ([$sessionId, $prompt, $responseText, $documentBase64, $filename, $toolInput, $citationSource, $agentName, $modelName, $toolName, $stopReason, 'private context', 'secret'] as $forbidden) {
             $this->assertStringNotContainsString(
                 $forbidden,
-                $serializedAttributes,
-                sprintf('Sensitive payload value %s leaked into span attributes', var_export($forbidden, true)),
+                $serializedSpan,
+                sprintf('Sensitive payload value %s leaked into span telemetry', var_export($forbidden, true)),
             );
         }
 
-        $this->assertSame('/session/{id}/history', $immutableSpan->getAttributes()->get('strands.endpoint.route'));
+        $this->assertSame('strands.client.post_json', $immutableSpan->getName());
+        $this->assertSame('/{custom}', $immutableSpan->getAttributes()->get('strands.endpoint.route'));
         $this->assertTrue($immutableSpan->getAttributes()->get('strands.session.present'));
+        $this->assertSame(1, $immutableSpan->getAttributes()->get('strands.tools.count'));
+    }
+
+    /**
+     * Verifies that agent HTTP failures do not export app-owned error text or codes.
+     *
+     * @return void
+     */
+    public function testAgentErrorTelemetryUsesOnlyStableLabels(): void
+    {
+        $message = 'patient-secret-error-message';
+        $errorCode = 'patient-secret-error-code';
+
+        $this->middleware->beforeRequest('https://agent.example.com/invoke', [], '{}');
+        $this->middleware->afterResponse(
+            'https://agent.example.com/invoke',
+            422,
+            25.0,
+            new AgentErrorException($message, statusCode: 422, errorCode: $errorCode),
+        );
+
+        $immutableSpan = $this->getOnlySpan();
+        $serializedSpan = $this->serializeSpan($immutableSpan);
+
+        $this->assertStringNotContainsString($message, $serializedSpan);
+        $this->assertStringNotContainsString($errorCode, $serializedSpan);
+        $this->assertSame('agent_http_422', $immutableSpan->getStatus()->getDescription());
+        $this->assertSame(422, $immutableSpan->getAttributes()->get('strands.error.status_code'));
     }
 
     /**
@@ -146,5 +183,35 @@ final class OtelTracingPhiSafetyTest extends TestCase
         }
 
         return $attributes;
+    }
+
+    /**
+     * Serialize every exported span surface checked for sensitive values.
+     *
+     * @param ImmutableSpan $immutableSpan Span captured by the in-memory exporter.
+     * @return string JSON representation of the span name, status, attributes, and events.
+     */
+    private function serializeSpan(ImmutableSpan $immutableSpan): string
+    {
+        $events = [];
+        foreach ($immutableSpan->getEvents() as $event) {
+            $eventAttributes = [];
+            foreach ($event->getAttributes() as $key => $value) {
+                if (is_string($key)) {
+                    $eventAttributes[$key] = $value;
+                }
+            }
+            $events[] = [
+                'name' => $event->getName(),
+                'attributes' => $eventAttributes,
+            ];
+        }
+
+        return json_encode([
+            'name' => $immutableSpan->getName(),
+            'status' => $immutableSpan->getStatus()->getDescription(),
+            'attributes' => $this->spanAttributes($immutableSpan),
+            'events' => $events,
+        ], JSON_THROW_ON_ERROR);
     }
 }

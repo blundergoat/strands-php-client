@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,7 +19,8 @@ from contract import (  # noqa: E402
     map_sdk_event,
     sse_frame,
 )
-from tracing import parse_traceparent  # noqa: E402
+import tracing as tracing_module  # noqa: E402
+from tracing import TraceContextMiddleware, parse_traceparent  # noqa: E402
 
 
 def test_usage_mapping() -> None:
@@ -47,12 +50,13 @@ def test_sse_mapping() -> None:
 
 
 def test_url_media_guard() -> None:
-    assert_safe_url_source(
+    validated_ips = assert_safe_url_source(
         "https://example.com/file.pdf",
-        resolved_ips=["93.184.216.34"],
+        resolved_ips=["93.184.216.34", "93.184.216.34"],
         content_length=1024,
         content_type="application/pdf",
     )
+    assert validated_ips == ("93.184.216.34",)
     try:
         assert_safe_url_source("http://169.254.169.254/latest/meta-data")
     except ValueError:
@@ -80,6 +84,70 @@ def test_traceparent_parse() -> None:
     assert parse_traceparent("00-00000000000000000000000000000000-00f067aa0ba902b7-01") is None
 
 
+def test_trace_middleware_uses_route_template() -> None:
+    class FakeSpan:
+        def __init__(self) -> None:
+            self.attributes: dict[str, object] = {}
+
+        def set_attribute(self, key: str, value: object) -> None:
+            self.attributes[key] = value
+
+    class FakeSpanContext:
+        def __init__(self, span: FakeSpan) -> None:
+            self.span = span
+
+        def __enter__(self) -> FakeSpan:
+            return self.span
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    class FakeTracer:
+        def __init__(self, span: FakeSpan) -> None:
+            self.span = span
+
+        def start_as_current_span(self, *_args: object, **_kwargs: object) -> FakeSpanContext:
+            return FakeSpanContext(self.span)
+
+    class FakeTrace:
+        def __init__(self, tracer: FakeTracer) -> None:
+            self.tracer = tracer
+
+        def get_tracer(self, _name: str) -> FakeTracer:
+            return self.tracer
+
+    class FakeSpanKind:
+        SERVER = "server"
+
+    async def app(scope: dict[str, object], _receive: object, _send: object) -> None:
+        scope["route"] = SimpleNamespace(path="/session/{session_id}/history")
+
+    span = FakeSpan()
+    original_trace = tracing_module.trace
+    original_span_kind = tracing_module.SpanKind
+    tracing_module.trace = FakeTrace(FakeTracer(span))
+    tracing_module.SpanKind = FakeSpanKind
+    try:
+        middleware = TraceContextMiddleware(app)
+        asyncio.run(middleware(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/session/patient-secret-123/history",
+                "headers": [],
+            },
+            None,
+            None,
+        ))
+    finally:
+        tracing_module.trace = original_trace
+        tracing_module.SpanKind = original_span_kind
+
+    assert span.attributes["http.route"] == "/session/{session_id}/history"
+    assert "url.path" not in span.attributes
+    assert "patient-secret-123" not in str(span.attributes)
+
+
 def test_discovery_fixture_alignment() -> None:
     import json
 
@@ -98,5 +166,6 @@ if __name__ == "__main__":
     test_url_media_guard()
     test_discovery()
     test_traceparent_parse()
+    test_trace_middleware_uses_route_template()
     test_discovery_fixture_alignment()
     print("python gateway contract smoke OK")

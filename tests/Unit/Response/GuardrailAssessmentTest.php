@@ -128,4 +128,27 @@ class GuardrailAssessmentTest extends TestCase
         $this->assertNull($assessment->topicPolicy);
         $this->assertNull($assessment->contentPolicy);
     }
+
+    /**
+     * Verifies confidence parsing across valid and malformed wire values.
+     *
+     * @return void
+     */
+    public function testFromArrayParsesOnlyNumericConfidenceValues(): void
+    {
+        $cases = [
+            'integer' => [1, 1.0],
+            'float' => [0.75, 0.75],
+            'numeric string' => ['0.625', 0.625],
+            'non-numeric string' => ['high', null],
+            'boolean' => [true, null],
+            'array' => [[0.5], null],
+        ];
+
+        foreach ($cases as $name => [$value, $expected]) {
+            $assessment = GuardrailAssessment::fromArray(['confidence' => $value]);
+
+            $this->assertSame($expected, $assessment->confidence, "Failed for {$name}");
+        }
+    }
 }

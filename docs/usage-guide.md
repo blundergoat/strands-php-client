@@ -1211,7 +1211,7 @@ Cancellation requires the callback to return the literal `false`. A `void` callb
 
 ### URL media is rejected or ignored
 
-URL sources (`withImageFromUrl()`, `withDocumentFromUrl()`, `withVideoFromUrl()`) are wrapper-owned: the PHP client only serializes the block; your wrapper must fetch, validate, and translate the resource before sdk-python sees it. The reference gateway ships [`assert_safe_url_source()`](../examples/python-gateway/contract.py) for SSRF-safe validation (blocks localhost, private ranges, the cloud metadata IP, and non-HTTP schemes) but deliberately does not fetch. Also check hand-rolled payloads for the top-level `format` field - every image, document, and video block requires one, and the builder methods emit it automatically.
+URL sources (`withImageFromUrl()`, `withDocumentFromUrl()`, `withVideoFromUrl()`) are wrapper-owned: the PHP client only serializes the block; your wrapper must fetch, validate, and translate the resource before sdk-python sees it. The reference gateway ships [`assert_safe_url_source()`](../examples/python-gateway/contract.py) for SSRF-safe preflight validation (blocks localhost, private ranges, the cloud metadata IP, and non-HTTP schemes) and returns the validated IP addresses. The fetcher must connect to one of those returned addresses while preserving the original hostname for HTTP `Host` and TLS verification; resolving the hostname again would reintroduce DNS-rebinding risk. Re-run validation and pinning for every redirect hop. The helper deliberately does not fetch. Also check hand-rolled payloads for the top-level `format` field - every image, document, and video block requires one, and the builder methods emit it automatically.
 
 ### Response fields silently null (wrapper drift)
 
@@ -1219,7 +1219,7 @@ When `AgentResponse` fields the app expects come back null, the wrapper's JSON s
 
 ### Traces do not stitch across PHP and Python
 
-If the outbound request has no `traceparent` header, the middleware is not registered on the client (or was constructed without a tracer). If the header arrives but Python spans start a new trace, the wrapper is not extracting the incoming context - add the FastAPI middleware from `examples/python-gateway/tracing.py` or the equivalent OTEL instrumentation. Note that custom-endpoint spans use sanitized names (`strands.client.custom.<route>` with dynamic segments collapsed to `{id}`), and session IDs never appear on spans - only a `strands.session.present` boolean.
+If the outbound request has no `traceparent` header, the middleware is not registered on the client (or was constructed without a tracer). If the header arrives but Python spans start a new trace, the wrapper is not extracting the incoming context - add the FastAPI middleware from `examples/python-gateway/tracing.py` or the equivalent OTEL instrumentation. Custom-endpoint spans use the low-cardinality operation names `strands.client.post_json` and `strands.client.stream_sse`; arbitrary custom paths collapse to `/{custom}`. Session IDs never appear on spans - only a `strands.session.present` boolean.
 
 ## Testing
 

@@ -442,10 +442,12 @@ class AgentInput
      */
     private static function deriveImageFormat(string $mediaType): string
     {
-        $normalizedMediaType = strtolower(trim(explode(';', $mediaType, 2)[0]));
-        $parts = explode('/', $normalizedMediaType, 2);
+        $normalizedMediaType = strtolower(trim(explode(';', $mediaType)[0]));
+        $separator = strpos($normalizedMediaType, '/');
 
-        return $parts[1] ?? $normalizedMediaType;
+        return $separator === false
+            ? $normalizedMediaType
+            : substr($normalizedMediaType, $separator + 1);
     }
 
     /**
@@ -465,10 +467,7 @@ class AgentInput
             'csv' => 'text/csv',
             'html' => 'text/html',
             'md' => 'text/markdown',
-            'xml' => 'application/xml',
-            'json' => 'application/json',
-            'yaml', 'yml' => 'application/yaml',
-            'rtf' => 'application/rtf',
+            'yml' => 'application/yaml',
             'doc' => 'application/msword',
             'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'xls' => 'application/vnd.ms-excel',

@@ -76,8 +76,20 @@ class TraceContextMiddleware:
             span.set_attribute("gen_ai.system", "strands")
             span.set_attribute("strands.wire.version", "1")
             span.set_attribute("http.request.method", str(scope.get("method", "")))
-            span.set_attribute("url.path", str(scope.get("path", "")))
-            await self.app(scope, receive, send)
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                route_template = _route_template(scope)
+                if route_template is not None:
+                    span.set_attribute("http.route", route_template)
+
+
+def _route_template(scope: Mapping[str, Any]) -> str | None:
+    """Read the code-owned ASGI route template without exposing the concrete URL path."""
+    route = scope.get("route")
+    path = getattr(route, "path", None)
+
+    return path if isinstance(path, str) and path.startswith("/") else None
 
 
 def _is_lower_hex(value: str) -> bool:

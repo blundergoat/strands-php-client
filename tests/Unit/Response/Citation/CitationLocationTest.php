@@ -188,6 +188,26 @@ class CitationLocationTest extends TestCase
     }
 
     /**
+     * Verifies that fractional numeric strings and floats use nearest-integer rounding.
+     *
+     * @return void
+     */
+    public function testFromArrayRoundsFractionalIndexesToNearestInteger(): void
+    {
+        $location = CitationLocation::fromArray([
+            'start_character_index' => 2.2,
+            'end_character_index' => 2.7,
+            'start_chunk_index' => '3.2',
+            'end_chunk_index' => '3.7',
+        ]);
+
+        $this->assertSame(2, $location->startCharacterIndex);
+        $this->assertSame(3, $location->endCharacterIndex);
+        $this->assertSame(3, $location->startChunkIndex);
+        $this->assertSame(4, $location->endChunkIndex);
+    }
+
+    /**
      * Verifies that from array empty data.
      *
      * @return void

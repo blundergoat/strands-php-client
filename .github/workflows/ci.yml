@@ -43,6 +43,10 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      - name: Exclude PHP 8.3-only development tooling
+        if: matrix.php == '8.2'
+        run: composer remove --dev blundergoat/gruff-php --no-update --no-interaction
+
       - name: Install dependencies for matrix
         run: |
           composer update --prefer-dist --no-interaction --no-progress \
@@ -89,6 +93,10 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      - name: Exclude PHP 8.3-only development tooling
+        if: matrix.php == '8.2'
+        run: composer remove --dev blundergoat/gruff-php --no-update --no-interaction
+
       - name: Install dependencies for matrix
         run: |
           composer update --prefer-dist --no-interaction --no-progress \
@@ -133,7 +141,6 @@ jobs:
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     name: Mutation Testing
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v7

@@ -162,6 +162,42 @@ class CitationTest extends TestCase
     }
 
     /**
+     * Verifies that either flat source field can construct a citation location.
+     *
+     * @return void
+     */
+    public function testFromArrayBuildsLocationFromSourceOnlyOrTitleOnly(): void
+    {
+        $sourceOnly = Citation::fromArray(['source' => 'https://example.com/source']);
+        $titleOnly = Citation::fromArray(['title' => 'Untitled source']);
+
+        $this->assertSame('https://example.com/source', $sourceOnly->location?->url);
+        $this->assertSame('Untitled source', $titleOnly->location?->title);
+    }
+
+    /**
+     * Verifies that explicit structured location data wins over legacy flat fields.
+     *
+     * @return void
+     */
+    public function testFromArrayDoesNotReplaceStructuredLocationWithFlatFields(): void
+    {
+        $citation = Citation::fromArray([
+            'location' => [
+                'type' => 'WEB',
+                'url' => 'https://example.com/structured',
+                'title' => 'Structured title',
+            ],
+            'source' => 'https://example.com/flat',
+            'title' => 'Flat title',
+        ]);
+
+        $this->assertSame('WEB', $citation->location?->type);
+        $this->assertSame('https://example.com/structured', $citation->location?->url);
+        $this->assertSame('Structured title', $citation->location?->title);
+    }
+
+    /**
      * Verifies that from array with empty data.
      *
      * @return void

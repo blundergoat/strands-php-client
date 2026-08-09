@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Http\Middleware;
 
+use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
 use OpenTelemetry\API\Trace\SpanBuilderInterface;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
@@ -22,6 +23,8 @@ use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Http\Middleware\OtelTracingMiddleware;
 use StrandsPhpClient\Response\AgentResponse;
+use StrandsPhpClient\Response\StopReason;
+use StrandsPhpClient\Response\Usage;
 use StrandsPhpClient\Streaming\StreamResult;
 use StrandsPhpClient\Streaming\StreamSseSummary;
 
@@ -103,8 +106,10 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame('https://agent.example.com/invoke', $span->getAttributes()->get('url.full'));
         $this->assertSame('strands', $span->getAttributes()->get('gen_ai.system'));
         $this->assertSame('invoke', $span->getAttributes()->get('gen_ai.operation.name'));
+        $this->assertSame('strands-otel-v1', $span->getAttributes()->get('strands.otel.policy'));
         $this->assertSame('/invoke', $span->getAttributes()->get('strands.endpoint.route'));
         $this->assertSame(200, $span->getAttributes()->get('http.response.status_code'));
+        $this->assertSame(150.0, $span->getAttributes()->get('strands.operation.duration_ms'));
     }
 
     /**
@@ -142,13 +147,13 @@ class OtelTracingMiddlewareTest extends TestCase
     public function testHttpErrorWithoutException(): void
     {
         $this->middleware->beforeRequest('https://x/invoke', [], '{}');
-        $this->middleware->afterResponse('https://x/invoke', 503, 100.0);
+        $this->middleware->afterResponse('https://x/invoke', 400, 100.0);
 
         $spans = $this->getSpans();
         $this->assertCount(1, $spans);
 
         $span = $spans[0];
-        $this->assertSame(503, $span->getAttributes()->get('http.response.status_code'));
+        $this->assertSame(400, $span->getAttributes()->get('http.response.status_code'));
         $this->assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
     }
 
@@ -174,7 +179,9 @@ class OtelTracingMiddlewareTest extends TestCase
             static fn ($event): bool => $event->getName() === 'exception',
         ));
         $this->assertNotEmpty($exceptionEvents, 'Span must record an "exception" event');
+        $this->assertSame(\RuntimeException::class, $exceptionEvents[0]->getAttributes()->get('exception.type'));
         $this->assertSame('RuntimeException', $exceptionEvents[0]->getAttributes()->get('exception.message'));
+        $this->assertTrue($exceptionEvents[0]->getAttributes()->get('exception.escaped'));
     }
 
     /**
@@ -184,15 +191,20 @@ class OtelTracingMiddlewareTest extends TestCase
      */
     public function testAgentErrorExceptionSetsStrandsStatusCode(): void
     {
-        $agentErrorException = new AgentErrorException('Bad request', statusCode: 400, errorCode: 'validation');
+        $agentErrorException = new AgentErrorException(
+            'Bad request',
+            statusCode: 400,
+            errorCode: 'patient-secret-validation-code',
+        );
 
         $this->middleware->beforeRequest('https://x/invoke', [], '{}');
         $this->middleware->afterResponse('https://x/invoke', 400, 50.0, $agentErrorException);
 
         $spans = $this->getSpans();
         $this->assertSame(400, $spans[0]->getAttributes()->get('strands.error.status_code'));
-        $this->assertSame('validation', $spans[0]->getAttributes()->get('strands.error.code'));
-        $this->assertSame('agent_error:validation', $spans[0]->getStatus()->getDescription());
+        $this->assertNull($spans[0]->getAttributes()->get('strands.error.code'));
+        $this->assertSame('AgentErrorException', $spans[0]->getAttributes()->get('error.type'));
+        $this->assertSame('agent_http_400', $spans[0]->getStatus()->getDescription());
     }
 
     /**
@@ -244,7 +256,21 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->middleware->afterResponse('https://x/y?secret=abc&token=xyz', 200, 10.0);
 
         $spans = $this->getSpans();
-        $this->assertSame('https://x/y', $spans[0]->getAttributes()->get('url.full'));
+        $this->assertSame('https://x/{custom}', $spans[0]->getAttributes()->get('url.full'));
+    }
+
+    /**
+     * Verifies that the status-zero cancellation sentinel is not exported as an HTTP status.
+     *
+     * @return void
+     */
+    public function testStatusZeroIsNotRecordedAsHttpStatus(): void
+    {
+        $this->middleware->beforeRequest('https://x/stream', [], '{}');
+        $this->middleware->afterResponse('https://x/stream', 0, 10.0);
+
+        $span = $this->getSpans()[0];
+        $this->assertNull($span->getAttributes()->get('http.response.status_code'));
     }
 
     /**
@@ -256,7 +282,7 @@ class OtelTracingMiddlewareTest extends TestCase
     {
         $urls = [
             'https://x/invoke' => 'strands.client.invoke',
-            'https://x/file-summarise-stream' => 'strands.client.custom.file-summarise-stream',
+            'https://x/file-summarise-stream' => 'strands.client.post_json',
             'https://x/' => 'strands.client.post_json',
             'https://x' => 'strands.client.post_json',
         ];
@@ -274,6 +300,25 @@ class OtelTracingMiddlewareTest extends TestCase
             $this->assertSame($expectedName, $spans[$i]->getName(), "Failed for URL: $url");
             $i++;
         }
+    }
+
+    /**
+     * Verifies that an app-supplied span prefix is preserved.
+     *
+     * @return void
+     */
+    public function testCustomSpanNamePrefixIsPreserved(): void
+    {
+        $middleware = new OtelTracingMiddleware(
+            $this->tracerProvider->getTracer('custom-prefix'),
+            TraceContextPropagator::getInstance(),
+            'app.agent',
+        );
+
+        $middleware->beforeRequest('https://x/invoke', [], '{}');
+        $middleware->afterResponse('https://x/invoke', 200, 10.0);
+
+        $this->assertSame('app.agent.invoke', $this->getSpans()[0]->getName());
     }
 
     /**
@@ -307,19 +352,19 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that dynamic path segments are sanitized.
+     * Verifies that arbitrary custom paths fail closed to a stable route label.
      *
      * @return void
      */
-    public function testDynamicPathSegmentsAreSanitized(): void
+    public function testCustomPathsCollapseToStableTelemetryLabels(): void
     {
         $this->middleware->beforeRequest('https://agent.example.com/session/sess-secret-123/history?token=abc', [], '{}');
         $this->middleware->afterResponse('https://agent.example.com/session/sess-secret-123/history?token=abc', 200, 10.0);
 
         $spans = $this->getSpans();
-        $this->assertSame('strands.client.custom.session.id.history', $spans[0]->getName());
-        $this->assertSame('/session/{id}/history', $spans[0]->getAttributes()->get('strands.endpoint.route'));
-        $this->assertSame('https://agent.example.com/session/{id}/history', $spans[0]->getAttributes()->get('url.full'));
+        $this->assertSame('strands.client.post_json', $spans[0]->getName());
+        $this->assertSame('/{custom}', $spans[0]->getAttributes()->get('strands.endpoint.route'));
+        $this->assertSame('https://agent.example.com/{custom}', $spans[0]->getAttributes()->get('url.full'));
     }
 
     /**
@@ -342,6 +387,8 @@ class OtelTracingMiddlewareTest extends TestCase
             ],
             'tools_used' => [
                 ['name' => 'availability_lookup'],
+                ['name' => 'availability_lookup'],
+                ['name' => 'booking_confirmation'],
             ],
             'stop_reason' => 'end_turn',
             'model' => 'claude-test',
@@ -357,7 +404,82 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertSame(1, $span->getAttributes()->get('gen_ai.usage.cache_write_input_tokens'));
         $this->assertSame('end_turn', $span->getAttributes()->get('gen_ai.response.finish_reason'));
         $this->assertSame('claude-test', $span->getAttributes()->get('gen_ai.request.model'));
-        $this->assertSame(1, $span->getAttributes()->get('strands.tools.count'));
+        $this->assertSame(3, $span->getAttributes()->get('strands.tools.count'));
+        $this->assertSame(
+            ['availability_lookup', 'booking_confirmation'],
+            $span->getAttributes()->get('strands.tools.names'),
+        );
+    }
+
+    /**
+     * Verifies that invoke stop reasons can mark an HTTP-success span as failed.
+     *
+     * @return void
+     */
+    public function testInvokeObserverMarksErrorStopReasonAsFailed(): void
+    {
+        $this->middleware->beforeRequest('https://agent.example.com/invoke', [], '{}');
+        $this->middleware->afterInvoke('https://agent.example.com/invoke', AgentResponse::fromArray([
+            'text' => '',
+            'stop_reason' => 'error',
+        ]), 40.0);
+        $this->middleware->afterResponse('https://agent.example.com/invoke', 200, 40.0);
+
+        $span = $this->getSpans()[0];
+        $this->assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
+        $this->assertSame('agent terminal error', $span->getStatus()->getDescription());
+        $this->assertSame('agent_error', $span->getAttributes()->get('error.type'));
+        $this->assertSame(0, $span->getAttributes()->get('strands.tools.count'));
+        $this->assertNull($span->getAttributes()->get('strands.tools.names'));
+    }
+
+    /**
+     * Verifies that custom response telemetry exports only normalized summaries.
+     *
+     * @return void
+     */
+    public function testPostJsonObserverExportsOnlySafeSummaryFields(): void
+    {
+        $this->middleware->beforeRequest('https://agent.example.com/custom', [], '{}');
+        $this->middleware->afterPostJson('https://agent.example.com/custom', [
+            'agent' => 'patient-secret-agent',
+            'session_id' => 'patient-secret-session',
+            'model' => 'patient-secret-model',
+            'tools_used' => [
+                ['name' => 'patient-secret-tool'],
+                ['name' => 'another-secret-tool'],
+            ],
+            'stop_reason' => 'end_turn',
+            'usage' => ['input_tokens' => 7, 'output_tokens' => 3],
+        ], 30.0);
+        $this->middleware->afterResponse('https://agent.example.com/custom', 200, 30.0);
+
+        $span = $this->getSpans()[0];
+        $this->assertNull($span->getAttributes()->get('strands.agent.name'));
+        $this->assertNull($span->getAttributes()->get('gen_ai.request.model'));
+        $this->assertNull($span->getAttributes()->get('strands.tools.names'));
+        $this->assertTrue($span->getAttributes()->get('strands.session.present'));
+        $this->assertSame(2, $span->getAttributes()->get('strands.tools.count'));
+        $this->assertSame(7, $span->getAttributes()->get('gen_ai.usage.input_tokens'));
+        $this->assertSame('end_turn', $span->getAttributes()->get('gen_ai.response.finish_reason'));
+        $this->assertSame(StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
+    }
+
+    /**
+     * Verifies that unknown custom stop reasons are not exported as telemetry labels.
+     *
+     * @return void
+     */
+    public function testPostJsonObserverDropsUnknownStopReason(): void
+    {
+        $this->middleware->beforeRequest('https://agent.example.com/custom', [], '{}');
+        $this->middleware->afterPostJson('https://agent.example.com/custom', [
+            'stop_reason' => 'patient-secret-stop-reason',
+        ], 30.0);
+        $this->middleware->afterResponse('https://agent.example.com/custom', 200, 30.0);
+
+        $span = $this->getSpans()[0];
+        $this->assertNull($span->getAttributes()->get('gen_ai.response.finish_reason'));
     }
 
     /**
@@ -385,6 +507,7 @@ class OtelTracingMiddlewareTest extends TestCase
         $this->assertFalse($span->getAttributes()->get('strands.stream.cancelled'));
         $this->assertSame(20, $span->getAttributes()->get('gen_ai.usage.input_tokens'));
         $this->assertSame('end_turn', $span->getAttributes()->get('gen_ai.response.finish_reason'));
+        $this->assertSame(StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
     }
 
     /**
@@ -418,7 +541,47 @@ class OtelTracingMiddlewareTest extends TestCase
 
         $span = $this->getSpans()[0];
         $this->assertSame('stream_sse', $span->getAttributes()->get('gen_ai.operation.name'));
-        $this->assertSame('strands.client.custom.custom-events', $span->getName());
+        $this->assertSame('strands.client.stream_sse', $span->getName());
+    }
+
+    /**
+     * Verifies that typed stream summaries populate every safe telemetry field.
+     *
+     * @return void
+     */
+    public function testStreamObserverAddsSafeSummaryAttributes(): void
+    {
+        $this->middleware->beforeRequest('https://agent.example.com/stream', ['Accept' => 'text/event-stream'], '{}');
+        $this->middleware->afterStream('https://agent.example.com/stream', new StreamResult(
+            text: 'Done',
+            sessionId: 'session-secret',
+            usage: new Usage(inputTokens: 12, outputTokens: 4),
+            toolsUsed: [
+                ['name' => 'lookup'],
+                ['name' => 'lookup'],
+                ['name' => 'summarize'],
+            ],
+            textEvents: 2,
+            totalEvents: 4,
+            stopReason: StopReason::EndTurn,
+            cancelled: false,
+            timeToFirstTextTokenMs: 12.5,
+            terminalType: 'complete',
+        ), 40.0);
+        $this->middleware->afterResponse('https://agent.example.com/stream', 200, 40.0);
+
+        $span = $this->getSpans()[0];
+        $this->assertSame(12, $span->getAttributes()->get('gen_ai.usage.input_tokens'));
+        $this->assertSame(4, $span->getAttributes()->get('gen_ai.usage.output_tokens'));
+        $this->assertTrue($span->getAttributes()->get('strands.session.present'));
+        $this->assertSame(2, $span->getAttributes()->get('strands.stream.text_events'));
+        $this->assertSame(4, $span->getAttributes()->get('strands.stream.total_events'));
+        $this->assertFalse($span->getAttributes()->get('strands.stream.cancelled'));
+        $this->assertSame(12.5, $span->getAttributes()->get('strands.stream.ttft_ms'));
+        $this->assertSame('end_turn', $span->getAttributes()->get('gen_ai.response.finish_reason'));
+        $this->assertSame(3, $span->getAttributes()->get('strands.tools.count'));
+        $this->assertSame(['lookup', 'summarize'], $span->getAttributes()->get('strands.tools.names'));
+        $this->assertSame(StatusCode::STATUS_UNSET, $span->getStatus()->getCode());
     }
 
     /**
@@ -439,8 +602,8 @@ class OtelTracingMiddlewareTest extends TestCase
 
         $span = $this->getSpans()[0];
         $this->assertSame(StatusCode::STATUS_ERROR, $span->getStatus()->getCode());
-        $this->assertSame('Agent failed', $span->getStatus()->getDescription());
-        $this->assertSame('agent_error', $span->getAttributes()->get('error.type'));
+        $this->assertSame('stream terminal error', $span->getStatus()->getDescription());
+        $this->assertSame('stream_error', $span->getAttributes()->get('error.type'));
     }
 
     /**

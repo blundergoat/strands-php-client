@@ -17,6 +17,7 @@ use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Http\RequestMiddleware;
 use StrandsPhpClient\Http\ResponseObserver;
 use StrandsPhpClient\Response\AgentResponse;
+use StrandsPhpClient\Response\StopReason;
 use StrandsPhpClient\Response\Usage;
 use StrandsPhpClient\Streaming\StreamResult;
 use StrandsPhpClient\Streaming\StreamSseSummary;
@@ -82,7 +83,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     {
         $route = self::sanitizeRoute($url);
         $operation = self::deriveOperationName($route, $headers);
-        $spanName = $this->deriveSpanName($route, $operation);
+        $spanName = $this->deriveSpanName($operation);
 
         $span = $this->tracer
             ->spanBuilder($spanName)
@@ -143,12 +144,12 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
      */
     public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
     {
-        try {
-            // No open span means this response has no trace to close (tracing off or already ended).
-            if ($this->spanStack->isEmpty()) {
-                return;
-            }
+        // No open span means this response has no trace to close (tracing off or already ended).
+        if ($this->spanStack->isEmpty()) {
+            return;
+        }
 
+        try {
             [$span, $scope] = $this->spanStack->pop();
 
             // A real HTTP status (not the 0 sentinel) is worth recording on the trace.
@@ -168,14 +169,9 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
                 $span->setAttribute('error.type', self::classBasename($error::class));
                 $span->setStatus(StatusCode::STATUS_ERROR, self::safeErrorDescription($error));
 
-                // Agent-reported errors carry an HTTP status and code worth surfacing in traces.
+                // Agent-reported errors expose only the HTTP status; response codes are app-owned data.
                 if ($error instanceof AgentErrorException) {
                     $span->setAttribute('strands.error.status_code', $error->statusCode);
-
-                    // Include the machine-readable error code when the agent supplied one.
-                    if ($error->errorCode !== null) {
-                        $span->setAttribute('strands.error.code', $error->errorCode);
-                    }
                 }
             } elseif ($statusCode >= 400) {
                 $span->setStatus(StatusCode::STATUS_ERROR, sprintf('HTTP %d', $statusCode));
@@ -214,6 +210,12 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         // Record why the agent stopped, when it told us (for finish-reason dashboards).
         if ($response->stopReason !== null) {
             $span->setAttribute('gen_ai.response.finish_reason', $response->stopReason->value);
+        }
+
+        // A successful HTTP exchange can still carry an agent-level terminal error.
+        if ($response->stopReason === StopReason::Error) {
+            $span->setAttribute('error.type', 'agent_error');
+            $span->setStatus(StatusCode::STATUS_ERROR, 'agent terminal error');
         }
 
         $model = $response->metadata['model'] ?? null;
@@ -256,9 +258,14 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             $span->setAttribute('gen_ai.response.finish_reason', $result->stopReason->value);
         }
 
+        if ($result->stopReason === StopReason::Error) {
+            $span->setAttribute('error.type', 'agent_error');
+            $span->setStatus(StatusCode::STATUS_ERROR, 'agent terminal error');
+        }
+
         if ($result->terminalType === 'error') {
-            $span->setAttribute('error.type', $result->errorCode ?? 'stream_error');
-            $span->setStatus(StatusCode::STATUS_ERROR, $result->errorMessage ?? 'stream error');
+            $span->setAttribute('error.type', 'stream_error');
+            $span->setStatus(StatusCode::STATUS_ERROR, 'stream terminal error');
         }
     }
 
@@ -306,9 +313,17 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             self::setUsageAttributes($span, $summary->usage);
         }
 
-        // Record why the stream ended, when the terminal event said so.
-        if ($summary->stopReason !== null) {
-            $span->setAttribute('gen_ai.response.finish_reason', $summary->stopReason);
+        $stopReason = is_string($summary->stopReason)
+            ? StopReason::tryFrom($summary->stopReason)
+            : null;
+        // Only contract-defined stop reasons are safe to use as telemetry labels.
+        if ($stopReason !== null) {
+            $span->setAttribute('gen_ai.response.finish_reason', $stopReason->value);
+        }
+
+        if ($stopReason === StopReason::Error) {
+            $span->setAttribute('error.type', 'agent_error');
+            $span->setStatus(StatusCode::STATUS_ERROR, 'agent terminal error');
         }
 
         if ($summary->terminalType === 'error') {
@@ -320,28 +335,14 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     /**
      * Names the span so traces show the app action clearly.
      *
-     * @param string $route Sanitized endpoint route shown in telemetry.
      * @param string $operation Telemetry operation name shown for the app call.
      * @return non-empty-string Span name shown in the trace UI (e.g. "strands.client.invoke").
      */
-    private function deriveSpanName(string $route, string $operation): string
+    private function deriveSpanName(string $operation): string
     {
         $prefix = $this->spanNamePrefix !== '' ? $this->spanNamePrefix : 'strands.client';
 
-        // The two standard operations get clean, stable span names.
-        if ($operation === 'invoke' || $operation === 'stream') {
-            return $prefix . '.' . $operation;
-        }
-
-        $routeName = trim($route, '/');
-        // A custom endpoint with no path falls back to just the operation name.
-        if ($routeName === '') {
-            return $prefix . '.' . $operation;
-        }
-
-        $routeName = str_replace(['/', '{', '}'], ['.', '', ''], $routeName);
-
-        return $prefix . '.custom.' . $routeName;
+        return $prefix . '.' . $operation;
     }
 
     /**
@@ -396,16 +397,13 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     private static function sanitizeUrl(string $url): string
     {
         $parts = parse_url($url);
-        // If the URL won't parse, return it untouched rather than guess.
+        // If the URL will not parse, fail closed instead of emitting caller-controlled text.
         if (!is_array($parts)) {
-            return $url;
+            return '/';
         }
 
-        $result = '';
         // Rebuild only the safe parts (scheme/host/port), dropping any query string that could hold PII.
-        if (isset($parts['scheme'])) {
-            $result .= $parts['scheme'] . '://';
-        }
+        $result = isset($parts['scheme']) ? $parts['scheme'] . '://' : '';
         // Host is the agent's address.
         if (isset($parts['host'])) {
             $result .= $parts['host'];
@@ -438,7 +436,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * Return a telemetry-safe route with dynamic identifiers collapsed.
+     * Return a telemetry-safe, low-cardinality route label.
      *
      * @param string $url Request URL being observed.
      * @return string Telemetry-safe route value.
@@ -451,68 +449,17 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             return '/';
         }
 
-        $segments = array_values(array_filter(explode('/', trim($path, '/')), static fn (string $segment): bool => $segment !== ''));
+        $finalSegment = basename($path);
         // A path of only slashes also collapses to the root route.
-        if ($segments === []) {
+        if ($finalSegment === '') {
             return '/';
         }
 
-        $sanitized = [];
-        // Rewrite each segment so ids/tokens become "{id}" and can't leak into traces.
-        foreach ($segments as $index => $segment) {
-            $previous = $sanitized[$index - 1] ?? null;
-            // Collapse unsafe path characters before the route is shown in telemetry.
-            $safeSegment = preg_replace('/[^A-Za-z0-9._~-]+/', '-', $segment) ?? '';
-            $sanitized[] = self::isDynamicRouteSegment($safeSegment, $previous) ? '{id}' : $safeSegment;
-        }
-
-        return '/' . implode('/', $sanitized);
-    }
-
-    /**
-     * Determine whether a route segment should be hidden as an identifier.
-     *
-     * @param string $segment Route segment being evaluated.
-     * @param string|null $previous Previous sanitized route segment, when present.
-     * @return bool True when the segment should be replaced with a placeholder.
-     */
-    private static function isDynamicRouteSegment(string $segment, ?string $previous): bool
-    {
-        // An empty segment is treated as a placeholder id.
-        if ($segment === '') {
-            return true;
-        }
-
-        // A purely numeric segment is almost always a record id (e.g. /users/42).
-        if (ctype_digit($segment)) {
-            return true;
-        }
-
-        // UUID-like path parts usually identify user records and should not appear in traces.
-        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $segment) === 1) {
-            return true;
-        }
-
-        // Long opaque tokens are treated as identifiers before telemetry is emitted.
-        if (preg_match('/^[A-Za-z0-9_-]{24,}$/', $segment) === 1) {
-            return true;
-        }
-
-        // Otherwise, a segment right after a resource name (…/session/<this>) is its id.
-        return in_array($previous, [
-            'conversation',
-            'conversations',
-            'document',
-            'documents',
-            'file',
-            'files',
-            'patient',
-            'patients',
-            'request',
-            'requests',
-            'session',
-            'sessions',
-        ], true);
+        return match ($finalSegment) {
+            'invoke' => '/invoke',
+            'stream' => '/stream',
+            default => '/{custom}',
+        };
     }
 
     /**
@@ -591,31 +538,25 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             self::setUsageAttributes($span, Usage::fromArray($rawUsage));
         }
 
-        $agent = $response['agent'] ?? null;
         $sessionId = $response['session_id'] ?? null;
-        self::setAgentAttributes(
-            $span,
-            is_string($agent) ? $agent : null,
-            is_string($sessionId) ? $sessionId : null,
-        );
+        $span->setAttribute('strands.session.present', is_string($sessionId));
 
         $toolsUsed = $response['tools_used'] ?? null;
-        // Record which tools ran when the endpoint listed them.
-        if (is_array($toolsUsed)) {
-            /** @var list<array<string, mixed>> $toolsUsed validated before app code uses it. */
-            self::setToolsAttributes($span, $toolsUsed);
+        // Custom endpoint payloads are app-owned, so export only a count, never raw names.
+        if (is_array($toolsUsed) && array_is_list($toolsUsed)) {
+            $span->setAttribute('strands.tools.count', count($toolsUsed));
         }
 
-        $stopReason = $response['stop_reason'] ?? null;
-        // Record why the agent stopped, when the endpoint said so.
-        if (is_string($stopReason)) {
-            $span->setAttribute('gen_ai.response.finish_reason', $stopReason);
+        $rawStopReason = $response['stop_reason'] ?? null;
+        $stopReason = is_string($rawStopReason) ? StopReason::tryFrom($rawStopReason) : null;
+        // Only contract-defined stop reasons are safe to use as telemetry labels.
+        if ($stopReason !== null) {
+            $span->setAttribute('gen_ai.response.finish_reason', $stopReason->value);
         }
 
-        $model = $response['model'] ?? null;
-        // Tag the model used, when the endpoint names one.
-        if (is_string($model)) {
-            $span->setAttribute('gen_ai.request.model', $model);
+        if ($stopReason === StopReason::Error) {
+            $span->setAttribute('error.type', 'agent_error');
+            $span->setStatus(StatusCode::STATUS_ERROR, 'agent terminal error');
         }
     }
 
@@ -629,11 +570,6 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     {
         // Agent-reported failures get a stable, low-cardinality label for grouping in traces.
         if ($error instanceof AgentErrorException) {
-            // Prefer the agent's own error code when present (e.g. "agent_error:rate_limited").
-            if ($error->errorCode !== null) {
-                return 'agent_error:' . $error->errorCode;
-            }
-
             return sprintf('agent_http_%d', $error->statusCode);
         }
 

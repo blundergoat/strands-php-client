@@ -496,6 +496,38 @@ class AgentInputTest extends TestCase
     }
 
     /**
+     * Verifies that image format derivation normalizes MIME casing and whitespace.
+     *
+     * @return void
+     */
+    public function testWithImageNormalizesMimeCasingAndWhitespace(): void
+    {
+        $input = AgentInput::text('Describe this')
+            ->withImage('base64data', ' IMAGE/JPEG ; charset=binary');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('jpeg', $payload['content'][1]['format']);
+    }
+
+    /**
+     * Verifies that a format-only image media value remains usable.
+     *
+     * @return void
+     */
+    public function testWithImageAcceptsFormatWithoutMimePrefix(): void
+    {
+        $input = AgentInput::text('Describe this')
+            ->withImage('base64data', 'PNG');
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('png', $payload['content'][1]['format']);
+    }
+
+    /**
      * Verifies that image format derivation preserves compound subtypes.
      *
      * @return void

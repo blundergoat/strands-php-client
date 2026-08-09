@@ -166,8 +166,8 @@ def assert_safe_url_source(
     resolved_ips: Iterable[str] = (),
     content_length: int | None = None,
     content_type: str | None = None,
-) -> None:
-    """Validate URL media before any app-specific fetcher downloads it."""
+) -> tuple[str, ...]:
+    """Validate URL media and return the IPs the app-specific fetcher must pin."""
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"}:
         raise ValueError("URL media must use http or https")
@@ -176,9 +176,9 @@ def assert_safe_url_source(
 
     _reject_blocked_ip(parsed.hostname)
 
-    checked_ips = tuple(resolved_ips)
+    checked_ips = tuple(dict.fromkeys(resolved_ips))
     if not checked_ips:
-        checked_ips = tuple(_resolve_host_ips(parsed.hostname))
+        checked_ips = tuple(sorted(_resolve_host_ips(parsed.hostname)))
 
     for resolved_ip in checked_ips:
         _reject_blocked_ip(resolved_ip)
@@ -187,6 +187,8 @@ def assert_safe_url_source(
         raise ValueError("URL media content is too large")
     if content_type is not None and content_type.split(";")[0].strip().lower() not in SAFE_URL_MEDIA_TYPES:
         raise ValueError("URL media content type is not allowed")
+
+    return checked_ips
 
 
 def _number(raw: Mapping[str, Any], snake_key: str, camel_key: str) -> int | float | None:
