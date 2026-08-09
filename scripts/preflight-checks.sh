@@ -132,10 +132,18 @@ header
 # 1. Composer validate
 step "Composer validate"
 t=$(now_ns)
-if composer validate --strict 2>&1 | grep -q "is valid"; then
+# Read the exit status, not the wording: `--strict` still prints "is valid for simple usage" while
+# exiting non-zero on publish errors, so matching that phrase reported a pass for a manifest
+# Composer had rejected.
+validate_output=$(composer validate --strict 2>&1)
+validate_exit=$?
+if [[ $validate_exit -eq 0 ]]; then
     pass "$(elapsed_since "$t")"
 else
     fail "Composer validate"
+    echo "$validate_output" | head -20 | while read -r line; do
+        echo -e "    ${DIM}${line}${RESET}"
+    done
 fi
 
 # 2. Security audit

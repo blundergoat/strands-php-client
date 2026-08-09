@@ -2025,6 +2025,14 @@ main() {
         CHECK_COMMAND="${1:-}"
         ;;
       *)
+        # A bare word is shorthand for --check when a maintainer runs the hook by hand. A payload
+        # already waiting on stdin means the caller is an agent host instead, and checking the stray
+        # word would let the real command through while the run still looks like a clean pass.
+        if [[ ! -t 0 ]]; then
+          deny_dangerous_unavailable "unexpected argument \"$1\" alongside a hook payload; hosts pass no arguments and maintainers use --check=<command>"
+        fi
+
+        # Nothing is waiting on stdin, so treat the word as the command to check.
         if [[ -z "$CHECK_COMMAND" ]]; then
           CHECK_COMMAND="$1"
         fi

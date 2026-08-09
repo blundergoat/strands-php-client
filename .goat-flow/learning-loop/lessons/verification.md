@@ -1,6 +1,6 @@
 ---
 category: verification
-last_reviewed: 2026-08-08
+last_reviewed: 2026-08-10
 ---
 
 ## Lesson: A Passing Checker Can Mean Unchecked, Not Clean
@@ -56,3 +56,12 @@ last_reviewed: 2026-08-08
 **Trigger phase:** VERIFY
 **What happened:** The goat-flow installer staged Codex and shared harness changes while Claude and Copilot changes remained unstaged. The first `git diff --check` covered only the working tree, so staged whitespace needed a separate check.
 **Prevention:** After any installer or generator runs, capture `git status --short`, run both `git diff --check` and `git diff --cached --check`, and inspect both name-status views before asserting path or whitespace integrity.
+
+## Lesson: Put A Known-Bad Case In Every Probe Of A Guard
+
+**Created:** 2026-08-10
+**Decision changed:** When probing a policy hook, linter, or any other checker, include a case whose verdict is already known and read that case first. A probe whose controls come back wrong is measuring the harness, not the guard.
+**Trigger phase:** VERIFY
+**What happened:** While reviewing PR #6, a battery of git commands was piped into `.goat-flow/hooks/deny-dangerous.sh` as `bash .goat-flow/hooks/deny-dangerous.sh policy < payload.json`, mirroring the `"policy"` argument that appears in the host hook command. Every command returned exit 0. The run looked like a clean all-clear across the whole destructive-git surface. The controls in the same batch — `git push`, `git commit`, `rm -rf /` — also returned exit 0, which is what exposed the mistake. `main()` routes an unrecognised positional into `CHECK_COMMAND`, so the hook had evaluated the literal string `policy`, found it harmless, and never read the payload. The mode argument belongs to `run-with-bash.mjs` and is not forwarded to the shell script.
+**Evidence:** `.goat-flow/hooks/deny-dangerous.sh` (search: `unexpected argument`) now fails closed when a bare argument arrives alongside a payload on stdin; `.goat-flow/hooks/run-with-bash.mjs` (search: `spawnSync(`) shows the launcher passing only the hook script path.
+**Prevention:** Every probe of a checker carries at least one input the checker must reject. Read the control lines before the findings; identical verdicts across controls and subjects mean the harness is wrong. For goat-flow hooks specifically, drive them the way a host does — no positional arguments, payload on stdin — or use the documented `--check=<command>` form.

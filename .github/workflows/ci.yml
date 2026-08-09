@@ -24,6 +24,11 @@ jobs:
           find scripts .goat-flow/hooks -type f -name '*.sh' -print0 \
             | xargs -0 shellcheck
 
+      # The deny-dangerous guard's own regression corpus. A policy fix that is not asserted here is
+      # lost the next time the hook logic is rebuilt, and nothing else in CI would notice.
+      - name: Run deny-dangerous policy self-test
+        run: bash .goat-flow/hooks/deny-dangerous/deny-dangerous-self-test.sh --self-test=full
+
   quality:
     runs-on: ubuntu-latest
     strategy:

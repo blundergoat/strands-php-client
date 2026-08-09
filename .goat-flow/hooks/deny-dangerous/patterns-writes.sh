@@ -18,20 +18,126 @@ is_git_push() {
   return 1
 }
 
+# Report whether one of a git subcommand's own option tokens matches a pattern.
+# Use instead of substring-scanning the argument string, so `--forced-update` cannot satisfy a rule
+# written for `--force`. Quoting does not survive to this point: the candidate arrives normalized,
+# so a flag-like word inside a commit or tag message is still seen as a separate token. That makes
+# the guard fail closed on prose such as `git tag -m "document the --force flag"`, which is the
+# intended trade - a refused tag costs one manual command, a missed delete costs the ref.
+__goat_git_option_present() {
+  local -n __goat_option_words__="$1"
+  local pattern="$2"
+  local index
+
+  # Start past the subcommand itself; only its arguments can carry the option.
+  for (( index = 1; index < ${#__goat_option_words__[@]}; index++ )); do
+    if [[ "${__goat_option_words__[index]}" =~ $pattern ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# Report whether a delete-style subcommand was asked to preview instead of act.
+# A dry run prints what would change and leaves the developer's files where they are.
+__goat_git_is_dry_run() {
+  __goat_git_option_present "$1" '^(--dry-run|-n)$'
+}
+
+# Report whether a git subcommand rewrites history or overwrites the developer's working tree.
+# Use from check_repository_segment once the candidate is normalized and its global flags are
+# stripped, so `git -C dir --no-pager reset --hard` is judged on `reset --hard` alone. Read-only
+# evidence stays available: status, log, diff, plain branch and tag listings, stash and bisect
+# inspection, submodule status, and the dry-run form of every deleting subcommand.
 is_git_destructive() {
   __goat_git_strip_globals "$1" || return 1
-  local rest="$__goat_git_rest"
-  if [[ "$rest" =~ (^|[[:space:]])--no-verify([[:space:]]|$) ]]; then
+
+  local -a git_words=()
+  split_shell_words_into git_words "$__goat_git_rest"
+  local subcommand="${git_words[0]:-}"
+  local subverb="${git_words[1]:-}"
+
+  # Skipping the developer's own commit hooks hides whatever those hooks were installed to catch.
+  if __goat_git_option_present git_words '^--no-verify$'; then
     return 0
   fi
-  if [[ "$rest" =~ ^reset([[:space:]]|$) ]] && [[ "$rest" =~ (^|[[:space:]])--hard([[:space:]]|$) ]]; then
-    return 0
-  fi
-  if [[ "$rest" =~ ^clean([[:space:]]|$) ]] && \
-     { [[ "$rest" =~ (^|[[:space:]])--force([[:space:]]|$) ]] || \
-       [[ "$rest" =~ (^|[[:space:]])-[^-[:space:]]*f[^[:space:]]*([[:space:]]|$) ]]; }; then
-    return 0
-  fi
+
+  case "$subcommand" in
+    # These move HEAD, rewrite history, or overwrite files that were never committed. No flag
+    # combination makes that recoverable, so the subcommand alone is enough to refuse.
+    checkout|switch|restore|reset|rebase|merge|cherry-pick|revert|am|pull|filter-branch|filter-repo|sparse-checkout)
+      return 0
+      ;;
+    # Deleting tracked files or unreachable objects is final once it runs.
+    rm|prune)
+      __goat_git_is_dry_run git_words || return 0
+      ;;
+    # `git clean` deletes only once it is forced; unforced it refuses and leaves the tree alone.
+    # `git mv` is the same shape: forced, it overwrites a file that is already at the destination.
+    clean|mv)
+      __goat_git_option_present git_words '^(--force|-[^-]*f[^[:space:]]*)$' && return 0
+      ;;
+    # Applying a patch rewrites working files; the inspection modes only describe the patch.
+    apply)
+      __goat_git_option_present git_words '^(--check|--stat|--summary|--numstat)$' || return 0
+      ;;
+    # Stashing moves uncommitted work out of the tree the developer was looking at.
+    stash)
+      [[ "$subverb" == "list" || "$subverb" == "show" ]] || return 0
+      ;;
+    # Bisecting checks out commits under the developer's feet; its log views only read state.
+    bisect)
+      [[ "$subverb" == "log" || "$subverb" == "view" || "$subverb" == "visualize" ]] || return 0
+      ;;
+    # Submodule updates overwrite nested working trees, and `foreach` runs arbitrary commands there.
+    submodule)
+      case "$subverb" in
+        status|summary|init|sync) ;;
+        *) return 0 ;;
+      esac
+      ;;
+    # Removing, pruning, or moving a worktree deletes whatever was left uncommitted inside it.
+    worktree)
+      case "$subverb" in
+        remove|prune|move) return 0 ;;
+      esac
+      ;;
+    # Expiring or deleting reflog entries removes the last recovery route for everything above.
+    reflog)
+      case "$subverb" in
+        expire|delete) return 0 ;;
+      esac
+      ;;
+    # Rewriting notes changes what is attached to a commit; listing and showing them only reads.
+    notes)
+      case "$subverb" in
+        ''|list|show) ;;
+        *) return 0 ;;
+      esac
+      ;;
+    # Listing branches is evidence; deleting, renaming, or force-moving one drops a pointer that may
+    # be the only reference to those commits.
+    branch)
+      __goat_git_option_present git_words '^(--delete|--move|--force|-[^-]*[dDmMf][^[:space:]]*)$' && return 0
+      ;;
+    # Same for tags, matched on delete and force only: `-m` here is the annotation message.
+    tag)
+      __goat_git_option_present git_words '^(--delete|--force|-[^-]*[dDf][^[:space:]]*)$' && return 0
+      ;;
+    # Pruning or repacking away unreachable objects turns a recoverable reset into a permanent one.
+    gc)
+      __goat_git_option_present git_words '^--prune(=.*)?$' && return 0
+      ;;
+    repack)
+      __goat_git_option_present git_words '^(--delete|-[^-]*d[^[:space:]]*)$' && return 0
+      ;;
+    # Deleting a ref through plumbing reaches `git branch -D` without the porcelain.
+    update-ref|replace)
+      __goat_git_option_present git_words '^(-d|--delete)$' && return 0
+      ;;
+  esac
+
   return 1
 }
 
@@ -290,10 +396,11 @@ check_repository_segment() {
       block "git commit is not allowed. Ask the user to commit manually." || return $?
     fi
 
-    # Destructive history or cleanup flags require a manual developer decision and recovery plan.
+    # Rewriting history or overwriting the working tree needs a developer decision and a recovery
+    # plan, because the work it discards was never committed and is not in the reflog.
     if is_git_destructive "$repository_write_candidate"; then
       block \
-        "Destructive git operation (--no-verify / reset --hard / clean -f). Remove the flag, stash first, or run manually." ||
+        "Destructive git operation. This rewrites history or overwrites uncommitted work; check what would be lost and run it yourself." ||
         return $?
     fi
   done
