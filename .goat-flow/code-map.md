@@ -104,7 +104,7 @@ strands-php-client/
 │   ├── wire-contract.md                      = Strands HTTP Wire Contract v1 (PHP-facing JSON/SSE shapes)
 │   ├── wire-contract-audit.md                = Wrapper audit notes against the wire contract
 │   ├── wire-contract-consumer-matrix.md      = Consumer compatibility matrix
-│   └── coding-standards/git-commit-message.md = Commit guidance
+│   └── coding-standards/git-commit-message.md = Commit message standard — byte-identical to `.github/git-commit-instructions.md`; edit both or neither
 │
 ├── scripts/
 │   ├── preflight-checks.sh                   = composer preflight runner (used in CI + locally)
@@ -119,7 +119,7 @@ strands-php-client/
 │   ├── code-map.md                           = This file
 │   ├── glossary.md
 │   ├── learning-loop/                        = Footguns, lessons, patterns, decisions + generated indexes
-│   │   ├── footguns/                         = ci, contract, generated-files, gruff-php, hooks, integration, learning-loop, observability, transport-and-streaming
+│   │   ├── footguns/                         = ci, contract, generated-files, gruff-php, hooks, integration, learning-loop, observability, setup, transport-and-streaming
 │   │   ├── lessons/                          = gruff-php, gruff-test-quality, history, review, verification
 │   │   ├── decisions/                        = ADR-001 wire contract, ADR-002 OTEL response observation
 │   │   └── patterns/                         = Repeatable implementation/testing/release patterns
@@ -149,7 +149,7 @@ strands-php-client/
 │   ├── skills/                               = 7 goat-* skills installed for Copilot
 │   ├── copilot-instructions.md               = Copilot instruction file
 │   ├── ISSUE_TEMPLATE/, pull_request_template.md
-│   ├── git-commit-instructions.md            = Copilot commit guidance pointing to the project standard
+│   ├── git-commit-instructions.md            = Commit message standard Copilot auto-loads — byte-identical to `docs/coding-standards/git-commit-message.md`; edit both or neither
 │   └── dependabot.yml
 │
 ├── node_modules/@blundergoat/goat-flow/      = Installed goat-flow package (never edit)

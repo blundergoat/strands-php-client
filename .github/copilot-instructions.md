@@ -2,7 +2,7 @@
 
 PHP 8.2+ client library for consuming Strands Agents over HTTP. Core invariant: `HttpTransport` is an interface. Contract invariant: this client targets Strands HTTP Wire Contract v1, not raw sdk-python `TypedDict` shapes.
 
-**Goat-flow version:** 1.15.0
+**Goat-flow version:** 1.15.1
 
 ## Workspace Boundary
 
