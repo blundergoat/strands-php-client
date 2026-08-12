@@ -14,7 +14,7 @@ namespace StrandsPhpClient\Streaming;
  * This handler targets stream() only (typed StreamEvent). For streamSse()
  * (raw array callback), use a plain callable.
  *
- * @SuppressWarnings("PHPMD.UnusedFormalParameter")
+ * @SuppressWarnings("PHPMD.UnusedFormalParameter") -- no-op on*() hooks keep $event so overrides can use it.
  */
 abstract class StreamCallbackHandler
 {

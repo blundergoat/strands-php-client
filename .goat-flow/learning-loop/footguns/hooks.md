@@ -1,6 +1,6 @@
 ---
 category: hooks
-last_reviewed: 2026-08-11
+last_reviewed: 2026-08-13
 ---
 
 # Hooks Footguns
@@ -46,6 +46,8 @@ exactly this way and went unnoticed until re-measured on 2026-07-07:
 
 Both now exit 2, verified via `--check` runs and the full self-test.
 
+**Recurred 2026-08-13.** The `72ab22f` fix above was lost when the guard was rebuilt for the centralised launcher generation (`24536d9` lineage): the rebuilt splitter again split only on `&&`/`||`/`|`/`;`/newline, the rebuilt `lockfile_write_re` again required `[[:space:]]+`, and the rebuilt self-test shipped without the regression cases — so CI stayed green while both bypasses reopened, and the 1.5.0 CHANGELOG bullet claiming them fixed was false at the tag candidate. Re-measured with calibrated `--check` probes (known-good and known-bad controls), re-ported from the `72ab22f` diff plus a `|&` guard the new splitter needs, and re-encoded as self-test cases (`PASS: deny-dangerous self-test (mode=full, executed=455, skipped=0)`). The rule below predates the rebuild and was not applied to it; the self-test cases are the only part of a guard fix that survives a rewrite.
+
 **Rule.** Every closed bypass MUST land with matching `expect_block` /
 `expect_allow` cases in
 `.goat-flow/hooks/deny-dangerous/deny-dangerous-self-test.sh` in the same
@@ -73,6 +75,20 @@ Duplication is not cosmetic for `post-turn-safety`. `.goat-flow/hooks/post-turn-
 Three of the four agent configs carry the same defect, so this is the registration writer, not one bad edit: `.claude/settings.json` duplicates `Stop`/`post-turn-safety`, `.codex/hooks.json` duplicates `Stop`/`post-turn-safety`, and `.github/hooks/hooks.json` duplicates both `preToolUse`/`deny-dangerous` and `postToolUse`/`gruff-code-quality`. Only `.agents/hooks.json` is clean.
 
 **Prevention:** Treat agent config registration as unaudited. After any install, `npm update`, or hook enable/disable, tally every config by `(event, matcher, script)` and require exactly one — checking Claude alone misses the Codex and Copilot copies. Repair by deleting the surplus entry by hand, keeping the survivor's current launcher command; `JSON.stringify(config, null, 2)` plus a trailing newline reproduces these files byte-for-byte, so a programmatic dedupe changes nothing else. Do not repair with `goat-flow hooks sync`: the entry above this one explains why sync restores registry `deny-dangerous` bytes and deletes the git guard. Under Claude scope, `.codex/` and `.agents/` are read-only — report those to their owner rather than editing them.
+
+## Footgun: `deny-dangerous` scans heredoc bodies as command syntax
+
+**Status:** active | **Created:** 2026-08-12 | **Evidence:** ACTUAL_MEASURED
+**Trigger phase:** ACT
+**hallucination-risk:** medium
+
+**Symptoms:** A `Bash` call that pipes a markdown document through a heredoc (for example `cat <<'EOF' | goat-flow redact --output <dest>`) is blocked before execution with `Backtick command substitution hides nested execution` or `Command has more than 50 chained segments`, even though the heredoc body is inert data.
+
+**Why it happens:** The guard scans the whole command string, heredoc body included. It cannot tell a markdown code span from executable syntax, so inline-code backticks read as command substitution and a long document overruns the chained-segment budget. That is fail-closed by design — heredocs are a real vector for smuggling nested execution, and content-aware parsing would reopen it.
+
+**Evidence:** measured 2026-08-12 while writing `.goat-flow/plans/1.5.0-go-live/` milestones: six parallel heredoc pipes were all blocked, three per trigger. The firing rules live in `.goat-flow/hooks/deny-dangerous.sh` (search: `Backtick command substitution hides nested execution`) and (search: `more than 50 chained segments`). The same content passed byte-identical once staged outside the command string: drafts written with the harness `Write` tool, then `npx --no-install goat-flow redact --output <dest> < <draft>`.
+
+**Prevention:** Keep document content out of Bash command strings. Author files with the harness `Write`/`Edit` tools, or stage a draft file and stream it via stdin redirect. Do not weaken the backtick or segment rules to accommodate heredocs — they are the smuggling defence the self-test encodes (see "Hook policy fixes regress silently unless the self-test encodes them" above).
 
 ## Resolved Entries
 

@@ -720,6 +720,99 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
+     * Verifies that a middleware whose beforeRequest threw still receives afterResponse.
+     *
+     * @return void
+     */
+    public function testSetupFailureNotifiesMiddlewareThatThrewInBeforeRequest(): void
+    {
+        $setupException = new \RuntimeException('middleware exploded');
+
+        $middleware = $this->createMock(RequestMiddleware::class);
+        $middleware->expects($this->once())
+            ->method('beforeRequest')
+            ->willThrowException($setupException);
+        $middleware->expects($this->once())
+            ->method('afterResponse')
+            ->with(
+                'http://localhost:8081/invoke',
+                0,
+                $this->greaterThanOrEqual(0),
+                $this->identicalTo($setupException),
+            );
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+            middleware: [$middleware],
+        );
+
+        $this->expectExceptionObject($setupException);
+        $strandsClient->invoke(message: 'Test');
+    }
+
+    /**
+     * Verifies that middleware never entered before a setup failure gets no afterResponse.
+     *
+     * @return void
+     */
+    public function testSetupFailureSkipsMiddlewareNeverEntered(): void
+    {
+        $setupException = new \RuntimeException('second middleware exploded');
+        $callOrder = [];
+
+        $enteredMiddleware = $this->createMock(RequestMiddleware::class);
+        $enteredMiddleware->expects($this->once())->method('beforeRequest')
+            ->willReturnCallback(function (string $url, array $headers, string $body) use (&$callOrder) {
+                $callOrder[] = 'mw1:before';
+
+                return ['headers' => $headers, 'body' => $body];
+            });
+        $enteredMiddleware->expects($this->once())->method('afterResponse')
+            ->willReturnCallback(function () use (&$callOrder) {
+                $callOrder[] = 'mw1:after';
+            });
+
+        $throwingMiddleware = $this->createMock(RequestMiddleware::class);
+        $throwingMiddleware->expects($this->once())->method('beforeRequest')
+            ->willReturnCallback(function () use (&$callOrder, $setupException) {
+                $callOrder[] = 'mw2:before';
+
+                throw $setupException;
+            });
+        $throwingMiddleware->expects($this->once())->method('afterResponse')
+            ->willReturnCallback(function () use (&$callOrder) {
+                $callOrder[] = 'mw2:after';
+            });
+
+        $unreachedMiddleware = $this->createMock(RequestMiddleware::class);
+        $unreachedMiddleware->expects($this->never())->method('beforeRequest');
+        $unreachedMiddleware->expects($this->never())->method('afterResponse');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+            middleware: [$enteredMiddleware, $throwingMiddleware, $unreachedMiddleware],
+        );
+
+        // The failure must still reach the caller after teardown, so catch it here to assert ordering afterwards.
+        try {
+            $strandsClient->invoke(message: 'Test');
+            $this->fail('invoke() must rethrow the middleware setup failure');
+        } catch (\RuntimeException $caught) {
+            $this->assertSame($setupException, $caught);
+        }
+
+        $this->assertSame(['mw1:before', 'mw2:before', 'mw1:after', 'mw2:after'], $callOrder);
+    }
+
+    /**
      * Verifies that cancelled stream reports status zero.
      *
      * @return void

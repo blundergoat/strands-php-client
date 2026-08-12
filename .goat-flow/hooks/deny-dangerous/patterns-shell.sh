@@ -632,7 +632,9 @@ check_destructive_segment() {
     esac
   fi
 
-  local lockfile_write_re='(>|>>|tee|sed[[:space:]]+-i)[[:space:]]+.*(package-lock\.json|pnpm-lock\.yaml|composer\.lock|Cargo\.lock|yarn\.lock)'
+  # [[:space:]]* (not +): no-space redirects like `echo x>package-lock.json`
+  # must match too, or the guard is trivially bypassable.
+  local lockfile_write_re='(>|>>|tee|sed[[:space:]]+-i)[[:space:]]*.*(package-lock\.json|pnpm-lock\.yaml|composer\.lock|Cargo\.lock|yarn\.lock)'
   if [[ "$cmd" =~ $lockfile_write_re ]]; then
     block "Direct lockfile modification. Use the package manager (npm install, composer update, etc.)." || return $?
   fi

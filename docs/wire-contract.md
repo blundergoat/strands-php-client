@@ -154,7 +154,7 @@ Successful `/invoke` responses use an agent envelope.
 | `usage` | `object` | no | Token/timing usage in snake_case. |
 | `tools_used` | `array<object>` | no | Tool call summaries. Each item is `{name: string, duration_ms?: int, input?: object, result?: object}`. `input` and `result` must be safe summaries, not raw tool payloads. |
 | `has_objective` | `bool` | no | Wrapper-specific objective flag. |
-| `stop_reason` | `string` | no | One of `end_turn`, `tool_use`, `max_tokens`, `stop_sequence`, `interrupt`, `error`, `guardrail_intervened`, `cancelled`, or `checkpoint`. |
+| `stop_reason` | `string` | no | One of `end_turn`, `tool_use`, `max_tokens`, `stop_sequence`, `content_filtered`, `interrupt`, `error`, `guardrail_intervened`, `cancelled`, or `checkpoint`. |
 | `message` | `object` | no | Wrapper-normalized raw message content, used for citations and future nested metadata. |
 | `guardrail_trace` | `object` | no | Wrapper-normalized guardrail trace. |
 | `interrupts` | `array<object>` | no | Interrupt requests requiring caller input. |

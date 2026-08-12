@@ -46,7 +46,7 @@ last_reviewed: 2026-08-10
 
 **Created:** 2026-07-05
 **What happened:** The 1.5.0 closeout (M11) ran its gates and wrote the CHANGELOG on 2026-05-24, but nine later commits (PHPDoc pass, Symfony `^8.0` constraint widening, test refactors) landed before any tag existed. At HEAD, `composer preflight` failed (PHPMD: `StrandsClient` at 1001 lines vs the 1000 threshold) and the CHANGELOG's "593 tests, 1827 assertions" no longer matched the suite. Separately, two M01 checkboxes (the `class_exists` constructor guard and its swallow test) were ticked although `git log -S` showed the code never existed in any commit.
-**Evidence:** `CHANGELOG.md` (search: `## [1.5.0] - 2026-07-17`) is the tracked release record whose claims and counts require fresh verification at the tag commit.
+**Evidence:** `CHANGELOG.md` (search: `## [1.5.0]`) is the tracked release record whose claims and counts require fresh verification at the tag commit; its header date moves with the tag day, so cite the version, not the date.
 **Prevention:** Release readiness is a property of the tag commit, not of the closeout session — re-run `composer preflight` and re-check every CHANGELOG count/claim at the exact commit being tagged. And a ticked checkbox requires an artifact greppable in the tree; tick with the artifact name, never from intent.
 
 ## Lesson: Verify Both Git Index And Working Tree After Tool-Driven Updates

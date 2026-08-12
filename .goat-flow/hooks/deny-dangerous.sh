@@ -1812,6 +1812,7 @@ split_command_segments_into() {
   local current_policy_stage=""
   local command_character=""
   local next_command_character=""
+  local previous_command_character=""
   local in_single_quote=0
   local in_double_quote=0
   local previous_character_escaped=0
@@ -1905,6 +1906,22 @@ split_command_segments_into() {
           command_index=$((command_index + 1))
         fi
         continue
+      fi
+
+      # Bare & (background/job control) also separates commands: without this
+      # split, "echo ok & rm -rf /" stays one segment and the rm part is never
+      # inspected. Not a separator inside redirections - 2>&1 / >&2 keep their
+      # & literal (prev is a redirect char), as do &>file / &>>file (next is >)
+      # and |& when the pipe is not being split into stages here (prev is |).
+      # && never reaches here: the command-list branch above consumes both characters.
+      if [[ "$command_character" == "&" && "$next_command_character" != "&" && "$next_command_character" != ">" ]]; then
+        previous_command_character=""
+        (( command_index > 0 )) && previous_command_character="${developer_command:command_index-1:1}"
+        if [[ "$previous_command_character" != ">" && "$previous_command_character" != "<" && "$previous_command_character" != "|" ]]; then
+          __goat_split_out__+=("$current_policy_stage")
+          current_policy_stage=""
+          continue
+        fi
       fi
 
       # Semicolons and newlines start the next action the agent wants to run.

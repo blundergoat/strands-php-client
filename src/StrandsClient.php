@@ -537,7 +537,7 @@ class StrandsClient
         string $accept,
         int $startTime,
     ): array {
-        $middlewareStarted = false;
+        $enteredMiddlewareCount = 0;
 
         try {
             return $this->buildRequest(
@@ -546,10 +546,10 @@ class StrandsClient
                 $context,
                 $sessionId,
                 $accept,
-                $middlewareStarted,
+                $enteredMiddlewareCount,
             );
         } catch (\Throwable $e) {
-            $this->notifyAfterRequestSetupFailure($url, $startTime, $middlewareStarted, $e);
+            $this->notifyAfterRequestSetupFailure($url, $startTime, $enteredMiddlewareCount, $e);
 
             throw $e;
         }
@@ -566,39 +566,47 @@ class StrandsClient
      */
     private function prepareJsonRequest(string $url, array $payload, string $accept, int $startTime): array
     {
-        $middlewareStarted = false;
+        $enteredMiddlewareCount = 0;
 
         try {
-            return $this->buildJsonRequest($url, $payload, $accept, $middlewareStarted);
+            return $this->buildJsonRequest($url, $payload, $accept, $enteredMiddlewareCount);
         } catch (\Throwable $e) {
-            $this->notifyAfterRequestSetupFailure($url, $startTime, $middlewareStarted, $e);
+            $this->notifyAfterRequestSetupFailure($url, $startTime, $enteredMiddlewareCount, $e);
 
             throw $e;
         }
     }
 
     /**
-     * Notify middleware only when request setup failed after middleware started.
+     * Notify exactly the middleware that entered beforeRequest() when request setup fails.
      *
      * @param string $url agent endpoint the app is calling.
      * @param int $startTime Request start timestamp used for duration metrics.
-     * @param bool $middlewareStarted Whether any middleware started observing this operation.
+     * @param int $enteredMiddlewareCount How many middleware entered beforeRequest(); 0 means setup failed before any observed the operation.
      * @param \Throwable $error Failure surfaced while preparing the agent request.
      * @return void No returned value; closes middleware state for setup failures.
      */
     private function notifyAfterRequestSetupFailure(
         string $url,
         int $startTime,
-        bool $middlewareStarted,
+        int $enteredMiddlewareCount,
         \Throwable $error,
     ): void {
         // A JSON encoding failure happens before middleware starts, so there is no operation to close.
-        if (!$middlewareStarted) {
+        if ($enteredMiddlewareCount === 0) {
             return;
         }
 
         $durationMs = (hrtime(true) - $startTime) / 1e6;
-        $this->notifyAfterResponse($url, 0, $durationMs, $error);
+        // Close out only the middleware that entered - the thrower included - so middleware the
+        // operation never reached does not tear down state it never set up.
+        $this->notifyAfterResponse(
+            $url,
+            0,
+            $durationMs,
+            $error,
+            array_slice($this->middleware, 0, $enteredMiddlewareCount),
+        );
     }
 
     /**
@@ -725,7 +733,7 @@ class StrandsClient
      * @param ?AgentContext $context Optional context for the turn; null sends just the message.
      * @param ?string $sessionId Conversation id to continue; null starts a brand-new conversation.
      * @param string $accept Accept header used for the app call.
-     * @param bool $middlewareStarted Whether any middleware has started observing this operation.
+     * @param int $enteredMiddlewareCount Incremented as each middleware enters beforeRequest(); stays 0 when setup fails before any middleware ran.
      * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the agent.
      *
      * @throws StrandsException  If the payload cannot be JSON-encoded.
@@ -736,7 +744,7 @@ class StrandsClient
         ?AgentContext $context,
         ?string $sessionId,
         string $accept,
-        bool &$middlewareStarted,
+        int &$enteredMiddlewareCount,
     ): array {
         // Rich input means the user attached files, images, or asked for structured output.
         if ($message instanceof AgentInput) {
@@ -772,8 +780,9 @@ class StrandsClient
         // Middleware runs before auth so that body-modifying middleware
         // (e.g. payload enrichment) doesn't invalidate SigV4 signatures.
         foreach ($this->middleware as $mw) {
+            // Counted before the call so a middleware that throws here still gets its teardown.
+            $enteredMiddlewareCount++;
             $result = $mw->beforeRequest($url, $headers, $body);
-            $middlewareStarted = true;
             $headers = $result['headers'];
             $body = $result['body'];
         }
@@ -810,13 +819,13 @@ class StrandsClient
      * @param string               $url      The full URL.
      * @param array<string, mixed> $payload  The payload to JSON-encode.
      * @param string               $accept   The Accept header value.
-     * @param bool                 $middlewareStarted Whether any middleware has started observing this operation.
+     * @param int                  $enteredMiddlewareCount Incremented as each middleware enters beforeRequest(); stays 0 when setup fails before any middleware ran.
      *
      * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the custom endpoint.
      *
      * @throws StrandsException  If the payload cannot be JSON-encoded.
      */
-    private function buildJsonRequest(string $url, array $payload, string $accept, bool &$middlewareStarted): array
+    private function buildJsonRequest(string $url, array $payload, string $accept, int &$enteredMiddlewareCount): array
     {
         try {
             $body = json_encode($payload, JSON_THROW_ON_ERROR);
@@ -835,8 +844,9 @@ class StrandsClient
         // Middleware runs before auth so that body-modifying middleware
         // doesn't invalidate SigV4 signatures.
         foreach ($this->middleware as $mw) {
+            // Counted before the call so a middleware that throws here still gets its teardown.
+            $enteredMiddlewareCount++;
             $result = $mw->beforeRequest($url, $headers, $body);
-            $middlewareStarted = true;
             $headers = $result['headers'];
             $body = $result['body'];
         }
@@ -957,12 +967,18 @@ class StrandsClient
      * @param int $statusCode HTTP status recorded for app diagnostics.
      * @param float $durationMs elapsed time reported to app telemetry.
      * @param ?\Throwable $error Failure surfaced while awaiting the agent; null when the call succeeded.
+     * @param list<RequestMiddleware>|null $middlewareToNotify Middleware receiving the teardown; null notifies every configured middleware (the normal end-of-operation path).
      * @return void No returned value; updates client or observer state.
      */
-    private function notifyAfterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
-    {
-        // Tell every middleware the call is done; observability failures are logged, not raised.
-        foreach ($this->middleware as $mw) {
+    private function notifyAfterResponse(
+        string $url,
+        int $statusCode,
+        float $durationMs,
+        ?\Throwable $error = null,
+        ?array $middlewareToNotify = null,
+    ): void {
+        // Tell each notified middleware the call is done; observability failures are logged, not raised.
+        foreach ($middlewareToNotify ?? $this->middleware as $mw) {
             try {
                 $mw->afterResponse($url, $statusCode, $durationMs, $error);
             } catch (\Throwable $e) {

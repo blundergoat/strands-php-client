@@ -1199,7 +1199,7 @@ Symptoms the user sees, and what to check on each side of the wire.
 
 ### Token counts show as zero
 
-`Usage::fromArray()` reads canonical snake_case fields (`input_tokens`, `latency_ms`, ...) and tolerates camelCase fallbacks, float values (rounded), and numeric strings. If the app's cost readout shows zeros, the wrapper is emitting different key names entirely - not a casing variant. Compare the wrapper's `usage` block against `tests/Fixtures/wire-contract/invoke-response-success.json` and normalize with the gateway's `extract_usage()` helper.
+`Usage::fromArray()` reads canonical snake_case fields (`input_tokens`, `latency_ms`, ...) and tolerates camelCase fallbacks and numeric strings; token counts round to integers while `latency_ms` and `time_to_first_byte_ms` keep fractional values. If the app's cost readout shows zeros, the wrapper is emitting different key names entirely - not a casing variant. Compare the wrapper's `usage` block against `tests/Fixtures/wire-contract/invoke-response-success.json` and normalize with the gateway's `extract_usage()` helper.
 
 ### Stream stops with StreamInterruptedException
 

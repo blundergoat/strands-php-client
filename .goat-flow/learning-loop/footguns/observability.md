@@ -1,6 +1,6 @@
 ---
 category: observability
-last_reviewed: 2026-08-08
+last_reviewed: 2026-08-12
 ---
 
 ## Footgun: RequestMiddleware Cannot Observe Parsed Results
@@ -37,8 +37,8 @@ last_reviewed: 2026-08-08
 **Decision changed:** Keep every request-construction path behind the cleanup wrappers so late setup failures close middleware state.
 **Trigger phase:** ACT
 
-**Resolution:** Request preparation now tracks whether middleware started and catches later setup failures around both standard and custom requests.
+**Resolution:** Request preparation counts how many middleware entered `beforeRequest()` (incremented before each call) and, on a later setup failure, notifies exactly that slice — the middleware that threw included, unreached middleware excluded. The original bool-based wrapper missed both halves: a first-middleware throw skipped teardown entirely, and any later failure notified middleware that never ran.
 
-**Evidence:** `src/StrandsClient.php` (search: `notifyAfterRequestSetupFailure`) closes middleware after `prepareAgentRequest()` or `prepareJsonRequest()` catches a setup exception. `src/Http/Middleware/OtelTracingMiddleware.php` (search: `$this->spanStack->pop()`) then detaches and ends the active span.
+**Evidence:** `src/StrandsClient.php` (search: `$enteredMiddlewareCount`) increments before each `beforeRequest()`; (search: `notifyAfterRequestSetupFailure`) slices the middleware list to the entered count. Regression coverage: `tests/Unit/RequestMiddlewareTest.php` (search: `testSetupFailureNotifiesMiddlewareThatThrewInBeforeRequest`) and (search: `testSetupFailureSkipsMiddlewareNeverEntered`) — both failed against the bool logic and pass against the count (re-measured 2026-08-12). `src/Http/Middleware/OtelTracingMiddleware.php` (search: `$this->spanStack->pop()`) then detaches and ends the active span.
 
-**Prevention:** Keep standard requests routed through `prepareAgentRequest()` and custom requests through `prepareJsonRequest()`. Any new request builder must preserve the same cleanup wrapper.
+**Prevention:** Keep standard requests routed through `prepareAgentRequest()` and custom requests through `prepareJsonRequest()`, and keep the count increment BEFORE the `beforeRequest()` call. Any new request builder must preserve the same cleanup wrapper; the teardown contract is documented on `src/Http/RequestMiddleware.php` (search: `Teardown contract`).

@@ -13,7 +13,7 @@ use StrandsPhpClient\Response\Citation\Citation;
  * Each property maps to a specific event type - most are null for types
  * that don't carry that field.
  *
- * @SuppressWarnings("PHPMD.ExcessiveParameterList")
+ * @SuppressWarnings("PHPMD.ExcessiveParameterList") -- the constructor mirrors every wire field of one stream event.
  */
 class StreamEvent
 {

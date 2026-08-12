@@ -10,6 +10,8 @@ namespace StrandsPhpClient\Streaming;
  * Drop this into StrandsClient::stream() to echo streamed text to stdout (and
  * errors to stderr) — handy for CLI tools and quick demos. Pass custom writers
  * to redirect output elsewhere, such as a log file or a test buffer.
+ *
+ * @SuppressWarnings("PHPMD.UnusedFormalParameter") -- onComplete() keeps the parent's $event name for named-arg callers.
  */
 class PrintingCallbackHandler extends StreamCallbackHandler
 {
@@ -47,11 +49,10 @@ class PrintingCallbackHandler extends StreamCallbackHandler
     /**
      * Terminate printed stream output when the stream completes.
      *
-     * @param StreamEvent $_event Unused stream event kept for override signature
-     * compatibility.
+     * @param StreamEvent $event Completed stream event; ignored because the closing newline is unconditional.
      * @return bool|null False cancels the stream; null continues it.
      */
-    protected function onComplete(StreamEvent $_event): ?bool
+    protected function onComplete(StreamEvent $event): ?bool
     {
         $this->writeOutput(PHP_EOL);
 
