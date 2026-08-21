@@ -2,7 +2,7 @@
 
 **Project identity.** `blundergoat/strands-php-client` is a PHP 8.2+ library that consumes [Strands Agents](https://github.com/strands-agents/strands-agents) over HTTP — invoke, SSE streaming, custom-endpoint passthrough — with Laravel and Symfony integrations. **Core invariant:** the library never runs an agentic loop in PHP; it only marshals requests/responses for a Python agent. **Contract invariant:** this client targets the Strands HTTP Wire Contract v1 emitted by wrapper services, not raw sdk-python `TypedDict` shapes — see `docs/wire-contract.md` and `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md`. Cross-cutting concerns: PSR-3 logging, PSR-18/Symfony transport abstraction, immutable DTOs/builders, strict types, defensive parsing.
 
-**Goat-flow version:** 1.15.1
+**Goat-flow version:** 1.16.0
 
 **Workspace boundary.** The controlling goat-flow workspace (skills, templates, manifest) lives in `node_modules/@blundergoat/goat-flow/`. The selected target project is this repository root. Adapt commands, paths, and boundaries from the target — do not echo the controlling workspace's paths into installed surfaces.
 
@@ -46,7 +46,8 @@
 ## Key Resources
 
 - **Learning loop** (read each `INDEX.md` first, open entries only on hits): `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, `.goat-flow/learning-loop/decisions/`
-- **Playbooks**: `.goat-flow/skill-docs/playbooks/README.md` is the full index — tool availability (`browser-use.md`, `page-capture.md`) plus discipline playbooks for changelog, release notes, writing style, code comments, observability, and hook-policy testing
+- **Playbooks**: `.goat-flow/skill-docs/playbooks/README.md` is the full index; tool availability at `.goat-flow/skill-docs/playbooks/browser-use.md` and `.goat-flow/skill-docs/playbooks/page-capture.md`, plus discipline playbooks for changelog, release notes, writing style, code comments, naming and placement, test selection, and hook-policy testing
+- **Skill-authoring methodology**: `.goat-flow/skill-docs/skill-quality-testing/` — load the README first, then the topical authoring guide
 - **Wire contract**: `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md`
 - **Project orientation**: `.goat-flow/architecture.md`, `.goat-flow/code-map.md`, `.goat-flow/glossary.md`
 - **Peer instructions**: `AGENTS.md` (project conventions, coding patterns, testing patterns — read for context, do not modify)
@@ -72,7 +73,7 @@ Single file/method: `vendor/bin/phpunit tests/Unit/FooTest.php --filter testBar`
 When a goat-* skill is active, its Step 0 replaces READ and selects the skill's mode/depth. SCOPE still applies before writes: a skill may write when its selected mode permits writes or the user explicitly approves them. `/goat-plan` File-Write may create gitignored milestone files without a separate approval gate; `/goat-debug` D3 still requires approval before fixes. Resume at ACT after Step 0 output or when a blocking gate releases.
 
 ### READ
-MUST read relevant files before changes. Never fabricate codebase facts. For URL, local HTML, localhost, screenshot, rendered UI, or browser-visible behaviour, check browser evidence first. Use INDEX-first retrieval: read the `INDEX.md` rows in `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, and `.goat-flow/learning-loop/patterns/` first and open entries only on hits; include `.goat-flow/learning-loop/decisions/INDEX.md` for architecture or policy work. Grep buckets only after the INDEX pass or a known retrieval miss. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-docs/playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim — project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool". Discipline playbooks have no availability check and need their own trigger: read the matching one before editing `CHANGELOG.md`, release notes, `README.md` or `docs/` prose, PR/issue text, learning-loop entry bodies, source comments, or instrumentation.
+MUST read relevant files before changes. Never fabricate codebase facts. For URL, local HTML, localhost, screenshot, rendered UI, or browser-visible behaviour, check browser evidence first. Use INDEX-first retrieval: read the `INDEX.md` rows in `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, and `.goat-flow/learning-loop/patterns/` first and open entries only on hits; include `.goat-flow/learning-loop/decisions/INDEX.md` for architecture or policy work. Grep buckets only after the INDEX pass or a known retrieval miss. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-docs/playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim — project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool". Discipline playbooks have no availability check and need their own trigger: read the matching one before editing `CHANGELOG.md`, release notes, `README.md` or `docs/` prose, PR/issue text, learning-loop entry bodies, source comments, or instrumentation. Before creating, changing, reviewing, consolidating, moving, or pruning tests, read `.goat-flow/skill-docs/playbooks/test-selection.md`.
 
 ### SCOPE
 Declare intent, complexity tier (Hotfix / Standard Feature / System Change / Infrastructure), mode, files allowed to change, non-goals, blast radius. Expanding beyond scope means stop and re-scope with the human.
@@ -113,7 +114,8 @@ Add footguns → `.goat-flow/learning-loop/footguns/<category>.md` (read `.goat-
 | Instruction file (this file) | `CLAUDE.md` |
 | Learning loop | `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, `.goat-flow/learning-loop/decisions/` |
 | Skill reference (meta) | `.goat-flow/skill-docs/` |
-| Skill playbooks (`README.md` index: tool availability plus changelog, release-notes, writing-style, code-comments, observability, hook-policy-testing) | `.goat-flow/skill-docs/playbooks/` — read BEFORE declaring a tool unavailable, and before editing changelog, release, docs, or comment prose |
+| Tool playbooks (README index; tools e.g. browser-use, page-capture; disciplines e.g. changelog, release notes, prose style) | `.goat-flow/skill-docs/playbooks/` — read when a request names one, and BEFORE declaring a tool unavailable |
+| Skill-authoring methodology | `.goat-flow/skill-docs/skill-quality-testing/` — load the README, then the topical authoring guide |
 | Architecture | `.goat-flow/architecture.md` |
 | Orientation | `.goat-flow/code-map.md`, `.goat-flow/glossary.md` |
 | Wire contract | `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`, `.goat-flow/learning-loop/decisions/ADR-001-strands-http-wire-contract.md` |

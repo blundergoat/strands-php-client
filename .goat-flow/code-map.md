@@ -126,7 +126,7 @@ strands-php-client/
 │   ├── plans/                                = Local session plan files (gitignored by design)
 │   ├── scratchpad/                           = Local scratch notes (gitignored)
 │   ├── skill-docs/                           = Installed verbatim from goat-flow
-│   │   └── playbooks/                        = browser-use.md, changelog.md, code-comments.md, gruff-code-quality.md, hook-policy-testing.md, observability.md, page-capture.md, release-notes.md, skill-playbook-authoring-sync.md, writing-style.md
+│   │   └── playbooks/                        = browser-use.md, changelog.md, code-comments.md, gruff-code-quality.md, hook-policy-testing.md, naming-and-placement.md, observability.md, page-capture.md, release-notes.md, skill-playbook-authoring-sync.md, test-selection.md, writing-sentence-diagnostics.md, writing-structure-diagnostics.md, writing-style.md
 │   ├── logs/sessions/                        = Local-only session continuity (gitignored)
 │   ├── hooks/                                = Shared goat-flow hook scripts and policy
 │   └── config.yaml                           = goat-flow version pin

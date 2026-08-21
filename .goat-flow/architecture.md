@@ -68,6 +68,6 @@ This is a library — there is no runtime to deploy. Quality gates run locally v
 - Cyclomatic complexity ≤ 20 per method (`scripts/check-cyclomatic-complexity.php`).
 - Infection mutation testing (`composer mutate`) — slow, optional locally, but ≥ 90% MSI target per `infection.json5`.
 
-goat-flow shared skill-doc playbooks live under `.goat-flow/skill-docs/playbooks/`: `browser-use.md`, `changelog.md`, `code-comments.md`, `gruff-code-quality.md`, `hook-policy-testing.md`, `observability.md`, `page-capture.md`, `release-notes.md`, `skill-playbook-authoring-sync.md`, and `writing-style.md`.
+goat-flow shared skill-doc playbooks live under `.goat-flow/skill-docs/playbooks/`: `browser-use.md`, `changelog.md`, `code-comments.md`, `gruff-code-quality.md`, `hook-policy-testing.md`, `naming-and-placement.md`, `observability.md`, `page-capture.md`, `release-notes.md`, `skill-playbook-authoring-sync.md`, `test-selection.md`, `writing-sentence-diagnostics.md`, `writing-structure-diagnostics.md`, and `writing-style.md`.
 
 Releases tag from `main`. Branch alias `dev-main` → `1.5.x-dev` in `composer.json`. Packagist publishes on tag.

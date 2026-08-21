@@ -55,7 +55,7 @@ Do not edit secrets or credential files. Do not push, commit, run destructive gi
 - Code map: `.goat-flow/code-map.md`
 - Glossary: `.goat-flow/glossary.md`
 - Learning loop: `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, `.goat-flow/learning-loop/decisions/`
-- Tool playbooks: `.goat-flow/skill-docs/playbooks/` — read the matching playbook before declaring a tool unavailable.
+- Tool playbooks: `.goat-flow/skill-docs/playbooks/README.md` is the full index; examples include `.goat-flow/skill-docs/playbooks/browser-use.md` and `.goat-flow/skill-docs/playbooks/page-capture.md` — read the matching playbook before declaring a tool unavailable.
 - Wire contract: `docs/wire-contract.md`, `tests/Fixtures/wire-contract/`
 - Main docs: `README.md`, `CONTRIBUTING.md`, `docs/usage-guide.md`, `docs/auth.md`, `docs/laravel-config.md`, `docs/symfony-config.md`
 
@@ -78,7 +78,7 @@ vendor/bin/phpunit --filter testInvokeReturnsResponse
 
 ### READ
 
-MUST read relevant files before changes. Never fabricate codebase facts. Search `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, and `.goat-flow/learning-loop/decisions/` before code changes. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-docs/playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim — project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool".
+MUST read relevant files before changes. Never fabricate codebase facts. Search `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, and `.goat-flow/learning-loop/decisions/` before code changes. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-docs/playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim — project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool". Before creating, changing, reviewing, consolidating, moving, or pruning tests, read `.goat-flow/skill-docs/playbooks/test-selection.md`.
 
 ### SCOPE
 
@@ -100,6 +100,10 @@ Run focused checks for changed files. Do not claim checks passed without the lit
 4. **Hedged claims.** Do not use "should work", "probably fine", "looks good" as verification. These are guesses, not evidence.
 
 Rationalisations to reject — see `.goat-flow/skill-docs/skill-preamble.md` ("Rationalisations to reject" table) for the canonical Excuse / Reality pairs.
+
+- **Stop-the-line:** When tests break, builds fail, or behaviour regresses — stop expanding scope. Preserve evidence, return to diagnosis, re-plan before continuing.
+- Level 1 (isolated): note, continue. Level 2 (cross-doc, broken refs, evidence): MUST full stop, wait for human. Two corrections on same approach = MUST rewind.
+- Recovery: missing context → read first. Out-of-scope → name boundary, redirect. Conflicting sources → flag, ask.
 
 ## Definition of Done
 

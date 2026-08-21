@@ -2,7 +2,7 @@
 
 PHP 8.2+ client library for consuming Strands Agents over HTTP. Core invariant: `HttpTransport` is an interface. Contract invariant: this client targets Strands HTTP Wire Contract v1, not raw sdk-python `TypedDict` shapes.
 
-**Goat-flow version:** 1.15.1
+**Goat-flow version:** 1.16.0
 
 ## Workspace Boundary
 
@@ -71,7 +71,7 @@ When a goat-* skill is active, its Step 0 replaces READ and selects the skill's 
 
 ### READ
 
-MUST read relevant files before changes. Never fabricate codebase facts. Search `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, and `.goat-flow/learning-loop/decisions/` before code changes. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-docs/playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim - project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool".
+MUST read relevant files before changes. Never fabricate codebase facts. Search `.goat-flow/learning-loop/footguns/`, `.goat-flow/learning-loop/lessons/`, `.goat-flow/learning-loop/patterns/`, and `.goat-flow/learning-loop/decisions/` before code changes. Before declaring any tool or capability unavailable, read the matching playbook in `.goat-flow/skill-docs/playbooks/` (e.g. `browser-use.md`, `page-capture.md`) and run that doc's "Availability Check" section verbatim - project-local CLI tools at `~/.local/bin/` are valid; do not conflate "no harness/MCP tool" with "no tool". Before creating, changing, reviewing, consolidating, moving, or pruning tests, read `.goat-flow/skill-docs/playbooks/test-selection.md`.
 
 ### SCOPE
 
@@ -93,6 +93,10 @@ Run focused checks for changed files. Check cross-references after renames. Do n
 4. **Hedged claims.** Do not use "should work", "probably fine", or "looks good" as verification.
 
 Rationalisations to reject live in `.goat-flow/skill-docs/skill-preamble.md`.
+
+- **Stop-the-line:** When tests break, builds fail, or behaviour regresses - stop expanding scope. Preserve evidence, return to diagnosis, re-plan before continuing.
+- Level 1 (isolated): note, continue. Level 2 (cross-doc, broken refs, evidence): MUST full stop, wait for human. Two corrections on same approach = MUST rewind.
+- Recovery: missing context - read first. Out-of-scope - name boundary, redirect. Conflicting sources - flag, ask.
 
 ## Definition of Done
 
