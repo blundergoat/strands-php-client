@@ -13,13 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-## [1.5.0] - 2026-08-12
+## [1.5.0] - 2026-08-22
 
 ### Compatibility
 
-- **BREAKING:** top-level `metadata` moved from `AgentResponse::$metadata` to `$wrapperMetadata` - migrate `$response->metadata['metadata']` reads.
-- **BREAKING:** `Usage::$latencyMs`/`$timeToFirstByteMs` widened from `int` to `int|float`; strict `int` consumers must round or accept floats.
-- PHP requirement narrowed from `>=8.2` to `>=8.2 <9.0`, capping installs at the majors this release is tested on.
+- `AgentResponse::$wrapperMetadata`, `::$contextSize`, and `::$projectedContextSize` are canonical; their former `$metadata[...]` locations remain
+  deprecated until 2.0.
+- `Usage` timing properties remain `int` in 1.x; fractional wire timings round to the nearest millisecond.
+- `AgentInput` document builders retain their 1.4 signatures; additive `*Options()` methods carry context and citation controls.
+- `StopReason` retains its seven 1.4 cases; newer wire values remain available through `rawStopReason` until 2.0.
+- Existing invoke/stream debug context keys remain available; 1.5 outcome fields are additive.
 
 ### Added
 
@@ -32,8 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Middleware that also implements `ResponseObserver` keeps working from the existing `strands.middleware` stack.
 - **Strands HTTP Wire Contract v1** - contract docs, ADR, audit notes, compatibility matrix, and canonical fixtures.
 - The wire contract defines the wrapper-owned JSON/SSE shapes exchanged between PHP apps and Python sdk-python gateways.
-- **Reference Python gateway template** - `examples/python-gateway/` ships a FastAPI blueprint for `/invoke`, `/stream`, `/health`, custom endpoints.
-- The gateway template includes usage/event normalization, trace-context continuation, URL-media guards, and dependency-free smoke checks.
+- **Reference Python gateway template** - source includes a FastAPI blueprint; Composer archives exclude examples.
+- It normalizes real sdk-python events/results and includes tracing, URL-media guards, and dependency-free smoke checks.
 - **Wire-contract and consumer compatibility tests** - fixture smoke tests parse the canonical JSON/SSE fixtures.
 - Consumer-shaped custom endpoint fixtures cover `ambient-scribe`, `the-summit-chatroom`, `halaxy-agents-lab`, and `healthkit`.
 - **Typed citation DTOs** - `Citation`, `CitationLocation`, `CitationSourceContent`, and `CitationGeneratedContent` under `Response\Citation\`.
@@ -44,16 +47,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Assessments expose normalized `name`/`result`/`confidence` alongside the Bedrock policy blocks; raw assessment arrays remain available.
 - **Richer agent exceptions** - `ThrottledException`, `ContextOverflowException`, and `MaxTokensException` extend `AgentErrorException`.
 - `AgentErrorException::fromHttpResponse()` returns the specific exception subtype where the response identifies one.
-- **StopReason additions** - `Error`, `Cancelled`, and `Checkpoint` cover the contract's terminal states and future Python SDK stop reasons.
 - **AgentInput media and cache coverage** - `withImageFromS3()`, `withVideo()`, and `withCachePoint()`.
 - URL media sources: `withImageFromUrl()`, `withDocumentFromUrl()`, `withVideoFromUrl()`.
-- Document blocks also accept `context` and `citations` options.
+- Document blocks accept `context` and `citations` through additive `withDocumentOptions()` and `withDocumentFromS3Options()` methods.
 - **Structured output hydration** - `AgentResponse::structuredOutputAs(string $class)` hydrates a DTO via `fromArray()` or named arguments.
 - **Nested message metadata support** - typed `Message` and `MessageMetadata` DTOs preserve `message.role` and `message.content`.
 - `MessageMetadata` preserves `message.metadata.usage`, `message.metadata.metrics`, and `message.metadata.custom`.
 - **Wrapper metadata and context visibility** - `AgentResponse::$wrapperMetadata`, `::$contextSize`, and `::$projectedContextSize`.
 - Stream complete events and stream results carry matching context-size fields.
-- **Raw stop-reason preservation** - `AgentResponse::$rawStopReason` keeps unknown future `stop_reason` strings the enum parser cannot hydrate.
+- **Raw stop-reason preservation** - invoke and stream results retain unknown future stop strings beside the typed enum.
 - **Stream terminal metadata** - `StreamResult::$terminalType`, `::$errorCode`, and `::$errorMessage`.
 - Terminal metadata records whether a stream ended on `complete` or `error` and why; `StreamSseSummary` carries the same for raw SSE streams.
 - **Stream callback handler** - `StreamCallbackHandler` dispatches typed events to `on*()` methods; a hook returning `false` cancels the stream.
@@ -70,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rich-input docs now cover wrapper-owned URL media, cache points, document context/citation controls, and the Python gateway translation boundary.
 - `docs/wire-contract.md` now enumerates the full v1 surface: request envelopes, rich content blocks, response and usage fields, and stop reasons.
 - The contract doc also covers flattened citation/guardrail shapes, stream SSE events, discovery responses, and observability constraints.
-- `AgentResponse` now routes top-level `metadata` to `$wrapperMetadata`; `$metadata` keeps only unknown forward-compatible fields (see Compatibility).
+- Top-level wrapper metadata now has a canonical accessor while its legacy array read remains compatible through 1.x.
 - `AgentResponse::parseToolsUsed()` and `StreamEvent` complete events keep safe `tools_used[].input` and `.result` summaries when wrappers emit them.
 - Streamed `tools_used` now carries the same detail as `invoke()`.
 - `Usage::fromArray()` now accepts canonical snake_case and tolerant camelCase fields, supports `total_tokens`, and accepts numeric strings.
@@ -88,11 +90,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed silent zeroing of float `latency_ms` and `time_to_first_byte_ms` values: `Usage::$latencyMs` and `$timeToFirstByteMs` are now `int|float`.
-- Fractional milliseconds now survive; token counts still coerce int, float, and numeric-string inputs.
+- Fixed float timing values being zeroed; public integer properties now receive deterministic rounded milliseconds.
+- Token and timing fields coerce int, float, and numeric-string inputs without widening the 1.x API.
 - Fixed casing drift risk for usage counters by accepting both snake_case wrapper fields and camelCase upstream-style fields.
 - Fixed nested `message.metadata` loss by preserving the raw message and hydrating typed message metadata.
-- Fixed top-level `metadata` ambiguity with the dedicated `$wrapperMetadata` accessor; unknown top-level fields still land in the `$metadata` bucket.
+- Fixed top-level `metadata` ambiguity with dedicated wrapper/context accessors without breaking their legacy `$metadata[...]` paths.
+- Fixed typed and raw SSE parsing when a CRLF pair crosses transport chunk boundaries; both paths now share the same 10 MB per-frame guard.
+- Fixed the SSE guard rejecting a large transport chunk made of several individually bounded frames; delimiters now drain each frame before the
+  next is measured.
+- Fixed non-finite or out-of-range usage values becoming misleading PHP integers or invalid `NaN`/`Infinity` JSON in the reference gateway.
+- The reference gateway now carries the request's session ID into sdk-python `AgentResult` terminal events so the PHP app can continue the
+  conversation.
+- Fixed gateway normalization for real sdk-python text, terminal, reasoning, citation, and tool events; control events are skipped.
+- Gateway discovery now advertises only features the fake app implements.
 - Fixed telemetry leakage risk: span attributes forbid prompt/response text, filenames, raw context metadata, and raw document content.
 - Span attributes also bar citation source text, raw tool payloads, credentials, session ID values, and unsanitized exception messages.
 - Fixed custom endpoint observability gaps by summarizing `postJson()` and `streamSse()` outcomes without inspecting app-owned payload content.

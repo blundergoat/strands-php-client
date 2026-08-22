@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Agent Input behavior for app integrations.
+ * Exercises the rich-input payloads an application builds from user text and attachments.
+ * It covers immutable chaining, media sources, cache points, and document options.
+ * Failures here mean the wrapper could receive a different request than the UI assembled.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -11,14 +13,19 @@ namespace StrandsPhpClient\Tests\Unit;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Context\AgentInput;
+use StrandsPhpClient\Tests\Fixtures\Compatibility\V1AgentInputExtension;
 
 /**
- * Verifies Agent Input behavior that application users rely on.
+ * Verifies AgentInput preserves caller choices while producing the Wire Contract request shape.
+ *
+ * It protects users attaching images, documents, videos, or interrupt responses to a turn.
+ * Use these scenarios when changing builder names, signatures, immutability, or serialization.
  */
 class AgentInputTest extends TestCase
 {
     /**
-     * Verifies that text only returns string.
+     * Covers "text only returns string" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -31,7 +38,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with image returns content blocks.
+     * Covers "with image returns content blocks" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -57,7 +65,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with document returns content blocks.
+     * Covers "with document returns content blocks" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -77,7 +86,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with document from s 3.
+     * Covers "with document from s3 bucket" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -98,7 +108,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with document from s 3 with bucket owner.
+     * Covers "with document from s3 with bucket owner" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -114,7 +125,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with video from s 3.
+     * Covers "with video from s3 bucket" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -133,7 +145,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with structured output prompt.
+     * Covers "with structured output prompt" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -149,7 +162,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that withImage returns a new instance and leaves the original unchanged.
+     * Covers "with image returns new instance and preserves original" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -158,17 +172,18 @@ class AgentInputTest extends TestCase
         $original = AgentInput::text('Hello');
         $withImage = $original->withImage('data', 'image/jpeg');
 
-        // Original should still return plain string
+        // The original builder still represents the user's untouched text-only request.
         $this->assertSame('Hello', $original->toPayloadValue());
-        // Modified should have content blocks
+        // The returned copy carries the image the user added without changing that original request.
         $this->assertIsArray($withImage->toPayloadValue());
 
-        // Clone must be a different instance
+        // A separate instance lets UI code safely retain either step of an immutable form-building flow.
         $this->assertNotSame($original, $withImage);
     }
 
     /**
-     * Verifies that with document returns new instance.
+     * Covers "with document returns new instance" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -183,7 +198,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with document from s 3 returns new instance.
+     * Covers "with document from s3 returns new instance" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -198,7 +214,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with video from s 3 returns new instance.
+     * Covers "with video from s3 returns new instance" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -213,7 +230,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with structured output prompt returns new instance.
+     * Covers "with structured output prompt returns new instance" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -228,19 +246,20 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with document from s 3 bucket owner condition.
+     * Covers "with document from s3 bucket owner condition" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
     public function testWithDocumentFromS3BucketOwnerCondition(): void
     {
-        // Without bucket owner
+        // A same-account S3 document omits the owner field the user did not need to provide.
         $input1 = AgentInput::text('Test')
             ->withDocumentFromS3('s3://b/k', 'pdf', 'doc', null);
         $payload1 = $input1->toPayloadValue();
         $this->assertArrayNotHasKey('bucket_owner', $payload1['content'][1]['source']);
 
-        // With bucket owner
+        // A cross-account S3 document retains the owner ID collected by the upload flow.
         $input2 = AgentInput::text('Test')
             ->withDocumentFromS3('s3://b/k', 'pdf', 'doc', '123');
         $payload2 = $input2->toPayloadValue();
@@ -248,19 +267,20 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with video from s 3 bucket owner condition.
+     * Covers "with video from s3 bucket owner condition" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
     public function testWithVideoFromS3BucketOwnerCondition(): void
     {
-        // Without bucket owner
+        // A same-account S3 video omits the owner field the user did not need to provide.
         $input1 = AgentInput::text('Test')
             ->withVideoFromS3('s3://b/clip.mp4', 'mp4');
         $payload1 = $input1->toPayloadValue();
         $this->assertArrayNotHasKey('bucket_owner', $payload1['content'][1]['source']);
 
-        // With bucket owner
+        // A cross-account S3 video retains the owner ID collected by the upload flow.
         $input2 = AgentInput::text('Test')
             ->withVideoFromS3('s3://b/clip.mp4', 'mp4', '999');
         $payload2 = $input2->toPayloadValue();
@@ -268,7 +288,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that withDocument() resolves the documented media type for each supported extension.
+     * Covers "with document resolves media type for format" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @param string $extension Document file extension passed to withDocument().
      * @param string $filename Cosmetic filename argument (unused by media-type resolution).
@@ -288,7 +309,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Document extension → expected MIME type cases for testWithDocumentResolvesMediaTypeForFormat().
+     * Supplies the input variants for the related request-building scenario.
+     * An empty provider would leave a caller-visible edge case unverified.
      *
      * @return iterable<string, array{0: string, 1: string, 2: string}> Document format cases that keep rich user input encoded correctly.
      */
@@ -313,7 +335,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that multiple content blocks.
+     * Covers "multiple content blocks" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -327,7 +350,7 @@ class AgentInputTest extends TestCase
         $payload = $input->toPayloadValue();
 
         $this->assertIsArray($payload);
-        // 1 text + 2 images + 1 document = 4 blocks
+        // The final request preserves the user's text, two images, and document as four ordered blocks.
         $this->assertCount(4, $payload['content']);
         $this->assertSame('text', $payload['content'][0]['type']);
         $this->assertSame('image', $payload['content'][1]['type']);
@@ -336,7 +359,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that interrupt response.
+     * Covers "interrupt response" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -347,16 +371,16 @@ class AgentInputTest extends TestCase
         $payload = $input->toPayloadValue();
 
         $this->assertIsArray($payload);
-        // No text block (empty text), just the interrupt response block
+        // An approval click can resume the agent with only an interrupt-response block and no chat text.
         $this->assertCount(1, $payload['content']);
         $this->assertSame('interrupt_response', $payload['content'][0]['type']);
         $this->assertSame('int-abc-123', $payload['content'][0]['interrupt_id']);
         $this->assertSame('Approved', $payload['content'][0]['response']);
     }
 
-
     /**
-     * Verifies that structured output prompt only makes array.
+     * Covers "structured output prompt only makes array" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -373,7 +397,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with image from s 3.
+     * Covers "with image from s3 bucket" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -393,7 +418,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with image from s 3 with bucket owner.
+     * Covers "with image from s3 with bucket owner" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -409,7 +435,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with image from s 3 returns new instance.
+     * Covers "with image from s3 returns new instance" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -424,7 +451,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with video.
+     * Covers "with video" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -444,7 +472,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with video returns new instance.
+     * Covers "with video returns new instance" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -459,7 +488,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with image from URL.
+     * Covers "with image from url" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -479,7 +509,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that image MIME parameters are stripped before deriving format.
+     * Covers "with image strips mime parameters before deriving format" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -496,7 +527,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that image format derivation normalizes MIME casing and whitespace.
+     * Covers "with image normalizes mime casing and whitespace" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -512,7 +544,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that a format-only image media value remains usable.
+     * Covers "with image accepts format without mime prefix" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -528,7 +561,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that image format derivation preserves compound subtypes.
+     * Covers "with image preserves compound subtype format" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -544,7 +578,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with image from URL returns new instance.
+     * Covers "with image from url returns new instance" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -559,7 +594,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with document from URL.
+     * Covers "with document from url" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -580,7 +616,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with document from URL returns new instance.
+     * Covers "with document from url returns new instance" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -595,14 +632,15 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with document supports context and citation options.
+     * Covers "with document supports context and citation options" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
     public function testWithDocumentSupportsContextAndCitationOptions(): void
     {
         $input = AgentInput::text('Summarise')
-            ->withDocument('pdfdata', 'pdf', 'report.pdf', 'Referral context', ['enabled' => true]);
+            ->withDocumentOptions('pdfdata', 'pdf', 'report.pdf', 'Referral context', ['enabled' => true]);
 
         $payload = $input->toPayloadValue();
 
@@ -612,7 +650,45 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with document from URL supports context and citation options.
+     * Covers "with document from s3 options supports context and citations" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
+     *
+     * @return void
+     */
+    public function testWithDocumentFromS3OptionsSupportsContextAndCitations(): void
+    {
+        $input = AgentInput::text('Summarise')
+            ->withDocumentFromS3Options(
+                s3Uri: 's3://bucket/report.pdf',
+                format: 'pdf',
+                name: 'report.pdf',
+                bucketOwner: '123456789012',
+                context: 'Referral context',
+                citations: ['enabled' => true],
+            );
+
+        $payload = $input->toPayloadValue();
+
+        $this->assertIsArray($payload);
+        $this->assertSame('123456789012', $payload['content'][1]['source']['bucket_owner']);
+        $this->assertSame('Referral context', $payload['content'][1]['context']);
+        $this->assertSame(['enabled' => true], $payload['content'][1]['citations']);
+    }
+
+    /**
+     * Covers "v1 document builder signatures remain override compatible" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
+     *
+     * @return void
+     */
+    public function testV1DocumentBuilderSignaturesRemainOverrideCompatible(): void
+    {
+        $this->assertTrue(is_subclass_of(V1AgentInputExtension::class, AgentInput::class));
+    }
+
+    /**
+     * Covers "with document from url supports context and citation options" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -629,7 +705,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with cache point adds cache point block.
+     * Covers "with cache point adds cache point block" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -647,7 +724,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with cache point returns new instance.
+     * Covers "with cache point returns new instance" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -668,7 +746,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with video from URL.
+     * Covers "with video from url" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -688,7 +767,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that with video from URL returns new instance.
+     * Covers "with video from url returns new instance" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -703,7 +783,8 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Verifies that mixed media types chaining.
+     * Covers "mixed media types chaining" so the agent receives the request the user assembled.
+     * Use this regression case when attachment or request-builder encoding changes.
      *
      * @return void
      */
@@ -720,7 +801,7 @@ class AgentInputTest extends TestCase
         $payload = $input->toPayloadValue();
 
         $this->assertIsArray($payload);
-        // 1 text + 6 media blocks = 7
+        // The mixed-media request keeps the user's text plus all six attachments in one ordered content list.
         $this->assertCount(7, $payload['content']);
         $this->assertSame('text', $payload['content'][0]['type']);
         $this->assertSame('image', $payload['content'][1]['type']);

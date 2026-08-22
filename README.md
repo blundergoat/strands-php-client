@@ -39,7 +39,9 @@ graph LR
 
 For a full walkthrough with real-world examples, see the [Usage Guide](docs/usage-guide.md).
 
-Need a Python wrapper to start from? See the [reference FastAPI gateway](examples/python-gateway), which includes `/invoke`, `/stream`, `/health`, custom endpoint examples, safe usage normalization, and trace-context continuation.
+Need a Python wrapper to start from? The source repository includes a
+[reference FastAPI gateway](https://github.com/blundergoat/strands-php-client/tree/main/examples/python-gateway) with `/invoke`, `/stream`, `/health`,
+custom endpoint examples, safe sdk-python normalization, and trace-context continuation. It is reference source, not part of Composer archives.
 
 ## Quick Start
 
@@ -106,7 +108,7 @@ $response = $client->invoke(message: $input);
 // Text with a document from S3
 $input = AgentInput::text('Summarise this report')
     ->withCachePoint(ttl: '5m')
-    ->withDocumentFromS3(
+    ->withDocumentFromS3Options(
         s3Uri: 's3://my-bucket/report.pdf',
         format: 'pdf',
         name: 'report',
@@ -139,8 +141,8 @@ $response->sessionId;                    // Session ID for follow-ups
 $response->usage;                        // Token usage (inputTokens, outputTokens)
 $response->usage->totalTokens();         // Total tokens (input + output)
 $response->toolsUsed;                    // Tools the agent called
-$response->metadata;                     // Unrecognised response fields (forward-compat)
-$response->wrapperMetadata;              // Top-level wrapper-owned metadata
+$response->metadata;                     // Unknown fields plus deprecated 1.x aliases
+$response->wrapperMetadata;              // Canonical top-level wrapper-owned metadata
 $response->message?->metadata?->custom;  // Nested message metadata
 $response->contextSize;                  // Current context size when emitted
 $response->rawStopReason;                // Original stop_reason string
@@ -158,6 +160,10 @@ if ($response->guardrailTrace !== null) {
     echo $response->guardrailTrace->action;  // 'INTERVENED' or 'NONE'
 }
 ```
+
+For 1.x compatibility, promoted metadata fields remain readable through both paths. New code uses `$wrapperMetadata`, `$contextSize`, and
+`$projectedContextSize`; `$metadata['metadata']`, `$metadata['context_size']`, and `$metadata['projected_context_size']` remain deprecated until 2.0.
+Usage timing properties also remain integers in 1.x; fractional wire values round to the nearest millisecond instead of silently becoming zero.
 
 ### Stream (SSE)
 
@@ -190,6 +196,8 @@ echo $result->usage->totalTokens();          // Total tokens (input + output)
 echo $result->textEvents;                    // Number of text chunks received
 echo $result->totalEvents;                   // Total events received
 echo $result->timeToFirstTextTokenMs;        // Client-measured TTFT in ms
+echo $result->stopReason?->value;             // Known typed stop reason, when recognised
+echo $result->rawStopReason;                  // Exact stop_reason, including future values
 echo $result->isInterrupted() ? 'yes' : 'no'; // Whether the agent was interrupted
 ```
 
@@ -291,7 +299,8 @@ This middleware does **not** capture request or response content on spans. Token
 
 The middleware uses the local `strands-otel-v1` attribute policy. It records safe metadata such as operation, sanitized route, response status, token counts, stop reason, stream event counts, tool names, and session presence. It does not record prompts, responses, filenames, raw context metadata, document content, citation source text, tool inputs/results, credentials, session ID values, or unsanitized exception messages.
 
-For Python wrapper trace continuation, copy the FastAPI middleware in [examples/python-gateway/tracing.py](examples/python-gateway/tracing.py).
+For Python wrapper trace continuation, copy the FastAPI middleware from the
+[source-repository gateway](https://github.com/blundergoat/strands-php-client/blob/main/examples/python-gateway/tracing.py).
 
 > **Concurrency note:** The middleware uses a LIFO stack for span/scope tracking, which is correct for synchronous PHP-FPM but not safe under Fibers or coroutines.
 

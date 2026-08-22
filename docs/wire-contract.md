@@ -154,7 +154,8 @@ Successful `/invoke` responses use an agent envelope.
 | `usage` | `object` | no | Token/timing usage in snake_case. |
 | `tools_used` | `array<object>` | no | Tool call summaries. Each item is `{name: string, duration_ms?: int, input?: object, result?: object}`. `input` and `result` must be safe summaries, not raw tool payloads. |
 | `has_objective` | `bool` | no | Wrapper-specific objective flag. |
-| `stop_reason` | `string` | no | One of `end_turn`, `tool_use`, `max_tokens`, `stop_sequence`, `content_filtered`, `interrupt`, `error`, `guardrail_intervened`, `cancelled`, or `checkpoint`. |
+| `stop_reason` | `string` | no | Common values are `end_turn`, `tool_use`, `max_tokens`, `stop_sequence`, `content_filtered`, `interrupt`, `error`, `guardrail_intervened`, `cancelled`, and `checkpoint`. Wrappers may forward additive sdk-python values such as `limit_output_tokens`, `limit_total_tokens`, or `limit_turns`. |
+| `structured_output` | `object` | no | Schema-validated structured result for invoke responses. |
 | `message` | `object` | no | Wrapper-normalized raw message content, used for citations and future nested metadata. |
 | `guardrail_trace` | `object` | no | Wrapper-normalized guardrail trace. |
 | `interrupts` | `array<object>` | no | Interrupt requests requiring caller input. |
@@ -168,8 +169,8 @@ Usage fields:
 | `total_tokens` | `int` | Total tokens, when emitted by the wrapper. PHP can also compute this from input + output. |
 | `cache_read_input_tokens` | `int` | Cached input tokens read. |
 | `cache_write_input_tokens` | `int` | Cached input tokens written. |
-| `latency_ms` | `float` | Total response latency, when emitted by the wrapper. |
-| `time_to_first_byte_ms` | `float` | First-token or first-byte latency, when emitted by the wrapper. |
+| `latency_ms` | `number` | Total response latency, when emitted by the wrapper. The PHP 1.x DTO rounds fractional values to an integer millisecond. |
+| `time_to_first_byte_ms` | `number` | First-token or first-byte latency, when emitted by the wrapper. The PHP 1.x DTO rounds fractional values to an integer millisecond. |
 
 The wrapper should normalize sdk-python `inputTokens`/`outputTokens` style counters into these snake_case fields before returning JSON to PHP.
 
@@ -182,9 +183,9 @@ These fields are additive in v1 of the wrapper contract. Older PHP clients may i
 | `message.metadata.usage` | `object` | `message.metadata` | Per-message usage normalized to the same snake_case shape as top-level `usage`. |
 | `message.metadata.metrics` | `object` | `message.metadata` | Wrapper-normalized metrics from sdk-python or provider integrations. |
 | `message.metadata.custom` | `object` | `message.metadata` | Application-specific message metadata. |
-| `context_size` | `int` | top-level response or stream `complete` | Current context size in tokens, when known. |
-| `projected_context_size` | `int` | top-level response or stream `complete` | Projected next-turn context size in tokens, when known. |
-| `metadata` | `object` | top-level response | Wrapper-owned metadata. This is distinct from unknown top-level fields and from `message.metadata`. |
+| `context_size` | `int` | top-level response or stream `complete` | Current context size in tokens, when known. Invoke responses expose `$contextSize` canonically and retain deprecated `$metadata['context_size']` throughout 1.x. |
+| `projected_context_size` | `int` | top-level response or stream `complete` | Projected next-turn context size in tokens, when known. Invoke responses expose `$projectedContextSize` canonically and retain deprecated `$metadata['projected_context_size']` throughout 1.x. |
+| `metadata` | `object` | top-level response | Wrapper-owned metadata. PHP exposes it canonically as `$wrapperMetadata`; deprecated `$metadata['metadata']` remains throughout 1.x. |
 
 Checkpoint, snapshot, and stream resume fields are intentionally not part of this section until a wrapper adopts explicit shapes for them.
 
@@ -296,6 +297,9 @@ Interrupt responses indicate that the agent needs caller input before continuing
 | `thinking` | `content` | Model reasoning/thinking chunk when emitted. |
 | `tool_use` | `tool_name`, `tool_input` | Tool call start or summary. |
 | `tool_result` | `result` | Tool result payload. |
+| `citation` | `citation` | Wrapper-normalized flattened citation object. |
+| `reasoning_signature` | `signature` | Reasoning verification signature. |
+| `reasoning_redacted` | none | Indicates that reasoning content was redacted. |
 | `complete` | `text` | Final stream response. May include `usage`, `tools_used`, `stop_reason`, `guardrail_trace`, `interrupts`, and the optional response fields listed above. |
 | `error` | `message` | Stream error. May include `code`. |
 
@@ -311,6 +315,10 @@ data: {"type":"complete","text":"Hello world","usage":{"input_tokens":12,"output
 ```
 
 Unknown event types may be ignored by older PHP clients.
+
+The seven 1.x `StopReason` cases (`end_turn`, `tool_use`, `max_tokens`, `stop_sequence`, `content_filtered`, `guardrail_intervened`, and `interrupt`)
+hydrate the PHP enum. Invoke and stream results also preserve the exact string in `rawStopReason`, so `error`, `cancelled`, `checkpoint`, and additive
+sdk-python values remain observable without expanding an enum consumers may match exhaustively. The enum can expand in 2.0.
 
 ## Error Responses
 

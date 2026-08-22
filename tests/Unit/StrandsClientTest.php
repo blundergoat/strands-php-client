@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Strands Client behavior for app integrations.
+ * Exercises synchronous requests and shared client setup from an application's perspective.
+ * It covers payloads, auth, retries, timeouts, middleware, transport detection, and logging.
+ * Failures here mean a user action could reach the wrong endpoint or surface the wrong result.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -23,12 +25,16 @@ use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\StrandsClient;
 
 /**
- * Verifies Strands Client behavior that application users rely on.
+ * Verifies StrandsClient turns caller intent into one safe, observable HTTP operation.
+ *
+ * It protects invoke(), shared request construction, retry behaviour, and middleware lifecycle.
+ * Use these scenarios when changing client orchestration outside the typed streaming loop.
  */
 class StrandsClientTest extends TestCase
 {
     /**
-     * Clear transport-detection overrides so later app scenarios use real discovery.
+     * Clears shared test state after a user-request scenario so the next test represents a fresh app session.
+     * Use it automatically after client-orchestration checks.
      *
      * @return void
      */
@@ -40,7 +46,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Load fixture for the test scenario.
+     * Loads captured fixture data for a realistic client-orchestration scenario.
+     * Use it when a test needs the same payload an app could receive from an agent.
      *
      * @param string $name Fixture name or DTO name under test.
      * @return array<string, mixed> Decoded fixture or processed configuration array.
@@ -53,7 +60,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Load a raw SSE fixture file as a string.
+     * Loads captured fixture data for a realistic client-orchestration scenario.
+     * Use it when a test needs the same payload an app could receive from an agent.
      *
      * @param string $name Fixture file name under tests/Fixtures/.
      * @return string Raw fixture contents.
@@ -64,8 +72,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Build a transport whose post() throws once and then returns the given payload on every subsequent call.
-     * Keeps retry-counting state out of test bodies so each retry test reads linearly.
+     * Supports the related client-orchestration scenario (transport throws once then returns).
+     * Use it when request, retry, middleware, or logging flow needs this shared setup.
      *
      * @param \Throwable $throwOnce Exception thrown by the first call to post().
      * @param array<string, mixed> $thenReturn Payload returned by every call after the first.
@@ -78,6 +86,7 @@ class StrandsClientTest extends TestCase
         $transport->method('post')
             ->willReturnCallback(function () use (&$callCount, $throwOnce, $thenReturn): array {
                 $callCount++;
+                // The first request models a transient failure the user never sees when the retry succeeds.
                 if ($callCount === 1) {
                     throw $throwOnce;
                 }
@@ -89,7 +98,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Create mock transport for the test scenario.
+     * Creates a controlled HTTP transport that reproduces the response chunks an app could receive.
+     * Use it when the client-orchestration scenario must inspect requests or delivery order.
      *
      * @param array<string, mixed> $response Parsed response data for the operation.
      * @return HttpTransport Value produced by the method.
@@ -103,7 +113,30 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke returns hydrated response.
+     * Checks the caller-visible fields shared by several client-orchestration scenarios.
+     * Use it to keep repeated expectations consistent and readable.
+     *
+     * @param list<array{message: string, context: array<string, mixed>}> $debugCalls Captured logger calls.
+     * @return void
+     */
+    private function assertInvokeDebugCalls(array $debugCalls): void
+    {
+        $this->assertSame('Strands invoke request', $debugCalls[0]['message']);
+        $this->assertSame('http://localhost:8081/invoke', $debugCalls[0]['context']['url']);
+        $this->assertSame('sess-log', $debugCalls[0]['context']['session_id']);
+        $this->assertSame('Strands invoke response', $debugCalls[1]['message']);
+        $this->assertSame('test-session-001', $debugCalls[1]['context']['session_id']);
+        $this->assertSame(150, $debugCalls[1]['context']['input_tokens']);
+        $this->assertSame(280, $debugCalls[1]['context']['output_tokens']);
+        $this->assertSame(0, $debugCalls[1]['context']['tools_used']);
+        $this->assertArrayHasKey('agent', $debugCalls[1]['context']);
+        $this->assertArrayHasKey('interrupted', $debugCalls[1]['context']);
+        $this->assertArrayHasKey('structured_output', $debugCalls[1]['context']);
+    }
+
+    /**
+     * Covers "invoke returns hydrated response" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -135,7 +168,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke without session ID.
+     * Covers "invoke without session id" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -156,7 +190,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke without context.
+     * Covers "invoke without context" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -176,7 +211,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke sends correct payload.
+     * Covers "invoke sends correct payload" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -191,11 +227,11 @@ class StrandsClientTest extends TestCase
                 'http://localhost:8081/invoke',
                 $this->callback(fn (array $headers) => $headers['Content-Type'] === 'application/json'),
                 $this->callback(function (string $body) {
-                    $data = json_decode($body, true);
+                    $decodedRequestPayload = json_decode($body, true);
 
-                    return $data['message'] === 'Test message'
-                        && $data['session_id'] === 'sess-123'
-                        && $data['context']['metadata']['persona'] === 'skeptic';
+                    return $decodedRequestPayload['message'] === 'Test message'
+                        && $decodedRequestPayload['session_id'] === 'sess-123'
+                        && $decodedRequestPayload['context']['metadata']['persona'] === 'skeptic';
                 }),
                 120,
                 10,
@@ -217,7 +253,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke strips trailing slash.
+     * Covers "invoke strips trailing slash" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -242,7 +279,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke auth receives invoke URL.
+     * Covers "invoke auth receives invoke url" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -277,7 +315,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that stream auth receives stream URL.
+     * Covers "stream auth receives stream url" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -316,7 +355,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke retries on retryable status code.
+     * Covers "invoke retries on retryable status code" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -343,7 +383,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke retries on generic strands exception.
+     * Covers "invoke retries on generic strands exception" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -370,7 +411,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke does not retry non retryable status code.
+     * Covers "invoke does not retry non retryable status code" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      * @throws AgentErrorException When the agent rejects the request without retry.
@@ -399,16 +441,18 @@ class StrandsClientTest extends TestCase
 
         try {
             $strandsClient->invoke(message: 'Test');
-        } catch (AgentErrorException $e) {
-            $this->assertSame(400, $e->statusCode);
+        } catch (AgentErrorException $exception) {
+            // A bad user payload is not transient, so the same 400 must return after exactly one request.
+            $this->assertSame(400, $exception->statusCode);
             $this->assertSame(1, $callCount, 'Should not retry on 400');
 
-            throw $e;
+            throw $exception;
         }
     }
 
     /**
-     * Verifies that invoke throws after max retries.
+     * Covers "invoke throws after max retries" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -434,7 +478,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke does not retry on 401.
+     * Covers "invoke does not retry on unauthorized" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      * @throws AgentErrorException When authentication fails and retries are skipped.
@@ -463,16 +508,18 @@ class StrandsClientTest extends TestCase
 
         try {
             $strandsClient->invoke(message: 'Test');
-        } catch (AgentErrorException $e) {
-            $this->assertSame(401, $e->statusCode);
+        } catch (AgentErrorException $exception) {
+            // Invalid credentials cannot recover through retry, so the app receives the original 401 after one request.
+            $this->assertSame(401, $exception->statusCode);
             $this->assertSame(1, $callCount, 'Should not retry on 401');
 
-            throw $e;
+            throw $exception;
         }
     }
 
     /**
-     * Verifies that config accepts boundary max retries.
+     * Covers "config accepts boundary max retries" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -486,8 +533,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that StrandsConfig rejects each documented invalid field value
-     * with an InvalidArgumentException whose message names the failing field.
+     * Covers "config rejects invalid field with identifying message" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @param \Closure(): void $constructConfig Callback that constructs the
      *   invalid config; expected to throw InvalidArgumentException.
@@ -504,7 +551,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Cases for testConfigRejectsInvalidFieldWithIdentifyingMessage().
+     * Supplies the input variants for the related client-orchestration scenario.
+     * An empty provider would leave a caller-visible edge case unverified.
      *
      * @return iterable<string, array{0: \Closure(): void, 1: string}> Invalid configuration cases that should fail before user calls run.
      */
@@ -545,7 +593,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that config default values.
+     * Covers "config default values" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -561,7 +610,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that config accepts timeout boundary.
+     * Covers "config accepts timeout boundary" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -578,7 +628,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke logs request and response.
+     * Covers "invoke logs request and response" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -602,28 +653,12 @@ class StrandsClientTest extends TestCase
         );
 
         $strandsClient->invoke(message: 'Test', sessionId: 'sess-log');
-
-        // Request log must include url and session_id
-        $this->assertSame('Strands invoke request', $debugCalls[0]['message']);
-        $this->assertArrayHasKey('url', $debugCalls[0]['context']);
-        $this->assertArrayHasKey('session_id', $debugCalls[0]['context']);
-        $this->assertSame('http://localhost:8081/invoke', $debugCalls[0]['context']['url']);
-        $this->assertSame('sess-log', $debugCalls[0]['context']['session_id']);
-
-        // Response logs avoid session IDs and token counters because users may treat logs as lower-trust.
-        $this->assertSame('Strands invoke response', $debugCalls[1]['message']);
-        $this->assertArrayHasKey('agent', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('tools_used', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('interrupted', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('structured_output', $debugCalls[1]['context']);
-        $this->assertArrayNotHasKey('session_id', $debugCalls[1]['context']);
-        $this->assertArrayNotHasKey('input_tokens', $debugCalls[1]['context']);
-        $this->assertArrayNotHasKey('output_tokens', $debugCalls[1]['context']);
-        $this->assertSame(0, $debugCalls[1]['context']['tools_used']);
+        $this->assertInvokeDebugCalls($debugCalls);
     }
 
     /**
-     * Verifies that retry logs warning.
+     * Covers "retry logs warning" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -669,8 +704,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke()'s effective timeout forwarded to the transport
-     * follows the per-call override → config default → boundary chain.
+     * Covers "invoke forwards resolved timeout to transport" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @param int|null $timeoutSecondsArg Argument passed to invoke()'s timeoutSeconds parameter.
      * @param int $configuredTimeout Default timeout set on StrandsConfig.
@@ -705,7 +740,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Cases for testInvokeForwardsResolvedTimeoutToTransport().
+     * Supplies the input variants for the related client-orchestration scenario.
+     * An empty provider would leave a caller-visible edge case unverified.
      *
      * @return iterable<string, array{0: int|null, 1: int, 2: int}> Timeout cases that keep caller overrides predictable.
      */
@@ -717,7 +753,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke timeout seconds rejects zero.
+     * Covers "invoke timeout seconds rejects zero" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -737,9 +774,9 @@ class StrandsClientTest extends TestCase
         $strandsClient->invoke(message: 'Test', timeoutSeconds: 0);
     }
 
-
     /**
-     * Verifies that StrandsConfig preserves valid retryableStatusCodes (including boundary and empty lists).
+     * Covers "config preserves valid retryable status codes" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @param list<int> $retryableStatusCodes Status codes passed to the constructor and expected unchanged.
      * @return void
@@ -756,7 +793,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Cases for testConfigPreservesValidRetryableStatusCodes().
+     * Supplies the input variants for the related client-orchestration scenario.
+     * An empty provider would leave a caller-visible edge case unverified.
      *
      * @return iterable<string, array{0: list<int>}> Retry status codes accepted for caller-controlled recovery.
      */
@@ -767,9 +805,9 @@ class StrandsClientTest extends TestCase
         yield 'empty list' => [[]];
     }
 
-
     /**
-     * Verifies that invoke accepts agent input.
+     * Covers "invoke accepts agent input" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -780,7 +818,7 @@ class StrandsClientTest extends TestCase
             ->method('post')
             ->willReturnCallback(function (string $url, array $headers, string $body) {
                 $decoded = json_decode($body, true);
-                // AgentInput with content blocks should produce an array message
+                // A rich request sends the user's text and attachments as a content-block map.
                 \PHPUnit\Framework\Assert::assertIsArray($decoded['message']);
                 \PHPUnit\Framework\Assert::assertArrayHasKey('content', $decoded['message']);
                 \PHPUnit\Framework\Assert::assertCount(2, $decoded['message']['content']);
@@ -804,7 +842,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke accepts plain string with agent input signature.
+     * Covers "invoke accepts plain string with agent input signature" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -815,7 +854,7 @@ class StrandsClientTest extends TestCase
             ->method('post')
             ->willReturnCallback(function (string $url, array $headers, string $body) {
                 $decoded = json_decode($body, true);
-                // Plain string should produce a string message
+                // A normal chat-box submission keeps the compact string wire shape expected by 1.x wrappers.
                 \PHPUnit\Framework\Assert::assertSame('Hello', $decoded['message']);
 
                 return ['text' => 'Hi', 'usage' => []];
@@ -832,7 +871,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke with text only agent input sends string.
+     * Covers "invoke with text only agent input sends string" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -843,7 +883,7 @@ class StrandsClientTest extends TestCase
             ->method('post')
             ->willReturnCallback(function (string $url, array $headers, string $body) {
                 $decoded = json_decode($body, true);
-                // AgentInput::text() without content blocks should serialize as plain string
+                // A text-only AgentInput keeps the same compact wire string as a plain chat submission.
                 \PHPUnit\Framework\Assert::assertSame('Simple text', $decoded['message']);
 
                 return ['text' => 'OK', 'usage' => []];
@@ -861,7 +901,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that constructor throws when no transport can be detected.
+     * Covers "constructor throws when no transport can be detected" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -882,7 +923,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that detect transport error message contains all parts.
+     * Covers "detect transport error message contains all parts" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -895,18 +937,20 @@ class StrandsClientTest extends TestCase
         try {
             new StrandsClient(config: new StrandsConfig(endpoint: 'http://localhost:8081'));
             $this->fail('Expected StrandsException');
-        } catch (StrandsException $e) {
-            $this->assertStringContainsString('No HTTP transport available', $e->getMessage());
-            $this->assertStringContainsString('symfony/http-client', $e->getMessage());
-            $this->assertStringContainsString('invoke + streaming support', $e->getMessage());
-            $this->assertStringContainsString('PsrHttpTransport', $e->getMessage());
+        } catch (StrandsException $exception) {
+            // A fresh app install with neither an injected transport nor Symfony HTTP must receive actionable setup guidance.
+            $this->assertStringContainsString('No HTTP transport available', $exception->getMessage());
+            $this->assertStringContainsString('symfony/http-client', $exception->getMessage());
+            $this->assertStringContainsString('invoke + streaming support', $exception->getMessage());
+            $this->assertStringContainsString('PsrHttpTransport', $exception->getMessage());
         } finally {
             unset($GLOBALS['__strands_class_exists_overrides']);
         }
     }
 
     /**
-     * Verifies that middleware after response exception logs context.
+     * Covers "middleware after response exception logs context" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      * @throws \RuntimeException When the observer stub simulates logging failure.
@@ -918,7 +962,8 @@ class StrandsClientTest extends TestCase
 
         $requestMiddleware = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
             /**
-             * Return request headers and body from the middleware test stub.
+             * Simulates middleware changing the outgoing request before authentication and delivery to the agent.
+             * Use it inside a scenario where the app customizes what the user sends.
              *
              * @param string $url Request URL being observed.
              * @param array<string, string> $headers Request headers supplied to the
@@ -933,7 +978,8 @@ class StrandsClientTest extends TestCase
             }
 
             /**
-             * Handle after-response middleware calls for the test stub.
+             * Simulates middleware observing the completed request for app logging or cleanup.
+             * A null error means the user's request completed without a transport failure.
              *
              * @param string $url Request URL being observed.
              * @param int $statusCode HTTP status code for the operation.
@@ -969,14 +1015,15 @@ class StrandsClientTest extends TestCase
             middleware: [$requestMiddleware],
         );
 
-        // Should NOT throw — middleware exceptions are caught and logged
+        // A telemetry teardown failure is logged but must not replace the successful answer shown to the user.
         $response = $strandsClient->invoke(message: 'Test');
 
         $this->assertInstanceOf(AgentResponse::class, $response);
     }
 
     /**
-     * Verifies that stream strips trailing slash from endpoint.
+     * Covers "stream strips trailing slash from endpoint" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -1004,7 +1051,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke rejects empty string.
+     * Covers "invoke rejects empty string" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -1024,7 +1072,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that stream rejects empty string.
+     * Covers "stream rejects empty string" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -1045,7 +1094,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that invoke accepts interrupt response with empty text.
+     * Covers "invoke accepts interrupt response with empty text" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -1059,7 +1109,7 @@ class StrandsClientTest extends TestCase
             transport: $transport,
         );
 
-        // interruptResponse has empty text but content blocks — should not throw
+        // An approval response has no chat text but its interrupt block still forms a valid user action.
         $input = \StrandsPhpClient\Context\AgentInput::interruptResponse('int-123', 'Approved');
         $response = $strandsClient->invoke(message: $input);
 
@@ -1067,7 +1117,8 @@ class StrandsClientTest extends TestCase
     }
 
     /**
-     * Verifies that middleware runs before auth so signature covers modified body.
+     * Covers "middleware runs before auth so signature covers modified body" so app requests keep predictable payloads and outcomes.
+     * Use this regression case when request, retry, middleware, or logging flow changes.
      *
      * @return void
      */
@@ -1075,7 +1126,7 @@ class StrandsClientTest extends TestCase
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
 
-        // Track the body and headers that auth receives
+        // Capture the final request so the test can prove authentication sees what the middleware changed for the user.
         $authReceivedBody = null;
         $authReceivedHeaders = null;
 
@@ -1089,10 +1140,11 @@ class StrandsClientTest extends TestCase
                 return $headers;
             });
 
-        // Middleware that modifies the body and adds a header
+        // This app middleware enriches the user's payload and header before the request is signed.
         $requestMiddleware = new class () implements \StrandsPhpClient\Http\RequestMiddleware {
             /**
-             * Return request headers and body from the middleware test stub.
+             * Simulates middleware changing the outgoing request before authentication and delivery to the agent.
+             * Use it inside a scenario where the app customizes what the user sends.
              *
              * @param string $url Request URL being observed.
              * @param array<string, string> $headers Request headers supplied to the
@@ -1111,7 +1163,8 @@ class StrandsClientTest extends TestCase
             }
 
             /**
-             * Handle after-response middleware calls for the test stub.
+             * Simulates middleware observing the completed request for app logging or cleanup.
+             * A null error means the user's request completed without a transport failure.
              *
              * @param string $url Request URL being observed.
              * @param int $statusCode HTTP status code for the operation.
@@ -1136,12 +1189,12 @@ class StrandsClientTest extends TestCase
 
         $strandsClient->invoke(message: 'Test');
 
-        // Auth must see the middleware-modified body
+        // Signing the enriched body prevents middleware changes from invalidating authentication.
         $this->assertNotNull($authReceivedBody);
         $decoded = json_decode($authReceivedBody, true);
         $this->assertTrue($decoded['injected'], 'Auth must receive the body after middleware modification');
 
-        // Auth must see the middleware-added header
+        // Signing the enriched header set proves authentication covers the exact request sent to the agent.
         $this->assertSame('from-middleware', $authReceivedHeaders['X-Custom']);
     }
 }

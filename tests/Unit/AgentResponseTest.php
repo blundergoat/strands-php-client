@@ -1,7 +1,9 @@
 <?php
 
 /**
- * Tests caller-visible Agent Response behavior for app integrations.
+ * Exercises the invoke response fields an application renders or uses for control flow.
+ * It covers defensive parsing, legacy aliases, citations, guardrails, and structured output.
+ * Failures here mean an answer screen could lose data or misread what the agent returned.
  */
 
 declare(strict_types=1);
@@ -17,12 +19,16 @@ use StrandsPhpClient\Response\InterruptDetail;
 use StrandsPhpClient\Response\StopReason;
 
 /**
- * Verifies agent responses are shaped for application display and control flow.
+ * Verifies invoke responses remain safe and predictable for application code.
+ *
+ * It protects answer text, conversation continuity, usage, tools, interrupts, citations, and compatibility metadata.
+ * Use these scenarios when changing AgentResponse hydration or any public result property.
  */
 class AgentResponseTest extends TestCase
 {
     /**
-     * Load and JSON-decode a fixture file under tests/Fixtures/.
+     * Loads captured fixture data for a realistic response-hydration scenario.
+     * Use it when a test needs the same payload an app could receive from an agent.
      *
      * @param string $relativePath Path relative to tests/Fixtures/.
      * @return array<string, mixed> Decoded JSON fixture.
@@ -37,7 +43,8 @@ class AgentResponseTest extends TestCase
         );
     }
     /**
-     * Data fixture for testFromArrayHydratesAllFields().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array hydrates all fields behavior stable for app callers.
      */
@@ -58,9 +65,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array hydrates all fields.
+     * Covers "from array hydrates all fields" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -81,7 +88,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array handles missing fields.
+     * Covers "from array handles missing fields" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -100,7 +108,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame([], $agentResponse->toolsUsed);
     }
     /**
-     * Data fixture for testFromArrayHandlesEmptyUsage().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array handles empty usage behavior stable for app callers.
      */
@@ -112,9 +121,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array handles empty usage.
+     * Covers "from array handles empty usage" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -128,7 +137,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame(0, $agentResponse->usage->outputTokens);
     }
     /**
-     * Data fixture for testFromArrayFiltersMalformedToolsUsed().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array filters malformed tools used behavior stable for app callers.
      */
@@ -146,9 +156,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array filters malformed tools used.
+     * Covers "from array filters malformed tools used" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -164,7 +174,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that usage default values.
+     * Covers "usage default values" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -180,7 +191,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame(0, $usage->timeToFirstByteMs);
     }
     /**
-     * Data fixture for testFromArrayHandlesNonIntUsageValues().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array handles non int usage values behavior stable for app callers.
      */
@@ -195,9 +207,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array handles non int usage values.
+     * Covers "from array handles non int usage values" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -212,7 +224,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array has objective requires strict true.
+     * Covers "from array has objective requires strict true" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -228,7 +241,8 @@ class AgentResponseTest extends TestCase
         $this->assertFalse($agentResponse->hasObjective);
     }
     /**
-     * Data fixture for testFromArrayStripsNonIntDurationMs().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array strips non int duration ms behavior stable for app callers.
      */
@@ -243,9 +257,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array strips non int duration ms.
+     * Covers "from array strips non int duration ms" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -260,7 +274,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame(42, $agentResponse->toolsUsed[1]['duration_ms']);
     }
     /**
-     * Data fixture for testFromArrayStripsExtraKeysFromToolsUsed().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array strips extra keys from tools used behavior stable for app callers.
      */
@@ -275,9 +290,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array strips extra keys from tools used.
+     * Covers "from array strips extra keys from tools used" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -293,7 +308,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array parses safe tool summaries.
+     * Covers "from array parses safe tool summaries" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -310,7 +326,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array hydrates stop reason.
+     * Covers "from array hydrates stop reason" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -326,7 +343,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame(StopReason::EndTurn, $agentResponse->stopReason);
     }
     /**
-     * Data fixture for testFromArrayHandlesUnknownStopReason().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array handles unknown stop reason behavior stable for app callers.
      */
@@ -338,9 +356,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array handles unknown stop reason.
+     * Covers "from array handles unknown stop reason" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -355,13 +373,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array defaults stop reason to null.
-     *
-     * @return void
-     */
-    /**
-     * Verifies that fromArray defaults each documented optional field to null
-     * when the wire payload omits it.
+     * Covers "from array defaults omitted field to null" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @param string $propertyName Property on AgentResponse expected to be null when omitted.
      * @return void
@@ -375,7 +388,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Cases for testFromArrayDefaultsOmittedFieldToNull().
+     * Supplies the input variants for the related response-hydration scenario.
+     * An empty provider would leave a caller-visible edge case unverified.
      *
      * @return iterable<string, array{0: string}> Scenario data for omitted field defaults to null behavior.
      */
@@ -386,7 +400,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array hydrates structured output.
+     * Covers "from array hydrates structured output" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -403,7 +418,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame($structured, $agentResponse->structuredOutput);
     }
     /**
-     * Data fixture for testFromArrayHydratesCacheTokens().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array hydrates cache tokens behavior stable for app callers.
      */
@@ -422,9 +438,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array hydrates cache tokens.
+     * Covers "from array hydrates cache tokens" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -443,12 +459,15 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array parses usage camel case and float latency.
+     * Covers "from array parses usage camel case and rounds float latency" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
-    public function testFromArrayParsesUsageCamelCaseAndFloatLatency(): void
+    public function testFromArrayParsesUsageCamelCaseAndRoundsFloatLatency(): void
     {
+        $expectedLatencyMs = 843;
+        $expectedTimeToFirstByteMs = 210;
         $agentResponse = AgentResponse::fromArray([
             'text' => 'Test',
             'usage' => [
@@ -467,12 +486,13 @@ class AgentResponseTest extends TestCase
         $this->assertSame(151, $agentResponse->usage->totalTokens());
         $this->assertSame(10, $agentResponse->usage->cacheReadInputTokens);
         $this->assertSame(5, $agentResponse->usage->cacheWriteInputTokens);
-        $this->assertSame(842.5, $agentResponse->usage->latencyMs);
-        $this->assertSame(210.1, $agentResponse->usage->timeToFirstByteMs);
+        $this->assertSame($expectedLatencyMs, $agentResponse->usage->latencyMs);
+        $this->assertSame($expectedTimeToFirstByteMs, $agentResponse->usage->timeToFirstByteMs);
     }
 
     /**
-     * Verifies that snake case usage wins over camel case.
+     * Covers "snake case usage wins over camel case" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -489,7 +509,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame(10, $agentResponse->usage->inputTokens);
     }
     /**
-     * Data fixture for testUsageDefaultsToZeroForMissingCacheFields().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep usage defaults to zero for missing cache fields behavior stable for app callers.
      */
@@ -504,9 +525,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that usage defaults to zero for missing cache fields.
+     * Covers "usage defaults to zero for missing cache fields" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -523,13 +544,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that total tokens returns sum.
-     *
-     * @return void
-     */
-    /**
-     * Verifies Usage::totalTokens() returns the wire value when supplied,
-     * otherwise sums inputTokens + outputTokens (which falls back to 0+0).
+     * Covers "total tokens follows documented fallback chain" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @param \Closure(): \StrandsPhpClient\Response\Usage $buildUsage Factory for the Usage instance under test.
      * @param int $expectedTotal Expected return value of totalTokens().
@@ -542,7 +558,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Cases for testTotalTokensFollowsDocumentedFallbackChain().
+     * Supplies the input variants for the related response-hydration scenario.
+     * An empty provider would leave a caller-visible edge case unverified.
      *
      * @return iterable<string, array{0: \Closure(): \StrandsPhpClient\Response\Usage, 1: int}> Scenario data for total tokens behavior.
      */
@@ -563,7 +580,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array captures unknown keys as metadata.
+     * Covers "from array captures unknown keys as metadata" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -579,7 +597,7 @@ class AgentResponseTest extends TestCase
         $this->assertSame(100, $agentResponse->usage->inputTokens);
         $this->assertSame(50, $agentResponse->usage->outputTokens);
 
-        // Unknown keys should be captured in metadata
+        // A newer wrapper field remains available to an older app through the forward-compatible metadata bag.
         $this->assertArrayHasKey('trace_id', $agentResponse->metadata);
         $this->assertSame('abc-123-def', $agentResponse->metadata['trace_id']);
         $this->assertArrayHasKey('model_id', $agentResponse->metadata);
@@ -589,22 +607,26 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array preserves top level wrapper metadata separately.
+     * Covers "from array preserves top level wrapper metadata in both access paths" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
-    public function testFromArrayPreservesTopLevelWrapperMetadataSeparately(): void
+    public function testFromArrayPreservesTopLevelWrapperMetadataInBothAccessPaths(): void
     {
         $data = $this->loadJsonFixture('wire-contract/invoke-response-metadata.json');
 
         $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame(['document_type' => 'referral', 'confidence' => 0.91], $agentResponse->wrapperMetadata);
-        $this->assertArrayNotHasKey('metadata', $agentResponse->metadata);
+        $expectedMetadata = ['document_type' => 'referral', 'confidence' => 0.91];
+
+        $this->assertSame($expectedMetadata, $agentResponse->wrapperMetadata);
+        $this->assertSame($expectedMetadata, $agentResponse->metadata['metadata']);
     }
 
     /**
-     * Verifies that from array preserves nested message metadata.
+     * Covers "from array preserves nested message metadata" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -623,21 +645,27 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array parses context size fields.
+     * Covers "from array parses context size fields" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
-     * @return void
+     * @return void The assertions protect apps upgrading from metadata reads to the dedicated context-size properties.
      */
     public function testFromArrayParsesContextSizeFields(): void
     {
         $data = $this->loadJsonFixture('wire-contract/invoke-response-context-size.json');
+        $currentContextTokens = 8192;
+        $projectedContextTokens = 9216;
 
         $agentResponse = AgentResponse::fromArray($data);
 
-        $this->assertSame(8192, $agentResponse->contextSize);
-        $this->assertSame(9216, $agentResponse->projectedContextSize);
+        $this->assertSame($currentContextTokens, $agentResponse->contextSize);
+        $this->assertSame($projectedContextTokens, $agentResponse->projectedContextSize);
+        $this->assertSame($currentContextTokens, $agentResponse->metadata['context_size']);
+        $this->assertSame($projectedContextTokens, $agentResponse->metadata['projected_context_size']);
     }
     /**
-     * Data fixture for testFromArrayMetadataEmptyWhenNoUnknownKeys().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array metadata empty when no unknown keys behavior stable for app callers.
      */
@@ -655,9 +683,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array metadata empty when no unknown keys.
+     * Covers "from array metadata empty when no unknown keys" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -670,7 +698,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame([], $agentResponse->metadata);
     }
     /**
-     * Data fixture for testFromArrayMetadataExcludesKnownKeys().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array metadata excludes known keys behavior stable for app callers.
      */
@@ -683,9 +712,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array metadata excludes known keys.
+     * Covers "from array metadata excludes known keys" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -695,14 +724,15 @@ class AgentResponseTest extends TestCase
 
         $agentResponse = AgentResponse::fromArray($data);
 
-        // 'text' and 'session_id' should NOT be in metadata
+        // Canonical answer and session fields stay out of the extension bag so callers have one source of truth.
         $this->assertArrayNotHasKey('text', $agentResponse->metadata);
         $this->assertArrayNotHasKey('session_id', $agentResponse->metadata);
-        // 'custom_field' should be in metadata
+        // The app can still read a wrapper-specific field that has no dedicated DTO property.
         $this->assertSame('custom_value', $agentResponse->metadata['custom_field']);
     }
     /**
-     * Data fixture for testFromArrayHandlesAllStopReasons().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array handles all stop reasons behavior stable for app callers.
      */
@@ -716,15 +746,12 @@ class AgentResponseTest extends TestCase
             'content_filtered' => StopReason::ContentFiltered,
             'guardrail_intervened' => StopReason::GuardrailIntervened,
             'interrupt' => StopReason::Interrupt,
-            'error' => StopReason::Error,
-            'cancelled' => StopReason::Cancelled,
-            'checkpoint' => StopReason::Checkpoint,
         ];
     }
 
-
     /**
-     * Verifies that from array handles all stop reasons.
+     * Covers "from array handles all stop reasons" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -732,14 +759,50 @@ class AgentResponseTest extends TestCase
     {
         $reasons = $this->dataForFromArrayHandlesAllStopReasons();
 
-        foreach ($reasons as $raw => $expected) {
-            $agentResponse = AgentResponse::fromArray(['text' => 'Test', 'stop_reason' => $raw]);
-            $this->assertSame($expected, $agentResponse->stopReason, "Failed for stop_reason: $raw");
+        // Every 1.4 enum value must still drive the same exhaustive application control flow.
+        foreach ($reasons as $rawStopReason => $expectedStopReason) {
+            $agentResponse = AgentResponse::fromArray(['text' => 'Test', 'stop_reason' => $rawStopReason]);
+            $this->assertSame($expectedStopReason, $agentResponse->stopReason, "Failed for stop_reason: $rawStopReason");
         }
     }
 
     /**
-     * Verifies that from array parses interrupts.
+     * Covers "post v14 stop reasons remain raw only" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
+     *
+     * @return void
+     */
+    public function testPostV14StopReasonsRemainRawOnly(): void
+    {
+        $this->assertSame([
+            'end_turn',
+            'tool_use',
+            'max_tokens',
+            'stop_sequence',
+            'content_filtered',
+            'guardrail_intervened',
+            'interrupt',
+        ], array_map(
+            static fn (StopReason $stopReason): string => $stopReason->value,
+            StopReason::cases(),
+        ));
+
+        // Values added after 1.4 stay available as raw text without expanding the enum and breaking exhaustive match expressions in apps.
+        foreach (['error', 'cancelled', 'checkpoint'] as $rawStopReason) {
+            $agentResponse = AgentResponse::fromArray(['text' => '', 'stop_reason' => $rawStopReason]);
+
+            $this->assertNull($agentResponse->stopReason, "{$rawStopReason} must not expand the 1.x enum");
+            $this->assertSame(
+                $rawStopReason,
+                $agentResponse->rawStopReason,
+                "{$rawStopReason} must remain observable through rawStopReason",
+            );
+        }
+    }
+
+    /**
+     * Covers "from array parses interrupts" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -761,7 +824,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array no interrupts defaults empty.
+     * Covers "from array no interrupts defaults empty" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -774,7 +838,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array parses guardrail trace.
+     * Covers "from array parses guardrail trace" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -793,7 +858,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame(StopReason::GuardrailIntervened, $agentResponse->stopReason);
     }
     /**
-     * Data fixture for testFromArrayGuardrailTraceFromNestedTrace().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array guardrail trace from nested trace behavior stable for app callers.
      */
@@ -810,9 +876,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array guardrail trace from nested trace.
+     * Covers "from array guardrail trace from nested trace" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -827,23 +893,22 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array guardrail trace defaults to null.
+     * Covers "from array guardrail trace defaults to null" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
     public function testFromArrayGuardrailTraceDefaultsToNull(): void
     {
-        // guardrailTrace stays a standalone test (not folded into the
-        // omittedFieldDefaultsToNull provider) because it lives on a separate
-        // execution path: fromArray() does its own GuardrailTrace::fromArray()
-        // hydration before the null-fallback runs.
+        // Keep this separate from generic null defaults because GuardrailTrace hydration follows its own app-visible parsing path first.
         $agentResponse = AgentResponse::fromArray(['text' => 'Test']);
 
         $this->assertNull($agentResponse->guardrailTrace);
     }
 
     /**
-     * Verifies that from array parses citations.
+     * Covers "from array parses citations" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -860,7 +925,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that from array citations defaults to empty.
+     * Covers "from array citations defaults to empty" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -871,7 +937,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame([], $agentResponse->citations);
     }
     /**
-     * Data fixture for testFromArrayCitationsIgnoresNonCitationBlocks().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep from array citations ignores non citation blocks behavior stable for app callers.
      */
@@ -889,9 +956,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that from array citations ignores non citation blocks.
+     * Covers "from array citations ignores non citation blocks" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -905,7 +972,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame('citationsContent', $agentResponse->citations[0]['type']);
     }
     /**
-     * Data fixture for testInterruptsExcludedFromMetadata().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep interrupts excluded from metadata behavior stable for app callers.
      */
@@ -918,9 +986,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that interrupts excluded from metadata.
+     * Covers "interrupts excluded from metadata" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -934,7 +1002,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame('value', $agentResponse->metadata['custom']);
     }
     /**
-     * Data fixture for testGuardrailTraceExcludedFromMetadata().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep guardrail trace excluded from metadata behavior stable for app callers.
      */
@@ -948,9 +1017,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that guardrail trace excluded from metadata.
+     * Covers "guardrail trace excluded from metadata" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -966,7 +1035,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that has objective default value.
+     * Covers "has objective default value" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -977,7 +1047,8 @@ class AgentResponseTest extends TestCase
         $this->assertFalse($agentResponse->hasObjective);
     }
     /**
-     * Data fixture for testMultipleInterruptsAllReturned().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep multiple interrupts all returned behavior stable for app callers.
      */
@@ -1005,9 +1076,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that multiple interrupts all returned.
+     * Covers "multiple interrupts all returned" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -1022,7 +1093,8 @@ class AgentResponseTest extends TestCase
         $this->assertSame('scale', $agentResponse->interrupts[1]->toolName);
     }
     /**
-     * Data fixture for testMultipleCitationsAllReturned().
+     * Builds readable wire data for the related response-hydration scenario.
+     * Use it when the matching response case needs a realistic agent payload.
      *
      * @return array<string, mixed> Scenarios that keep multiple citations all returned behavior stable for app callers.
      */
@@ -1040,9 +1112,9 @@ class AgentResponseTest extends TestCase
         ];
     }
 
-
     /**
-     * Verifies that multiple citations all returned.
+     * Covers "multiple citations all returned" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -1058,7 +1130,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that citations returns empty when message not array.
+     * Covers "citations returns empty when message not array" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -1075,7 +1148,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that get citation objects returns typed list.
+     * Covers "get citation objects returns typed list" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -1104,7 +1178,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that get citation objects preserves flat citation fields.
+     * Covers "get citation objects preserves flat citation fields" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -1124,7 +1199,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that get citation objects caches result.
+     * Covers "get citation objects caches result" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -1147,7 +1223,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that get citation objects returns empty for no citations.
+     * Covers "get citation objects returns empty for no citations" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -1159,7 +1236,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that structured output as with from array factory.
+     * Covers "structured output as with from array factory" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -1179,7 +1257,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that structured output as with constructor.
+     * Covers "structured output as with constructor" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -1199,7 +1278,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that structured output as throws when null.
+     * Covers "structured output as throws when null" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -1213,7 +1293,8 @@ class AgentResponseTest extends TestCase
     }
 
     /**
-     * Verifies that structured output as throws on mismatch.
+     * Covers "structured output as throws on mismatch" so answer screens retain safe fields and 1.x reads.
+     * Use this regression case when response parsing or wire compatibility changes.
      *
      * @return void
      */
@@ -1233,12 +1314,18 @@ class AgentResponseTest extends TestCase
 }
 
 /**
+ * Provides a structured-output fixture with its own fromArray() factory.
+ *
+ * It represents an application DTO used to render a validated answer.
+ * Use it to verify AgentResponse prefers a public static factory over constructor spreading.
+ *
  * @internal
  */
 class TestStructuredDto
 {
     /**
-     * Create a test fixture DTO.
+     * Creates a fixture DTO used to demonstrate structured-output hydration for an app.
+     * Use it only in the matching response-conversion scenario.
      *
      * @param string $name Fixture name or DTO name under test.
      * @param int $age DTO age value used by the fixture.
@@ -1250,7 +1337,8 @@ class TestStructuredDto
     }
 
     /**
-     * Hydrates caller-facing data from the agent response.
+     * Hydrates a fixture DTO from the structured data returned by the agent.
+     * Use it when the test needs to mirror an app-level response factory.
      *
      * @param array<string, mixed> $data decoded payload shape received at the client boundary.
      * @return self New instance ready for app code.
@@ -1265,12 +1353,18 @@ class TestStructuredDto
 }
 
 /**
+ * Provides a structured-output fixture that can be hydrated only through named constructor arguments.
+ *
+ * It represents an application DTO without a fromArray() factory.
+ * Use it to verify constructor hydration and the user-facing mismatch error path.
+ *
  * @internal
  */
 class TestConstructorDto
 {
     /**
-     * Create a test fixture DTO.
+     * Creates a fixture DTO used to demonstrate structured-output hydration for an app.
+     * Use it only in the matching response-conversion scenario.
      *
      * @param string $name Fixture name or DTO name under test.
      * @param float $score DTO score value used by the fixture.

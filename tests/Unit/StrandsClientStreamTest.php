@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Strands Client Stream behavior for app integrations.
+ * Exercises typed live agent responses from the first event through the final StreamResult.
+ * It covers callback updates, cancellation, retries, terminal errors, usage, tools, and logs.
+ * Failures here mean a chat UI could render the wrong live or final state.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -25,12 +27,16 @@ use StrandsPhpClient\Streaming\StreamEventType;
 use StrandsPhpClient\Streaming\StreamResult;
 
 /**
- * Verifies Strands Client Stream behavior that application users rely on.
+ * Verifies stream() coordinates transport, parsing, callbacks, and the caller's final result.
+ *
+ * It protects the live text, cancellation, telemetry, session, and terminal state users experience.
+ * Use these scenarios when changing any typed streaming orchestration in StrandsClient.
  */
 class StrandsClientStreamTest extends TestCase
 {
     /**
-     * Load a raw SSE fixture file as a string.
+     * Loads captured fixture data for a realistic typed-streaming scenario.
+     * Use it when a test needs the same payload an app could receive from an agent.
      *
      * @param string $name Fixture file name under tests/Fixtures/.
      * @return string Raw fixture contents.
@@ -41,10 +47,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Build a transport that delivers the SSE payload one event at a time and
-     * stops as soon as the per-chunk callback returns false (so the client's
-     * cancellation handshake can be exercised end-to-end without spelling out
-     * the chunking loop in every test body).
+     * Creates a controlled HTTP transport that reproduces the response chunks an app could receive.
+     * Use it when the typed-streaming scenario must inspect requests or delivery order.
      *
      * @param string $sseData Pre-built SSE payload to be chunked on \n\n boundaries.
      * @return HttpTransport Mocked transport with the chunk-by-chunk delivery wired up.
@@ -54,11 +58,14 @@ class StrandsClientStreamTest extends TestCase
         $transport = $this->createMock(HttpTransport::class);
         $transport->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData): void {
+                // Each delimiter represents one update the wrapper could flush while the user watches the answer arrive.
                 foreach (explode("\n\n", $sseData) as $chunk) {
+                    // The trailing split after the final delimiter has no event and should not invoke the app callback.
                     if ($chunk === '') {
                         continue;
                     }
                     $streamResult = $onChunk->__invoke($chunk . "\n\n");
+                    // Literal false means the user cancelled, so the transport must stop delivering later frames.
                     if ($streamResult === false) {
                         return;
                     }
@@ -69,11 +76,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Build a willReturnCallback closure that asserts a debug log's `$context`
-     * contains the expected keys whenever its `$message` is in the map.
-     * Test bodies keep their own `expects(...)->method('debug')` mock setup so
-     * the assertion count stays visible to `test-quality.no-assertions`, while
-     * the message-dispatch `if` lives here, outside the test scope.
+     * Checks the caller-visible fields shared by several typed-streaming scenarios.
+     * Use it to keep repeated expectations consistent and readable.
      *
      * @param array<string, list<string>> $expectedKeysPerMessage Map of log message text → required context keys.
      * @return \Closure(string, array<string, mixed>=): void Callback suitable for `->willReturnCallback(...)`.
@@ -82,9 +86,11 @@ class StrandsClientStreamTest extends TestCase
     {
         return function (string $message, array $context = []) use ($expectedKeysPerMessage): void {
             $required = $expectedKeysPerMessage[$message] ?? null;
+            // Ignore unrelated debug messages; each test lists only the caller-visible operation logs it owns.
             if ($required === null) {
                 return;
             }
+            // Every required key keeps an existing log consumer working after the 1.5 additions.
             foreach ($required as $key) {
                 \PHPUnit\Framework\Assert::assertArrayHasKey($key, $context, "Log '{$message}' must include context key '{$key}'");
             }
@@ -92,7 +98,32 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Create streaming transport for the test scenario.
+     * Lists the safe fields expected from the related typed-streaming scenario.
+     * Use it when several tests must enforce the same user-facing diagnostic shape.
+     *
+     * @return array<string, list<string>> Required context keys keyed by log message.
+     */
+    private function expectedStreamDebugContextKeys(): array
+    {
+        return [
+            'Strands stream request' => ['url', 'session_id'],
+            'Strands stream complete' => [
+                'session_id',
+                'text_events',
+                'total_events',
+                'text_length',
+                'input_tokens',
+                'output_tokens',
+                'ttft_ms',
+                'tools_used',
+                'cancelled',
+            ],
+        ];
+    }
+
+    /**
+     * Creates a controlled HTTP transport that reproduces the response chunks an app could receive.
+     * Use it when the typed-streaming scenario must inspect requests or delivery order.
      *
      * @param string $sseFixture SSE fixture data yielded by the mock transport.
      * @return HttpTransport Value produced by the method.
@@ -109,7 +140,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream calls on event for each event.
+     * Covers "stream calls on event for each event" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -148,7 +180,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream sends correct URL.
+     * Covers "stream sends correct url" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -186,7 +219,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream returns stream result.
+     * Covers "stream returns stream result" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -219,7 +253,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream throws on missing terminal event.
+     * Covers "stream throws on missing terminal event" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -244,7 +279,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream accepts error as terminal event.
+     * Covers "stream accepts error as terminal event" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -274,7 +310,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream parses tool use events.
+     * Covers "stream parses tool use events" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -311,7 +348,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream result default values.
+     * Covers "stream result default values" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -330,7 +368,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream logs debug messages.
+     * Covers "stream logs debug messages" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -340,12 +379,9 @@ class StrandsClientStreamTest extends TestCase
         $transport = $this->createStreamingTransport($sseData);
 
         $logger = $this->createMock(LoggerInterface::class);
-        $debugCalls = [];
         $logger->expects($this->exactly(2))
             ->method('debug')
-            ->willReturnCallback(function (string $message, array $context) use (&$debugCalls): void {
-                $debugCalls[] = ['message' => $message, 'context' => $context];
-            });
+            ->willReturnCallback($this->assertDebugContextKeys($this->expectedStreamDebugContextKeys()));
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -358,27 +394,11 @@ class StrandsClientStreamTest extends TestCase
             onEvent: function (): void {
             },
         );
-
-        // Request log
-        $this->assertSame('Strands stream request', $debugCalls[0]['message']);
-        $this->assertArrayHasKey('url', $debugCalls[0]['context']);
-        $this->assertArrayHasKey('session_id', $debugCalls[0]['context']);
-
-        // Completion log
-        $this->assertSame('Strands stream complete', $debugCalls[1]['message']);
-        $this->assertArrayHasKey('text_events', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('total_events', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('tools_used', $debugCalls[1]['context']);
-        $this->assertArrayHasKey('cancelled', $debugCalls[1]['context']);
-        $this->assertArrayNotHasKey('session_id', $debugCalls[1]['context']);
-        $this->assertArrayNotHasKey('text_length', $debugCalls[1]['context']);
-        $this->assertArrayNotHasKey('input_tokens', $debugCalls[1]['context']);
-        $this->assertArrayNotHasKey('output_tokens', $debugCalls[1]['context']);
-        $this->assertArrayNotHasKey('ttft_ms', $debugCalls[1]['context']);
     }
 
     /**
-     * Verifies that stream tools used passed from complete event.
+     * Covers "stream tools used passed from complete event" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -408,7 +428,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream with no text events.
+     * Covers "stream with no text events" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -434,13 +455,14 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream falls back to complete full text.
+     * Covers "stream falls back to complete full text" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
     public function testStreamFallsBackToCompleteFullText(): void
     {
-        // Complete event has fullText but no Text events preceded it
+        // A wrapper may send only final text; the answer screen still needs that fallback content.
         $sseData = "data: {\"type\": \"complete\", \"text\": \"Full response from agent\", \"session_id\": \"s-fb\", \"usage\": {\"input_tokens\": 5, \"output_tokens\": 3}, \"tools_used\": []}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
@@ -460,13 +482,14 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream prefers accumulated text over full text.
+     * Covers "stream prefers accumulated text over full text" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
     public function testStreamPrefersAccumulatedTextOverFullText(): void
     {
-        // Both Text events and Complete.fullText present - accumulated text wins
+        // When live text already reached the user, the final result keeps exactly that sequence instead of duplicating terminal full text.
         $sseData = "data: {\"type\": \"text\", \"content\": \"Streamed\"}\n\n"
             . "data: {\"type\": \"complete\", \"text\": \"Streamed\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
         $transport = $this->createStreamingTransport($sseData);
@@ -487,7 +510,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream usage handles non int tokens.
+     * Covers "stream usage handles non int tokens" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -512,7 +536,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream complete event has stop reason.
+     * Covers "stream complete event has stop reason" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -534,16 +559,12 @@ class StrandsClientStreamTest extends TestCase
         );
 
         $this->assertSame(StopReason::EndTurn, $streamResult->stopReason);
+        $this->assertSame('end_turn', $streamResult->rawStopReason);
     }
 
     /**
-     * Verifies that stream stop reason defaults to null.
-     *
-     * @return void
-     */
-    /**
-     * Verifies that StreamResult defaults each documented optional field to null
-     * when the SSE complete event omits the corresponding data.
+     * Covers "stream result defaults optional field to null" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @param string $propertyName Name of the StreamResult property expected to be null.
      * @return void
@@ -551,8 +572,7 @@ class StrandsClientStreamTest extends TestCase
     #[DataProvider('streamResultDefaultsToNullProvider')]
     public function testStreamResultDefaultsOptionalFieldToNull(string $propertyName): void
     {
-        // Minimal complete event: no stop_reason, no text events (so no TTFT),
-        // no guardrail trace — exercises every optional-field fallback path.
+        // A minimal completion with no text, stop reason, latency, or guardrail detail exercises every empty final-screen fallback.
         $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
@@ -571,19 +591,22 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Cases for testStreamResultDefaultsOptionalFieldToNull().
+     * Supplies the input variants for the related typed-streaming scenario.
+     * An empty provider would leave a caller-visible edge case unverified.
      *
      * @return iterable<string, array{0: string}> Missing stream fields that should stay null for app callers.
      */
     public static function streamResultDefaultsToNullProvider(): iterable
     {
         yield 'stopReason omitted from complete event' => ['stopReason'];
+        yield 'rawStopReason omitted from complete event' => ['rawStopReason'];
         yield 'timeToFirstTextTokenMs absent when no text events' => ['timeToFirstTextTokenMs'];
         yield 'guardrailTrace omitted from complete event' => ['guardrailTrace'];
     }
 
     /**
-     * Verifies that stream cancels on false return.
+     * Covers "stream cancels on false return" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -612,18 +635,19 @@ class StrandsClientStreamTest extends TestCase
 
         $this->assertCount(1, $events);
         $this->assertSame(StreamEventType::Text, $events[0]->type);
-        // Should return partial result without throwing StreamInterruptedException
+        // User cancellation returns the partial answer instead of misreporting a dropped connection.
         $this->assertSame('Hello', $streamResult->text);
     }
 
     /**
-     * Verifies that stream cancel does not throw interrupted exception.
+     * Covers "stream cancel does not throw interrupted exception" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
     public function testStreamCancelDoesNotThrowInterruptedException(): void
     {
-        // Stream with no terminal event — but cancelled, so no exception
+        // A user-stopped stream needs no terminal event because the cancellation itself explains why live output ended.
         $sseData = "data: {\"type\": \"text\", \"content\": \"partial\"}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
@@ -643,7 +667,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream void callback continues.
+     * Covers "stream void callback continues" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -671,7 +696,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream cancels across chunks.
+     * Covers "stream cancels across chunks" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -681,7 +707,7 @@ class StrandsClientStreamTest extends TestCase
         $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
-                // Second chunk — callback already cancelled, should be skipped
+                // This later chunk must stay hidden because the user already stopped live updates.
                 $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"second\"}\n\n");
             });
 
@@ -705,7 +731,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream with timeout seconds override.
+     * Covers "stream with timeout seconds override" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -744,7 +771,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream timeout seconds rejects zero.
+     * Covers "stream timeout seconds rejects zero" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -770,7 +798,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream timeout seconds null uses default.
+     * Covers "stream timeout seconds null uses default" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -809,7 +838,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream timeout seconds accepts boundary one.
+     * Covers "stream timeout seconds accepts boundary one" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -848,7 +878,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream result defaults time to first text token to null.
+     * Covers "stream result defaults time to first text token to null" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -860,7 +891,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream records TTFT when text events present.
+     * Covers "stream records ttft when text events present" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -881,20 +913,15 @@ class StrandsClientStreamTest extends TestCase
             },
         );
 
-        // TTFT should be a positive float when text events are present
+        // Receiving text gives the final result a nonnegative client-measured time-to-first-text value.
         $this->assertNotNull($streamResult->timeToFirstTextTokenMs);
         $this->assertIsFloat($streamResult->timeToFirstTextTokenMs);
         $this->assertGreaterThanOrEqual(0.0, $streamResult->timeToFirstTextTokenMs);
     }
 
     /**
-     * Verifies that stream TTFT null when no text events.
-     *
-     * @return void
-     */
-
-    /**
-     * Verifies that stream logs skipped events.
+     * Covers "stream logs skipped events" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -905,7 +932,7 @@ class StrandsClientStreamTest extends TestCase
 
         $logger = $this->createMock(LoggerInterface::class);
 
-        // Expect info-level log about skipped events
+        // An unknown server event produces an upgrade hint for operators without interrupting the user's answer.
         $logger->expects($this->once())
             ->method('info')
             ->with(
@@ -932,7 +959,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream does not log when no skipped events.
+     * Covers "stream does not log when no skipped events" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -943,7 +971,7 @@ class StrandsClientStreamTest extends TestCase
 
         $logger = $this->createMock(LoggerInterface::class);
 
-        // info() should NOT be called for skipped events
+        // A fully recognized stream produces no compatibility warning for operators.
         $logger->expects($this->never())
             ->method('info');
 
@@ -963,11 +991,12 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream debug logs omit token-timing fields.
+     * Covers "stream debug log includes token timing field" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
-    public function testStreamDebugLogOmitsTokenTimingFields(): void
+    public function testStreamDebugLogIncludesTokenTimingField(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
             . "data: {\"type\": \"complete\", \"text\": \"Hello\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
@@ -994,16 +1023,20 @@ class StrandsClientStreamTest extends TestCase
         );
 
         $this->assertSame('Strands stream complete', $debugCalls[1]['message']);
-        $this->assertArrayNotHasKey('ttft_ms', $debugCalls[1]['context']);
+        $this->assertArrayHasKey('ttft_ms', $debugCalls[1]['context']);
+        $this->assertNotNull($debugCalls[1]['context']['ttft_ms']);
     }
 
     /**
-     * Verifies that stream usage hydrates cache tokens.
+     * Covers "stream usage hydrates cache tokens" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
     public function testStreamUsageHydratesCacheTokens(): void
     {
+        $expectedLatencyMs = 1501;
+        $expectedTimeToFirstByteMs = 200;
         $sseData = "data: {\"type\": \"complete\", \"text\": \"\", \"session_id\": null, \"usage\": {\"input_tokens\": 100, \"output_tokens\": 50, \"cache_read_input_tokens\": 80, \"cache_write_input_tokens\": 20, \"latency_ms\": 1500.5, \"time_to_first_byte_ms\": 200.25}, \"tools_used\": []}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
@@ -1020,12 +1053,13 @@ class StrandsClientStreamTest extends TestCase
 
         $this->assertSame(80, $streamResult->usage->cacheReadInputTokens);
         $this->assertSame(20, $streamResult->usage->cacheWriteInputTokens);
-        $this->assertSame(1500.5, $streamResult->usage->latencyMs);
-        $this->assertSame(200.25, $streamResult->usage->timeToFirstByteMs);
+        $this->assertSame($expectedLatencyMs, $streamResult->usage->latencyMs);
+        $this->assertSame($expectedTimeToFirstByteMs, $streamResult->usage->timeToFirstByteMs);
     }
 
     /**
-     * Verifies that stream parses interrupts from complete event.
+     * Covers "stream parses interrupts from complete event" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -1055,7 +1089,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream no interrupts defaults empty.
+     * Covers "stream no interrupts defaults empty" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -1080,7 +1115,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream parses guardrail trace from complete event.
+     * Covers "stream parses guardrail trace from complete event" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -1109,13 +1145,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream guardrail trace defaults to null.
-     *
-     * @return void
-     */
-
-    /**
-     * Verifies that stream accepts agent input.
+     * Covers "stream accepts agent input" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -1128,7 +1159,7 @@ class StrandsClientStreamTest extends TestCase
         $transport->expects($this->once())
             ->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                // Verify payload contains content blocks
+                // The transport must receive the text and attachment blocks assembled by the user's rich-input screen.
                 $decoded = json_decode($body, true);
                 \PHPUnit\Framework\Assert::assertIsArray($decoded['message']);
                 \PHPUnit\Framework\Assert::assertArrayHasKey('content', $decoded['message']);
@@ -1153,7 +1184,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream result defaults for new fields.
+     * Covers "stream result defaults for new fields" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -1167,7 +1199,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream logs debug on request and completion.
+     * Covers "stream logs debug on request and completion" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -1180,15 +1213,7 @@ class StrandsClientStreamTest extends TestCase
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects($this->exactly(2))
             ->method('debug')
-            ->willReturnCallback($this->assertDebugContextKeys([
-                'Strands stream request' => ['url', 'session_id'],
-                'Strands stream complete' => [
-                    'text_events',
-                    'total_events',
-                    'tools_used',
-                    'cancelled',
-                ],
-            ]));
+            ->willReturnCallback($this->assertDebugContextKeys($this->expectedStreamDebugContextKeys()));
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -1204,7 +1229,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream TTFT is positive when text events exist.
+     * Covers "stream ttft is positive when text events exist" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -1230,7 +1256,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream extracts session ID from complete event.
+     * Covers "stream extracts session id from complete event" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -1259,7 +1286,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream cancellation callback returns false.
+     * Covers "stream cancellation callback returns false" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -1292,7 +1320,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream callback return true continues stream.
+     * Covers "stream callback return true continues stream" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -1319,7 +1348,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream does not accumulate thinking text as text events.
+     * Covers "stream does not accumulate thinking text as text events" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
@@ -1343,20 +1373,21 @@ class StrandsClientStreamTest extends TestCase
             },
         );
 
-        // Only "Answer" should be accumulated, not "Let me think..."
+        // The final visible answer contains only text events, not the agent's separate thinking update.
         $this->assertSame('Answer', $streamResult->text);
         $this->assertSame(1, $streamResult->textEvents);
         $this->assertSame(3, $streamResult->totalEvents);
     }
 
     /**
-     * Verifies that stream result cancelled status is correct.
+     * Covers "stream result cancelled status is correct" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
     public function testStreamResultCancelledStatusIsCorrect(): void
     {
-        // Stream that completes normally should not be cancelled
+        // A naturally completed answer reports false so the UI does not show a user-cancelled state.
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hi\"}\n\n"
             . "data: {\"type\": \"complete\", \"text\": \"Hi\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
         $transport = $this->createStreamingTransport($sseData);
@@ -1376,7 +1407,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream retry exhausts max retries exactly.
+     * Covers "stream retry exhausts max retries exactly" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      * @throws AgentErrorException When all retry attempts receive a retryable error.
@@ -1403,24 +1435,26 @@ class StrandsClientStreamTest extends TestCase
         try {
             $strandsClient->invoke(message: 'Test');
             $this->fail('Expected AgentErrorException');
-        } catch (\StrandsPhpClient\Exceptions\AgentErrorException $e) {
-            // 1 initial attempt + 2 retries = 3 total calls
+        } catch (\StrandsPhpClient\Exceptions\AgentErrorException $exception) {
+            // A retryable 503 repeated past the configured budget is the practical failure the caller ultimately receives.
+            // One initial request plus two configured retries gives the user three chances before the error returns.
             $this->assertSame(3, $callCount);
         }
     }
 
     /**
-     * Verifies that stream empty stream throws interrupted.
+     * Covers "stream empty stream throws interrupted" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
     public function testStreamEmptyStreamThrowsInterrupted(): void
     {
-        // Transport streams nothing — no events at all
+        // A connection that closes without any event gives the user neither content nor a trustworthy completion signal.
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                // Stream ends immediately without sending any chunks
+                // Returning immediately reproduces a server that closes before sending the user's first update.
             });
 
         $strandsClient = new StrandsClient(
@@ -1436,13 +1470,14 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream only heartbeats throws interrupted.
+     * Covers "stream only heartbeats throws interrupted" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
     public function testStreamOnlyHeartbeatsThrowsInterrupted(): void
     {
-        // Stream contains only SSE comments (heartbeats) — no real events
+        // Heartbeats alone keep a connection alive but provide no answer or terminal state the UI can trust.
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
@@ -1462,18 +1497,19 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Verifies that stream partial event at eof throws interrupted.
+     * Covers "stream partial event at eof throws interrupted" so live updates and the final answer stay consistent.
+     * Use this regression case when typed stream aggregation or cancellation changes.
      *
      * @return void
      */
     public function testStreamPartialEventAtEofThrowsInterrupted(): void
     {
-        // Stream ends with an incomplete event (no \n\n terminator)
+        // A truncated final frame reproduces a connection drop before the user's event becomes complete.
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
                 $onChunk->__invoke('data: {"type": "text", "content": "partial"}');
-                // No \n\n so event never completes
+                // Without the blank-line delimiter, the partial bytes must never reach the app callback.
             });
 
         $strandsClient = new StrandsClient(

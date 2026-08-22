@@ -134,10 +134,10 @@ strands-php-client/
 ├── .claude/                                  = Claude-owned harness
 │   ├── settings.json                         = Permissions + hook registration
 │   ├── settings.local.json                   = Local overrides (gitignored)
-│   └── skills/                               = 7 goat-* skills installed verbatim
+│   └── skills/                               = 8 goat-* skills installed verbatim
 │
 ├── .agents/                                  = Codex goat-flow skills
-│   └── skills/                               = 7 goat-* skills installed verbatim
+│   └── skills/                               = 8 goat-* skills installed verbatim
 │
 ├── .codex/                                   = Codex-owned harness
 │   ├── config.toml                           = Permission profile + hooks feature flag
@@ -146,7 +146,7 @@ strands-php-client/
 ├── .github/                                  = GitHub CI, issue templates, and Copilot harness surfaces
 │   ├── workflows/                            = CI pipelines
 │   ├── hooks/                                = Copilot hook registration
-│   ├── skills/                               = 7 goat-* skills installed for Copilot
+│   ├── skills/                               = 8 goat-* skills installed for Copilot
 │   ├── copilot-instructions.md               = Copilot instruction file
 │   ├── ISSUE_TEMPLATE/, pull_request_template.md
 │   ├── git-commit-instructions.md            = Commit message standard Copilot auto-loads — byte-identical to `docs/coding-standards/git-commit-message.md`; edit both or neither

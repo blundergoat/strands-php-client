@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Strands Client Stream Sse behavior for app integrations.
+ * Exercises raw custom-endpoint events delivered to an application's SSE callback.
+ * It covers URLs, payloads, auth, framing, cancellation, errors, and timeout choices.
+ * Failures here mean a custom live screen could miss events or stop incorrectly.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -13,16 +15,21 @@ use StrandsPhpClient\Auth\AuthStrategy;
 use StrandsPhpClient\Config\StrandsConfig;
 use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\StrandsException;
+use StrandsPhpClient\Exceptions\StreamInterruptedException;
 use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\StrandsClient;
 
 /**
- * Verifies Strands Client Stream Sse behavior that application users rely on.
+ * Verifies streamSse() preserves app-owned payloads while applying shared transport safeguards.
+ *
+ * It protects custom live experiences that need raw JSON rather than typed StreamEvent objects.
+ * Use these scenarios when changing raw framing, callback cancellation, auth, or error propagation.
  */
 class StrandsClientStreamSseTest extends TestCase
 {
     /**
-     * Create streaming transport for the test scenario.
+     * Creates a controlled HTTP transport that reproduces the response chunks an app could receive.
+     * Use it when the raw-streaming scenario must inspect requests or delivery order.
      *
      * @param string $sseData SSE fixture data yielded by the mock transport.
      * @return HttpTransport Value produced by the method.
@@ -39,7 +46,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE sends correct URL.
+     * Covers "stream sse sends correct url" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -74,7 +82,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE sends correct payload.
+     * Covers "stream sse sends correct payload" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -88,10 +97,10 @@ class StrandsClientStreamSseTest extends TestCase
                 $this->callback(fn (array $headers) => $headers['Content-Type'] === 'application/json'
                     && $headers['Accept'] === 'text/event-stream'),
                 $this->callback(function (string $body) {
-                    $data = json_decode($body, true);
+                    $decodedRequestPayload = json_decode($body, true);
 
-                    return $data['file_base64'] === 'abc'
-                        && $data['template'] === 'default';
+                    return $decodedRequestPayload['file_base64'] === 'abc'
+                        && $decodedRequestPayload['template'] === 'default';
                 }),
                 $this->anything(),
                 $this->anything(),
@@ -118,7 +127,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE applies auth.
+     * Covers "stream sse applies auth" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -155,7 +165,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE parses events.
+     * Covers "stream sse parses events" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -187,7 +198,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE preserves unknown fields.
+     * Covers "stream sse preserves unknown fields" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -215,7 +227,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE skips malformed JSON.
+     * Covers "stream sse skips malformed json" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -243,7 +256,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE handles multi line data.
+     * Covers "stream sse handles multi line data" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -269,7 +283,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE skips heartbeat comments.
+     * Covers "stream sse skips heartbeat comments" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -296,7 +311,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE uses config timeout by default.
+     * Covers "stream sse uses config timeout by default" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -331,7 +347,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE uses per request timeout.
+     * Covers "stream sse uses per request timeout" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -366,7 +383,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE cancels on false return.
+     * Covers "stream sse cancels on false return" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -397,7 +415,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE void callback continues.
+     * Covers "stream sse void callback continues" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -423,7 +442,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE cancels across chunks.
+     * Covers "stream sse cancels across chunks" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -432,9 +452,9 @@ class StrandsClientStreamSseTest extends TestCase
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                // First chunk delivers one event
+                // The first chunk delivers the only raw event the user accepts before cancelling.
                 $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
-                // Second chunk delivers another — but callback already cancelled
+                // The later event must stay hidden because the callback already recorded the user's cancellation.
                 $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"second\"}\n\n");
             });
 
@@ -456,7 +476,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE handles crlf line endings.
+     * Covers "stream sse handles crlf line endings" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -483,7 +504,67 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE handles chunked delivery.
+     * Covers "stream sse handles crlf split across chunks" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
+     *
+     * @return void
+     */
+    public function testStreamSseHandlesCrlfSplitAcrossChunks(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())->method('stream')
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                $onChunk->__invoke("data: {\"type\": \"text\",\r");
+                $onChunk->__invoke("\ndata: \"content\": \"hello\"}\r\n\r\n");
+            });
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $events = [];
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): void {
+            $events[] = $event;
+        });
+
+        $this->assertCount(1, $events);
+        $this->assertSame('text', $events[0]['type']);
+        $this->assertSame('hello', $events[0]['content']);
+    }
+
+    /**
+     * Covers "stream sse rejects an unbounded incomplete frame" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
+     *
+     * @return void
+     */
+    public function testStreamSseRejectsAnUnboundedIncompleteFrame(): void
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->once())->method('stream')
+            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
+                $chunk = str_repeat('x', 1024 * 1024);
+                for ($i = 0; $i < 11; $i++) {
+                    $onChunk->__invoke($chunk);
+                }
+            });
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+        );
+
+        $this->expectException(StreamInterruptedException::class);
+        $this->expectExceptionMessage('SSE buffer exceeded');
+
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], static function (): void {
+        });
+    }
+
+    /**
+     * Covers "stream sse handles chunked delivery" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -492,10 +573,10 @@ class StrandsClientStreamSseTest extends TestCase
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                // SSE event split across two TCP chunks
+                // Splitting one frame across callbacks reproduces normal TCP fragmentation while the user waits.
                 $onChunk->__invoke('data: {"type":');
                 $onChunk->__invoke(" \"text\", \"content\": \"hello\"}\n\n");
-                // Second complete event in one chunk
+                // A later complete frame proves buffering the first partial frame did not delay subsequent UI updates.
                 $onChunk->__invoke("data: {\"type\": \"complete\", \"text\": \"hello\"}\n\n");
             });
 
@@ -516,7 +597,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE propagates transport error.
+     * Covers "stream sse propagates transport error" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -539,7 +621,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE throws on encoding failure.
+     * Covers "stream sse throws on encoding failure" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -557,14 +640,16 @@ class StrandsClientStreamSseTest extends TestCase
             $strandsClient->streamSse('/test-stream', ['bad_value' => NAN], function () {
             });
             $this->fail('Expected StrandsException');
-        } catch (StrandsException $e) {
-            $this->assertStringContainsString('Failed to encode request payload', $e->getMessage());
-            $this->assertStringContainsString('Inf and NaN', $e->getMessage());
+        } catch (StrandsException $exception) {
+            // A custom screen can accidentally submit NaN from a calculation; the caller should receive an encoding error before any request is sent.
+            $this->assertStringContainsString('Failed to encode request payload', $exception->getMessage());
+            $this->assertStringContainsString('Inf and NaN', $exception->getMessage());
         }
     }
 
     /**
-     * Verifies that stream SSE rejects zero timeout.
+     * Covers "stream sse rejects zero timeout" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -586,7 +671,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE rejects negative timeout.
+     * Covers "stream sse rejects negative timeout" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -608,7 +694,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE accepts boundary one timeout.
+     * Covers "stream sse accepts boundary one timeout" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -645,7 +732,8 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE logs request and completion context.
+     * Covers "stream sse logs request and completion context" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
@@ -671,24 +759,25 @@ class StrandsClientStreamSseTest extends TestCase
         $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (): void {
         });
 
-        // Request log must include url and path
+        // Request diagnostics identify the custom route without recording the user's payload.
         $this->assertSame('Strands streamSse request', $debugCalls[0]['message']);
         $this->assertArrayHasKey('url', $debugCalls[0]['context']);
         $this->assertArrayHasKey('path', $debugCalls[0]['context']);
 
-        // Completion log must include url
+        // Completion diagnostics retain the safe endpoint while omitting streamed event content.
         $this->assertSame('Strands streamSse complete', $debugCalls[1]['message']);
         $this->assertArrayHasKey('url', $debugCalls[1]['context']);
     }
 
     /**
-     * Verifies that stream SSE data without space parses correctly.
+     * Covers "stream sse data without space parses correctly" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
     public function testStreamSseDataWithoutSpaceParsesCorrectly(): void
     {
-        // SSE with "data:" (no space) — should still parse correctly
+        // A valid data: prefix without the optional space must deliver the same callback object to the app.
         $sseData = "data:{\"type\": \"text\", \"content\": \"hello\"}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
@@ -707,20 +796,18 @@ class StrandsClientStreamSseTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE crlf in middle of event block.
+     * Covers "stream sse crlf in middle of event block" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
     public function testStreamSseCrlfInMiddleOfEventBlock(): void
     {
-        // CRLF line endings must be normalized to LF so "data:...\r\ndata:...\r\n\r\n"
-        // is parsed as one event (two data lines), not split into separate events.
-        // If \r\n normalization is removed, the \r\n\r\n becomes a double-newline
-        // before the second data line, incorrectly splitting it into two events.
+        // CRLF normalization keeps the two data lines in one UI event; without it, the apparent blank line would split the payload early.
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
             ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                // Two data lines with CRLF endings in the same event block
+                // Two CRLF data lines form one logical event the custom screen should receive once.
                 $onChunk->__invoke("data: {\"type\": \"text\",\r\ndata:  \"content\": \"hello\"}\r\n\r\n");
             });
 
@@ -734,20 +821,21 @@ class StrandsClientStreamSseTest extends TestCase
             $events[] = $event;
         });
 
-        // With correct CRLF normalization, this produces exactly one event
+        // Normalized framing delivers exactly one callback instead of splitting the user's payload early.
         $this->assertCount(1, $events);
         $this->assertSame('text', $events[0]['type']);
         $this->assertSame('hello', $events[0]['content']);
     }
 
     /**
-     * Verifies that stream SSE comment lines between data lines.
+     * Covers "stream sse comment lines between data lines" so custom live screens receive predictable callbacks.
+     * Use this regression case when raw SSE framing or callback handling changes.
      *
      * @return void
      */
     public function testStreamSseCommentLinesBetweenDataLines(): void
     {
-        // Comments between data lines should be skipped, not break the event
+        // Wrapper heartbeat comments between data lines must not break the user's one logical event.
         $sseData = ": comment 1\n"
             . "data: {\"type\": \"text\", \"content\": \"first\"}\n\n"
             . ": comment 2\n"

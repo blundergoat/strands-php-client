@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Stream Parser behavior for app integrations.
+ * Exercises raw SSE chunks before typed events reach an application's live callback.
+ * It covers framing, line endings, partial delivery, malformed JSON, and future event types.
+ * Failures here mean a live UI could lose, duplicate, or misclassify an agent update.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -15,12 +17,16 @@ use StrandsPhpClient\Streaming\StreamEventType;
 use StrandsPhpClient\Streaming\StreamParser;
 
 /**
- * Verifies Stream Parser behavior that application users rely on.
+ * Verifies StreamParser converts unreliable network chunk boundaries into stable typed events.
+ *
+ * It protects live app updates while tolerating heartbeats, malformed frames, and newer server events.
+ * Use these scenarios whenever shared SSE framing or StreamEvent hydration changes.
  */
 class StreamParserTest extends TestCase
 {
     /**
-     * Load fixture for the test scenario.
+     * Loads captured fixture data for a realistic stream-parsing scenario.
+     * Use it when a test needs the same payload an app could receive from an agent.
      *
      * @param string $name Fixture name or DTO name under test.
      * @return string String value produced by the helper.
@@ -31,7 +37,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that parse simple text stream.
+     * Covers "parse simple text stream" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -53,7 +60,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that parse crlf delimited stream.
+     * Covers "parse crlf delimited stream" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -75,7 +83,28 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that skips heartbeat comments.
+     * Covers "parse crlf split across chunks" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
+     *
+     * @return void
+     */
+    public function testParseCrlfSplitAcrossChunks(): void
+    {
+        $streamParser = new StreamParser();
+
+        $firstEvents = $streamParser->feed("data: {\"type\": \"text\",\r");
+        $events = $streamParser->feed("\ndata: \"content\": \"hello\"}\r\n\r\n");
+
+        $this->assertSame([], $firstEvents);
+        $this->assertCount(1, $events);
+        $this->assertSame(StreamEventType::Text, $events[0]->type);
+        $this->assertSame('hello', $events[0]->text);
+        $this->assertSame(0, $streamParser->getSkippedEvents());
+    }
+
+    /**
+     * Covers "skips heartbeat comments" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -93,7 +122,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that error mid stream.
+     * Covers "error mid stream" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -112,7 +142,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that incremental chunks.
+     * Covers "incremental chunks" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -120,12 +151,12 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // Feed data byte-by-byte to simulate TCP fragmentation
+        // This frame is split mid-payload to reproduce a proxy delivering the user's live update across callbacks.
         $raw = "data: {\"type\": \"text\", \"content\": \"Hi\"}\n\n";
 
-        // Feed in two chunks that split in the middle
+        // The first partial callback must stay hidden because the user cannot render an incomplete event.
         $events1 = $streamParser->feed(substr($raw, 0, 20));
-        $this->assertCount(0, $events1); // Not enough data yet
+        $this->assertCount(0, $events1);
 
         $events2 = $streamParser->feed(substr($raw, 20));
         $this->assertCount(1, $events2);
@@ -133,7 +164,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that terminal event detection.
+     * Covers "terminal event detection" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -150,7 +182,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that empty chunk returns no events.
+     * Covers "empty chunk returns no events" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -163,7 +196,8 @@ class StreamParserTest extends TestCase
         $this->assertSame([], $events);
     }
     /**
-     * Test fixture for testParseToolUseEvent().
+     * Builds a complete SSE frame for the related live-response scenario.
+     * Use it when the parser case needs realistic data without hiding the expected event.
      *
      * @return string text value used in the caller-facing agent flow.
      */
@@ -172,9 +206,9 @@ class StreamParserTest extends TestCase
         return "data: {\"type\": \"tool_use\", \"tool_name\": \"search_kb\", \"tool_input\": {\"query\": \"test\"}}\n\n";
     }
 
-
     /**
-     * Verifies that parse tool use event.
+     * Covers "parse tool use event" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -191,7 +225,8 @@ class StreamParserTest extends TestCase
         $this->assertSame(['query' => 'test'], $events[0]->toolInput);
     }
     /**
-     * Test fixture for testParseToolResultEvent().
+     * Builds a complete SSE frame for the related live-response scenario.
+     * Use it when the parser case needs realistic data without hiding the expected event.
      *
      * @return string text value used in the caller-facing agent flow.
      */
@@ -200,9 +235,9 @@ class StreamParserTest extends TestCase
         return "data: {\"type\": \"tool_result\", \"tool_name\": \"search_kb\", \"result\": \"some results\"}\n\n";
     }
 
-
     /**
-     * Verifies that parse tool result event.
+     * Covers "parse tool result event" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -220,7 +255,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that parse thinking event.
+     * Covers "parse thinking event" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -237,7 +273,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that tool use is not terminal.
+     * Covers "tool use is not terminal" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -252,7 +289,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that thinking is not terminal.
+     * Covers "thinking is not terminal" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -267,7 +305,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that tool result with JSON result.
+     * Covers "tool result with json result" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -284,7 +323,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that skips unknown event types.
+     * Covers "skips unknown event types" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -302,7 +342,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that stream event from array throws on unknown type.
+     * Covers "stream event from array throws on unknown type" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -315,7 +356,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that stream event from array throws on missing type.
+     * Covers "stream event from array throws on missing type" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -328,7 +370,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that skips event with missing type field.
+     * Covers "skips event with missing type field" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -346,7 +389,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that skips malformed JSON without corrupting buffer.
+     * Covers "skips malformed json without corrupting buffer" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -354,19 +398,20 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // First chunk: malformed JSON followed by valid event
+        // A damaged frame followed by a valid update reproduces a stream that recovers without losing later user content.
         $raw = "data: {malformed json}\n\n"
             . "data: {\"type\": \"text\", \"content\": \"hello\"}\n\n";
 
         $events = $streamParser->feed($raw);
 
-        // Malformed event is skipped, valid event is returned
+        // The user sees the valid update and never receives the malformed frame.
         $this->assertCount(1, $events);
         $this->assertSame('hello', $events[0]->text);
     }
 
     /**
-     * Verifies that buffer recovery after malformed JSON.
+     * Covers "buffer recovery after malformed json" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -374,17 +419,18 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // Feed malformed JSON
+        // The first broken frame is skipped instead of poisoning parser state for the rest of the live answer.
         $events1 = $streamParser->feed("data: {broken\n\n");
         $this->assertCount(0, $events1);
 
-        // Feed valid JSON - buffer should be clean
+        // A later valid frame proves the user can continue receiving updates after that parser error.
         $events2 = $streamParser->feed("data: {\"type\": \"text\", \"content\": \"recovered\"}\n\n");
         $this->assertCount(1, $events2);
         $this->assertSame('recovered', $events2[0]->text);
     }
     /**
-     * Test fixture for testCompleteEventWithMultipleToolsUsed().
+     * Builds a complete SSE frame for the related live-response scenario.
+     * Use it when the parser case needs realistic data without hiding the expected event.
      *
      * @return string text value used in the caller-facing agent flow.
      */
@@ -393,9 +439,9 @@ class StreamParserTest extends TestCase
         return "data: {\"type\": \"complete\", \"text\": \"Result\", \"session_id\": \"s1\", \"usage\": {}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100, \"input\": {\"query\": \"docs\"}, \"result\": {\"count\": 2}}, {\"name\": \"calc\", \"duration_ms\": 50}]}\n\n";
     }
 
-
     /**
-     * Verifies that complete event with multiple tools used.
+     * Covers "complete event with multiple tools used" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -417,7 +463,8 @@ class StreamParserTest extends TestCase
         $this->assertSame(50, $events[0]->toolsUsed[1]['duration_ms']);
     }
     /**
-     * Test fixture for testMultipleDataLinesJoinedWithNewline().
+     * Builds a complete SSE frame for the related live-response scenario.
+     * Use it when the parser case needs realistic data without hiding the expected event.
      *
      * @return string text value used in the caller-facing agent flow.
      */
@@ -426,16 +473,16 @@ class StreamParserTest extends TestCase
         return "data: {\"type\": \"text\",\ndata:  \"content\": \"hello\"}\n\n";
     }
 
-
     /**
-     * Verifies that multiple data lines joined with newline.
+     * Covers "multiple data lines joined with newline" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
     public function testMultipleDataLinesJoinedWithNewline(): void
     {
         $streamParser = new StreamParser();
-        // SSE spec: multiple data: lines in one event are joined with newlines
+        // A wrapper may split one JSON object across data lines; the UI still receives one decoded event.
         $raw = $this->rawForMultipleDataLinesJoinedWithNewline();
 
         $events = $streamParser->feed($raw);
@@ -446,7 +493,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that skipped events counter tracks parse errors.
+     * Covers "skipped events counter tracks parse errors" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -455,7 +503,7 @@ class StreamParserTest extends TestCase
         $streamParser = new StreamParser();
         $this->assertSame(0, $streamParser->getSkippedEvents());
 
-        // Two malformed events + one valid
+        // Two broken frames followed by a valid update let the app report accurate compatibility diagnostics without disrupting the user.
         $raw = "data: {bad1\n\n"
             . "data: {bad2\n\n"
             . "data: {\"type\": \"text\", \"content\": \"ok\"}\n\n";
@@ -467,7 +515,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that feed sets has_objective on the parsed event when true.
+     * Covers "feed sets has objective flag when true" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -483,7 +532,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that has objective defaults false for non boolean values.
+     * Covers "has objective defaults false for non boolean values" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -499,7 +549,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that citation event parsed.
+     * Covers "citation event parsed" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -516,7 +567,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that reasoning signature event parsed.
+     * Covers "reasoning signature event parsed" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -533,7 +585,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that reasoning redacted event parsed.
+     * Covers "reasoning redacted event parsed" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -549,7 +602,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that buffer overflow throws stream interrupted exception.
+     * Covers "buffer overflow throws stream interrupted exception" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -557,8 +611,8 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // Feed data that exceeds 10MB without a complete event (no double newline)
-        $chunk = str_repeat('x', 1024 * 1024); // 1MB chunks
+        // Eleven one-megabyte chunks without a delimiter reproduce a wrapper that could otherwise exhaust the user's PHP process.
+        $chunk = str_repeat('x', 1024 * 1024);
 
         $this->expectException(StreamInterruptedException::class);
         $this->expectExceptionMessage('SSE buffer exceeded');
@@ -569,7 +623,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that buffer does not throw below limit.
+     * Covers "buffer does not throw below limit" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -577,24 +632,36 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // Feed 9MB of data without complete event — should not throw
+        // Nine megabytes without a delimiter stays below the safety cap, so the user's stream remains open.
         $chunk = str_repeat('x', 1024 * 1024);
         for ($i = 0; $i < 9; $i++) {
             $streamParser->feed($chunk);
         }
 
-        // No exception expected, parser still usable
+        // No frame finished or failed parsing, so compatibility diagnostics remain at zero.
         $this->assertSame(0, $streamParser->getSkippedEvents());
     }
 
     /**
-     * Verifies that try from array returns null on unknown type.
+     * Covers "large chunk with bounded frames does not trigger buffer limit" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
-     * @return void
+     * @return void The assertions protect proxies that coalesce multiple sub-10 MB events into one network callback.
      */
+    public function testLargeChunkWithBoundedFramesDoesNotTriggerBufferLimit(): void
+    {
+        $streamParser = new StreamParser();
+        $boundedHeartbeatFrame = ':' . str_repeat('x', 6 * 1024 * 1024) . "\n\n";
+
+        $events = $streamParser->feed($boundedHeartbeatFrame . $boundedHeartbeatFrame);
+
+        $this->assertSame([], $events);
+        $this->assertSame(0, $streamParser->getSkippedEvents());
+    }
+
     /**
-     * Verifies StreamEvent::tryFromArray() returns null for every documented
-     * "unparseable type" shape (unknown enum, missing field, empty string).
+     * Covers "try from array returns null for unparseable event shape" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @param array<string, mixed> $payload Wire-shape payload that cannot resolve to a known event type.
      * @return void
@@ -606,7 +673,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Cases for testTryFromArrayReturnsNullForUnparseableEventShape().
+     * Supplies the input variants for the related stream-parsing scenario.
+     * An empty provider would leave a caller-visible edge case unverified.
      *
      * @return iterable<string, array{0: array<string, mixed>}> Malformed stream payloads that should not break live app updates.
      */
@@ -618,7 +686,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that try from array returns event on known type.
+     * Covers "try from array returns event on known type" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -635,7 +704,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that try from array returns complete event.
+     * Covers "try from array returns complete event" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -658,7 +728,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that skips unknown event in fixture stream.
+     * Covers "skips unknown event in fixture stream" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -669,7 +740,7 @@ class StreamParserTest extends TestCase
 
         $events = $streamParser->feed($raw);
 
-        // Should parse text and complete, skipping the unknown "future_event"
+        // A future event is hidden while the recognized text and completion still reach an older app.
         $this->assertCount(2, $events);
         $this->assertSame(StreamEventType::Text, $events[0]->type);
         $this->assertSame('Hello', $events[0]->text);
@@ -678,7 +749,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that complete event parses stop reason.
+     * Covers "complete event parses stop reason" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -695,7 +767,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that complete event parses context size fields.
+     * Covers "complete event parses context size fields" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -712,7 +785,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that data with space vs without space parses differently.
+     * Covers "data with space vs without space parses differently" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -720,14 +794,14 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // "data: X" should strip "data: " (6 chars) — content is just the JSON
+        // The common data-plus-space form removes the prefix before JSON reaches the user's callback.
         $raw1 = "data: {\"type\": \"text\", \"content\": \"hello\"}\n\n";
         $events1 = $streamParser->feed($raw1);
 
         $this->assertCount(1, $events1);
         $this->assertSame('hello', $events1[0]->text);
 
-        // "data:X" should strip "data:" (5 chars) — content starts at char 5
+        // The valid no-space form removes only data:, preserving the JSON content that follows immediately.
         $noSpaceStreamParser = new StreamParser();
         $raw2 = "data:{\"type\": \"text\", \"content\": \"world\"}\n\n";
         $events2 = $noSpaceStreamParser->feed($raw2);
@@ -737,7 +811,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that comment line continues parsing remaining lines.
+     * Covers "comment line continues parsing remaining lines" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -745,8 +820,7 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // An event block with multiple lines: comment, data, comment, more data
-        // The comment lines should be skipped (continue), not break parsing
+        // Heartbeat comments between data lines are ignored, allowing the user's one logical event to continue across them.
         $raw = ": first comment\n"
             . "data: {\"type\": \"text\",\n"
             . ": middle comment\n"
@@ -759,7 +833,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that empty data block returns no event.
+     * Covers "empty data block returns no event" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -767,19 +842,20 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // An event block with only comment lines produces empty data
+        // A heartbeat-only frame carries no user-visible content, while the next data frame does.
         $raw = ": just a heartbeat\n\n"
             . "data: {\"type\": \"text\", \"content\": \"after\"}\n\n";
 
         $events = $streamParser->feed($raw);
 
-        // The comment-only block should not produce an event, only the data block should
+        // Only the real data frame reaches the app callback.
         $this->assertCount(1, $events);
         $this->assertSame('after', $events[0]->text);
     }
 
     /**
-     * Verifies that crlf normalization required.
+     * Covers "crlf normalization required" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -787,14 +863,14 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // CRLF line endings — both \r\n and bare \r should be normalized to \n
+        // A Windows-style CRLF delimiter must finish the same user event as LF.
         $raw = "data: {\"type\": \"text\", \"content\": \"crlf\"}\r\n\r\n";
         $events = $streamParser->feed($raw);
 
         $this->assertCount(1, $events);
         $this->assertSame('crlf', $events[0]->text);
 
-        // Bare CR
+        // A bare CR delimiter is also valid SSE and must finish one event.
         $bareCrStreamParser = new StreamParser();
         $raw2 = "data: {\"type\": \"text\", \"content\": \"cr\"}\r\r";
         $events2 = $bareCrStreamParser->feed($raw2);
@@ -804,7 +880,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that buffer advancement after event parsed.
+     * Covers "buffer advancement after event parsed" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -812,8 +889,7 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // Feed two events — the buffer must advance past the first event's "\n\n"
-        // correctly (by pos + 2) to parse the second event
+        // Advancing past the first delimiter ensures both consecutive updates reach the user's live screen in order.
         $raw = "data: {\"type\": \"text\", \"content\": \"A\"}\n\n"
             . "data: {\"type\": \"text\", \"content\": \"B\"}\n\n";
 
@@ -825,7 +901,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that has objective defaults false when missing.
+     * Covers "has objective defaults false when missing" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -840,7 +917,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that stream event constructor defaults false for has objective.
+     * Covers "stream event constructor defaults false for has objective" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -854,7 +932,8 @@ class StreamParserTest extends TestCase
         $this->assertFalse($streamEvent->hasObjective);
     }
     /**
-     * Test fixture for testToolsUsedFiltersMalformedEntries().
+     * Builds a complete SSE frame for the related live-response scenario.
+     * Use it when the parser case needs realistic data without hiding the expected event.
      *
      * @return string text value used in the caller-facing agent flow.
      */
@@ -863,9 +942,9 @@ class StreamParserTest extends TestCase
         return "data: {\"type\": \"complete\", \"text\": \"Done\", \"session_id\": null, \"usage\": {}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100}, {\"no_name\": true}, \"not_array\", {\"name\": 123}]}\n\n";
     }
 
-
     /**
-     * Verifies that tools used filters malformed entries.
+     * Covers "tools used filters malformed entries" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -877,13 +956,14 @@ class StreamParserTest extends TestCase
         $events = $streamParser->feed($raw);
 
         $this->assertCount(1, $events);
-        // Only the first tool entry has a valid string name
+        // Only the named tool can become a trustworthy activity entry under the user's answer.
         $this->assertCount(1, $events[0]->toolsUsed);
         $this->assertSame('search', $events[0]->toolsUsed[0]['name']);
     }
 
     /**
-     * Verifies that multiple interrupts in complete event.
+     * Covers "multiple interrupts in complete event" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -901,7 +981,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that guardrail trace from nested trace key.
+     * Covers "guardrail trace from nested trace key" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -919,7 +1000,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that guardrail trace top level takes precedence.
+     * Covers "guardrail trace top level takes precedence" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -935,7 +1017,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that guardrail trace null when trace key is not array.
+     * Covers "guardrail trace null when trace key is not array" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -951,7 +1034,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that citation event parsed correctly.
+     * Covers "citation event parsed correctly" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -969,7 +1053,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that crlf split across chunks.
+     * Covers "crlf split across chunks" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -977,9 +1062,7 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // First chunk ends with \r, second starts with \n — the pair must
-        // be normalised to a single \n, not produce \n\n (which would
-        // create a spurious event boundary).
+        // A CR/LF pair split across callbacks is one line ending, not the blank line that would emit a premature UI event.
         $events1 = $streamParser->feed("data: {\"type\": \"text\", \"content\": \"split\"}\r");
         $this->assertCount(0, $events1, 'Trailing \\r should not close the event');
 
@@ -989,7 +1072,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Verifies that bare trailing cr normalised without following lf.
+     * Covers "bare trailing cr normalised without following lf" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -997,18 +1081,19 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // Bare \r at end of chunk with no following \n — must normalise to \n
+        // A bare trailing CR starts one valid line ending but does not yet provide the blank line that finishes the user's event.
         $events1 = $streamParser->feed("data: {\"type\": \"text\", \"content\": \"bare\"}\r");
         $this->assertCount(0, $events1);
 
-        // Next chunk completes the event with another bare \r
+        // A second bare CR supplies the blank line and releases the complete update to the UI.
         $events2 = $streamParser->feed("\r");
         $this->assertCount(1, $events2);
         $this->assertSame('bare', $events2[0]->text);
     }
 
     /**
-     * Verifies that partial event at eof remains in buffer.
+     * Covers "partial event at eof remains in buffer" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -1016,18 +1101,19 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // Feed a partial event without the double-newline terminator
+        // A partial frame at this callback boundary must remain hidden from the user.
         $events = $streamParser->feed('data: {"type": "text", "content": "partial"}');
         $this->assertCount(0, $events, 'Partial event without \\n\\n must not emit');
 
-        // Completing the event should then emit it
+        // The later delimiter releases exactly that buffered event to the callback.
         $events2 = $streamParser->feed("\n\n");
         $this->assertCount(1, $events2);
         $this->assertSame('partial', $events2[0]->text);
     }
 
     /**
-     * Verifies that trailing newline after last event does not create phantom event.
+     * Covers "trailing newline after last event does not create phantom event" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -1035,14 +1121,15 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // Valid event followed by a single trailing \n (not enough for another event)
+        // One trailing newline after a complete event is only partial framing and must not create a phantom UI update.
         $events = $streamParser->feed("data: {\"type\": \"text\", \"content\": \"ok\"}\n\n\n");
         $this->assertCount(1, $events);
         $this->assertSame('ok', $events[0]->text);
     }
 
     /**
-     * Verifies that consecutive empty event boundaries skipped.
+     * Covers "consecutive empty event boundaries skipped" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
@@ -1050,37 +1137,35 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
 
-        // Multiple double-newlines in a row: empty data between them
+        // An empty frame before valid data reproduces extra delimiters emitted by a permissive wrapper.
         $events = $streamParser->feed("\n\ndata: {\"type\": \"text\", \"content\": \"after\"}\n\n");
 
-        // The empty block produces null from parseEvent, should not appear
+        // The empty frame stays hidden and only the real update reaches the user.
         $this->assertCount(1, $events);
         $this->assertSame('after', $events[0]->text);
     }
 
     /**
-     * Verifies that stream SSE eof mid event is discarded.
+     * Covers "stream sse eof mid event is discarded" so network chunks cannot corrupt the live event sequence.
+     * Use this regression case when SSE framing or event hydration changes.
      *
      * @return void
      */
     public function testStreamSseEofMidEventIsDiscarded(): void
     {
-        // Simulates an EOF mid-event in streamSse: the buffer holds an
-        // incomplete event that never gets a \n\n terminator.
-        // The extractSseData path in streamSse never sees it.
+        // An EOF before the blank-line terminator leaves an incomplete event that streamSse() must never deliver to the app callback.
         $streamParser = new StreamParser();
 
-        // Feed valid event + start of incomplete event
+        // One complete update followed by a truncated frame reproduces an EOF in the middle of the next event.
         $events = $streamParser->feed(
             "data: {\"type\": \"text\", \"content\": \"complete\"}\n\n"
             . 'data: {"type": "text", "content": "incom',
         );
 
-        // Only the complete event should be returned
+        // The user receives only the event that had a terminating blank line.
         $this->assertCount(1, $events);
         $this->assertSame('complete', $events[0]->text);
 
-        // The parser's buffer still holds the incomplete data but no further
-        // feed() calls come, so it's effectively discarded.
+        // With no later callback, the unfinished bytes remain internal and are never exposed as a false update.
     }
 }

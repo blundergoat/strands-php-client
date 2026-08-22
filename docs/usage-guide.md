@@ -86,7 +86,8 @@ echo $response->usage->inputTokens;      // Tokens consumed
 echo $response->usage->outputTokens;     // Tokens generated
 echo $response->usage->totalTokens();    // Total tokens (input + output)
 print_r($response->toolsUsed);           // Tools the agent called
-print_r($response->metadata);           // Unrecognised response fields (forward-compat)
+print_r($response->metadata);           // Unknown fields plus deprecated 1.x aliases
+print_r($response->wrapperMetadata);    // Canonical wrapper-owned metadata
 ```
 
 `invoke()` blocks until the agent finishes its entire reasoning loop (including any tool calls) and returns the final response.
@@ -158,6 +159,8 @@ echo $result->usage->totalTokens();          // Total tokens (input + output)
 echo $result->textEvents;                    // Number of Text events received
 echo $result->totalEvents;                   // Total events (text + tools + complete)
 echo $result->timeToFirstTextTokenMs;        // Client-measured TTFT in milliseconds
+echo $result->stopReason?->value;             // Known typed stop reason, when recognised
+echo $result->rawStopReason;                  // Exact stop_reason, including future values
 echo $result->isInterrupted() ? 'yes' : 'no'; // Whether the agent was interrupted
 ```
 
@@ -412,7 +415,9 @@ For more details and diagrams, see [interrupts-and-guardrails.md](interrupts-and
 
 ## Response Metadata
 
-`AgentResponse` captures any unrecognised top-level fields from the API response into a `metadata` array. This provides forward compatibility - if the server adds new fields, they are preserved without requiring a PHP client update.
+`AgentResponse` keeps unrecognised top-level fields in `metadata`, so a newer wrapper can add data without an immediate PHP client update.
+Fields promoted to dedicated 1.5 properties remain in their former metadata locations throughout 1.x. New code should use `$wrapperMetadata`,
+`$contextSize`, and `$projectedContextSize`; the duplicated array keys are deprecated for removal in 2.0.
 
 ```php
 $response = $client->invoke(message: 'Hello');
@@ -424,10 +429,16 @@ echo $response->sessionId;
 
 // Unknown fields land in metadata
 print_r($response->metadata);
-// e.g. ['model_id' => 'claude-sonnet-4-20250514', 'region' => 'us-east-1']
+// e.g. ['model_id' => 'claude-sonnet-4-20250514', 'metadata' => [...], 'context_size' => 8192]
+
+// New code reads top-level wrapper metadata here
+print_r($response->wrapperMetadata);
 ```
 
-The following fields are **not** included in `metadata` (they have dedicated properties): `text`, `agent`, `session_id`, `usage`, `tools_used`, `has_objective`, `stop_reason`, `structured_output`, `interrupts`, `guardrail_trace`, `trace`, `message`.
+The following fields are **not** included in `metadata` because they already had dedicated 1.x handling: `text`, `agent`, `session_id`, `usage`,
+`tools_used`, `has_objective`, `stop_reason`, `structured_output`, `interrupts`, `guardrail_trace`, `trace`, and `message`. The promoted `metadata`,
+`context_size`, and `projected_context_size` fields are deliberate compatibility exceptions until 2.0: each has a canonical property and a deprecated
+legacy array alias.
 
 ## Error Handling
 
@@ -904,12 +915,14 @@ eventSource.onmessage = (event) => {
 
 The PHP client sends HTTP requests to your Python wrapper and expects the JSON and SSE response formats documented in the [wire contract](wire-contract.md). This section covers the practical wrapper shape, common sdk-python pitfalls behind that wrapper, and a minimal working example.
 
-The maintained starting point is [examples/python-gateway](../examples/python-gateway). It is example code, not a Composer runtime dependency and not a published Python package. It includes a fake-agent `/invoke`, `/stream`, `/health`, custom endpoint blueprint, usage normalization helpers, SSRF-safe URL-media validation helpers, and FastAPI trace-context continuation middleware.
+The maintained starting point is [examples/python-gateway](../examples/python-gateway). It is source-repository example code, excluded from Composer
+archives, and is not a published Python package. It includes a fake-agent `/invoke`, `/stream`, `/health`, custom endpoint blueprint, sdk-python
+normalization helpers, SSRF-safe URL-media validation, and FastAPI trace-context continuation middleware.
 
 Run its contract smoke check without model credentials:
 
 ```bash
-python examples/python-gateway/tests/smoke_contract.py
+PYTHONDONTWRITEBYTECODE=1 python3 examples/python-gateway/tests/smoke_contract.py
 ```
 
 ### JSON payload the PHP client sends
@@ -940,9 +953,12 @@ For `/stream`, the PHP client's `StreamParser` expects Server-Sent Events with `
 | Type | Required Fields | Description |
 |------|----------------|-------------|
 | `text` | `content` | A piece of generated text (token) |
-| `thinking` | -| Agent is reasoning (informational) |
-| `tool_use` | `tool_name` | Agent is calling a tool |
-| `tool_result` | `tool_name` | Tool returned a result |
+| `thinking` | `content` | Agent reasoning text when the wrapper exposes it |
+| `tool_use` | `tool_name`, `tool_input` | Agent is calling a tool |
+| `tool_result` | `result` | Tool returned a result |
+| `citation` | `citation` | Wrapper-normalized citation block |
+| `reasoning_signature` | `signature` | Reasoning verification signature |
+| `reasoning_redacted` | - | Reasoning content was redacted |
 | `complete` | `text` | Stream finished - includes full response text |
 | `error` | `message` | Stream failed - includes error description |
 
@@ -1034,12 +1050,15 @@ def to_sdk_messages(messages: list[dict]) -> list[dict]:
 Here's a complete, minimal Python agent that works with the PHP client:
 
 ```python
-import json
+from collections.abc import Mapping
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from strands import Agent
 from strands.models.ollama import OllamaModel
+
+# Copy examples/python-gateway/contract.py beside this app.
+from contract import map_sdk_event, sse_frame
 
 app = FastAPI()
 
@@ -1092,24 +1111,26 @@ async def stream(req: AgentRequest):
 
         try:
             # Pass messages as the FIRST POSITIONAL argument - not messages=messages
-            async for event in agent.stream_async(messages):
-                if isinstance(event, dict):
-                    event_type = event.get("type", "")
-                    if event_type == "text":
-                        full_text += event.get("content", "")
-                        yield f"data: {json.dumps(event)}\n\n"
-                    elif event_type in ("complete", "error"):
-                        got_terminal = True
-                        yield f"data: {json.dumps(event)}\n\n"
-                elif isinstance(event, str):
-                    full_text += event
-                    yield f'data: {json.dumps({"type": "text", "content": event})}\n\n'
+            async for sdk_event in agent.stream_async(messages):
+                if not isinstance(sdk_event, Mapping):
+                    continue
+
+                event = map_sdk_event(sdk_event)
+                if event is None:  # sdk-python lifecycle/control callback
+                    continue
+
+                if event["type"] == "text":
+                    full_text += event.get("content", "")
+                if event["type"] in ("complete", "error"):
+                    got_terminal = True
+
+                yield sse_frame(event)
 
             if not got_terminal:
-                yield f'data: {json.dumps({"type": "complete", "text": full_text, "session_id": req.session_id, "usage": {}, "tools_used": []})}\n\n'
-        except Exception as e:
+                yield sse_frame({"type": "complete", "text": full_text, "session_id": req.session_id, "usage": {}, "tools_used": []})
+        except Exception as error:
             if not got_terminal:
-                yield f'data: {json.dumps({"type": "error", "message": str(e)})}\n\n'
+                yield sse_frame({"type": "error", "message": str(error)})
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -1199,11 +1220,16 @@ Symptoms the user sees, and what to check on each side of the wire.
 
 ### Token counts show as zero
 
-`Usage::fromArray()` reads canonical snake_case fields (`input_tokens`, `latency_ms`, ...) and tolerates camelCase fallbacks and numeric strings; token counts round to integers while `latency_ms` and `time_to_first_byte_ms` keep fractional values. If the app's cost readout shows zeros, the wrapper is emitting different key names entirely - not a casing variant. Compare the wrapper's `usage` block against `tests/Fixtures/wire-contract/invoke-response-success.json` and normalize with the gateway's `extract_usage()` helper.
+`Usage::fromArray()` reads snake_case fields (`input_tokens`, `latency_ms`, ...), with camelCase fallbacks and numeric strings. Public 1.x properties
+remain integers: token counts and fractional timings round to the nearest whole unit. If the app shows zeros, the wrapper is emitting other key names,
+not a casing variant. Compare its `usage` block with `tests/Fixtures/wire-contract/invoke-response-success.json` and use gateway `extract_usage()`.
 
 ### Stream stops with StreamInterruptedException
 
-`stream()` throws this when the connection ends without a terminal `complete` or `error` event. The wrapper must always emit one terminal event per stream, including on server-side failures - a Python exception that kills the response mid-stream is exactly what this exception surfaces to the user. Two related limits: SSE comment lines (`: ping`) are safe as heartbeats and never reach the app callback, and `StreamParser` aborts if it buffers 10 MB without seeing a complete `\n\n`-delimited event (a proxy that strips SSE delimiters triggers this).
+`stream()` throws this when the connection ends without terminal `complete` or `error`. The wrapper must emit one terminal event per stream, including
+server failures; a Python exception that kills the response mid-stream is exactly what this surfaces to the user. SSE comments (`: ping`) are safe
+heartbeats and never reach the callback. Both stream APIs normalize LF, CRLF (including pairs split across chunks), and bare CR framing. They abort if
+one unfinished frame exceeds 10 MB, while allowing one network chunk to contain several individually bounded frames.
 
 ### Stream will not cancel
 
@@ -1211,11 +1237,17 @@ Cancellation requires the callback to return the literal `false`. A `void` callb
 
 ### URL media is rejected or ignored
 
-URL sources (`withImageFromUrl()`, `withDocumentFromUrl()`, `withVideoFromUrl()`) are wrapper-owned: the PHP client only serializes the block; your wrapper must fetch, validate, and translate the resource before sdk-python sees it. The reference gateway ships [`assert_safe_url_source()`](../examples/python-gateway/contract.py) for SSRF-safe preflight validation (blocks localhost, private ranges, the cloud metadata IP, and non-HTTP schemes) and returns the validated IP addresses. The fetcher must connect to one of those returned addresses while preserving the original hostname for HTTP `Host` and TLS verification; resolving the hostname again would reintroduce DNS-rebinding risk. Re-run validation and pinning for every redirect hop. The helper deliberately does not fetch. Also check hand-rolled payloads for the top-level `format` field - every image, document, and video block requires one, and the builder methods emit it automatically.
+URL sources (`withImageFromUrl()`, `withDocumentFromUrl()`, `withVideoFromUrl()`) are wrapper-owned: PHP serializes; your wrapper fetches, validates,
+and translates before sdk-python. Gateway [`assert_safe_url_source()`](../examples/python-gateway/contract.py) provides SSRF-safe preflight:
+it blocks localhost, private ranges, the cloud metadata IP, and non-HTTP schemes, then returns validated IPs. Connect to one returned address while
+preserving the original hostname for HTTP `Host` and TLS verification; resolving again reintroduces DNS-rebinding risk. Repeat validation and pinning
+for every redirect. The helper deliberately does not fetch. Hand-rolled payloads also need top-level `format`; all builder methods emit it.
 
 ### Response fields silently null (wrapper drift)
 
-When `AgentResponse` fields the app expects come back null, the wrapper's JSON shape has drifted from the contract. `docs/wire-contract.md` is the source of truth; the fixtures under `tests/Fixtures/wire-contract/` are its executable form. Diff the wrapper's actual response against the matching fixture - unknown fields are preserved in `$metadata`, so inspecting `$response->metadata` usually reveals where the data actually landed.
+When expected `AgentResponse` fields are null, the wrapper JSON has drifted. `docs/wire-contract.md` is authoritative and
+`tests/Fixtures/wire-contract/` is its executable form. Diff the real response against its fixture. Unknown fields stay in `$response->metadata`;
+promoted wrapper metadata and context sizes have canonical properties plus deprecated `$metadata[...]` aliases throughout 1.x, removed in 2.0.
 
 ### Traces do not stitch across PHP and Python
 

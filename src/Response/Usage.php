@@ -5,25 +5,25 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response;
 
 /**
- * Token counts and timing for a single agent request/response.
+ * Holds token counts and server timing for one agent turn.
  *
- * This is what an app reads to show "cost" and speed: how many tokens the turn
- * consumed (including cache reads/writes) and how long the agent took. All
- * fields default to zero, so a response that omits usage is still safe to read.
+ * Read it for usage, cost, caching, and latency displays after invoke() or stream().
+ * Every public property remains an integer for 1.x compatibility; fractional wire timings are rounded and unsafe numbers become zero.
+ *
+ * Missing usage also becomes zero, so an app never needs nullable counter checks.
  */
 class Usage
 {
     /**
-     * Hold the token and timing counts for one turn.
-     *
-     * Usually built by fromArray() from the response's usage block.
+     * Stores the integer counters an app can show for one completed agent turn.
+     * Use fromArray() for wire data; direct construction is mainly for tests, fixtures, and app-created summaries.
      *
      * @param int $inputTokens            Number of input tokens processed.
      * @param int $outputTokens           Number of output tokens generated.
      * @param int $cacheReadInputTokens   Input tokens served from cache.
      * @param int $cacheWriteInputTokens  Input tokens written to cache.
-     * @param int|float $latencyMs              Server-reported total latency in milliseconds.
-     * @param int|float $timeToFirstByteMs      Server-reported time from request receipt to first byte sent.
+     * @param int $latencyMs              Server-reported total latency in rounded milliseconds.
+     * @param int $timeToFirstByteMs      Server-reported time from request receipt to first byte sent, rounded.
      * @param int $totalTokens            Server-reported total tokens, when emitted.
      */
     public function __construct(
@@ -31,14 +31,15 @@ class Usage
         public readonly int $outputTokens = 0,
         public readonly int $cacheReadInputTokens = 0,
         public readonly int $cacheWriteInputTokens = 0,
-        public readonly int|float $latencyMs = 0,
-        public readonly int|float $timeToFirstByteMs = 0,
+        public readonly int $latencyMs = 0,
+        public readonly int $timeToFirstByteMs = 0,
         public readonly int $totalTokens = 0,
     ) {
     }
 
     /**
-     * Total tokens consumed (input + output).
+     * Returns the server total when available, otherwise adds input and output tokens.
+     * Use it for one caller-facing total without duplicating the fallback rule in the UI.
      *
      * @return int Total tokens consumed, for the app's usage/cost readout.
      */
@@ -53,10 +54,11 @@ class Usage
     }
 
     /**
-     * Create a Usage instance from a raw usage array (e.g. from API response).
+     * Converts a raw usage block into safe integer counters for app readouts.
+     * Use it at response boundaries; missing, malformed, non-finite, or out-of-range values become zero.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     * @return self New instance ready for app code.
+     * @param array<string, mixed> $data Decoded usage block; an empty array leaves every caller-visible counter at zero.
+     * @return self Hydrated usage counters; never null and zeroed for empty input.
      */
     public static function fromArray(array $data): self
     {
@@ -65,55 +67,76 @@ class Usage
             outputTokens: self::intField($data, 'output_tokens', 'outputTokens'),
             cacheReadInputTokens: self::intField($data, 'cache_read_input_tokens', 'cacheReadInputTokens'),
             cacheWriteInputTokens: self::intField($data, 'cache_write_input_tokens', 'cacheWriteInputTokens'),
-            latencyMs: self::numberField($data, 'latency_ms', 'latencyMs'),
-            timeToFirstByteMs: self::numberField($data, 'time_to_first_byte_ms', 'timeToFirstByteMs'),
+            latencyMs: self::intField($data, 'latency_ms', 'latencyMs'),
+            timeToFirstByteMs: self::intField($data, 'time_to_first_byte_ms', 'timeToFirstByteMs'),
             totalTokens: self::intField($data, 'total_tokens', 'totalTokens'),
         );
     }
 
     /**
-     * Read one token/timing count, tolerating the wire's numeric quirks.
+     * Normalizes one token or timing field while preserving the public 1.x integer contract.
+     * Use it during hydration; snake_case wins, camelCase is a fallback, fractional values round, and unusable values become zero.
      *
-     * Wrappers differ in how they spell and type these fields, so this accepts
-     * snake_case or camelCase and coerces int/float/numeric-string alike.
-     *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     * @param string $snakeKey Snake-case usage field from the wire payload.
-     * @param ?string $camelKey Camel-case fallback field from older payloads; null when there's no fallback to try.
+     * @param array<string, mixed> $usageData Decoded usage block; a missing or unusable value becomes zero for the caller.
+     * @param string $snakeCaseField Snake-case wire field; an empty name reads only an empty-name key if one exists.
+     * @param ?string $camelCaseField Older camelCase fallback; null skips fallback lookup, while an empty string checks an empty-name key.
      * @return int Count the app shows as usage, or 0 when the field is missing.
      */
-    private static function intField(array $data, string $snakeKey, ?string $camelKey = null): int
+    private static function intField(array $usageData, string $snakeCaseField, ?string $camelCaseField = null): int
     {
-        $value = self::numberField($data, $snakeKey, $camelKey);
+        $numericUsageValue = self::numberField($usageData, $snakeCaseField, $camelCaseField);
 
-        return (int) round($value);
+        // An integer already fits the public 1.x property exactly, so no rounding or range conversion is needed.
+        if (is_int($numericUsageValue)) {
+            return $numericUsageValue;
+        }
+
+        $roundedUsageValue = round($numericUsageValue);
+
+        // A corrupt or extreme wrapper value must not wrap into a believable token count in the app's cost display.
+        if (!is_finite($roundedUsageValue) || $roundedUsageValue >= (float) PHP_INT_MAX || $roundedUsageValue < (float) PHP_INT_MIN) {
+            return 0;
+        }
+
+        return (int) $roundedUsageValue;
     }
 
     /**
-     * Read one numeric count or timing value, preserving fractional timings.
+     * Reads one wire number before intField() rounds it for the public usage display.
+     * Use it to accept exact integers, finite floats, and numeric strings while rejecting every other value as zero.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     * @param string $snakeKey Snake-case usage field from the wire payload.
-     * @param ?string $camelKey Camel-case fallback field from older payloads; null when there's no fallback to try.
+     * @param array<string, mixed> $usageData Decoded usage block; a missing or unusable value becomes zero for the caller.
+     * @param string $snakeCaseField Snake-case wire field; an empty name reads only an empty-name key if one exists.
+     * @param ?string $camelCaseField Older camelCase fallback; null skips fallback lookup, while an empty string checks an empty-name key.
      * @return int|float Numeric value for app readouts, or 0 when the field is missing.
      */
-    private static function numberField(array $data, string $snakeKey, ?string $camelKey = null): int|float
+    private static function numberField(array $usageData, string $snakeCaseField, ?string $camelCaseField = null): int|float
     {
-        $value = $data[$snakeKey] ?? ($camelKey !== null ? ($data[$camelKey] ?? 0) : 0);
+        // A missing snake_case value falls back to the older camelCase spelling when one exists, then to zero for the app display.
+        $wireValue = $usageData[$snakeCaseField] ?? ($camelCaseField !== null ? ($usageData[$camelCaseField] ?? 0) : 0);
 
         // Already a clean integer — the common case, hand it straight back.
-        if (is_int($value)) {
-            return $value;
+        if (is_int($wireValue)) {
+            return $wireValue;
         }
 
-        // Timing fields may be fractional milliseconds; preserve them.
-        if (is_float($value)) {
-            return $value;
+        // Wire values may be fractional milliseconds; keep finite fractions until intField() rounds them.
+        if (is_float($wireValue)) {
+            return is_finite($wireValue) ? $wireValue : 0;
         }
 
-        // Others send counts as numeric strings (e.g. "1024"); accept those too.
-        if (is_string($value) && is_numeric($value)) {
-            return str_contains($value, '.') ? (float) $value : (int) $value;
+        // Other wrappers send counts as numeric strings (for example, "1024" or "1e3"); preserve exact integers before trying a finite float.
+        if (is_string($wireValue) && is_numeric($wireValue)) {
+            $integerUsageValue = filter_var($wireValue, FILTER_VALIDATE_INT);
+
+            // A valid integer string avoids the precision loss that converting a large token count through float would introduce.
+            if ($integerUsageValue !== false) {
+                return $integerUsageValue;
+            }
+
+            $parsedUsageNumber = (float) $wireValue;
+
+            return is_finite($parsedUsageNumber) ? $parsedUsageNumber : 0;
         }
 
         return 0;

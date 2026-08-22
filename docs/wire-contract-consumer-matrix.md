@@ -13,15 +13,15 @@ This matrix records how active projects use `strands-php-client` today. It is a 
 
 ## Project Details
 
-Evidence paths are relative to each consumer project's repository root, not this client. Searches resolve against the project named in the heading above them.
+Evidence paths belong to the consumer repositories, never to this client. Each is prefixed with its owning repository and is otherwise relative to that repository's root, so a path can be read without relying on the heading above it.
 
 ### `ambient-scribe`
 
 Evidence:
 
-- `src/Controller/ScribeController.php` (search: `postJson`) calls `postJson("/session/{$sessionId}/history", [], timeout: 10)`.
-- `src/Service/RoleInferenceService.php` (search: `postJson`) calls `postJson("/session/{$sessionId}/roles", [], timeout: self::ROLE_SNAPSHOT_TIMEOUT)`.
-- `config/packages/strands.yaml` (search: `streamSse`) documents future role streaming through `streamSse`.
+- `ambient-scribe/src/Controller/ScribeController.php` (search: `postJson`) calls `postJson("/session/{$sessionId}/history", [], timeout: 10)`.
+- `ambient-scribe/src/Service/RoleInferenceService.php` (search: `postJson`) calls `postJson("/session/{$sessionId}/roles", [], timeout: self::ROLE_SNAPSHOT_TIMEOUT)`.
+- `ambient-scribe/config/packages/strands.yaml` (search: `streamSse`) documents future role streaming through `streamSse`.
 
 Compatibility notes:
 
@@ -32,7 +32,7 @@ Compatibility notes:
 
 Evidence:
 
-- `src/Service/SummitStreamOrchestrator.php` (search: `stream(`) calls standard `stream()` with `AgentContext` metadata.
+- `the-summit-chatroom/src/Service/SummitStreamOrchestrator.php` (search: `stream(`) calls standard `stream()` with `AgentContext` metadata.
 - The stream callback reads typed `StreamEvent` values including `Text`, `ToolUse`, `ToolResult`, `Thinking`, and `Complete`.
 
 Compatibility notes:
@@ -44,9 +44,9 @@ Compatibility notes:
 
 Evidence:
 
-- `src/Service/FileSummariserStreamOrchestrator.php` (search: `streamSse('/file-summarise-stream'`) streams raw file summariser events and later calls `postJson('/file-metadata', ...)`.
-- `src/Service/SuggestedActionsStreamOrchestrator.php` (search: `postJson('/suggested-actions/analyse'`) calls custom JSON analysis endpoints.
-- `src/Service/OnlineBookingStreamOrchestrator.php` (search: `streamSse`) calls custom booking responder streams.
+- `halaxy-agents-lab/src/Service/FileSummariserStreamOrchestrator.php` (search: `streamSse('/file-summarise-stream'`) streams raw file summariser events and later calls `postJson('/file-metadata', ...)`.
+- `halaxy-agents-lab/src/Service/SuggestedActionsStreamOrchestrator.php` (search: `postJson('/suggested-actions/analyse'`) calls custom JSON analysis endpoints.
+- `halaxy-agents-lab/src/Service/OnlineBookingStreamOrchestrator.php` (search: `streamSse`) calls custom booking responder streams.
 
 Compatibility notes:
 
@@ -57,9 +57,9 @@ Compatibility notes:
 
 Evidence:
 
-- `src/App/ExternalProvider/AI/StrandsAgents/FileSummariserStreamOrchestrator.php` (search: `streamSse`) streams file summariser events and forwards sanitized app payloads.
-- `src/App/ExternalProvider/AI/ChatAssistant/ChatAssistantOrchestrator.php` (search: `postJson('/chat'`) calls custom `/chat` and `/intent` endpoints.
-- `src/App/ExternalProvider/AI/ChatOnlineBooking/OnlineBookingChatOrchestrator.php` (search: `streamSse`) calls custom booking responder streams.
+- `healthkit/src/App/ExternalProvider/AI/StrandsAgents/FileSummariserStreamOrchestrator.php` (search: `streamSse`) streams file summariser events and forwards sanitized app payloads.
+- `healthkit/src/App/ExternalProvider/AI/ChatAssistant/ChatAssistantOrchestrator.php` (search: `postJson('/chat'`) calls custom `/chat` and `/intent` endpoints.
+- `healthkit/src/App/ExternalProvider/AI/ChatOnlineBooking/OnlineBookingChatOrchestrator.php` (search: `streamSse`) calls custom booking responder streams.
 
 Compatibility notes:
 

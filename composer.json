@@ -16,7 +16,7 @@
         "source": "https://github.com/blundergoat/strands-php-client"
     },
     "require": {
-        "php": ">=8.2 <9.0",
+        "php": ">=8.2",
         "psr/http-client": "^1.0",
         "psr/http-factory": "^1.0",
         "psr/log": "^1.0 || ^2.0 || ^3.0"

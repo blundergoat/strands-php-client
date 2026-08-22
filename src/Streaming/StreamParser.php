@@ -7,25 +7,22 @@ namespace StrandsPhpClient\Streaming;
 use StrandsPhpClient\Exceptions\StreamInterruptedException;
 
 /**
- * Incremental SSE (Server-Sent Events) parser.
+ * Converts incremental Server-Sent Events bytes into typed updates for a live answer screen.
  *
- * Buffers raw HTTP response data and emits StreamEvent objects as complete
- * events are detected. Handles chunked delivery, CRLF/LF normalization,
- * and malformed JSON recovery.
+ * Feed it every transport chunk; it handles split CRLF/LF boundaries, heartbeats, malformed JSON, and unknown future event types.
+ * Complete recognized frames become StreamEvent objects, while skipped frames are counted for compatibility diagnostics.
  */
 class StreamParser
 {
-    /** Maximum buffer size before throwing (10 MB). */
-    private const MAX_BUFFER_SIZE = 10 * 1024 * 1024;
-
-    /** Partial SSE data kept until a full event reaches the app. */
-    private string $buffer = '';
+    /** Lazily created transport-chunk decoder, including for 1.x subclasses whose constructor does not call the parent. */
+    private ?SseFrameDecoder $frameDecoder = null;
 
     /** Count of malformed or future events skipped to keep streaming alive. */
     private int $skippedEvents = 0;
 
     /**
-     * Return the number of malformed or unknown events skipped by the parser.
+     * Returns how many unusable or future event types were skipped while preserving the live answer.
+     * Use it after streaming to log a compatibility hint; zero means every received frame was recognized.
      *
      * @return int Count of skipped stream events.
      */
@@ -35,111 +32,98 @@ class StreamParser
     }
 
     /**
-     * Feed a raw data chunk and extract any complete events.
+     * Adds one raw transport chunk and returns the complete typed events now ready for the UI.
+     * Use it for every streaming callback; an empty or still-partial chunk returns an empty list without losing buffered bytes.
      *
-     * @param string $chunk  Raw SSE data from the HTTP response.
+     * @param string $chunk Raw SSE bytes; empty means the transport delivered no progress and produces no events.
      *
-     * @return StreamEvent[]  Zero or more complete events ready for the app callback.
+     * @return list<StreamEvent> Complete events in arrival order; empty means no user-visible event finished in this chunk.
      * @throws StreamInterruptedException If a broken stream grows beyond the safety limit.
      */
     public function feed(string $chunk): array
     {
-        // Guard against unbounded memory growth if the server sends a huge
-        // payload without the double-newline event delimiter (e.g. a broken proxy
-        // that strips newlines, or a non-SSE response body).
-        if (strlen($this->buffer) + strlen($chunk) > self::MAX_BUFFER_SIZE) {
-            throw new StreamInterruptedException(
-                sprintf('SSE buffer exceeded %d bytes without a complete event', self::MAX_BUFFER_SIZE),
-            );
-        }
+        $streamEvents = [];
 
-        // Normalise line endings on the new chunk only. The existing buffer is
-        // already normalised from a previous feed() call, so re-processing it
-        // would be O(buffer_size) wasted work on every chunk.
-        $this->buffer .= str_replace(["\r\n", "\r"], "\n", $chunk);
+        // A 1.x consumer subclass may have its own constructor, so create its decoder when the first network chunk arrives.
+        $frameDecoder = $this->frameDecoder ??= new SseFrameDecoder();
 
-        $events = [];
-
-        // An SSE event ends at a blank line ("\n\n"); pull out each complete one the
-        // buffer holds and leave any half-received trailing event for the next feed().
-        while (($position = strpos($this->buffer, "\n\n")) !== false) {
-            $rawEvent = substr($this->buffer, 0, $position);
-            $this->buffer = substr($this->buffer, $position + 2);
-
-            $event = $this->parseEvent($rawEvent);
+        // Each complete frame can become one live app update; heartbeats and malformed/future frames are filtered by parseEvent().
+        foreach ($frameDecoder->feed($chunk) as $rawEvent) {
+            $streamEvent = $this->parseEvent($rawEvent);
 
             // Only hand real, recognised events to the app; skipped ones come back null.
-            if ($event !== null) {
-                $events[] = $event;
+            if ($streamEvent !== null) {
+                $streamEvents[] = $streamEvent;
             }
         }
 
-        return $events;
+        return $streamEvents;
     }
 
     /**
-     * Parse a single raw SSE event into a StreamEvent.
-     *
-     * Lines starting with ":" are SSE comments (heartbeats). Lines starting
-     * with "data:" contain the JSON payload.
+     * Converts one complete SSE frame into the typed update shown by a live app screen.
+     * Use it after framing; heartbeat-only, malformed, non-object, and future events return null and update diagnostics as relevant.
      *
      * @param string $rawEvent Raw SSE event block received from the stream.
-     * @return ?StreamEvent The parsed event, or null when the block was a heartbeat or unknown type (skipped).
+     * @return StreamEvent|null Parsed event, or null when the block has nothing safe and recognized to show.
      */
     private function parseEvent(string $rawEvent): ?StreamEvent
     {
-        $dataLines = [];
+        $eventDataLines = [];
 
         // Walk the event's lines, keeping the payload and ignoring SSE bookkeeping.
-        foreach (explode("\n", $rawEvent) as $line) {
+        foreach (explode("\n", $rawEvent) as $eventLine) {
             // Lines starting with ":" are heartbeat/comment lines — nothing to display.
-            if (str_starts_with($line, ':')) {
+            if (str_starts_with($eventLine, ':')) {
                 continue;
             }
 
             // The actual payload rides on "data:" lines (with or without the space).
-            if (str_starts_with($line, 'data: ')) {
-                $dataLines[] = substr($line, 6);
-            } elseif (str_starts_with($line, 'data:')) {
-                $dataLines[] = substr($line, 5);
+            if (str_starts_with($eventLine, 'data: ')) {
+                $eventDataLines[] = substr($eventLine, 6);
+                continue;
+            }
+
+            // Some wrappers omit the optional space after `data:`; accept that valid SSE form without changing the event content.
+            if (str_starts_with($eventLine, 'data:')) {
+                $eventDataLines[] = substr($eventLine, 5);
             }
         }
 
-        $data = implode("\n", $dataLines);
+        $eventData = implode("\n", $eventDataLines);
 
         // A comment-only event (e.g. a keep-alive) carries no data — nothing to emit.
-        if ($data === '') {
+        if ($eventData === '') {
             return null;
         }
 
-        // Skip malformed JSON rather than throwing - a throw would leave
-        // orphaned data in the buffer and cause cascade failures.
+        // Skip malformed JSON rather than throwing, which would prevent later valid frames from updating the user's screen.
         try {
-            $decoded = json_decode($data, true, 512, JSON_THROW_ON_ERROR);
+            $decodedEvent = json_decode($eventData, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
+            // For example, a proxy can cut one JSON event short; skip it so later complete frames can still update the user's screen.
             $this->skippedEvents++;
 
             return null;
         }
 
         // A payload that isn't a typed object can't become an event; skip it and count it.
-        if (!is_array($decoded) || !isset($decoded['type'])) {
+        if (!is_array($decodedEvent) || !isset($decodedEvent['type'])) {
             $this->skippedEvents++;
 
             return null;
         }
 
-        // tryFromArray() returns null for unknown types rather than throwing,
-        // ensuring forward compatibility with new server-side event types.
-        /** @var array<string, mixed> $decoded validated before app code uses it. */
-        $event = StreamEvent::tryFromArray($decoded);
+        // tryFromArray() returns null for future event types, keeping a newer server compatible with this user's current client.
+        /** @var array<string, mixed> $decodedEvent validated before app code uses it. */
+        $streamEvent = StreamEvent::tryFromArray($decodedEvent);
         // A type this client doesn't know yet (newer server) is skipped, not fatal.
-        if ($event === null) {
+        if ($streamEvent === null) {
             $this->skippedEvents++;
 
             return null;
         }
 
-        return $event;
+        return $streamEvent;
     }
 }

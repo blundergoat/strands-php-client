@@ -62,8 +62,10 @@ All builder methods return a **new instance** (clone-and-mutate pattern). The or
 | `withImage()` | `string $base64Data, string $mediaType` | Add a base64-encoded image (e.g. `image/png`, `image/jpeg`). |
 | `withImageFromS3()` | `string $s3Uri, string $format, ?string $bucketOwner` | Add an image from an S3 location. |
 | `withImageFromUrl()` | `string $url, string $mediaType` | Add a wrapper-supported URL image source. |
-| `withDocument()` | `string $base64Data, string $format, string $name, ?string $context, ?array $citations` | Add a base64-encoded document with optional wrapper context/citation controls. |
-| `withDocumentFromS3()` | `string $s3Uri, string $format, string $name, ?string $bucketOwner, ?string $context, ?array $citations` | Add a document from an S3 location. |
+| `withDocument()` | `string $base64Data, string $format, string $name` | Add a base64-encoded document with the unchanged 1.x signature. |
+| `withDocumentOptions()` | `string $base64Data, string $format, string $name, ?string $context, ?array $citations` | Add a base64-encoded document with wrapper context/citation controls. |
+| `withDocumentFromS3()` | `string $s3Uri, string $format, string $name, ?string $bucketOwner` | Add an S3 document with the unchanged 1.x signature. |
+| `withDocumentFromS3Options()` | `string $s3Uri, string $format, string $name, ?string $bucketOwner, ?string $context, ?array $citations` | Add an S3 document with wrapper context/citation controls. |
 | `withDocumentFromUrl()` | `string $url, string $format, string $name, ?string $context, ?array $citations` | Add a wrapper-supported URL document source. |
 | `withVideo()` | `string $base64Data, string $format` | Add a base64-encoded video. |
 | `withVideoFromS3()` | `string $s3Uri, string $format, ?string $bucketOwner` | Add a video from an S3 location. |
@@ -114,7 +116,7 @@ use StrandsPhpClient\Context\AgentInput;
 $pdfBytes = file_get_contents('report.pdf');
 
 $input = AgentInput::text('Summarise the key findings in this report')
-    ->withDocument(
+    ->withDocumentOptions(
         base64_encode($pdfBytes),
         'pdf',
         'Q4 Financial Report',
