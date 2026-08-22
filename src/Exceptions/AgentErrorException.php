@@ -7,9 +7,8 @@ namespace StrandsPhpClient\Exceptions;
 /**
  * Exception thrown when the Strands agent returns an HTTP error response (400+).
  *
- * The $statusCode and $errorCode properties enable programmatic handling
- * (e.g. "if errorCode is 'rate_limit', back off"). The $responseBody
- * preserves the full decoded JSON for debugging.
+ * Apps can use the status and error code to choose a recovery message or retry behavior.
+ * The decoded response body remains available for safe diagnostics when a request fails.
  */
 class AgentErrorException extends StrandsException
 {
@@ -22,7 +21,7 @@ class AgentErrorException extends StrandsException
      * @param string               $message      Human-readable error message.
      * @param int                  $statusCode   HTTP status code from the agent response.
      * @param string|null          $errorCode    Machine-readable error code (e.g. "unauthorized"); null when the agent sent none.
-     * @param \Throwable|null      $previous     The original exception, if any.
+     * @param \Throwable|null $previous Original failure; null means no lower-level error is available to inspect.
      * @param array<string, mixed>|null $responseBody Full decoded response body for debugging; null when the error body wasn't JSON.
      */
     public function __construct(
@@ -49,14 +48,16 @@ class AgentErrorException extends StrandsException
         $errorData = is_array($decoded) ? $decoded : [];
         $contractMessage = $errorData['message'] ?? null;
         $detail = $errorData['detail'] ?? $errorData['error'] ?? $content;
-        // The wire contract puts the human-readable text in "message"; show that
-        // to the app first. FastAPI-style bodies carry it in "detail"/"error"
-        // instead, so fall back there, JSON-encoding structured values.
+        // Prefer the Wire Contract message because it is the error text intended for the app.
         if (is_string($contractMessage) && $contractMessage !== '') {
             $detailText = $contractMessage;
-        } elseif (is_string($detail)) {
+        } elseif (
+            // A FastAPI-style wrapper may return only plain detail text; show that useful fallback in the app's error state.
+            is_string($detail)
+        ) {
             $detailText = $detail;
         } else {
+            // Structured or missing detail becomes readable fallback text instead of leaking an unusable value into the UI.
             $detailText = json_encode($detail) ?: 'Unknown agent error';
         }
         $errorMessage = sprintf('Agent returned HTTP %d: %s', $statusCode, $detailText);

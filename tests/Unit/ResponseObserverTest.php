@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Response Observer behavior for app integrations.
+ * Exercises caller-visible Response Observer behavior for app integrations.
+ *
+ * Use this file when changing Response Observer or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -20,12 +23,15 @@ use StrandsPhpClient\Streaming\StreamResult;
 use StrandsPhpClient\Streaming\StreamSseSummary;
 
 /**
- * Verifies Response Observer behavior that application users rely on.
+ * Exercises Response Observer through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 final class ResponseObserverTest extends TestCase
 {
     /**
-     * Verifies that invoke notifies response observer with parsed response.
+     * Confirms invoke notifies response observer with parsed response so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -55,7 +61,7 @@ final class ResponseObserverTest extends TestCase
     }
 
     /**
-     * Verifies that stream notifies response observer with parsed result.
+     * Confirms stream() notifies response observer with parsed result so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -72,7 +78,14 @@ final class ResponseObserverTest extends TestCase
 
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk): void {
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ): void {
                 $onChunk->__invoke("data: {\"type\":\"text\",\"content\":\"done\"}\n\n"
                     . "data: {\"type\":\"complete\",\"text\":\"done\",\"usage\":{},\"tools_used\":[]}\n\n");
             });
@@ -90,7 +103,7 @@ final class ResponseObserverTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON notifies response observer with raw response.
+     * Confirms postJson() notifies response observer with raw response so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -120,7 +133,7 @@ final class ResponseObserverTest extends TestCase
     }
 
     /**
-     * Verifies that stream SSE notifies response observer with sanitized summary.
+     * Confirms streamSse() notifies response observer with sanitized summary so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -142,7 +155,14 @@ final class ResponseObserverTest extends TestCase
 
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk): void {
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ): void {
                 $onChunk->__invoke("data: {\"type\":\"text\",\"content\":\"secret response text\"}\n\n"
                     . "data: {\"type\":\"complete\",\"usage\":{\"input_tokens\":11,\"output_tokens\":3},\"stop_reason\":\"end_turn\"}\n\n");
             });
@@ -162,7 +182,7 @@ final class ResponseObserverTest extends TestCase
     }
 
     /**
-     * Verifies that middleware implementing ResponseObserver is auto-detected and notified.
+     * Confirms middleware implementing ResponseObserver is auto-detected and notified so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -186,7 +206,7 @@ final class ResponseObserverTest extends TestCase
     }
 
     /**
-     * Verifies that an observer registered as middleware and observer is notified once.
+     * Confirms an observer registered as middleware and observer is notified once so the app renders trustworthy answer details.
      *
      * @return void
      */

@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests the safe defaults used for raw SSE telemetry summaries.
+ * Exercises the safe defaults used for raw SSE telemetry summaries.
+ *
+ * Use this file when changing the metrics reported for a live answer.
+ * It protects dashboards from missing or misleading stream state.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Streaming;
@@ -12,12 +15,15 @@ use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Streaming\StreamSseSummary;
 
 /**
- * Verifies StreamSseSummary behavior that application users rely on.
+ * Exercises StreamSseSummary through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 final class StreamSseSummaryTest extends TestCase
 {
     /**
-     * Verifies that a stream with no observed events has neutral defaults.
+     * Confirms a stream with no observed events has neutral defaults so live answer updates and completion state stay reliable.
      *
      * @return void
      */

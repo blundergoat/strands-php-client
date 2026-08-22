@@ -32,6 +32,8 @@ use StrandsPhpClient\Streaming\StreamSseSummary;
  * The client applies authentication, middleware, response observers, retry policy, cancellation, and safe request logging around those entry points.
  *
  * It consumes the Strands HTTP Wire Contract rather than raw strands-agents SDK TypedDict shapes.
+ *
+ * @SuppressWarnings("PHPMD.ExcessiveClassLength") -- request, retry, streaming, and observer ordering stay in one client boundary.
  */
 class StrandsClient
 {
@@ -154,6 +156,7 @@ class StrandsClient
      *
      * @throws Exceptions\StreamInterruptedException  If the stream ends without a terminal event.
      * @throws \InvalidArgumentException              If timeoutSeconds is less than 1.
+     * @SuppressWarnings("PHPMD.ExcessiveMethodLength") -- callback state stays together so the app receives one consistent final result.
      */
     public function stream(
         string|AgentInput $message,
@@ -199,54 +202,73 @@ class StrandsClient
         $citations = [];
 
         try {
-            $this->transport->stream($url, $headers, $body, $timeout, $this->config->connectTimeout, function (string $chunk) use ($streamParser, $onEvent, &$receivedTerminal, &$cancelled, &$accumulatedText, &$textEvents, &$totalEvents, &$firstTextTokenTime, &$completeEvent, &$terminalEvent, &$citations): bool {
-                // A previous callback return false means the user or app has already stopped live updates.
-                if ($cancelled) {
-                    return false;
-                }
-
-                $streamEvents = $streamParser->feed($chunk);
-
-                // Deliver each complete parsed update in arrival order so the user's live view stays coherent.
-                foreach ($streamEvents as $streamEvent) {
-                    $totalEvents++;
-
-                    // Text events are what a chat UI would append token-by-token while the user waits.
-                    if ($streamEvent->type === StreamEventType::Text && $streamEvent->text !== null) {
-                        // Stamp the first token's arrival so we can report "time to first word".
-                        if ($firstTextTokenTime === null) {
-                            $firstTextTokenTime = hrtime(true);
-                        }
-                        $accumulatedText .= $streamEvent->text;
-                        $textEvents++;
-                    }
-
-                    // Citation events are retained for the final source list as well as sent to the live callback.
-                    if ($streamEvent->type === StreamEventType::Citation && $streamEvent->citation !== null) {
-                        $citations[] = $streamEvent->citation;
-                    }
-
-                    // A complete or error event proves the wrapper ended the stream deliberately rather than dropping the connection.
-                    if ($streamEvent->isTerminal()) {
-                        $receivedTerminal = true;
-                        $terminalEvent = $streamEvent;
-
-                        // Keep the Complete event; it carries the final usage, tools, and session id.
-                        if ($streamEvent->type === StreamEventType::Complete) {
-                            $completeEvent = $streamEvent;
-                        }
-                    }
-
-                    // The callback can return false when the user clicks a stop button in the UI.
-                    if ($onEvent($streamEvent) === false) {
-                        $cancelled = true;
-
+            $this->transport->stream(
+                $url,
+                $headers,
+                $body,
+                $timeout,
+                $this->config->connectTimeout,
+                function (string $chunk) use (
+                    $streamParser,
+                    $onEvent,
+                    &$receivedTerminal,
+                    &$cancelled,
+                    &$accumulatedText,
+                    &$textEvents,
+                    &$totalEvents,
+                    &$firstTextTokenTime,
+                    &$completeEvent,
+                    &$terminalEvent,
+                    &$citations,
+                ): bool {
+                    // A previous callback return false means the user or app has already stopped live updates.
+                    if ($cancelled) {
                         return false;
                     }
-                }
 
-                return true;
-            });
+                    $streamEvents = $streamParser->feed($chunk);
+
+                    // Deliver each complete parsed update in arrival order so the user's live view stays coherent.
+                    foreach ($streamEvents as $streamEvent) {
+                        $totalEvents++;
+
+                        // Text events are what a chat UI would append token-by-token while the user waits.
+                        if ($streamEvent->type === StreamEventType::Text && $streamEvent->text !== null) {
+                            // Stamp the first token's arrival so we can report "time to first word".
+                            if ($firstTextTokenTime === null) {
+                                $firstTextTokenTime = hrtime(true);
+                            }
+                            $accumulatedText .= $streamEvent->text;
+                            $textEvents++;
+                        }
+
+                        // Citation events are retained for the final source list as well as sent to the live callback.
+                        if ($streamEvent->type === StreamEventType::Citation && $streamEvent->citation !== null) {
+                            $citations[] = $streamEvent->citation;
+                        }
+
+                        // A complete or error event proves the wrapper ended the stream deliberately rather than dropping the connection.
+                        if ($streamEvent->isTerminal()) {
+                            $receivedTerminal = true;
+                            $terminalEvent = $streamEvent;
+
+                            // Keep the Complete event; it carries the final usage, tools, and session id.
+                            if ($streamEvent->type === StreamEventType::Complete) {
+                                $completeEvent = $streamEvent;
+                            }
+                        }
+
+                        // The callback can return false when the user clicks a stop button in the UI.
+                        if ($onEvent($streamEvent) === false) {
+                            $cancelled = true;
+
+                            return false;
+                        }
+                    }
+
+                    return true;
+                },
+            );
         } catch (\Throwable $exception) {
             // For example, a network drop or malformed oversized frame may interrupt live output; close observers before surfacing it to the app.
             $durationMs = (hrtime(true) - $startTime) / 1e6;
@@ -278,7 +300,7 @@ class StrandsClient
             accumulatedText: $accumulatedText,
             textEvents: $textEvents,
             totalEvents: $totalEvents,
-            cancelled: $cancelled,
+            wasCancelled: $cancelled,
             startTime: $startTime,
             firstTextTokenTime: $firstTextTokenTime,
             completeEvent: $completeEvent,
@@ -393,38 +415,54 @@ class StrandsClient
         $stopReason = null;
 
         try {
-            $this->transport->stream($url, $headers, $body, $effectiveTimeout, $this->config->connectTimeout, function (string $chunk) use (&$cancelled, &$totalEvents, &$textEvents, &$terminalType, &$usage, &$stopReason, $frameDecoder, $onEvent): bool {
-                // A prior callback returning false already stopped the user's live updates.
-                if ($cancelled) {
-                    return false;
-                }
+            $this->transport->stream(
+                $url,
+                $headers,
+                $body,
+                $effectiveTimeout,
+                $this->config->connectTimeout,
+                function (string $chunk) use (
+                    &$cancelled,
+                    &$totalEvents,
+                    &$textEvents,
+                    &$terminalType,
+                    &$usage,
+                    &$stopReason,
+                    $frameDecoder,
+                    $onEvent,
+                ): bool {
+                    // A prior callback returning false already stopped the user's live updates.
+                    if ($cancelled) {
+                        return false;
+                    }
 
-                // Process every complete raw frame in order so a custom live screen sees the wrapper's exact event sequence.
-                foreach ($frameDecoder->feed($chunk) as $rawSseFrame) {
-                    $decodedSseEvent = self::extractSseData($rawSseFrame);
+                    // Process every complete raw frame in order so a custom live screen sees the wrapper's exact event sequence.
+                    foreach ($frameDecoder->feed($chunk) as $rawSseFrame) {
+                        $decodedSseEvent = self::extractSseData($rawSseFrame);
 
-                    // Skip heartbeats/blank frames; only real decoded events reach the app.
-                    if ($decodedSseEvent !== null) {
-                        $totalEvents++;
-                        self::updateStreamSseSummary(
-                            $decodedSseEvent,
-                            $textEvents,
-                            $terminalType,
-                            $usage,
-                            $stopReason,
-                        );
+                        // Skip heartbeats/blank frames; only real decoded events reach the app.
+                        if ($decodedSseEvent !== null) {
+                            $totalEvents++;
+                            self::updateStreamSseSummary(
+                                $decodedSseEvent,
+                                $textEvents,
+                                $terminalType,
+                                $usage,
+                                $stopReason,
+                            );
 
-                        // The app returns false to stop early (e.g. the user cancelled).
-                        if ($onEvent($decodedSseEvent) === false) {
-                            $cancelled = true;
+                            // The app returns false to stop early (e.g. the user cancelled).
+                            if ($onEvent($decodedSseEvent) === false) {
+                                $cancelled = true;
 
-                            return false;
+                                return false;
+                            }
                         }
                     }
-                }
 
-                return true;
-            });
+                    return true;
+                },
+            );
         } catch (\Throwable $exception) {
             // For example, the custom endpoint may disconnect mid-event; close observers before returning the transport/parser failure to the app.
             $durationMs = (hrtime(true) - $startTime) / 1e6;
@@ -518,7 +556,7 @@ class StrandsClient
      * @param ?string $sessionId Conversation id to continue; null starts a brand-new conversation.
      * @param string $accept Accept header used for the app call.
      * @param int $startTime Request start timestamp used for duration metrics.
-     * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the agent.
+     * @return array{0: array<string, string>, 1: string} Two-item request tuple; it is never empty and contains final headers plus JSON.
      */
     private function prepareAgentRequest(
         string $url,
@@ -551,10 +589,10 @@ class StrandsClient
      * Prepares a custom request; use it before transport so empty JSON stays explicit and entered middleware closes on failure.
      *
      * @param string $url agent endpoint the app is calling.
-     * @param array<string, mixed> $payload Payload the app wants to send.
+     * @param array<string, mixed> $payload App payload; an empty map is encoded as an explicit empty JSON object.
      * @param string $accept Accept header used for the app call.
      * @param int $startTime Request start timestamp used for duration metrics.
-     * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the agent.
+     * @return array{0: array<string, string>, 1: string} Two-item request tuple; it is never empty and contains final headers plus JSON.
      */
     private function prepareJsonRequest(string $url, array $payload, string $accept, int $startTime): array
     {
@@ -608,7 +646,7 @@ class StrandsClient
      * @param string $accumulatedText Text streamed so far for the final app result.
      * @param int $textEvents Number of text updates shown during streaming.
      * @param int $totalEvents Total stream events received for the app call.
-     * @param bool $cancelled Whether the app callback stopped the stream early.
+     * @param bool $wasCancelled Whether the app callback stopped the stream early.
      * @param int $startTime Request start timestamp used for duration metrics.
      * @param ?int $firstTextTokenTime Timestamp for first-token latency; null when no text arrived (cancelled/error-only).
      * @param ?StreamEvent $completeEvent Final Complete event; null when the stream ended without one (error/cancel/drop).
@@ -619,7 +657,7 @@ class StrandsClient
         string $accumulatedText,
         int $textEvents,
         int $totalEvents,
-        bool $cancelled,
+        bool $wasCancelled,
         int $startTime,
         ?int $firstTextTokenTime,
         ?StreamEvent $completeEvent,
@@ -686,7 +724,7 @@ class StrandsClient
             textEvents: $textEvents,
             totalEvents: $totalEvents,
             stopReason: $stopReason,
-            cancelled: $cancelled,
+            cancelled: $wasCancelled,
             timeToFirstTextTokenMs: $ttftMs,
             interrupts: $interrupts,
             guardrailTrace: $guardrailTrace,
@@ -727,7 +765,7 @@ class StrandsClient
      * @param ?string $sessionId Conversation id to continue; null starts a brand-new conversation.
      * @param string $accept Accept header used for the app call.
      * @param int $enteredMiddlewareCount Incremented as each middleware enters beforeRequest(); stays 0 when setup fails before any middleware ran.
-     * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the agent.
+     * @return array{0: array<string, string>, 1: string} Two-item request tuple; it is never empty and contains final headers plus JSON.
      *
      * @throws StrandsException  If the payload cannot be JSON-encoded.
      */
@@ -809,11 +847,11 @@ class StrandsClient
      * Encodes and authenticates custom JSON; use it for custom calls, where an empty payload remains an empty object.
      *
      * @param string               $url      The full URL.
-     * @param array<string, mixed> $payload  The payload to JSON-encode.
+     * @param array<string, mixed> $payload App payload; an empty map remains an empty JSON object for the custom endpoint.
      * @param string               $accept   The Accept header value.
      * @param int $enteredMiddlewareCount Number of middleware entered; 0 means setup failed before any middleware observed the request.
      *
-     * @return array{0: array<string, string>, 1: string} Final headers and JSON body sent to the custom endpoint.
+     * @return array{0: array<string, string>, 1: string} Two-item request tuple; it is never empty and contains final headers plus JSON.
      *
      * @throws StrandsException  If the payload cannot be JSON-encoded.
      */

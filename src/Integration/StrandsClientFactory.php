@@ -18,9 +18,8 @@ use StrandsPhpClient\StrandsClient;
 /**
  * Factory for creating StrandsClient instances from agent configuration arrays.
  *
- * Shared by both the Symfony bundle and Laravel service provider.
- * Each named agent maps to a separate StrandsClient with its own
- * endpoint, auth strategy, and timeout configuration.
+ * Laravel and Symfony share it to turn each named agent into a separately configured client.
+ * Use create() when app code needs the endpoint, authentication, timeouts, and retries for one agent.
  */
 class StrandsClientFactory
 {
@@ -110,7 +109,17 @@ class StrandsClientFactory
     /**
      * Turn the agent's `auth` config block into the matching auth strategy.
      *
-     * @param array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string, region?: string, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null} $authConfig Framework auth settings for the selected agent.
+     * @param array{
+     *     driver: string,
+     *     api_key?: string|null,
+     *     header_name?: string,
+     *     value_prefix?: string,
+     *     region?: string,
+     *     service?: string,
+     *     access_key_id?: string|null,
+     *     secret_access_key?: string|null,
+     *     session_token?: string|null
+     * } $authConfig Framework auth settings; an empty map is invalid because every agent needs a driver.
      * @return AuthStrategy Strategy the client uses to sign every request (NullAuth, ApiKeyAuth, or SigV4Auth).
      */
     private function resolveAuth(array $authConfig): AuthStrategy
@@ -129,7 +138,12 @@ class StrandsClientFactory
     /**
      * Build API-key auth from the agent config (the common hosted-endpoint case).
      *
-     * @param array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string} $authConfig Framework auth settings for the selected agent.
+     * @param array{
+     *     driver: string,
+     *     api_key?: string|null,
+     *     header_name?: string,
+     *     value_prefix?: string
+     * } $authConfig API-key settings; an empty map cannot identify the driver or required key.
      * @return ApiKeyAuth Strategy that attaches the configured API key to every request.
      */
     private function createApiKeyAuth(array $authConfig): ApiKeyAuth
@@ -153,7 +167,14 @@ class StrandsClientFactory
     /**
      * Build AWS SigV4 auth from the agent config (for IAM-protected endpoints).
      *
-     * @param array{driver: string, region?: string, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null} $authConfig Framework auth settings for the selected agent.
+     * @param array{
+     *     driver: string,
+     *     region?: string,
+     *     service?: string,
+     *     access_key_id?: string|null,
+     *     secret_access_key?: string|null,
+     *     session_token?: string|null
+     * } $authConfig SigV4 settings; an empty map cannot identify the driver or required region.
      * @return SigV4Auth Strategy that signs every request with an AWS SigV4 signature.
      */
     private function createSigV4Auth(array $authConfig): SigV4Auth

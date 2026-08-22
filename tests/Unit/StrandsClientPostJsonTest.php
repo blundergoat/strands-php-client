@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Strands Client Post Json behavior for app integrations.
+ * Exercises caller-visible Strands Client Post Json behavior for app integrations.
+ *
+ * Use this file when changing Strands Client Post Json or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -18,7 +21,10 @@ use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\StrandsClient;
 
 /**
- * Verifies Strands Client Post Json behavior that application users rely on.
+ * Exercises Strands Client Post Json through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class StrandsClientPostJsonTest extends TestCase
 {
@@ -51,6 +57,7 @@ class StrandsClientPostJsonTest extends TestCase
         $transport->method('post')
             ->willReturnCallback(function () use (&$callCount, $throwOnce, $thenReturn): array {
                 $callCount++;
+                // The first app request models a transient failure; a retry receives the successful payload.
                 if ($callCount === 1) {
                     throw $throwOnce;
                 }
@@ -62,7 +69,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON sends correct URL.
+     * Confirms postJson() sends correct URL so callers keep the documented result.
      *
      * @return void
      */
@@ -91,7 +98,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON sends correct payload.
+     * Confirms postJson() sends correct payload so callers keep the documented result.
      *
      * @return void
      */
@@ -105,11 +112,11 @@ class StrandsClientPostJsonTest extends TestCase
                 $this->callback(fn (array $headers) => $headers['Content-Type'] === 'application/json'
                     && $headers['Accept'] === 'application/json'),
                 $this->callback(function (string $body) {
-                    $data = json_decode($body, true);
+                    $responseData = json_decode($body, true);
 
-                    return $data['file_base64'] === 'abc'
-                        && $data['file_name'] === 'test.pdf'
-                        && $data['mime_type'] === 'application/pdf';
+                    return $responseData['file_base64'] === 'abc'
+                        && $responseData['file_name'] === 'test.pdf'
+                        && $responseData['mime_type'] === 'application/pdf';
                 }),
                 $this->anything(),
                 $this->anything(),
@@ -131,7 +138,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON applies auth.
+     * Confirms postJson() applies auth so callers keep the documented result.
      *
      * @return void
      */
@@ -164,7 +171,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON returns decoded array.
+     * Confirms postJson() returns decoded array so callers keep the documented result.
      *
      * @return void
      */
@@ -189,7 +196,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON retries on transient error.
+     * Confirms postJson() retries on transient error so callers keep the documented result.
      *
      * @return void
      */
@@ -215,7 +222,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON does not retry on 400.
+     * Confirms postJson() does not retry on 400 so callers keep the documented result.
      *
      * @return void
      * @throws AgentErrorException When the custom endpoint rejects the request.
@@ -242,14 +249,15 @@ class StrandsClientPostJsonTest extends TestCase
         try {
             $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
             $this->fail('Expected AgentErrorException');
-        } catch (AgentErrorException $e) {
-            $this->assertSame(400, $e->statusCode);
+        } catch (AgentErrorException $agentErrorException) {
+            // For example, invalid form input is a permanent 400; return it immediately instead of making the user wait through retries.
+            $this->assertSame(400, $agentErrorException->statusCode);
             $this->assertSame(1, $callCount, 'Should not retry on 400');
         }
     }
 
     /**
-     * Verifies that post JSON throws on encoding failure.
+     * Confirms postJson() throws on encoding failure so callers keep the documented result.
      *
      * @return void
      */
@@ -265,15 +273,15 @@ class StrandsClientPostJsonTest extends TestCase
         try {
             $strandsClient->postJson('/file-summarise', ['bad_value' => NAN]);
             $this->fail('Expected StrandsException');
-        } catch (StrandsException $e) {
-            // Verify the message contains BOTH the prefix AND the original exception message
-            $this->assertStringContainsString('Failed to encode request payload', $e->getMessage());
-            $this->assertStringContainsString('Inf and NaN', $e->getMessage());
+        } catch (StrandsException $encodingException) {
+            // For example, an app can pass a non-finite metric; the UI needs the client context and original JSON failure.
+            $this->assertStringContainsString('Failed to encode request payload', $encodingException->getMessage());
+            $this->assertStringContainsString('Inf and NaN', $encodingException->getMessage());
         }
     }
 
     /**
-     * Verifies that post JSON logs debug.
+     * Confirms postJson() logs debug so callers keep the documented result.
      *
      * @return void
      */
@@ -308,7 +316,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON uses config timeout by default.
+     * Confirms postJson() uses config timeout by default so callers keep the documented result.
      *
      * @return void
      */
@@ -337,7 +345,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON uses per request timeout.
+     * Confirms postJson() uses per request timeout so callers keep the documented result.
      *
      * @return void
      */
@@ -366,7 +374,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON handles empty path.
+     * Confirms postJson() handles empty path so callers keep the documented result.
      *
      * @return void
      */
@@ -395,7 +403,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON rejects zero timeout.
+     * Confirms postJson() rejects zero timeout so callers keep the documented result.
      *
      * @return void
      */
@@ -415,7 +423,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON rejects negative timeout.
+     * Confirms postJson() rejects negative timeout so callers keep the documented result.
      *
      * @return void
      */
@@ -435,7 +443,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON null timeout uses default.
+     * Confirms postJson() null timeout uses default so callers keep the documented result.
      *
      * @return void
      */
@@ -464,7 +472,7 @@ class StrandsClientPostJsonTest extends TestCase
     }
 
     /**
-     * Verifies that post JSON accepts boundary one timeout.
+     * Confirms postJson() accepts boundary one timeout so callers keep the documented result.
      *
      * @return void
      */

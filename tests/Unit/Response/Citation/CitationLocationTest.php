@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Citation Location behavior for app integrations.
+ * Exercises caller-visible Citation Location behavior for app integrations.
+ *
+ * Use this file when changing Citation Location or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Response\Citation;
@@ -12,14 +15,17 @@ use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\Citation\CitationLocation;
 
 /**
- * Verifies Citation Location behavior that application users rely on.
+ * Exercises Citation Location through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class CitationLocationTest extends TestCase
 {
     /**
      * Data fixture for testFromArrayDocumentLocation().
      *
-     * @return array<string, mixed> Scenarios that keep from array document location behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayDocumentLocation(): array
     {
@@ -33,15 +39,15 @@ class CitationLocationTest extends TestCase
     }
 
     /**
-     * Verifies that from array document location.
+     * Confirms fromArray() hydrates a document location so the app can link an answer to its source.
      *
      * @return void
      */
     public function testFromArrayDocumentLocation(): void
     {
-        $data = $this->dataForFromArrayDocumentLocation();
+        $locationData = $this->dataForFromArrayDocumentLocation();
 
-        $location = CitationLocation::fromArray($data);
+        $location = CitationLocation::fromArray($locationData);
 
         $this->assertSame('DOCUMENT', $location->type);
         $this->assertSame(10, $location->startCharacterIndex);
@@ -53,7 +59,7 @@ class CitationLocationTest extends TestCase
     /**
      * Data fixture for testFromArrayWebLocation().
      *
-     * @return array<string, mixed> Scenarios that keep from array web location behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayWebLocation(): array
     {
@@ -66,15 +72,15 @@ class CitationLocationTest extends TestCase
 
 
     /**
-     * Verifies that from array web location.
+     * Confirms fromArray() hydrates a web location so the app can link an answer to its source.
      *
      * @return void
      */
     public function testFromArrayWebLocation(): void
     {
-        $data = $this->dataForFromArrayWebLocation();
+        $locationData = $this->dataForFromArrayWebLocation();
 
-        $location = CitationLocation::fromArray($data);
+        $location = CitationLocation::fromArray($locationData);
 
         $this->assertSame('WEB', $location->type);
         $this->assertSame('https://example.com/article', $location->url);
@@ -83,7 +89,7 @@ class CitationLocationTest extends TestCase
     /**
      * Data fixture for testFromArraySearchResultLocation().
      *
-     * @return array<string, mixed> Scenarios that keep from array search result location behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArraySearchResultLocation(): array
     {
@@ -97,15 +103,15 @@ class CitationLocationTest extends TestCase
 
 
     /**
-     * Verifies that from array search result location.
+     * Confirms fromArray() hydrates a search-result location so the app can identify the cited result.
      *
      * @return void
      */
     public function testFromArraySearchResultLocation(): void
     {
-        $data = $this->dataForFromArraySearchResultLocation();
+        $locationData = $this->dataForFromArraySearchResultLocation();
 
-        $location = CitationLocation::fromArray($data);
+        $location = CitationLocation::fromArray($locationData);
 
         $this->assertSame('SEARCH_RESULT', $location->type);
         $this->assertSame('PHP OTEL', $location->searchQuery);
@@ -114,7 +120,7 @@ class CitationLocationTest extends TestCase
     /**
      * Data fixture for testFromArrayChunkLocation().
      *
-     * @return array<string, mixed> Scenarios that keep from array chunk location behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayChunkLocation(): array
     {
@@ -127,39 +133,39 @@ class CitationLocationTest extends TestCase
 
 
     /**
-     * Verifies that from array chunk location.
+     * Confirms fromArray() hydrates a content chunk so the app can highlight the cited passage.
      *
      * @return void
      */
     public function testFromArrayChunkLocation(): void
     {
-        $data = $this->dataForFromArrayChunkLocation();
+        $locationData = $this->dataForFromArrayChunkLocation();
 
-        $location = CitationLocation::fromArray($data);
+        $location = CitationLocation::fromArray($locationData);
 
         $this->assertSame(0, $location->startChunkIndex);
         $this->assertSame(2, $location->endChunkIndex);
     }
 
     /**
-     * Verifies that from array rejects non numeric strings.
+     * Confirms fromArray() rejects non numeric strings so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testFromArrayRejectsNonNumericStrings(): void
     {
-        $data = [
+        $locationData = [
             'start_character_index' => 'not_an_int',
         ];
 
-        $location = CitationLocation::fromArray($data);
+        $location = CitationLocation::fromArray($locationData);
 
         $this->assertNull($location->startCharacterIndex);
     }
     /**
      * Data fixture for testFromArrayAcceptsNumericStringsAndFloats().
      *
-     * @return array<string, mixed> Scenarios that keep from array accepts numeric strings and floats behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayAcceptsNumericStringsAndFloats(): array
     {
@@ -172,15 +178,15 @@ class CitationLocationTest extends TestCase
 
 
     /**
-     * Verifies that from array accepts numeric strings and floats.
+     * Confirms fromArray() accepts numeric strings and floats so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testFromArrayAcceptsNumericStringsAndFloats(): void
     {
-        $data = $this->dataForFromArrayAcceptsNumericStringsAndFloats();
+        $locationData = $this->dataForFromArrayAcceptsNumericStringsAndFloats();
 
-        $location = CitationLocation::fromArray($data);
+        $location = CitationLocation::fromArray($locationData);
 
         $this->assertSame(5, $location->searchResultRank);
         $this->assertSame(2, $location->startPageIndex);
@@ -188,7 +194,7 @@ class CitationLocationTest extends TestCase
     }
 
     /**
-     * Verifies that fractional numeric strings and floats use nearest-integer rounding.
+     * Confirms fractional numeric strings and floats use nearest-integer rounding so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -208,7 +214,7 @@ class CitationLocationTest extends TestCase
     }
 
     /**
-     * Verifies that from array empty data.
+     * Confirms fromArray() gives an empty location safe defaults so the app can omit unavailable source details.
      *
      * @return void
      */

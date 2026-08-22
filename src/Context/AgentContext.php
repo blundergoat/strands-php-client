@@ -7,10 +7,8 @@ namespace StrandsPhpClient\Context;
 /**
  * Immutable builder for the background an app attaches to an agent turn.
  *
- * Collects the system prompt, informational permissions, documents, and
- * arbitrary metadata/structured data the agent should see alongside the user's
- * message. Every with* method returns a new instance (clone-and-mutate), so a
- * base context can be shared and safely specialised per request.
+ * It collects instructions, permissions, documents, metadata, and structured data alongside the user's message.
+ * Each with* method returns a new instance, so apps can safely reuse and specialize a base context.
  */
 class AgentContext
 {

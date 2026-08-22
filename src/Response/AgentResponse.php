@@ -218,7 +218,12 @@ class AgentResponse
      *
      * @param array<string, mixed> $responseData Decoded response; missing or malformed tool entries produce an empty or filtered activity trail.
      *
-     * @return list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}> Safe tool summaries.
+     * @return list<array{
+     *     name: string,
+     *     duration_ms?: int,
+     *     input?: array<string, mixed>,
+     *     result?: array<string, mixed>
+     * }> Safe tool summaries; empty means no displayable tool activity.
      */
     private static function parseToolsUsed(array $responseData): array
     {

@@ -20,9 +20,9 @@ class StreamSseSummary
      * @param int $totalEvents Total number of raw SSE events seen.
      * @param int $textEvents Number of raw text events seen.
      * @param bool $cancelled Whether the caller cancelled the stream.
-     * @param string|null $terminalType Terminal raw event type, when one was observed.
-     * @param Usage|null $usage Token usage values to record.
-     * @param string|null $stopReason Stop reason from the terminal event, when supplied.
+     * @param string|null $terminalType Terminal event type; null means no terminal event arrived, while an empty string is preserved.
+     * @param Usage|null $usage Token usage; null means the raw stream reported no usage for metrics.
+     * @param string|null $stopReason Terminal reason; null means none was reported, while an empty string is preserved.
      */
     public function __construct(
         public readonly int $totalEvents = 0,

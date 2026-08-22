@@ -7,9 +7,8 @@ namespace StrandsPhpClient\Response\Citation;
 /**
  * The slice of the agent's answer that a citation backs up.
  *
- * Pairs with a source so the app can highlight exactly which sentence in the
- * response the citation supports. Both fields stay null when the wrapper didn't
- * spell out the generated side of the link.
+ * It lets an app highlight the exact answer text supported by a source.
+ * Its fields stay null when the wrapper did not identify the generated side of the citation.
  */
 final readonly class CitationGeneratedContent
 {
@@ -18,8 +17,8 @@ final readonly class CitationGeneratedContent
      *
      * Usually built by fromArray() from a response citation block.
      *
-     * @param string|null $type  Content type identifier.
-     * @param string|null $text  The generated text that references the citation.
+     * @param string|null $type Content type; null means unavailable, while an empty string is preserved.
+     * @param string|null $text Supported answer text; null means unavailable, while an empty string is preserved.
      */
     public function __construct(
         public ?string $type = null,
@@ -30,7 +29,7 @@ final readonly class CitationGeneratedContent
     /**
      * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
+     * @param array<string, mixed> $data Raw generated-content map; an empty map creates all-null fields the UI can omit.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self

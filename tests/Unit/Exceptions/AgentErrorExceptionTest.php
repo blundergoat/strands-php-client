@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Agent Error Exception behavior for app integrations.
+ * Exercises caller-visible Agent Error Exception behavior for app integrations.
+ *
+ * Use this file when changing Agent Error Exception or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Exceptions;
@@ -15,89 +18,96 @@ use StrandsPhpClient\Exceptions\MaxTokensException;
 use StrandsPhpClient\Exceptions\ThrottledException;
 
 /**
- * Verifies Agent Error Exception behavior that application users rely on.
+ * Exercises Agent Error Exception through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class AgentErrorExceptionTest extends TestCase
 {
     /**
-     * Verifies that from HTTP response returns throttled for 429.
+     * Confirms fromHttpResponse() returns throttled for 429 so the app can show or recover from the right failure.
      *
      * @return void
      */
     public function testFromHttpResponseReturnsThrottledForTooManyRequests(): void
     {
-        $e = AgentErrorException::fromHttpResponse(429, 'Rate limited', ['detail' => 'Too many requests']);
+        $agentErrorException = AgentErrorException::fromHttpResponse(429, 'Rate limited', ['detail' => 'Too many requests']);
 
-        $this->assertInstanceOf(ThrottledException::class, $e);
-        $this->assertSame(429, $e->statusCode);
+        $this->assertInstanceOf(ThrottledException::class, $agentErrorException);
+        $this->assertSame(429, $agentErrorException->statusCode);
     }
 
     /**
-     * Verifies that from HTTP response returns context overflow.
+     * Confirms fromHttpResponse() returns context overflow so the app can show or recover from the right failure.
      *
      * @return void
      */
     public function testFromHttpResponseReturnsContextOverflow(): void
     {
-        $e = AgentErrorException::fromHttpResponse(400, 'overflow', ['detail' => 'context too large', 'code' => 'context_window_overflow']);
+        $agentErrorException = AgentErrorException::fromHttpResponse(
+            400,
+            'overflow',
+            ['detail' => 'context too large', 'code' => 'context_window_overflow'],
+        );
 
-        $this->assertInstanceOf(ContextOverflowException::class, $e);
-        $this->assertSame(400, $e->statusCode);
-        $this->assertSame('context_window_overflow', $e->errorCode);
+        $this->assertInstanceOf(ContextOverflowException::class, $agentErrorException);
+        $this->assertSame(400, $agentErrorException->statusCode);
+        $this->assertSame('context_window_overflow', $agentErrorException->errorCode);
     }
 
     /**
-     * Verifies that from HTTP response returns max tokens.
+     * Confirms fromHttpResponse() returns max tokens so the app can show or recover from the right failure.
      *
      * @return void
      */
     public function testFromHttpResponseReturnsMaxTokens(): void
     {
-        $e = AgentErrorException::fromHttpResponse(400, 'tokens', ['detail' => 'limit reached', 'code' => 'max_tokens_reached']);
+        $agentErrorException = AgentErrorException::fromHttpResponse(400, 'tokens', ['detail' => 'limit reached', 'code' => 'max_tokens_reached']);
 
-        $this->assertInstanceOf(MaxTokensException::class, $e);
-        $this->assertSame(400, $e->statusCode);
-        $this->assertSame('max_tokens_reached', $e->errorCode);
+        $this->assertInstanceOf(MaxTokensException::class, $agentErrorException);
+        $this->assertSame(400, $agentErrorException->statusCode);
+        $this->assertSame('max_tokens_reached', $agentErrorException->errorCode);
     }
 
     /**
-     * Verifies that from HTTP response returns generic for other errors.
+     * Confirms fromHttpResponse() returns generic for other errors so the app can show or recover from the right failure.
      *
      * @return void
      */
     public function testFromHttpResponseReturnsGenericForOtherErrors(): void
     {
-        $e = AgentErrorException::fromHttpResponse(500, 'Internal error', ['detail' => 'Something broke']);
+        $agentErrorException = AgentErrorException::fromHttpResponse(500, 'Internal error', ['detail' => 'Something broke']);
 
-        $this->assertInstanceOf(AgentErrorException::class, $e);
-        $this->assertNotInstanceOf(ThrottledException::class, $e);
-        $this->assertNotInstanceOf(ContextOverflowException::class, $e);
-        $this->assertNotInstanceOf(MaxTokensException::class, $e);
-        $this->assertSame(500, $e->statusCode);
+        $this->assertInstanceOf(AgentErrorException::class, $agentErrorException);
+        $this->assertNotInstanceOf(ThrottledException::class, $agentErrorException);
+        $this->assertNotInstanceOf(ContextOverflowException::class, $agentErrorException);
+        $this->assertNotInstanceOf(MaxTokensException::class, $agentErrorException);
+        $this->assertSame(500, $agentErrorException->statusCode);
     }
 
     /**
-     * Verifies that from HTTP response context overflow case insensitive.
+     * Confirms fromHttpResponse() context overflow case insensitive so the app can show or recover from the right failure.
      *
      * @return void
      */
     public function testFromHttpResponseContextOverflowCaseInsensitive(): void
     {
-        $e = AgentErrorException::fromHttpResponse(400, 'err', ['detail' => 'err', 'error_code' => 'Context_Window_Overflow']);
+        $agentErrorException = AgentErrorException::fromHttpResponse(400, 'err', ['detail' => 'err', 'error_code' => 'Context_Window_Overflow']);
 
-        $this->assertInstanceOf(ContextOverflowException::class, $e);
+        $this->assertInstanceOf(ContextOverflowException::class, $agentErrorException);
     }
 
     /**
-     * Verifies that from HTTP response max tokens variant.
+     * Confirms fromHttpResponse() max tokens variant so the app can show or recover from the right failure.
      *
      * @return void
      */
     public function testFromHttpResponseMaxTokensVariant(): void
     {
-        $e = AgentErrorException::fromHttpResponse(400, 'err', ['detail' => 'err', 'code' => 'MAX_TOKENS_EXCEEDED']);
+        $agentErrorException = AgentErrorException::fromHttpResponse(400, 'err', ['detail' => 'err', 'code' => 'MAX_TOKENS_EXCEEDED']);
 
-        $this->assertInstanceOf(MaxTokensException::class, $e);
+        $this->assertInstanceOf(MaxTokensException::class, $agentErrorException);
     }
     /**
      * Data fixture for testAllSubclassesCaughtByParent().
@@ -115,7 +125,7 @@ class AgentErrorExceptionTest extends TestCase
 
 
     /**
-     * Verifies that all subclasses caught by parent.
+     * Confirms all subclasses caught by parent so the app can show or recover from the right failure.
      *
      * @return void
      * @throws AgentErrorException When the subclass catch-path is exercised.
@@ -124,21 +134,23 @@ class AgentErrorExceptionTest extends TestCase
     {
         $exceptions = $this->dataForAllSubclassesCaughtByParent();
 
-        foreach ($exceptions as $e) {
+        // Every specialized failure must remain catchable by apps that use only the documented parent exception.
+        foreach ($exceptions as $exceptionToCatch) {
             $caught = false;
 
             try {
-                throw $e;
+                throw $exceptionToCatch;
             } catch (AgentErrorException) {
+                // For example, one generic error banner can catch throttling, context overflow, and token-limit failures through the parent type.
                 $caught = true;
             }
 
-            $this->assertTrue($caught, sprintf('%s not caught by AgentErrorException', $e::class));
+            $this->assertTrue($caught, sprintf('%s not caught by AgentErrorException', $exceptionToCatch::class));
         }
     }
 
     /**
-     * Verifies that the wire contract's human-readable message wins over structured detail.
+     * Confirms the wire contract's human-readable message wins over structured detail so the app can show or recover from the right failure.
      *
      * @return void
      */
@@ -146,30 +158,30 @@ class AgentErrorExceptionTest extends TestCase
     {
         // Mirrors tests/Fixtures/wire-contract/error-response.json: the wrapper
         // sends a human-readable "message" plus a structured "detail" object.
-        $e = AgentErrorException::fromHttpResponse(
+        $agentErrorException = AgentErrorException::fromHttpResponse(
             400,
             '{"message":"Validation failed.","code":"validation_error","detail":{"field":"message"}}',
             ['message' => 'Validation failed.', 'code' => 'validation_error', 'detail' => ['field' => 'message']],
         );
 
-        $this->assertSame('Agent returned HTTP 400: Validation failed.', $e->getMessage());
-        $this->assertSame('validation_error', $e->errorCode);
-        $this->assertSame(['field' => 'message'], $e->responseBody['detail'] ?? null);
+        $this->assertSame('Agent returned HTTP 400: Validation failed.', $agentErrorException->getMessage());
+        $this->assertSame('validation_error', $agentErrorException->errorCode);
+        $this->assertSame(['field' => 'message'], $agentErrorException->responseBody['detail'] ?? null);
     }
 
     /**
-     * Verifies that an empty message falls back to the detail field.
+     * Confirms an empty message falls back to the detail field so the app can show or recover from the right failure.
      *
      * @return void
      */
     public function testFromHttpResponseFallsBackToDetailWhenMessageEmpty(): void
     {
-        $e = AgentErrorException::fromHttpResponse(
+        $agentErrorException = AgentErrorException::fromHttpResponse(
             502,
             '{"message":"","detail":"Upstream agent unavailable"}',
             ['message' => '', 'detail' => 'Upstream agent unavailable'],
         );
 
-        $this->assertSame('Agent returned HTTP 502: Upstream agent unavailable', $e->getMessage());
+        $this->assertSame('Agent returned HTTP 502: Upstream agent unavailable', $agentErrorException->getMessage());
     }
 }

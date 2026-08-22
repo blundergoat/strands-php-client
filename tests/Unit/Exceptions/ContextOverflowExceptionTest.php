@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Context Overflow Exception behavior for app integrations.
+ * Exercises caller-visible Context Overflow Exception behavior for app integrations.
+ *
+ * Use this file when changing Context Overflow Exception or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Exceptions;
@@ -13,12 +16,15 @@ use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\ContextOverflowException;
 
 /**
- * Verifies Context Overflow Exception behavior that application users rely on.
+ * Exercises Context Overflow Exception through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class ContextOverflowExceptionTest extends TestCase
 {
     /**
-     * Verifies that extends agent error exception.
+     * Confirms context overflow extends AgentErrorException so the app can show or recover from the right failure.
      *
      * @return void
      */
@@ -32,7 +38,7 @@ class ContextOverflowExceptionTest extends TestCase
     }
 
     /**
-     * Verifies that caught by agent error exception catch.
+     * Confirms a parent catch handles context overflow so the app can show or recover from the right failure.
      *
      * @return void
      * @throws AgentErrorException When the context overflow catch-path is exercised.
@@ -44,6 +50,7 @@ class ContextOverflowExceptionTest extends TestCase
         try {
             throw new ContextOverflowException('Overflow', statusCode: 400);
         } catch (AgentErrorException $contextOverflowException) {
+            // For example, an app-wide agent error handler can catch context overflow and offer to start a shorter conversation.
             $caught = true;
         }
 

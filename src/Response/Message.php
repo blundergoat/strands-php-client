@@ -7,10 +7,8 @@ namespace StrandsPhpClient\Response;
 /**
  * The raw message envelope behind an agent response, for advanced displays.
  *
- * Most apps just read AgentResponse::$text, but richer UIs can walk this
- * envelope to render the individual content blocks (text, citations, tool
- * output) in order, along with the assistant role and any per-message
- * usage/metadata the wrapper attached. Absent fields come back empty or null.
+ * Rich UIs can render ordered text, citation, and tool blocks plus the assistant role and message metadata.
+ * Use AgentResponse::$text for simple screens; absent envelope fields remain empty or null.
  */
 class Message
 {

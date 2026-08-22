@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Stream Callback Handler behavior for app integrations.
+ * Exercises caller-visible Stream Callback Handler behavior for app integrations.
+ *
+ * Use this file when changing Stream Callback Handler or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Streaming;
@@ -15,12 +18,15 @@ use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 
 /**
- * Verifies Stream Callback Handler behavior that application users rely on.
+ * Exercises Stream Callback Handler through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class StreamCallbackHandlerTest extends TestCase
 {
     /**
-     * Verifies that text event dispatches to onText.
+     * Verifies that text event dispatches to onText so the user's live answer and completion state stay reliable.
      *
      * @return void
      */
@@ -60,10 +66,10 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Verifies that StreamCallbackHandler's __invoke dispatches each event type
-     * to the matching protected `on*` hook. The anonymous subclass below
-     * records the hook name(s) that fired so each row of the data provider
-     * can assert the dispatch landed on exactly one expected method.
+     * Verify __invoke() dispatches each stream event to one matching protected hook.
+     *
+     * The anonymous handler records the hook reached by each provider row.
+     * This protects the live UI update expected for every event type.
      *
      * @param StreamEvent $streamEvent Event sent through the handler under test.
      * @param string $expectedHook Name of the hook expected to record the event.
@@ -231,7 +237,7 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Verifies that handler is callable.
+     * Confirms handler is callable so live answer updates and completion state stay reliable.
      *
      * @return void
      */
@@ -243,7 +249,7 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Verifies that handler returns null by default.
+     * Confirms handler returns null by default so live answer updates and completion state stay reliable.
      *
      * @return void
      */
@@ -257,7 +263,7 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Verifies that concrete subclass can override specific methods.
+     * Confirms concrete subclass can override specific methods so live answer updates and completion state stay reliable.
      *
      * @return void
      */
@@ -312,7 +318,7 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Verifies that all event types dispatch without error.
+     * Confirms all event types dispatch without error so live answer updates and completion state stay reliable.
      *
      * @return void
      */
@@ -320,14 +326,15 @@ class StreamCallbackHandlerTest extends TestCase
     {
         $handler = new class () extends StreamCallbackHandler {};
 
-        foreach (StreamEventType::cases() as $type) {
-            $result = $handler->__invoke(new StreamEvent(type: $type));
-            $this->assertNull($result, "Handler returned non-null for {$type->value}");
+        // Every current event type must reach the default handler without cancelling the user's stream.
+        foreach (StreamEventType::cases() as $streamEventType) {
+            $result = $handler->__invoke(new StreamEvent(type: $streamEventType));
+            $this->assertNull($result, "Handler returned non-null for {$streamEventType->value}");
         }
     }
 
     /**
-     * Verifies that typed handler can cancel stream.
+     * Confirms typed handler can cancel stream so live answer updates and completion state stay reliable.
      *
      * @return void
      */

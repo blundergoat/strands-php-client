@@ -7,12 +7,8 @@ namespace StrandsPhpClient\Streaming;
 /**
  * Abstract callback handler that dispatches stream events to typed methods.
  *
- * Use as the $onEvent callable for StrandsClient::stream(). Override
- * individual on*() methods to handle specific event types — unhandled
- * events are silently ignored.
- *
- * This handler targets stream() only (typed StreamEvent). For streamSse()
- * (raw array callback), use a plain callable.
+ * Subclasses override only the typed on*() hooks needed to update their live UI; other events are ignored.
+ * Use it with stream(); raw streamSse() events require a plain callable instead.
  *
  * @SuppressWarnings("PHPMD.UnusedFormalParameter") -- no-op on*() hooks keep $event so overrides can use it.
  */

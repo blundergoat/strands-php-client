@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Api Key Auth behavior for app integrations.
+ * Exercises caller-visible Api Key Auth behavior for app integrations.
+ *
+ * Use this file when changing Api Key Auth or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -12,12 +15,15 @@ use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Auth\ApiKeyAuth;
 
 /**
- * Verifies Api Key Auth behavior that application users rely on.
+ * Exercises Api Key Auth through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class ApiKeyAuthTest extends TestCase
 {
     /**
-     * Verifies that default bearer auth.
+     * Confirms the default bearer authentication is applied so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -33,7 +39,7 @@ class ApiKeyAuthTest extends TestCase
     }
 
     /**
-     * Verifies that custom header name.
+     * Confirms a custom API-key header name is applied so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -49,7 +55,7 @@ class ApiKeyAuthTest extends TestCase
     }
 
     /**
-     * Verifies that custom prefix.
+     * Confirms a custom API-key prefix is applied so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -63,7 +69,7 @@ class ApiKeyAuthTest extends TestCase
     }
 
     /**
-     * Verifies that preserves existing headers.
+     * Confirms existing headers are preserved so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */

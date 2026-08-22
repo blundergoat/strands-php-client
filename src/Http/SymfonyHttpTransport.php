@@ -24,7 +24,7 @@ class SymfonyHttpTransport implements HttpTransport
     /**
      * Create a Symfony transport, using the default HTTP client when none is supplied.
      *
-     * @param HttpClientInterface|null $httpClient Optional Symfony HTTP client instance.
+     * @param HttpClientInterface|null $httpClient Client supplied by the app; null creates Symfony's default client.
      */
     public function __construct(?HttpClientInterface $httpClient = null)
     {
@@ -57,30 +57,32 @@ class SymfonyHttpTransport implements HttpTransport
 
             $statusCode = $response->getStatusCode();
             $content = $response->getContent(false);
-            $data = json_decode($content, true);
+            $responseData = json_decode($content, true);
 
             // Any 4xx/5xx means the agent rejected the request — surface it as a typed error.
             if ($statusCode >= 400) {
-                throw AgentErrorException::fromHttpResponse($statusCode, $content, $data);
+                throw AgentErrorException::fromHttpResponse($statusCode, $content, $responseData);
             }
 
             // A 2xx that isn't a JSON object means a broken/proxy response, not a real answer.
-            if (!is_array($data)) {
+            if (!is_array($responseData)) {
                 throw new StrandsException(sprintf(
                     'Expected JSON object from %s, got %s',
                     $url,
-                    get_debug_type($data),
+                    get_debug_type($responseData),
                 ));
             }
 
-            /** @var array<string, mixed> $data validated before app code uses it. */
-            return $data;
-        } catch (StrandsException $e) {
-            throw $e;
-        } catch (\Throwable $e) {
+            /** @var array<string, mixed> $responseData Validated agent response shown to app code. */
+            return $responseData;
+        } catch (StrandsException $strandsException) {
+            // For example, an agent can return a documented 429 or invalid JSON response; preserve that caller-ready exception unchanged.
+            throw $strandsException;
+        } catch (\Throwable $transportException) {
+            // For example, DNS, TLS, or Symfony's client can fail before an agent response exists; wrap that transport failure consistently.
             throw new StrandsException(
-                'HTTP request to agent failed: ' . $e->getMessage(),
-                previous: $e,
+                'HTTP request to agent failed: ' . $transportException->getMessage(),
+                previous: $transportException,
             );
         }
     }
@@ -140,12 +142,14 @@ class SymfonyHttpTransport implements HttpTransport
                     break;
                 }
             }
-        } catch (StrandsException $e) {
-            throw $e;
-        } catch (\Throwable $e) {
+        } catch (StrandsException $strandsException) {
+            // For example, an agent error or idle timeout already has the message the streaming screen needs; preserve that exception unchanged.
+            throw $strandsException;
+        } catch (\Throwable $transportException) {
+            // For example, Symfony can lose the socket while an answer is streaming; wrap it as the client's standard transport failure.
             throw new StrandsException(
-                'Streaming request to agent failed: ' . $e->getMessage(),
-                previous: $e,
+                'Streaming request to agent failed: ' . $transportException->getMessage(),
+                previous: $transportException,
             );
         }
     }

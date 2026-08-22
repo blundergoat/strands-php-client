@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Otel Tracing Phi Safety behavior for app integrations.
+ * Exercises caller-visible Otel Tracing Phi Safety behavior for app integrations.
+ *
+ * Use this file when changing Otel Tracing Phi Safety or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Http\Middleware;
@@ -17,7 +20,10 @@ use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Http\Middleware\OtelTracingMiddleware;
 
 /**
- * Verifies Otel Tracing Phi Safety behavior that application users rely on.
+ * Exercises Otel Tracing Phi Safety through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 final class OtelTracingPhiSafetyTest extends TestCase
 {
@@ -53,7 +59,7 @@ final class OtelTracingPhiSafetyTest extends TestCase
     }
 
     /**
-     * Verifies that span attributes do not contain sensitive payload values.
+     * Confirms span attributes do not contain sensitive payload values so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -112,7 +118,22 @@ final class OtelTracingPhiSafetyTest extends TestCase
         $immutableSpan = $this->getOnlySpan();
         $serializedSpan = $this->serializeSpan($immutableSpan);
 
-        foreach ([$sessionId, $prompt, $responseText, $documentBase64, $filename, $toolInput, $citationSource, $agentName, $modelName, $toolName, $stopReason, 'private context', 'secret'] as $forbidden) {
+        // Every value an app or user supplied must stay out of exported telemetry.
+        foreach ([
+            $sessionId,
+            $prompt,
+            $responseText,
+            $documentBase64,
+            $filename,
+            $toolInput,
+            $citationSource,
+            $agentName,
+            $modelName,
+            $toolName,
+            $stopReason,
+            'private context',
+            'secret',
+        ] as $forbidden) {
             $this->assertStringNotContainsString(
                 $forbidden,
                 $serializedSpan,
@@ -127,7 +148,7 @@ final class OtelTracingPhiSafetyTest extends TestCase
     }
 
     /**
-     * Verifies that agent HTTP failures do not export app-owned error text or codes.
+     * Confirms agent HTTP failures do not export app-owned error text or codes so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -176,7 +197,9 @@ final class OtelTracingPhiSafetyTest extends TestCase
     private function spanAttributes(ImmutableSpan $immutableSpan): array
     {
         $attributes = [];
+        // Copy only named span attributes so the safety assertion sees the same labels an exporter receives.
         foreach ($immutableSpan->getAttributes() as $key => $value) {
+            // OpenTelemetry attribute keys must be strings before the app can export them as stable labels.
             if (is_string($key)) {
                 $attributes[$key] = $value;
             }
@@ -194,9 +217,12 @@ final class OtelTracingPhiSafetyTest extends TestCase
     private function serializeSpan(ImmutableSpan $immutableSpan): string
     {
         $events = [];
+        // Include each exported span event so a hidden error payload cannot bypass the top-level attribute checks.
         foreach ($immutableSpan->getEvents() as $event) {
             $eventAttributes = [];
+            // Inspect every event attribute because an exporter sends these alongside the user request span.
             foreach ($event->getAttributes() as $key => $value) {
+                // Keep only valid string labels when building the test's serializable telemetry view.
                 if (is_string($key)) {
                     $eventAttributes[$key] = $value;
                 }

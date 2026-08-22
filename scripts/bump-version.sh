@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# Bump the project version: stamp the CHANGELOG "Unreleased" section with
-# today's date and insert a fresh "Unreleased" block above it. Prints the
-# `git tag` command for the user to run (the script never tags itself).
+# Prepares the project files for a versioned release.
 #
-# Usage:
-#   ./scripts/bump-version.sh                   # release the currently-staged version
-#   ./scripts/bump-version.sh 1.5.1             # override to an explicit version
-#   ./scripts/bump-version.sh --patch           # bump staged version's patch
-#   ./scripts/bump-version.sh --minor           # bump staged version's minor
-#   ./scripts/bump-version.sh --major           # bump staged version's major
-#   ./scripts/bump-version.sh --dry-run         # show changes without writing
+# It dates the current CHANGELOG section and opens a fresh Unreleased section.
+# It prints the tag command for the maintainer but never creates the tag itself.
+#
+# Usage examples:
+# - ./scripts/bump-version.sh                   # release the currently-staged version
+# - ./scripts/bump-version.sh 1.5.1             # override to an explicit version
+# - ./scripts/bump-version.sh --patch           # bump staged version's patch
+# - ./scripts/bump-version.sh --minor           # bump staged version's minor
+# - ./scripts/bump-version.sh --major           # bump staged version's major
+# - ./scripts/bump-version.sh --dry-run         # show changes without writing
 #
 # The CHANGELOG.md header is expected in one of these forms:
-#   ## [X.Y.Z] - Unreleased      (staged version)
-#   ## [Unreleased]              (no staged version - explicit version required)
+# - ## [X.Y.Z] - Unreleased      (staged version)
+# - ## [Unreleased]              (no staged version - explicit version required)
 
 set -euo pipefail
 
@@ -28,10 +29,15 @@ DIM='\033[2m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
+# Show a neutral release step to the maintainer.
 info() { echo -e "${BLUE}▸${RESET} $*"; }
+# Confirm a release step completed successfully.
 ok()   { echo -e "  ${GREEN}✔${RESET} $*"; }
+# Highlight a recoverable release concern.
 warn() { echo -e "  ${YELLOW}!${RESET} $*"; }
+# Print a release error without mixing it into normal output.
 err()  { echo -e "  ${RED}✘${RESET} $*" >&2; }
+# Stop the release helper after showing the actionable error.
 die()  { err "$*"; exit 1; }
 
 CHANGELOG="CHANGELOG.md"
@@ -42,10 +48,13 @@ EXPLICIT_VERSION=""
 BUMP_LEVEL=""
 DRY_RUN=false
 
+# Read each requested bump option so the maintainer sees one unambiguous release outcome.
 for arg in "$@"; do
     case "$arg" in
         --patch|--minor|--major)
+            # More than one bump level cannot describe a single version the user intends to release.
             [[ -n "$BUMP_LEVEL" ]] && die "Multiple bump levels passed"
+            # An explicit version already decides the release number, so a bump flag would conflict with it.
             [[ -n "$EXPLICIT_VERSION" ]] && die "Cannot combine explicit version with --${arg#--}"
             BUMP_LEVEL="${arg#--}"
             ;;
@@ -60,26 +69,33 @@ for arg in "$@"; do
             die "Unknown flag: $arg"
             ;;
         *)
+            # A second explicit number would make the requested release version ambiguous.
             [[ -n "$EXPLICIT_VERSION" ]] && die "Multiple version arguments passed"
+            # A bump flag and explicit number are two competing ways to choose the release version.
             [[ -n "$BUMP_LEVEL" ]] && die "Cannot combine explicit version with --$BUMP_LEVEL"
+            # Reject malformed input before the script rewrites the changelog the maintainer will publish.
             [[ "$arg" =~ $SEMVER_RE ]] || die "Invalid version '$arg' (expected X.Y.Z)"
             EXPLICIT_VERSION="$arg"
             ;;
     esac
 done
 
+# A missing changelog leaves nowhere to publish the version users will install.
 [[ -f "$CHANGELOG" ]] || die "$CHANGELOG not found"
 
 # ── Locate the topmost Unreleased header ─────────────────────────
 HEADER_LINE=$(grep -n -E '^## \[(Unreleased|[0-9]+\.[0-9]+\.[0-9]+)\]( - Unreleased)?$' "$CHANGELOG" | head -1 || true)
+# An empty search result means the changelog has no safe release section to stamp.
 [[ -n "$HEADER_LINE" ]] || die "No '## [Unreleased]' or '## [X.Y.Z] - Unreleased' header found in $CHANGELOG"
 
 HEADER_LINENO="${HEADER_LINE%%:*}"
 HEADER_TEXT="${HEADER_LINE#*:}"
 
 STAGED_VERSION=""
+# A staged numeric heading supplies the default version when the maintainer did not pass one.
 if [[ "$HEADER_TEXT" =~ ^\#\#\ \[([0-9]+\.[0-9]+\.[0-9]+)\]\ -\ Unreleased$ ]]; then
     STAGED_VERSION="${BASH_REMATCH[1]}"
+# A generic Unreleased heading means the maintainer must choose or calculate a version below.
 elif [[ "$HEADER_TEXT" =~ ^\#\#\ \[Unreleased\]$ ]]; then
     STAGED_VERSION=""
 else
@@ -88,13 +104,17 @@ fi
 
 # ── Decide the new version ───────────────────────────────────────
 NEW_VERSION=""
+# An explicit version is the clearest instruction and takes precedence over staged changelog state.
 if [[ -n "$EXPLICIT_VERSION" ]]; then
     NEW_VERSION="$EXPLICIT_VERSION"
+# A bump flag derives the next version from the staged version or latest release tag.
 elif [[ -n "$BUMP_LEVEL" ]]; then
     BASE="$STAGED_VERSION"
+    # An empty staged version falls back to the latest tag so --patch/--minor/--major still has a base.
     if [[ -z "$BASE" ]]; then
         # Fall back to latest git tag
         BASE=$(git tag --sort=-v:refname 2>/dev/null | head -1 | sed 's/^v//' || true)
+        # A missing or malformed tag leaves no trustworthy release number to increment.
         [[ "$BASE" =~ $SEMVER_RE ]] || die "Cannot $BUMP_LEVEL-bump: no staged version and no semver git tag found"
         info "No staged version; bumping from latest tag v$BASE"
     fi
@@ -106,6 +126,7 @@ elif [[ -n "$BUMP_LEVEL" ]]; then
     esac
     NEW_VERSION="$MAJ.$MIN.$PAT"
 else
+    # With no arguments, an empty staged version would leave the release number unknown.
     [[ -n "$STAGED_VERSION" ]] || die "No staged version in $CHANGELOG; pass an explicit version or --patch/--minor/--major"
     NEW_VERSION="$STAGED_VERSION"
 fi
@@ -128,6 +149,7 @@ TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"' EXIT
 
 # Lines before the existing Unreleased header
+# Preserve any changelog introduction above the release heading; line one has no prefix to copy.
 if (( HEADER_LINENO > 1 )); then
     head -n $((HEADER_LINENO - 1)) "$CHANGELOG" > "$TMPFILE"
 else
@@ -143,6 +165,7 @@ fi
 # Everything after the existing Unreleased header line
 tail -n +$((HEADER_LINENO + 1)) "$CHANGELOG" >> "$TMPFILE"
 
+# A dry run shows exactly what users would see in the changelog without writing the file.
 if [[ "$DRY_RUN" == "true" ]]; then
     echo ""
     info "Dry-run diff:"

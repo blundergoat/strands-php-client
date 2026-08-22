@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Strands Client Factory behavior for app integrations.
+ * Exercises caller-visible Strands Client Factory behavior for app integrations.
+ *
+ * Use this file when changing Strands Client Factory or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Integration;
@@ -14,7 +17,10 @@ use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
 /**
- * Verifies Strands Client Factory behavior that application users rely on.
+ * Exercises Strands Client Factory through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class StrandsClientFactoryTest extends TestCase
 {
@@ -35,7 +41,7 @@ class StrandsClientFactoryTest extends TestCase
     }
 
     /**
-     * Verifies that create returns client.
+     * Confirms create() returns client so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -65,7 +71,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create throws for unknown agent.
+     * Confirms create() throws for unknown agent so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -96,7 +102,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create throws for unsupported auth driver.
+     * Confirms create() throws for unsupported auth driver so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -130,7 +136,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with api key auth.
+     * Confirms create() configures API-key authentication so framework users can securely call the agent.
      *
      * @return void
      */
@@ -160,7 +166,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with api key auth throws when missing key.
+     * Confirms create() with api key auth throws when missing key so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -194,7 +200,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with empty api key throws.
+     * Confirms create() with empty api key throws so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -230,7 +236,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with api key auth custom header.
+     * Confirms create() applies a custom API-key header so framework users can match their gateway.
      *
      * @return void
      */
@@ -263,7 +269,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with retry config.
+     * Confirms create() applies retry settings so framework users receive the intended recovery behavior.
      *
      * @return void
      */
@@ -277,7 +283,7 @@ class StrandsClientFactoryTest extends TestCase
     }
 
     /**
-     * Verifies that create uses defaults when retry fields missing.
+     * Confirms create() uses defaults when retry fields missing so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -301,7 +307,7 @@ class StrandsClientFactoryTest extends TestCase
     }
 
     /**
-     * Verifies that create propagates explicit config values.
+     * Confirms create() propagates explicit config values so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -330,7 +336,7 @@ class StrandsClientFactoryTest extends TestCase
     }
 
     /**
-     * Verifies that unknown agent lists configured agents.
+     * Confirms unknown agent lists configured agents so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -352,9 +358,10 @@ class StrandsClientFactoryTest extends TestCase
         try {
             $strandsClientFactory->create('missing');
             $this->fail('Expected InvalidArgumentException');
-        } catch (\InvalidArgumentException $e) {
-            $this->assertStringContainsString('analyst', $e->getMessage());
-            $this->assertStringContainsString('skeptic', $e->getMessage());
+        } catch (\InvalidArgumentException $invalidAgentException) {
+            // For example, an app route may request an unknown agent; the message must name valid choices the developer can configure.
+            $this->assertStringContainsString('analyst', $invalidAgentException->getMessage());
+            $this->assertStringContainsString('skeptic', $invalidAgentException->getMessage());
         }
     }
     /**
@@ -380,7 +387,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with sigv 4 auth.
+     * Confirms create() configures SigV4 authentication so framework users can securely call an AWS gateway.
      *
      * @return void
      */
@@ -414,7 +421,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with api key custom header and prefix.
+     * Confirms create() applies a custom API-key header and prefix so framework users can match their gateway.
      *
      * @return void
      */
@@ -446,7 +453,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with api key default header and prefix.
+     * Confirms create() supplies the default API-key header and prefix so framework users need only provide the key.
      *
      * @return void
      */
@@ -460,7 +467,7 @@ class StrandsClientFactoryTest extends TestCase
     }
 
     /**
-     * Verifies that create with traversable middleware.
+     * Confirms create() accepts traversable middleware so framework users can register an iterable pipeline.
      *
      * @return void
      */
@@ -474,8 +481,7 @@ class StrandsClientFactoryTest extends TestCase
              * @param array<string, string> $headers Request headers supplied to the
              * middleware stub.
              * @param string $body Request body supplied to the middleware stub.
-             * @return array{headers: array<string, string>, body: string} Headers and body
-             * returned by the middleware stub.
+             * @return array{headers: array<string, string>, body: string} Non-empty request map; its header map may be empty.
              */
             public function beforeRequest(string $url, array $headers, string $body): array
             {
@@ -488,8 +494,7 @@ class StrandsClientFactoryTest extends TestCase
              * @param string $url Request URL being observed.
              * @param int $statusCode HTTP status code for the operation.
              * @param float $durationMs Operation duration in milliseconds.
-             * @param \Throwable|null $error Optional transport or agent error raised by
-             * the operation.
+             * @param \Throwable|null $error Request failure; null means the user's call completed successfully.
              * @return void
              */
             public function afterResponse(string $url, int $statusCode, float $durationMs, ?\Throwable $error = null): void
@@ -497,8 +502,8 @@ class StrandsClientFactoryTest extends TestCase
             }
         };
 
-        // Pass middleware as ArrayIterator (Traversable) — simulates Symfony DI tagged iterator
-        $arrayIterator = new \ArrayIterator([$requestMiddleware]);
+        // A traversable middleware list mirrors the tagged iterator Symfony supplies to app services.
+        $middlewareIterator = new \ArrayIterator([$requestMiddleware]);
 
         $strandsClientFactory = new StrandsClientFactory(
             [
@@ -508,7 +513,7 @@ class StrandsClientFactoryTest extends TestCase
                     'timeout' => 120,
                 ],
             ],
-            middleware: $arrayIterator,
+            middleware: $middlewareIterator,
         );
 
         $strandsClient = $strandsClientFactory->create('test');
@@ -536,7 +541,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create sigv 4 throws when missing region.
+     * Confirms create() sigv 4 throws when missing region so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -572,7 +577,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create sigv 4 throws on partial credentials.
+     * Confirms create() sigv 4 throws on partial credentials so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -608,7 +613,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create sigv 4 throws on partial credentials reverse.
+     * Confirms create() sigv 4 throws on partial credentials reverse so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -645,7 +650,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create sigv 4 with session token.
+     * Confirms create() passes a SigV4 session token so framework users can use temporary AWS credentials.
      *
      * @return void
      */
@@ -680,7 +685,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create sigv 4 with custom service.
+     * Confirms create() passes a custom SigV4 service so framework users can target the intended AWS endpoint.
      *
      * @return void
      */

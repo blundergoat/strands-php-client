@@ -3,9 +3,8 @@
 /**
  * Strands PHP Client configuration for Laravel apps.
  *
- * Defines which agents the app can talk to and how each one authenticates,
- * times out, and retries. Every value reads from the app's .env, so the same
- * code runs against a local agent in development and a hosted one in production.
+ * It defines available agents plus their authentication, timeout, and retry behavior.
+ * Environment values let the same app configuration target local development or a hosted agent.
  *
  * Publish with: php artisan vendor:publish --tag=strands-config
  */

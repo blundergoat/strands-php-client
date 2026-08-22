@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Strands Facade behavior for app integrations.
+ * Exercises caller-visible Strands Facade behavior for app integrations.
+ *
+ * Use this file when changing Strands Facade or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Integration\Laravel;
@@ -13,12 +16,15 @@ use StrandsPhpClient\Integration\Laravel\Facades\Strands;
 use StrandsPhpClient\StrandsClient;
 
 /**
- * Verifies Strands Facade behavior that application users rely on.
+ * Exercises Strands Facade through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class StrandsFacadeTest extends TestCase
 {
     /**
-     * Verifies that facade accessor returns strands client class.
+     * Confirms facade accessor returns strands client class so framework users receive a correctly configured client.
      *
      * @return void
      */

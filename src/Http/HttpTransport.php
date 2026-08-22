@@ -7,10 +7,8 @@ namespace StrandsPhpClient\Http;
 /**
  * The seam that carries a request to the agent and brings the answer back.
  *
- * StrandsClient talks only to this interface, so the app can swap how calls
- * actually travel — Symfony's client for live streaming, or any PSR-18 client
- * for plain invoke — without changing a line of calling code. Implementations
- * own timeouts, connection handling, and turning HTTP errors into exceptions.
+ * StrandsClient uses it for invoke and stream calls while each implementation owns network behavior and errors.
+ * Apps select Symfony for live SSE or a PSR-18 client for plain requests without changing client call sites.
  */
 interface HttpTransport
 {
@@ -28,11 +26,8 @@ interface HttpTransport
     public function post(string $url, array $headers, string $body, int $timeout, int $connectTimeout): array;
 
     /**
-     * Send a POST request and stream the SSE response in chunks.
-     *
-     * The callback receives each raw chunk as a string. Return false from
-     * the callback to cancel the stream and close the HTTP connection.
-     * Any other return value (including void/null) continues streaming.
+     * Stream raw SSE chunks to the app so it can render the answer as it arrives.
+     * Return false from the callback to stop generation; void, null, or any other value keeps the connection open.
      *
      * @param string               $url             The full URL to POST to.
      * @param array<string, string> $headers         HTTP headers to include.

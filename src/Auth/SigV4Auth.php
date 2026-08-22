@@ -39,7 +39,7 @@ class SigV4Auth implements AuthStrategy
      * @param string      $secretAccessKey   AWS secret access key.
      * @param string      $region            AWS region (e.g. 'us-east-1').
      * @param string      $service           AWS service name (default: 'execute-api').
-     * @param string|null $sessionToken      Optional session token for temporary credentials.
+     * @param string|null $sessionToken Temporary-credential token; null omits the header, while an empty string is sent explicitly.
      */
     public function __construct(
         string $accessKeyId,
@@ -109,11 +109,11 @@ class SigV4Auth implements AuthStrategy
         $amzDate = $now->format('Ymd\THis\Z');
         $dateStamp = $now->format('Ymd');
 
-        $parsed = parse_url($url);
+        $parsedUrl = parse_url($url);
         /** @var string $hostname validated before app code uses it. */
-        $hostname = $parsed['host'] ?? '';
-        $port = $parsed['port'] ?? null;
-        $scheme = $parsed['scheme'] ?? 'https';
+        $hostname = $parsedUrl['host'] ?? '';
+        $port = $parsedUrl['port'] ?? null;
+        $scheme = $parsedUrl['scheme'] ?? 'https';
 
         $host = $hostname;
         // Append the port only when it is non-default: the agent's gateway recomputes
@@ -122,8 +122,8 @@ class SigV4Auth implements AuthStrategy
             $host .= ':' . $port;
         }
 
-        $path = $parsed['path'] ?? '/';
-        $queryString = $parsed['query'] ?? '';
+        $path = $parsedUrl['path'] ?? '/';
+        $queryString = $parsedUrl['query'] ?? '';
 
         // Canonical URI - normalize path
         $canonicalUri = $this->normalizePath($path);
@@ -160,9 +160,9 @@ class SigV4Auth implements AuthStrategy
         $canonicalHeaders = '';
         $signedHeaderNames = [];
         // Flatten the sorted headers into the exact text block AWS re-hashes to verify us.
-        foreach ($signingHeaders as $key => $value) {
-            $canonicalHeaders .= $key . ':' . trim($value) . "\n";
-            $signedHeaderNames[] = $key;
+        foreach ($signingHeaders as $headerName => $headerValue) {
+            $canonicalHeaders .= $headerName . ':' . trim($headerValue) . "\n";
+            $signedHeaderNames[] = $headerName;
         }
         $signedHeaders = implode(';', $signedHeaderNames);
 
@@ -281,17 +281,17 @@ class SigV4Auth implements AuthStrategy
             return '';
         }
 
-        $params = [];
+        $canonicalParameters = [];
         // Sort and re-encode every query param so the signature is order-independent.
-        foreach (explode('&', $queryString) as $pair) {
-            $parts = explode('=', $pair, 2);
-            $key = rawurlencode(rawurldecode($parts[0]));
-            $value = isset($parts[1]) ? rawurlencode(rawurldecode($parts[1])) : '';
-            $params[] = $key . '=' . $value;
+        foreach (explode('&', $queryString) as $queryParameter) {
+            $nameAndValue = explode('=', $queryParameter, 2);
+            $encodedParameterName = rawurlencode(rawurldecode($nameAndValue[0]));
+            $encodedParameterValue = isset($nameAndValue[1]) ? rawurlencode(rawurldecode($nameAndValue[1])) : '';
+            $canonicalParameters[] = $encodedParameterName . '=' . $encodedParameterValue;
         }
 
-        sort($params);
+        sort($canonicalParameters);
 
-        return implode('&', $params);
+        return implode('&', $canonicalParameters);
     }
 }

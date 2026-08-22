@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Interrupt Detail behavior for app integrations.
+ * Exercises caller-visible Interrupt Detail behavior for app integrations.
+ *
+ * Use this file when changing Interrupt Detail or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -12,14 +15,17 @@ use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\InterruptDetail;
 
 /**
- * Verifies Interrupt Detail behavior that application users rely on.
+ * Exercises Interrupt Detail through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class InterruptDetailTest extends TestCase
 {
     /**
      * Data fixture for testFromArrayHydratesAllFields().
      *
-     * @return array<string, mixed> Scenarios that keep from array hydrates all fields behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayHydratesAllFields(): array
     {
@@ -33,15 +39,15 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Verifies that from array hydrates all fields.
+     * Confirms fromArray() hydrates all fields so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testFromArrayHydratesAllFields(): void
     {
-        $data = $this->dataForFromArrayHydratesAllFields();
+        $interruptData = $this->dataForFromArrayHydratesAllFields();
 
-        $interruptDetail = InterruptDetail::fromArray($data);
+        $interruptDetail = InterruptDetail::fromArray($interruptData);
 
         $this->assertSame('deploy', $interruptDetail->toolName);
         $this->assertSame(['environment' => 'production'], $interruptDetail->toolInput);
@@ -51,7 +57,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Verifies that from array handles missing fields.
+     * Confirms fromArray() handles missing fields so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -68,7 +74,7 @@ class InterruptDetailTest extends TestCase
     /**
      * Data fixture for testFromArrayHandlesNonStringValues().
      *
-     * @return array<string, mixed> Scenarios that keep from array handles non string values behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayHandlesNonStringValues(): array
     {
@@ -83,15 +89,15 @@ class InterruptDetailTest extends TestCase
 
 
     /**
-     * Verifies that from array handles non string values.
+     * Confirms fromArray() handles non string values so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testFromArrayHandlesNonStringValues(): void
     {
-        $data = $this->dataForFromArrayHandlesNonStringValues();
+        $interruptData = $this->dataForFromArrayHandlesNonStringValues();
 
-        $interruptDetail = InterruptDetail::fromArray($data);
+        $interruptDetail = InterruptDetail::fromArray($interruptData);
 
         $this->assertSame('', $interruptDetail->toolName);
         $this->assertSame([], $interruptDetail->toolInput);
@@ -101,7 +107,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Verifies that constructor direct instantiation.
+     * Confirms callers can instantiate the DTO directly so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -121,7 +127,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Verifies that to resume input uses interrupt ID.
+     * Confirms toResumeInput() uses interrupt ID so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -143,7 +149,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Verifies that to resume input falls back to tool use ID.
+     * Confirms toResumeInput() falls back to tool use ID so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -163,7 +169,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Verifies that to resume input throws when no identifier.
+     * Confirms toResumeInput() throws when no identifier so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -180,7 +186,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Verifies that from array with neither ID produces detail.
+     * Confirms fromArray() with neither ID produces detail so the app renders trustworthy answer details.
      *
      * @return void
      */

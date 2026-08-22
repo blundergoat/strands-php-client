@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Symfony Http Transport behavior for app integrations.
+ * Exercises caller-visible Symfony Http Transport behavior for app integrations.
+ *
+ * Use this file when changing Symfony Http Transport or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -22,7 +25,10 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\HttpClient\ResponseStreamInterface;
 
 /**
- * Verifies Symfony Http Transport behavior that application users rely on.
+ * Exercises Symfony Http Transport through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class SymfonyHttpTransportTest extends TestCase
 {
@@ -127,18 +133,18 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Create chunk for the test scenario.
+     * Build one Symfony stream chunk used to model a live answer update.
      *
-     * @param bool $timeout Whether the mock chunk should simulate a timeout.
-     * @param bool $last Whether the mock chunk should simulate the last chunk.
-     * @param string $content Chunk content yielded by the mock response.
-     * @return ChunkInterface Value produced by the method.
+     * @param bool $isTimeout True when the app should see this chunk as an idle-timeout signal.
+     * @param bool $isLast True when this chunk ends the user's stream.
+     * @param string $content Bytes yielded by the response; empty means a control chunk with no UI update.
+     * @return ChunkInterface Mock chunk consumed by the transport; never null.
      */
-    private function createChunk(bool $timeout, bool $last, string $content = ''): ChunkInterface
+    private function createChunk(bool $isTimeout, bool $isLast, string $content = ''): ChunkInterface
     {
         $chunk = $this->createMock(ChunkInterface::class);
-        $chunk->method('isTimeout')->willReturn($timeout);
-        $chunk->method('isLast')->willReturn($last);
+        $chunk->method('isTimeout')->willReturn($isTimeout);
+        $chunk->method('isLast')->willReturn($isLast);
         $chunk->method('getContent')->willReturn($content);
         $chunk->method('isFirst')->willReturn(false);
         $chunk->method('getInformationalStatus')->willReturn(null);
@@ -149,9 +155,9 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Build a SymfonyHttpTransport whose mock client returns the given response body and status.
-     * Centralises the MockResponse + MockHttpClient + transport wiring so per-test bodies
-     * stay short and read as setup-then-act rather than transport-construction boilerplate.
+     * Builds a Symfony transport whose mock client returns the requested response.
+     *
+     * Use it to keep each caller-visible request scenario focused on its body and status.
      *
      * @param string $responseBody Body returned by the underlying mock HTTP response.
      * @param int $statusCode HTTP status code for the mocked response.
@@ -165,10 +171,10 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Build a SymfonyHttpTransport whose mock client captures the Symfony HTTP
-     * options array on every call. Useful for tests asserting on headers, body,
-     * or timeout values forwarded by SymfonyHttpTransport without spelling out
-     * the closure-mock plumbing in each test body.
+     * Build a transport that captures the HTTP options generated for an app request.
+     *
+     * Use it when checking headers, body, or timeouts passed to Symfony.
+     * The captured map shows exactly what leaves the client boundary.
      *
      * @param array<string, mixed> $capturedOptions options captured for assertions about user-facing request behavior.
      * @param-out array<string, mixed> $capturedOptions Reference filled with the options array passed to the mock client.
@@ -177,7 +183,11 @@ class SymfonyHttpTransportTest extends TestCase
     private function transportCapturingOptions(array &$capturedOptions): SymfonyHttpTransport
     {
         $mockResponse = new MockResponse('{"text":"ok"}', ['http_code' => 200]);
-        $mockHttpClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$capturedOptions, $mockResponse): MockResponse {
+        $mockHttpClient = new MockHttpClient(function (
+            string $method,
+            string $url,
+            array $options,
+        ) use (&$capturedOptions, $mockResponse): MockResponse {
             $capturedOptions = $options;
 
             return $mockResponse;
@@ -187,7 +197,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post returns decoded JSON.
+     * Confirms post() returns decoded JSON so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -202,12 +212,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post throws agent error on HTTP error.
-     *
-     * @return void
-     */
-    /**
-     * Verifies that post surfaces the agent error message from each documented error-response shape.
+     * Confirms post() surfaces the agent error message from each documented error-response shape so the app receives a clear answer or failure.
      *
      * @param string $responseBody Body returned by the mock transport.
      * @param int $statusCode HTTP status the mock transport reports.
@@ -238,7 +243,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post throws strands exception on invalid JSON.
+     * Confirms post() throws strands exception on invalid JSON so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -260,7 +265,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that stream delivers chunks.
+     * Confirms stream() delivers chunks so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -283,7 +288,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that stream throws agent error on HTTP error.
+     * Confirms stream() throws agent error on HTTP error so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -299,14 +304,14 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that stream throws interrupted exception on timeout chunk.
+     * Confirms stream() throws interrupted exception on timeout chunk so the app receives a clear answer or failure.
      *
      * @return void
      */
     public function testStreamThrowsInterruptedExceptionOnTimeoutChunk(): void
     {
         $symfonyHttpTransport = $this->createTransportWithStreamChunks([
-            $this->createChunk(timeout: true, last: false),
+            $this->createChunk(isTimeout: true, isLast: false),
         ]);
 
         $this->expectException(StreamInterruptedException::class);
@@ -317,14 +322,14 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that stream stops on last chunk without publishing content.
+     * Confirms stream() stops on last chunk without publishing content so the app receives a clear answer or failure.
      *
      * @return void
      */
     public function testStreamStopsOnLastChunkWithoutPublishingContent(): void
     {
         $symfonyHttpTransport = $this->createTransportWithStreamChunks([
-            $this->createChunk(timeout: false, last: true),
+            $this->createChunk(isTimeout: false, isLast: true),
         ]);
 
         $received = [];
@@ -336,15 +341,15 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that stream delivers content from last chunk.
+     * Confirms stream() delivers content from last chunk so the app receives a clear answer or failure.
      *
      * @return void
      */
     public function testStreamDeliversContentFromLastChunk(): void
     {
         $symfonyHttpTransport = $this->createTransportWithStreamChunks([
-            $this->createChunk(timeout: false, last: false, content: 'data: {"type":"text","content":"hello"}\n\n'),
-            $this->createChunk(timeout: false, last: true, content: 'data: {"type":"complete","text":"hello"}\n\n'),
+            $this->createChunk(isTimeout: false, isLast: false, content: 'data: {"type":"text","content":"hello"}\n\n'),
+            $this->createChunk(isTimeout: false, isLast: true, content: 'data: {"type":"complete","text":"hello"}\n\n'),
         ]);
 
         $received = [];
@@ -357,16 +362,16 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that stream stops on callback return false.
+     * Confirms stream() stops on callback return false so the app receives a clear answer or failure.
      *
      * @return void
      */
     public function testStreamStopsOnCallbackReturnFalse(): void
     {
         $symfonyHttpTransport = $this->createTransportWithStreamChunks([
-            $this->createChunk(timeout: false, last: false, content: 'chunk1'),
-            $this->createChunk(timeout: false, last: false, content: 'chunk2'),
-            $this->createChunk(timeout: false, last: true, content: 'chunk3'),
+            $this->createChunk(isTimeout: false, isLast: false, content: 'chunk1'),
+            $this->createChunk(isTimeout: false, isLast: false, content: 'chunk2'),
+            $this->createChunk(isTimeout: false, isLast: true, content: 'chunk3'),
         ]);
 
         $received = [];
@@ -382,7 +387,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that stream cancels response on callback return false.
+     * Confirms stream() cancels response on callback return false so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -392,7 +397,7 @@ class SymfonyHttpTransportTest extends TestCase
         $response->method('getStatusCode')->willReturn(200);
         $response->expects($this->once())->method('cancel');
 
-        $chunk = $this->createChunk(timeout: false, last: false, content: 'data');
+        $chunk = $this->createChunk(isTimeout: false, isLast: false, content: 'data');
         $stream = $this->createResponseStream($response, [$chunk]);
 
         $httpClient = $this->createMock(HttpClientInterface::class);
@@ -412,7 +417,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that exception classes.
+     * Confirms the documented exception classes remain available so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -433,7 +438,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that agent error exception default status code.
+     * Confirms an agent error has a safe default status code so the UI can show a useful failure.
      *
      * @return void
      */
@@ -446,7 +451,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that agent error exception carries response body.
+     * Confirms an agent error carries its response body so the UI can show or log useful failure details.
      *
      * @return void
      */
@@ -458,7 +463,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post error includes response body.
+     * Confirms post() error includes response body so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -471,6 +476,7 @@ class SymfonyHttpTransportTest extends TestCase
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $agentErrorException) {
+            // For example, a form can inspect structured field errors after the agent rejects the user's request.
             $this->assertSame(422, $agentErrorException->statusCode);
             $this->assertIsArray($agentErrorException->responseBody);
             $this->assertSame('Validation failed', $agentErrorException->responseBody['detail']);
@@ -479,7 +485,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post error response body null for plain text.
+     * Confirms post() error response body null for plain text so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -491,12 +497,13 @@ class SymfonyHttpTransportTest extends TestCase
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $agentErrorException) {
+            // For example, a plain-text gateway error has no structured fields for the UI, so its responseBody remains null.
             $this->assertNull($agentErrorException->responseBody);
         }
     }
 
     /**
-     * Verifies that stream error includes response body.
+     * Confirms stream() error includes response body so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -510,6 +517,7 @@ class SymfonyHttpTransportTest extends TestCase
             });
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $agentErrorException) {
+            // For example, a rate-limited live answer retains its machine code so the UI can offer a retry action.
             $this->assertSame(429, $agentErrorException->statusCode);
             $this->assertIsArray($agentErrorException->responseBody);
             $this->assertSame('RATE_LIMIT', $agentErrorException->responseBody['code']);
@@ -517,7 +525,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post wraps non strands exception.
+     * Confirms post() wraps non strands exception so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -532,15 +540,16 @@ class SymfonyHttpTransportTest extends TestCase
         try {
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected StrandsException');
-        } catch (StrandsException $agentErrorException) {
-            $this->assertSame('HTTP request to agent failed: DNS resolution failed', $agentErrorException->getMessage());
-            $this->assertNotInstanceOf(AgentErrorException::class, $agentErrorException);
-            $this->assertInstanceOf(\RuntimeException::class, $agentErrorException->getPrevious());
+        } catch (StrandsException $strandsException) {
+            // For example, DNS can fail before an agent responds; the app receives one consistent transport exception with the original cause.
+            $this->assertSame('HTTP request to agent failed: DNS resolution failed', $strandsException->getMessage());
+            $this->assertNotInstanceOf(AgentErrorException::class, $strandsException);
+            $this->assertInstanceOf(\RuntimeException::class, $strandsException->getPrevious());
         }
     }
 
     /**
-     * Verifies that stream wraps non strands exception.
+     * Confirms stream() wraps non strands exception so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -556,15 +565,16 @@ class SymfonyHttpTransportTest extends TestCase
             $symfonyHttpTransport->stream('http://example.com/stream', [], '{}', 30, 10, function (): void {
             });
             $this->fail('Expected StrandsException');
-        } catch (StrandsException $agentErrorException) {
-            $this->assertSame('Streaming request to agent failed: Connection reset', $agentErrorException->getMessage());
-            $this->assertNotInstanceOf(AgentErrorException::class, $agentErrorException);
-            $this->assertInstanceOf(\RuntimeException::class, $agentErrorException->getPrevious());
+        } catch (StrandsException $strandsException) {
+            // For example, a socket can reset during generation; the app receives one streaming failure with the original cause attached.
+            $this->assertSame('Streaming request to agent failed: Connection reset', $strandsException->getMessage());
+            $this->assertNotInstanceOf(AgentErrorException::class, $strandsException);
+            $this->assertInstanceOf(\RuntimeException::class, $strandsException->getPrevious());
         }
     }
 
     /**
-     * Verifies that post error prefers detail over error.
+     * Confirms post() error prefers detail over error so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -580,13 +590,14 @@ class SymfonyHttpTransportTest extends TestCase
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $agentErrorException) {
+            // For example, validation detail is more useful to the form UI than the wrapper's generic error field.
             $this->assertSame('Agent returned HTTP 422: Specific detail', $agentErrorException->getMessage());
             $this->assertSame(422, $agentErrorException->statusCode);
         }
     }
 
     /**
-     * Verifies that post error handles array detail.
+     * Confirms post() error handles array detail so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -602,12 +613,13 @@ class SymfonyHttpTransportTest extends TestCase
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $agentErrorException) {
+            // For example, validation can return several field errors; the app still needs a readable exception message.
             $this->assertSame('Agent returned HTTP 422: ["Error 1","Error 2"]', $agentErrorException->getMessage());
         }
     }
 
     /**
-     * Verifies that post error falls back to content when no detail or error.
+     * Confirms post() error falls back to content when no detail or error so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -623,12 +635,13 @@ class SymfonyHttpTransportTest extends TestCase
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $agentErrorException) {
+            // For example, a custom wrapper can omit standard error fields; preserve its body so the app still gets diagnostic context.
             $this->assertSame('Agent returned HTTP 500: {"some_key":"value"}', $agentErrorException->getMessage());
         }
     }
 
     /**
-     * Verifies that stream throws on 400 status code.
+     * Confirms stream() throws on 400 status code so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -645,13 +658,14 @@ class SymfonyHttpTransportTest extends TestCase
             });
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $agentErrorException) {
+            // For example, a custom live route can reject the request before sending events; the UI needs its original 400 message.
             $this->assertSame(400, $agentErrorException->statusCode);
             $this->assertSame('Agent returned HTTP 400: Bad Request', $agentErrorException->getMessage());
         }
     }
 
     /**
-     * Verifies that post does not throw on 399 status code.
+     * Confirms post() does not throw on 399 status code so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -665,7 +679,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post sends headers to symfony.
+     * Confirms post() sends headers to symfony so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -676,12 +690,12 @@ class SymfonyHttpTransportTest extends TestCase
 
         $symfonyHttpTransport->post('http://example.com/invoke', ['X-Custom' => 'test-value'], '{}', 30, 10);
 
-        // Symfony normalizes headers to an indexed array of "name: value" strings
+        // Symfony normalizes headers to an indexed list, but the app's custom header must still reach the agent unchanged.
         $this->assertContains('X-Custom: test-value', $capturedOptions['headers']);
     }
 
     /**
-     * Verifies that post sends body to symfony.
+     * Confirms post() sends body to symfony so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -696,7 +710,7 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post sends timeout to symfony.
+     * Confirms post() sends timeout to symfony so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -712,16 +726,11 @@ class SymfonyHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post error extracts error code.
-     *
-     * @return void
-     */
-    /**
-     * Verifies that AgentErrorException carries the expected errorCode for each documented error-body shape.
+     * Confirms AgentErrorException carries the expected errorCode for each documented error-body shape so the app receives a clear answer or failure.
      *
      * @param string $responseBody Body returned by the mock transport.
      * @param int $statusCode HTTP status the mock transport reports.
-     * @param string|null $expectedErrorCode Value that AgentErrorException::$errorCode must equal after the throw.
+     * @param string|null $expectedErrorCode Expected code; null means the UI must fall back to status and message.
      * @return void
      */
     #[DataProvider('postErrorCodeProvider')]
@@ -733,6 +742,7 @@ class SymfonyHttpTransportTest extends TestCase
             $symfonyHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
         } catch (AgentErrorException $agentErrorException) {
+            // For example, an auth failure exposes a stable code the app can use to choose its recovery screen.
             $this->assertSame($expectedErrorCode, $agentErrorException->errorCode);
         }
     }

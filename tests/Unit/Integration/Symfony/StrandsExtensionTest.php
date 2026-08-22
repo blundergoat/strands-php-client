@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Strands Extension behavior for app integrations.
+ * Exercises caller-visible Strands Extension behavior for app integrations.
+ *
+ * Use this file when changing Strands Extension or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
@@ -17,7 +20,10 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 
 /**
- * Verifies Strands Extension behavior that application users rely on.
+ * Exercises Strands Extension through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class StrandsExtensionTest extends TestCase
 {
@@ -38,7 +44,7 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Verifies that registers factory service.
+     * Confirms registers factory service so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -57,7 +63,7 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Verifies that registers named agent services.
+     * Confirms registers named agent services so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -77,7 +83,7 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Verifies that named clients stay retrievable via `$container->get()` after compile.
+     * Confirms named clients stay retrievable via `$container->get()` after compile so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -89,13 +95,13 @@ class StrandsExtensionTest extends TestCase
             ],
         ]);
 
-        // The docs promise `$container->get('strands.client.analyst')`; a private
-        // definition would be inlined or removed when the container compiles.
+        // Application docs promise direct access to a named client from Symfony's container.
+        // A public definition prevents compilation from inlining or removing that caller-visible service.
         $this->assertTrue($containerBuilder->getDefinition('strands.client.analyst')->isPublic());
     }
 
     /**
-     * Verifies that first agent is default alias.
+     * Confirms first agent is default alias so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -114,7 +120,7 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Verifies that empty agents registers nothing.
+     * Confirms empty agents registers nothing so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -128,7 +134,7 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Verifies that agent service uses factory.
+     * Confirms agent service uses factory so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -148,7 +154,7 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Verifies that factory receives agents argument.
+     * Confirms factory receives agents argument so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -169,7 +175,7 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Verifies that factory receives logger argument.
+     * Confirms factory receives logger argument so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -189,7 +195,7 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Verifies that agent service receives name argument.
+     * Confirms agent service receives name argument so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -206,7 +212,7 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Verifies that factory receives middleware argument.
+     * Confirms factory receives middleware argument so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -225,7 +231,7 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Verifies that request middleware autoconfigured.
+     * Confirms request middleware is autoconfigured so framework users receive the expected request behavior.
      *
      * @return void
      */
@@ -242,7 +248,7 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Verifies that multiple agents each get correct name.
+     * Confirms each configured agent keeps its name so framework users can resolve the intended assistant.
      *
      * @return void
      */

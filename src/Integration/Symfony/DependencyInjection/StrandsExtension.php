@@ -16,10 +16,8 @@ use Symfony\Component\HttpKernel\DependencyInjection\Extension;
 /**
  * Turns the app's validated `strands:` config into real container services.
  *
- * Runs once while Symfony compiles the container: it reads each configured
- * agent, registers a "strands.client.<name>" service for it, aliases the first
- * as the default StrandsClient, and auto-tags app middleware/observers so they
- * are injected into every client.
+ * It registers every named client, selects the default, and supplies app middleware and observers.
+ * Symfony runs it during container compilation so controllers can inject a ready client at runtime.
  */
 class StrandsExtension extends Extension
 {
@@ -64,10 +62,8 @@ class StrandsExtension extends Extension
             $definition = new Definition(StrandsClient::class);
             $definition->setFactory([new Reference('strands.client_factory'), 'create']);
             $definition->setArgument(0, $name);
-            // Public so the documented `$container->get('strands.client.<name>')`
-            // works at runtime: private definitions are inlined or removed when
-            // Symfony compiles the container, leaving named clients reachable
-            // only through #[Autowire] injection.
+            // Keep the documented named lookup public because Symfony may inline or remove private definitions.
+            // Apps can then use either `$container->get('strands.client.<name>')` or #[Autowire] to select an agent.
             $definition->setPublic(true);
 
             $container->setDefinition($serviceId, $definition);

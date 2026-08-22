@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 /**
  * Exercises raw SSE chunks before typed events reach an application's live callback.
+ *
  * It covers framing, line endings, partial delivery, malformed JSON, and future event types.
  * Failures here mean a live UI could lose, duplicate, or misclassify an agent update.
  */
@@ -37,8 +38,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "parse simple text stream" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "parse simple text stream" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -60,8 +60,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "parse crlf delimited stream" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "parse crlf delimited stream" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -83,8 +82,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "parse crlf split across chunks" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "parse crlf split across chunks" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -103,8 +101,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "skips heartbeat comments" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "skips heartbeat comments" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -122,8 +119,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "error mid stream" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "error mid stream" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -142,8 +138,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "incremental chunks" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "incremental chunks" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -164,8 +159,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "terminal event detection" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "terminal event detection" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -182,8 +176,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "empty chunk returns no events" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "empty chunk returns no events" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -207,8 +200,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "parse tool use event" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "parse tool use event" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -236,8 +228,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "parse tool result event" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "parse tool result event" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -255,8 +246,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "parse thinking event" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "parse thinking event" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -273,8 +263,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "tool use is not terminal" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "tool use is not terminal" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -289,8 +278,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "thinking is not terminal" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "thinking is not terminal" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -305,8 +293,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "tool result with json result" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "tool result with json result" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -323,8 +310,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "skips unknown event types" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "skips unknown event types" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -342,8 +328,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "stream event from array throws on unknown type" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "stream event from array throws on unknown type" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -356,8 +341,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "stream event from array throws on missing type" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "stream event from array throws on missing type" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -370,8 +354,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "skips event with missing type field" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "skips event with missing type field" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -389,8 +372,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "skips malformed json without corrupting buffer" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "skips malformed json without corrupting buffer" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -410,8 +392,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "buffer recovery after malformed json" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "buffer recovery after malformed json" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -436,12 +417,14 @@ class StreamParserTest extends TestCase
      */
     private function rawForCompleteEventWithMultipleToolsUsed(): string
     {
-        return "data: {\"type\": \"complete\", \"text\": \"Result\", \"session_id\": \"s1\", \"usage\": {}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100, \"input\": {\"query\": \"docs\"}, \"result\": {\"count\": 2}}, {\"name\": \"calc\", \"duration_ms\": 50}]}\n\n";
+        return 'data: {"type": "complete", "text": "Result", "session_id": "s1", "usage": {}, '
+            . '"tools_used": [{"name": "search", "duration_ms": 100, '
+            . '"input": {"query": "docs"}, "result": {"count": 2}}, '
+            . '{"name": "calc", "duration_ms": 50}]}' . "\n\n";
     }
 
     /**
-     * Covers "complete event with multiple tools used" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "complete event with multiple tools used" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -474,8 +457,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "multiple data lines joined with newline" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "multiple data lines joined with newline" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -493,8 +475,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "skipped events counter tracks parse errors" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "skipped events counter tracks parse errors" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -515,8 +496,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "feed sets has objective flag when true" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "feed sets has objective flag when true" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -532,8 +512,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "has objective defaults false for non boolean values" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "has objective defaults false for non boolean values" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -549,8 +528,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "citation event parsed" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "citation event parsed" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -567,8 +545,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "reasoning signature event parsed" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "reasoning signature event parsed" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -585,8 +562,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "reasoning redacted event parsed" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "reasoning redacted event parsed" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -602,8 +578,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "buffer overflow throws stream interrupted exception" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "buffer overflow throws stream interrupted exception" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -617,14 +592,14 @@ class StreamParserTest extends TestCase
         $this->expectException(StreamInterruptedException::class);
         $this->expectExceptionMessage('SSE buffer exceeded');
 
-        for ($i = 0; $i < 11; $i++) {
+        // Repeated unfinished chunks cross the safety limit before any live update can reach the user.
+        for ($chunkIndex = 0; $chunkIndex < 11; $chunkIndex++) {
             $streamParser->feed($chunk);
         }
     }
 
     /**
-     * Covers "buffer does not throw below limit" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "buffer does not throw below limit" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -634,7 +609,8 @@ class StreamParserTest extends TestCase
 
         // Nine megabytes without a delimiter stays below the safety cap, so the user's stream remains open.
         $chunk = str_repeat('x', 1024 * 1024);
-        for ($i = 0; $i < 9; $i++) {
+        // Repeated unfinished chunks remain safe while their total stays below the limit.
+        for ($chunkIndex = 0; $chunkIndex < 9; $chunkIndex++) {
             $streamParser->feed($chunk);
         }
 
@@ -643,8 +619,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "large chunk with bounded frames does not trigger buffer limit" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "large chunk with bounded frames does not trigger buffer limit" so network chunks cannot corrupt the live event sequence.
      *
      * @return void The assertions protect proxies that coalesce multiple sub-10 MB events into one network callback.
      */
@@ -660,8 +635,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "try from array returns null for unparseable event shape" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "try from array returns null for unparseable event shape" so network chunks cannot corrupt the live event sequence.
      *
      * @param array<string, mixed> $payload Wire-shape payload that cannot resolve to a known event type.
      * @return void
@@ -686,8 +660,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "try from array returns event on known type" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "try from array returns event on known type" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -704,8 +677,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "try from array returns complete event" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "try from array returns complete event" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -728,8 +700,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "skips unknown event in fixture stream" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "skips unknown event in fixture stream" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -749,15 +720,15 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "complete event parses stop reason" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "complete event parses stop reason" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
     public function testCompleteEventParsesStopReason(): void
     {
         $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"complete\", \"text\": \"Done\", \"session_id\": \"s-1\", \"usage\": {}, \"tools_used\": [], \"stop_reason\": \"end_turn\"}\n\n";
+        $raw = 'data: {"type": "complete", "text": "Done", "session_id": "s-1", '
+            . '"usage": {}, "tools_used": [], "stop_reason": "end_turn"}' . "\n\n";
 
         $events = $streamParser->feed($raw);
 
@@ -767,8 +738,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "complete event parses context size fields" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "complete event parses context size fields" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -785,8 +755,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "data with space vs without space parses differently" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "data with space vs without space parses differently" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -811,8 +780,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "comment line continues parsing remaining lines" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "comment line continues parsing remaining lines" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -833,8 +801,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "empty data block returns no event" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "empty data block returns no event" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -854,8 +821,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "crlf normalization required" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "crlf normalization required" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -880,8 +846,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "buffer advancement after event parsed" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "buffer advancement after event parsed" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -901,8 +866,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "has objective defaults false when missing" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "has objective defaults false when missing" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -917,8 +881,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "stream event constructor defaults false for has objective" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "stream event constructor defaults false for has objective" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -939,12 +902,13 @@ class StreamParserTest extends TestCase
      */
     private function rawForToolsUsedFiltersMalformedEntries(): string
     {
-        return "data: {\"type\": \"complete\", \"text\": \"Done\", \"session_id\": null, \"usage\": {}, \"tools_used\": [{\"name\": \"search\", \"duration_ms\": 100}, {\"no_name\": true}, \"not_array\", {\"name\": 123}]}\n\n";
+        return 'data: {"type": "complete", "text": "Done", "session_id": null, "usage": {}, '
+            . '"tools_used": [{"name": "search", "duration_ms": 100}, '
+            . '{"no_name": true}, "not_array", {"name": 123}]}' . "\n\n";
     }
 
     /**
-     * Covers "tools used filters malformed entries" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "tools used filters malformed entries" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -962,15 +926,17 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "multiple interrupts in complete event" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "multiple interrupts in complete event" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
     public function testMultipleInterruptsInCompleteEvent(): void
     {
         $streamParser = new StreamParser();
-        $raw = 'data: {"type": "complete", "text": "", "session_id": null, "usage": {}, "tools_used": [], "stop_reason": "interrupt", "interrupts": [{"tool_name": "deploy", "interrupt_id": "i1", "reason": "Approve"}, {"tool_name": "scale", "interrupt_id": "i2", "reason": "Confirm"}]}' . "\n\n";
+        $raw = 'data: {"type": "complete", "text": "", "session_id": null, "usage": {}, '
+            . '"tools_used": [], "stop_reason": "interrupt", '
+            . '"interrupts": [{"tool_name": "deploy", "interrupt_id": "i1", "reason": "Approve"}, '
+            . '{"tool_name": "scale", "interrupt_id": "i2", "reason": "Confirm"}]}' . "\n\n";
 
         $events = $streamParser->feed($raw);
 
@@ -981,15 +947,16 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "guardrail trace from nested trace key" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "guardrail trace from nested trace key" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
     public function testGuardrailTraceFromNestedTraceKey(): void
     {
         $streamParser = new StreamParser();
-        $raw = 'data: {"type": "complete", "text": "", "session_id": null, "usage": {}, "tools_used": [], "trace": {"guardrail": {"action": "BLOCKED", "guardrail_id": "g1"}}}' . "\n\n";
+        $raw = 'data: {"type": "complete", "text": "", "session_id": null, "usage": {}, '
+            . '"tools_used": [], '
+            . '"trace": {"guardrail": {"action": "BLOCKED", "guardrail_id": "g1"}}}' . "\n\n";
 
         $events = $streamParser->feed($raw);
 
@@ -1000,15 +967,16 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "guardrail trace top level takes precedence" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "guardrail trace top level takes precedence" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
     public function testGuardrailTraceTopLevelTakesPrecedence(): void
     {
         $streamParser = new StreamParser();
-        $raw = 'data: {"type": "complete", "text": "", "session_id": null, "usage": {}, "tools_used": [], "guardrail_trace": {"action": "TOP"}, "trace": {"guardrail": {"action": "NESTED"}}}' . "\n\n";
+        $raw = 'data: {"type": "complete", "text": "", "session_id": null, "usage": {}, '
+            . '"tools_used": [], "guardrail_trace": {"action": "TOP"}, '
+            . '"trace": {"guardrail": {"action": "NESTED"}}}' . "\n\n";
 
         $events = $streamParser->feed($raw);
 
@@ -1017,8 +985,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "guardrail trace null when trace key is not array" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "guardrail trace null when trace key is not array" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -1034,8 +1001,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "citation event parsed correctly" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "citation event parsed correctly" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -1053,8 +1019,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "crlf split across chunks" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "crlf split across chunks" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -1072,8 +1037,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "bare trailing cr normalised without following lf" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "bare trailing cr normalised without following lf" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -1092,8 +1056,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "partial event at eof remains in buffer" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "partial event at eof remains in buffer" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -1112,8 +1075,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "trailing newline after last event does not create phantom event" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "trailing newline after last event does not create phantom event" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -1128,8 +1090,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "consecutive empty event boundaries skipped" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "consecutive empty event boundaries skipped" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */
@@ -1146,8 +1107,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Covers "stream sse eof mid event is discarded" so network chunks cannot corrupt the live event sequence.
-     * Use this regression case when SSE framing or event hydration changes.
+     * Protects "stream sse eof mid event is discarded" so network chunks cannot corrupt the live event sequence.
      *
      * @return void
      */

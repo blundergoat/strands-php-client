@@ -7,10 +7,8 @@ namespace StrandsPhpClient\Auth;
 /**
  * Contract for attaching credentials to every request before it leaves the app.
  *
- * Each outgoing call to the agent passes through the configured strategy so the
- * service can recognise the caller — an API key, an AWS SigV4 signature, or
- * nothing at all for local development. Swapping strategies changes how the app
- * authenticates without touching any calling code.
+ * Every invoke or stream call uses the selected API-key, SigV4, or no-auth strategy.
+ * Use it to change gateway authentication without changing application call sites.
  */
 interface AuthStrategy
 {

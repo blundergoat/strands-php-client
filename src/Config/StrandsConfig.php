@@ -10,10 +10,8 @@ use StrandsPhpClient\Auth\NullAuth;
 /**
  * Everything the client needs to reach one Strands agent.
  *
- * Bundles the agent's endpoint URL, how to authenticate, how long to wait, and
- * how to retry transient failures — the single object an app builds (directly or
- * from Laravel/Symfony config) and hands to the client. Values are validated on
- * construction so a misconfigured agent fails fast at startup, not mid-request.
+ * It combines the endpoint, authentication, timeouts, and retry behavior used for each request.
+ * Apps build it directly or through framework config; invalid values fail at startup rather than during a user's call.
  */
 class StrandsConfig
 {
@@ -79,44 +77,44 @@ class StrandsConfig
     /**
      * Validate that an integer option is at least the configured minimum.
      *
-     * @param string $name  Option name used in exception messages.
-     * @param int    $value Option value supplied by the caller.
-     * @param int    $min   Inclusive minimum value.
+     * @param string $optionName Option name shown when app configuration is invalid.
+     * @param int $configuredValue Value supplied by the app.
+     * @param int $minimum Inclusive minimum accepted for this option.
      *
      * @return void
      *
      * @throws \InvalidArgumentException If the value is below the minimum.
      */
-    private static function assertMinimum(string $name, int $value, int $min): void
+    private static function assertMinimum(string $optionName, int $configuredValue, int $minimum): void
     {
         // Meets the floor, so this timeout/retry value is safe to use as configured.
-        if ($value >= $min) {
+        if ($configuredValue >= $minimum) {
             return;
         }
 
-        throw new \InvalidArgumentException(sprintf('%s must be at least %d', $name, $min));
+        throw new \InvalidArgumentException(sprintf('%s must be at least %d', $optionName, $minimum));
     }
 
     /**
      * Validate that an integer option falls inside an inclusive range.
      *
-     * @param string $name  Option name used in exception messages.
-     * @param int    $value Option value supplied by the caller.
-     * @param int    $min   Inclusive minimum value.
-     * @param int    $max   Inclusive maximum value.
+     * @param string $optionName Option name shown when app configuration is invalid.
+     * @param int $configuredValue Value supplied by the app.
+     * @param int $minimum Inclusive minimum accepted for this option.
+     * @param int $maximum Inclusive maximum accepted for this option.
      *
      * @return void
      *
      * @throws \InvalidArgumentException If the value falls outside the range.
      */
-    private static function assertRange(string $name, int $value, int $min, int $max): void
+    private static function assertRange(string $optionName, int $configuredValue, int $minimum, int $maximum): void
     {
         // Sits inside the allowed band, so accept the value the app configured.
-        if ($value >= $min && $value <= $max) {
+        if ($configuredValue >= $minimum && $configuredValue <= $maximum) {
             return;
         }
 
-        throw new \InvalidArgumentException(sprintf('%s must be between %d and %d', $name, $min, $max));
+        throw new \InvalidArgumentException(sprintf('%s must be between %d and %d', $optionName, $minimum, $maximum));
     }
 
     /**

@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Stream Event Citation behavior for app integrations.
+ * Exercises caller-visible Stream Event Citation behavior for app integrations.
+ *
+ * Use this file when changing Stream Event Citation or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Streaming;
@@ -14,12 +17,15 @@ use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 
 /**
- * Verifies Stream Event Citation behavior that application users rely on.
+ * Exercises Stream Event Citation through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class StreamEventCitationTest extends TestCase
 {
     /**
-     * Verifies that get citation object returns typed citation.
+     * Confirms getCitationObject() returns typed citation so live answer updates and completion state stay reliable.
      *
      * @return void
      */
@@ -44,7 +50,7 @@ class StreamEventCitationTest extends TestCase
     }
 
     /**
-     * Verifies that get citation object returns null when no citation.
+     * Confirms getCitationObject() returns null when no citation so live answer updates and completion state stay reliable.
      *
      * @return void
      */
@@ -56,7 +62,7 @@ class StreamEventCitationTest extends TestCase
     }
 
     /**
-     * Verifies that get citation object handles partial data.
+     * Confirms getCitationObject() handles partial data so live answer updates and completion state stay reliable.
      *
      * @return void
      */
@@ -79,7 +85,7 @@ class StreamEventCitationTest extends TestCase
     }
 
     /**
-     * Verifies that get citation object preserves flat citation data.
+     * Confirms getCitationObject() preserves flat citation data so live answer updates and completion state stay reliable.
      *
      * @return void
      */

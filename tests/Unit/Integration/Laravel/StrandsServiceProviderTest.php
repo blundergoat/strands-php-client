@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Strands Service Provider behavior for app integrations.
+ * Exercises caller-visible Strands Service Provider behavior for app integrations.
+ *
+ * Use this file when changing Strands Service Provider or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Integration\Laravel;
@@ -20,12 +23,15 @@ use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
 /**
- * Verifies Strands Service Provider behavior that application users rely on.
+ * Exercises Strands Service Provider through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class StrandsServiceProviderTest extends TestCase
 {
     /**
-     * Verifies that config file exists.
+     * Confirms config file exists so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -37,7 +43,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Verifies that config returns array.
+     * Confirms config returns array so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -49,7 +55,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Verifies that config has default key.
+     * Confirms config has default key so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -61,7 +67,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Verifies that config has agents key.
+     * Confirms config has agents key so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -74,7 +80,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Verifies that config default agent has required keys.
+     * Confirms config default agent has required keys so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -93,7 +99,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Verifies that config auth has required keys.
+     * Confirms config auth has required keys so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -110,7 +116,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Verifies that config defaults.
+     * Confirms config defaults so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -129,7 +135,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Verifies that factory receives tagged middleware.
+     * Confirms factory receives tagged middleware so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -162,7 +168,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Verifies that register resolves factory default and named client bindings.
+     * Confirms registration resolves the factory, default client, and named clients so framework users can inject the intended assistant.
      *
      * @return void
      */
@@ -208,6 +214,9 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
+     * Build the small Laravel container used to exercise package registration as an application would.
+     * Empty middleware means the app registered no request hooks.
+     *
      * @param array{
      *   default: string,
      *   agents: array<string, array{
@@ -218,10 +227,9 @@ class StrandsServiceProviderTest extends TestCase
      *     max_retries?: int,
      *     retry_delay_ms?: int
      *   }>
-     * } $strandsConfig
-     * @param list<RequestMiddleware> $taggedMiddleware Laravel middleware services tagged for the client.
-     * @param array $strandsConfig Laravel config used to build the test app.
-     * @return Application Value returned to app code.
+     * } $strandsConfig Required Laravel settings; an empty map cannot identify a default agent.
+     * @param list<RequestMiddleware> $taggedMiddleware Tagged app hooks; empty means requests run without middleware.
+     * @return Application Registered test application; never null or empty.
      */
     private function createRegisteredApplication(array $strandsConfig, array $taggedMiddleware = []): Application
     {
@@ -237,6 +245,7 @@ class StrandsServiceProviderTest extends TestCase
         $config = $this->createMock(ConfigRepository::class);
         $config->method('get')->willReturnCallback(
             function ($key, $default = null) use (&$configState): mixed {
+                // Laravel returns the caller's fallback when app code asks for an empty or non-string config key.
                 if (!is_string($key) || $key === '') {
                     return $default;
                 }
@@ -244,9 +253,12 @@ class StrandsServiceProviderTest extends TestCase
                 return $this->getNestedConfigValue($configState, $key, $default);
             },
         );
-        $config->method('set')->willReturnCallback(function ($key, $value = null) use (&$configState): void {
+        $config->method('set')->willReturnCallback(function ($key, $configValue = null) use (&$configState): void {
+            // Laravel accepts a map when package registration writes several config values in one call.
             if (is_array($key)) {
+                // Apply every named config entry so the test container mirrors Laravel's repository behavior.
                 foreach ($key as $nestedKey => $nestedValue) {
+                    // Empty or numeric keys cannot identify app config and are ignored just as an invalid caller key would be.
                     if (is_string($nestedKey) && $nestedKey !== '') {
                         $this->setNestedConfigValue($configState, $nestedKey, $nestedValue);
                     }
@@ -255,15 +267,17 @@ class StrandsServiceProviderTest extends TestCase
                 return;
             }
 
+            // A single named key updates the value the service provider will read when it creates the client.
             if (is_string($key) && $key !== '') {
-                $this->setNestedConfigValue($configState, $key, $value);
+                $this->setNestedConfigValue($configState, $key, $configValue);
             }
         });
 
         $app = $this->createMock(Application::class);
         $app->method('tagged')->willReturnCallback(
-            function (string $tag) use ($taggedMiddleware): iterable {
-                if ($tag === 'strands.middleware') {
+            function (string $serviceTag) use ($taggedMiddleware): iterable {
+                // The package asks for this tag when an app has registered tracing, headers, or other request hooks.
+                if ($serviceTag === 'strands.middleware') {
                     return $taggedMiddleware;
                 }
 
@@ -272,6 +286,7 @@ class StrandsServiceProviderTest extends TestCase
         );
         $app->method('singleton')->willReturnCallback(
             function ($abstract, $concrete = null) use (&$bindings, $app): Application {
+                // A malformed binding would make Laravel unable to resolve the client the user's controller requested.
                 if (!is_string($abstract) || !is_callable($concrete)) {
                     throw new \RuntimeException('Invalid singleton binding in test harness.');
                 }
@@ -283,22 +298,27 @@ class StrandsServiceProviderTest extends TestCase
         );
         $app->method('make')->willReturnCallback(
             function ($abstract) use (&$bindings, &$instances, $config, $app): mixed {
+                // The package resolves Laravel's config repository while registering agent definitions.
                 if ($abstract === 'config') {
                     return $config;
                 }
 
+                // Client creation asks the container for a logger that records failures without changing the user response.
                 if ($abstract === LoggerInterface::class) {
                     return new NullLogger();
                 }
 
+                // An empty or non-string service key cannot identify the client dependency app code requested.
                 if (!is_string($abstract) || $abstract === '') {
                     throw new \RuntimeException('Invalid abstract requested in test harness.');
                 }
 
+                // Singleton services return the same client or factory instance on later application requests.
                 if (array_key_exists($abstract, $instances)) {
                     return $instances[$abstract];
                 }
 
+                // A missing binding means the package did not register something the consuming app attempted to resolve.
                 if (!array_key_exists($abstract, $bindings)) {
                     throw new \RuntimeException(sprintf('No binding found for "%s".', $abstract));
                 }
@@ -316,57 +336,64 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Supports the get nested config value step in the app-facing flow.
+     * Read one dotted Laravel config path while the test container resolves an agent.
+     * Use it to mirror values such as strands.default that application code expects from the real repository.
      *
      * @param array<string, mixed> $config client settings chosen by the application.
-     * @param string $path request path that becomes part of the signed URL.
-     * @param mixed $default Fallback returned when app config is missing.
-     * @return mixed Value returned to app code.
+     * @param string $configPath Dotted config path; empty cannot resolve a setting and returns the fallback.
+     * @param mixed $default Fallback for missing config; null means the caller wants absence represented as null.
+     * @return mixed Configured value or the fallback; null only when the value is missing and the fallback is null.
      */
-    private function getNestedConfigValue(array $config, string $path, mixed $default = null): mixed
+    private function getNestedConfigValue(array $config, string $configPath, mixed $default = null): mixed
     {
-        $value = $config;
+        $resolvedConfigValue = $config;
 
-        foreach (explode('.', $path) as $segment) {
-            if (!is_array($value) || !array_key_exists($segment, $value)) {
+        // Resolve each segment so a controller asking for strands.default sees the same value as in Laravel.
+        foreach (explode('.', $configPath) as $configSegment) {
+            // Missing or scalar intermediate values mean this config path is absent, so return the caller's fallback.
+            if (!is_array($resolvedConfigValue) || !array_key_exists($configSegment, $resolvedConfigValue)) {
                 return $default;
             }
 
-            $value = $value[$segment];
+            $resolvedConfigValue = $resolvedConfigValue[$configSegment];
         }
 
-        return $value;
+        return $resolvedConfigValue;
     }
 
     /**
-     * Supports the set nested config value step in the app-facing flow.
+     * Write one dotted Laravel config path while the package registers an agent.
+     * Use it to mirror package defaults and explicit null or empty values exactly as the real repository stores them.
      *
      * @param array<string, mixed> $config client settings chosen by the application.
-     * @param string $path request path that becomes part of the signed URL.
-     * @param mixed $value Payload value stored for the agent call.
+     * @param string $configPath Dotted config path; empty means there is no setting to update.
+     * @param mixed $configValue Value stored for the app; null or empty remains an intentional configured value.
      * @return void No returned value; updates client or observer state.
      */
-    private function setNestedConfigValue(array &$config, string $path, mixed $value): void
+    private function setNestedConfigValue(array &$config, string $configPath, mixed $configValue): void
     {
-        $segments = explode('.', $path);
-        $last = array_pop($segments);
+        $configSegments = explode('.', $configPath);
+        $finalConfigSegment = array_pop($configSegments);
 
-        if ($last === null || $last === '') {
+        // An empty final segment cannot name a Laravel setting, so leave the app config unchanged.
+        if ($finalConfigSegment === null || $finalConfigSegment === '') {
             return;
         }
 
-        $node = &$config;
+        $currentConfigNode = &$config;
 
-        foreach ($segments as $segment) {
-            if (!isset($node[$segment]) || !is_array($node[$segment])) {
-                $node[$segment] = [];
+        // Create each missing parent map so the requested dotted setting can be stored for client registration.
+        foreach ($configSegments as $configSegment) {
+            // A missing or scalar parent becomes a map, matching Laravel's nested configuration behavior.
+            if (!isset($currentConfigNode[$configSegment]) || !is_array($currentConfigNode[$configSegment])) {
+                $currentConfigNode[$configSegment] = [];
             }
 
-            /** @var array<string, mixed> $node validated before app code uses it. */
-            $node = &$node[$segment];
+            /** @var array<string, mixed> $currentConfigNode Parent map used by the next dotted segment. */
+            $currentConfigNode = &$currentConfigNode[$configSegment];
         }
 
-        $node[$last] = $value;
+        $currentConfigNode[$finalConfigSegment] = $configValue;
     }
 
     /**

@@ -7,9 +7,8 @@ namespace StrandsPhpClient\Response\Citation;
 /**
  * Where in a source a citation points, so the app can deep-link to it.
  *
- * Depending on the source type this holds a URL and title for web results, page
- * ranges for documents, character/chunk offsets for exact spans, or the search
- * query and rank that surfaced it. Fields stay null when they don't apply.
+ * It holds web links, document pages, exact content offsets, or search-result details when available.
+ * Apps use the relevant fields to open or highlight a source; unrelated fields remain null.
  */
 final readonly class CitationLocation
 {
@@ -18,17 +17,17 @@ final readonly class CitationLocation
      *
      * Usually built by fromArray() from a response citation block.
      *
-     * @param string|null $type                  Location type (e.g. 'DOCUMENT', 'WEB', 'SEARCH_RESULT').
-     * @param int|null    $startCharacterIndex    Start character offset in source content.
-     * @param int|null    $endCharacterIndex      End character offset in source content.
-     * @param int|null    $startChunkIndex        Start chunk index.
-     * @param int|null    $endChunkIndex          End chunk index.
-     * @param int|null    $startPageIndex         Start page index (documents).
-     * @param int|null    $endPageIndex           End page index (documents).
-     * @param string|null $url                    Source URL (web citations).
-     * @param string|null $title                  Source title.
-     * @param string|null $searchQuery            Search query that found this source.
-     * @param int|null    $searchResultRank       Rank in search results.
+     * @param string|null $type Location type; null means unknown, while an empty string is preserved.
+     * @param int|null $startCharacterIndex Start character; null means the UI cannot highlight an exact range.
+     * @param int|null $endCharacterIndex End character; null means the UI cannot highlight an exact range.
+     * @param int|null $startChunkIndex First content chunk; null means no chunk range was reported.
+     * @param int|null $endChunkIndex Last content chunk; null means no chunk range was reported.
+     * @param int|null $startPageIndex First document page; null means no page range was reported.
+     * @param int|null $endPageIndex Last document page; null means no page range was reported.
+     * @param string|null $url Source link; null means unavailable, while an empty string is preserved.
+     * @param string|null $title Source title; null means unavailable, while an empty string is preserved.
+     * @param string|null $searchQuery Query that found the source; null means no search context was reported.
+     * @param int|null $searchResultRank Result rank; null means no search position was reported.
      */
     public function __construct(
         public ?string $type = null,
@@ -48,64 +47,64 @@ final readonly class CitationLocation
     /**
      * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
+     * @param array<string, mixed> $data Raw location map; an empty map creates all-null fields the UI can omit.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {
         return new self(
-            type: self::string($data, 'type'),
-            startCharacterIndex: self::int($data, 'start_character_index'),
-            endCharacterIndex: self::int($data, 'end_character_index'),
-            startChunkIndex: self::int($data, 'start_chunk_index'),
-            endChunkIndex: self::int($data, 'end_chunk_index'),
-            startPageIndex: self::int($data, 'start_page_index'),
-            endPageIndex: self::int($data, 'end_page_index'),
-            url: self::string($data, 'url'),
-            title: self::string($data, 'title'),
-            searchQuery: self::string($data, 'search_query'),
-            searchResultRank: self::int($data, 'search_result_rank'),
+            type: self::optionalStringField($data, 'type'),
+            startCharacterIndex: self::optionalIntegerField($data, 'start_character_index'),
+            endCharacterIndex: self::optionalIntegerField($data, 'end_character_index'),
+            startChunkIndex: self::optionalIntegerField($data, 'start_chunk_index'),
+            endChunkIndex: self::optionalIntegerField($data, 'end_chunk_index'),
+            startPageIndex: self::optionalIntegerField($data, 'start_page_index'),
+            endPageIndex: self::optionalIntegerField($data, 'end_page_index'),
+            url: self::optionalStringField($data, 'url'),
+            title: self::optionalStringField($data, 'title'),
+            searchQuery: self::optionalStringField($data, 'search_query'),
+            searchResultRank: self::optionalIntegerField($data, 'search_result_rank'),
         );
     }
 
     /**
      * Read an optional string location field, ignoring malformed values.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     * @param string $key Location field to read (e.g. 'url', 'title').
+     * @param array<string, mixed> $locationData Raw location JSON; empty means the citation has no jump target.
+     * @param string $fieldName Location field to read, such as url or title.
      * @return ?string The value for the app to display, or null when absent.
      */
-    private static function string(array $data, string $key): ?string
+    private static function optionalStringField(array $locationData, string $fieldName): ?string
     {
-        $value = $data[$key] ?? null;
+        $fieldValue = $locationData[$fieldName] ?? null;
 
-        return is_string($value) ? $value : null;
+        return is_string($fieldValue) ? $fieldValue : null;
     }
 
     /**
      * Read an optional numeric offset (page/chunk/character), tolerating wire quirks.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     * @param string $key Location field to read (e.g. 'start_page_index').
+     * @param array<string, mixed> $locationData Raw location JSON; empty means the citation has no numeric offset.
+     * @param string $fieldName Location field to read, such as start_page_index.
      * @return ?int The offset the app can jump to, or null when absent.
      */
-    private static function int(array $data, string $key): ?int
+    private static function optionalIntegerField(array $locationData, string $fieldName): ?int
     {
-        $value = $data[$key] ?? null;
+        $fieldValue = $locationData[$fieldName] ?? null;
 
         // Already an integer index — hand it back directly.
-        if (is_int($value)) {
-            return $value;
+        if (is_int($fieldValue)) {
+            return $fieldValue;
         }
 
         // A float index gets rounded to the nearest whole position.
-        if (is_float($value)) {
-            return (int) round($value);
+        if (is_float($fieldValue)) {
+            return (int) round($fieldValue);
         }
 
         // A numeric string (e.g. "3") is accepted and coerced.
-        if (is_string($value) && is_numeric($value)) {
-            return (int) round((float) $value);
+        if (is_string($fieldValue) && is_numeric($fieldValue)) {
+            return (int) round((float) $fieldValue);
         }
 
         return null;

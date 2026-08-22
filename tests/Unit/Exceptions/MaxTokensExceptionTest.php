@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Max Tokens Exception behavior for app integrations.
+ * Exercises caller-visible Max Tokens Exception behavior for app integrations.
+ *
+ * Use this file when changing Max Tokens Exception or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Exceptions;
@@ -13,12 +16,15 @@ use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\MaxTokensException;
 
 /**
- * Verifies Max Tokens Exception behavior that application users rely on.
+ * Exercises Max Tokens Exception through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class MaxTokensExceptionTest extends TestCase
 {
     /**
-     * Verifies that extends agent error exception.
+     * Confirms MaxTokensException extends AgentErrorException so the app can handle all agent failures consistently.
      *
      * @return void
      */
@@ -32,7 +38,7 @@ class MaxTokensExceptionTest extends TestCase
     }
 
     /**
-     * Verifies that caught by agent error exception catch.
+     * Confirms a parent catch handles max tokens so the app can show or recover from the right failure.
      *
      * @return void
      * @throws AgentErrorException When the max-token catch-path is exercised.
@@ -44,6 +50,7 @@ class MaxTokensExceptionTest extends TestCase
         try {
             throw new MaxTokensException('Max tokens', statusCode: 400);
         } catch (AgentErrorException $maxTokensException) {
+            // For example, an app-wide agent error handler can catch a truncated answer and offer the user a continue action.
             $caught = true;
         }
 

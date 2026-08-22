@@ -12,10 +12,8 @@ use StrandsPhpClient\Streaming\StreamSseSummary;
 /**
  * Fans one parsed agent result out to every registered response observer.
  *
- * StrandsClient builds this from the app's middleware and observer lists, so a
- * class registered as both (common under Symfony auto-configuration) still hears
- * each result exactly once. An observer that throws is logged and skipped —
- * telemetry problems never break the user's request.
+ * It deduplicates app observers registered directly or through middleware, then notifies each once.
+ * Observer failures are logged and skipped so telemetry never replaces the user's answer with an error.
  */
 final class ResponseObserverNotifier implements ResponseObserver
 {
@@ -26,7 +24,7 @@ final class ResponseObserverNotifier implements ResponseObserver
      * Collect every observer to notify, including observers registered as middleware.
      *
      * @param list<RequestMiddleware> $middleware        Request middleware the app registered; entries that also observe responses are auto-detected.
-     * @param list<ResponseObserver>  $responseObservers Observers the app registered explicitly; empty when it relies on middleware auto-detection alone.
+     * @param list<ResponseObserver> $responseObservers Explicit observers; empty means middleware supplies every observer.
      * @param LoggerInterface         $logger            Logger that records observer failures without interrupting the user's request.
      */
     public function __construct(
@@ -125,20 +123,18 @@ final class ResponseObserverNotifier implements ResponseObserver
             static fn (RequestMiddleware $requestMiddleware): bool => $requestMiddleware instanceof ResponseObserver,
         ));
 
-        // Dedupe by object identity. A class implementing both RequestMiddleware
-        // and ResponseObserver is auto-tagged into both lists under Symfony's
-        // registerForAutoconfiguration, so without dedup each afterInvoke /
-        // afterStream / afterResponse would fire twice for the same observer.
-        $seen = [];
+        // Symfony can register one class as middleware and observer, so deduplicate by object identity.
+        // This keeps each completed user request from producing the same metric or trace twice.
+        $seenObserverIds = [];
 
         return array_values(array_filter(
             [...$observerMiddleware, ...$responseObservers],
-            static function (ResponseObserver $responseObserver) use (&$seen): bool {
-                $id = spl_object_id($responseObserver);
-                $isNew = !isset($seen[$id]);
-                $seen[$id] = true;
+            static function (ResponseObserver $responseObserver) use (&$seenObserverIds): bool {
+                $observerId = spl_object_id($responseObserver);
+                $isNewObserver = !isset($seenObserverIds[$observerId]);
+                $seenObserverIds[$observerId] = true;
 
-                return $isNew;
+                return $isNewObserver;
             },
         ));
     }
@@ -153,13 +149,14 @@ final class ResponseObserverNotifier implements ResponseObserver
     private function notifyResponseObservers(callable $notify, string $hook): void
     {
         // Fan out to each observer; one that throws is logged, never breaking the user's call.
-        foreach ($this->responseObservers as $observer) {
+        foreach ($this->responseObservers as $responseObserver) {
             try {
-                $notify($observer);
-            } catch (\Throwable $e) {
+                $notify($responseObserver);
+            } catch (\Throwable $observerException) {
+                // For example, an app metrics exporter can be offline after a valid answer arrives; log it without replacing the user's result.
                 $this->logger->warning(sprintf('Response observer %s threw an exception', $hook), [
-                    'observer' => $observer::class,
-                    'error' => $e->getMessage(),
+                    'observer' => $responseObserver::class,
+                    'error' => $observerException->getMessage(),
                 ]);
             }
         }

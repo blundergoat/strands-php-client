@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Psr Http Transport behavior for app integrations.
+ * Exercises caller-visible Psr Http Transport behavior for app integrations.
+ *
+ * Use this file when changing Psr Http Transport or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -22,7 +25,10 @@ use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\PsrHttpTransport;
 
 /**
- * Verifies Psr Http Transport behavior that application users rely on.
+ * Exercises Psr Http Transport through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class PsrHttpTransportTest extends TestCase
 {
@@ -73,7 +79,7 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post returns decoded JSON.
+     * Confirms post() returns decoded JSON so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -89,12 +95,7 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post throws agent error on HTTP error.
-     *
-     * @return void
-     */
-    /**
-     * Verifies that post surfaces the agent error message from each documented error-response shape.
+     * Confirms post() surfaces the agent error message from each documented error-response shape so the app receives a clear answer or failure.
      *
      * @param string $responseBody Body returned by the mock PSR-7 response.
      * @param int $statusCode HTTP status the mock PSR-7 response reports.
@@ -126,7 +127,7 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post throws strands exception on invalid JSON.
+     * Confirms post() throws strands exception on invalid JSON so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -138,13 +139,14 @@ class PsrHttpTransportTest extends TestCase
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected StrandsException was not thrown');
-        } catch (StrandsException $e) {
-            $this->assertSame('Expected JSON object from http://example.com/invoke, got null', $e->getMessage());
+        } catch (StrandsException $strandsException) {
+            // For example, an upstream proxy can return HTML instead of JSON; the app needs a clear response-shape error.
+            $this->assertSame('Expected JSON object from http://example.com/invoke, got null', $strandsException->getMessage());
         }
     }
 
     /**
-     * Verifies that post wraps client exception.
+     * Confirms post() wraps client exception so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -164,7 +166,7 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post sends headers.
+     * Confirms post() sends headers so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -198,7 +200,7 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that stream throws strands exception.
+     * Confirms stream() throws strands exception so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -211,16 +213,17 @@ class PsrHttpTransportTest extends TestCase
             $psrHttpTransport->stream('http://example.com/stream', [], '{}', 30, 10, function () {
             });
             $this->fail('Expected StrandsException');
-        } catch (StrandsException $e) {
-            $this->assertStringContainsString('SSE streaming is not supported', $e->getMessage());
-            $this->assertStringContainsString('PsrHttpTransport', $e->getMessage());
-            $this->assertStringContainsString('symfony/http-client', $e->getMessage());
-            $this->assertStringContainsString('SymfonyHttpTransport', $e->getMessage());
+        } catch (StrandsException $strandsException) {
+            // For example, an app can accidentally request live updates with a PSR-18 client; the failure must point to the streaming transport.
+            $this->assertStringContainsString('SSE streaming is not supported', $strandsException->getMessage());
+            $this->assertStringContainsString('PsrHttpTransport', $strandsException->getMessage());
+            $this->assertStringContainsString('symfony/http-client', $strandsException->getMessage());
+            $this->assertStringContainsString('SymfonyHttpTransport', $strandsException->getMessage());
         }
     }
 
     /**
-     * Verifies that timeout warning logged once with context.
+     * Confirms the timeout warning is logged once with context so developers can correct unsupported PSR-18 timeout settings.
      *
      * @return void
      */
@@ -251,9 +254,9 @@ class PsrHttpTransportTest extends TestCase
 
         $psrHttpTransport = new PsrHttpTransport($httpClient, $psr17Factory, $psr17Factory, $logger);
 
-        // First call should log
+        // The first user request explains that timeout settings belong on the app's PSR-18 client.
         $firstResult = $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
-        // Second call should NOT log again (once-only)
+        // Later requests stay quiet so the same setup notice does not flood application logs.
         $secondResult = $psrHttpTransport->post('http://example.com/invoke', [], '{}', 60, 20);
 
         $this->assertSame(['text' => 'ok'], $firstResult);
@@ -261,7 +264,7 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post error prefers detail over error.
+     * Confirms post() error prefers detail over error so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -273,14 +276,15 @@ class PsrHttpTransportTest extends TestCase
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
-        } catch (AgentErrorException $e) {
-            $this->assertSame('Agent returned HTTP 422: Specific detail', $e->getMessage());
-            $this->assertSame(422, $e->statusCode);
+        } catch (AgentErrorException $agentErrorException) {
+            // For example, validation detail is more useful to the form UI than the wrapper's generic error field.
+            $this->assertSame('Agent returned HTTP 422: Specific detail', $agentErrorException->getMessage());
+            $this->assertSame(422, $agentErrorException->statusCode);
         }
     }
 
     /**
-     * Verifies that post error handles array detail.
+     * Confirms post() error handles array detail so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -292,13 +296,14 @@ class PsrHttpTransportTest extends TestCase
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
-        } catch (AgentErrorException $e) {
-            $this->assertSame('Agent returned HTTP 422: ["Error 1","Error 2"]', $e->getMessage());
+        } catch (AgentErrorException $agentErrorException) {
+            // For example, validation can return several field errors; the app still needs a readable exception message.
+            $this->assertSame('Agent returned HTTP 422: ["Error 1","Error 2"]', $agentErrorException->getMessage());
         }
     }
 
     /**
-     * Verifies that post error falls back to content when no detail or error.
+     * Confirms post() error falls back to content when no detail or error so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -310,13 +315,14 @@ class PsrHttpTransportTest extends TestCase
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
-        } catch (AgentErrorException $e) {
-            $this->assertSame('Agent returned HTTP 500: {"some_key":"value"}', $e->getMessage());
+        } catch (AgentErrorException $agentErrorException) {
+            // For example, a custom wrapper can omit standard error fields; preserve its body so the app still gets diagnostic context.
+            $this->assertSame('Agent returned HTTP 500: {"some_key":"value"}', $agentErrorException->getMessage());
         }
     }
 
     /**
-     * Verifies that post does not throw on 399 status code.
+     * Confirms post() does not throw on 399 status code so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -331,7 +337,7 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Verifies that post error includes response body.
+     * Confirms post() error includes response body so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -343,16 +349,17 @@ class PsrHttpTransportTest extends TestCase
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
-        } catch (AgentErrorException $e) {
-            $this->assertSame(422, $e->statusCode);
-            $this->assertIsArray($e->responseBody);
-            $this->assertSame('Validation failed', $e->responseBody['detail']);
-            $this->assertCount(1, $e->responseBody['errors']);
+        } catch (AgentErrorException $agentErrorException) {
+            // For example, a form can inspect structured field errors after the agent rejects the user's request.
+            $this->assertSame(422, $agentErrorException->statusCode);
+            $this->assertIsArray($agentErrorException->responseBody);
+            $this->assertSame('Validation failed', $agentErrorException->responseBody['detail']);
+            $this->assertCount(1, $agentErrorException->responseBody['errors']);
         }
     }
 
     /**
-     * Verifies that post error response body null for plain text.
+     * Confirms post() error response body null for plain text so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -364,13 +371,14 @@ class PsrHttpTransportTest extends TestCase
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected AgentErrorException');
-        } catch (AgentErrorException $e) {
-            $this->assertNull($e->responseBody);
+        } catch (AgentErrorException $agentErrorException) {
+            // For example, a plain-text gateway error has no structured fields for the UI, so its responseBody remains null.
+            $this->assertNull($agentErrorException->responseBody);
         }
     }
 
     /**
-     * Verifies that post does not double wrap strands exception.
+     * Confirms post() does not double wrap strands exception so the app receives a clear answer or failure.
      *
      * @return void
      */
@@ -382,9 +390,10 @@ class PsrHttpTransportTest extends TestCase
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
             $this->fail('Expected StrandsException');
-        } catch (StrandsException $e) {
-            $this->assertSame('Expected JSON object from http://example.com/invoke, got null', $e->getMessage());
-            $this->assertStringNotContainsString('HTTP request to agent failed', $e->getMessage());
+        } catch (StrandsException $strandsException) {
+            // For example, invalid JSON is already a caller-ready client error and must not be hidden behind a second transport message.
+            $this->assertSame('Expected JSON object from http://example.com/invoke, got null', $strandsException->getMessage());
+            $this->assertStringNotContainsString('HTTP request to agent failed', $strandsException->getMessage());
         }
     }
 }

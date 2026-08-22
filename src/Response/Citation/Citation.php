@@ -7,24 +7,20 @@ namespace StrandsPhpClient\Response\Citation;
 /**
  * One source the agent cited, normalized for display next to the answer.
  *
- * Lets the app show the user where a claim came from — a link and title, the
- * quoted source text, and which part of the generated answer it backs. Handles
- * both the structured wire shape and older flat source/title/text fields, so the
- * UI can render citations without caring which form the wrapper sent.
+ * It gives the UI a source link, quoted text, and the part of the answer that source supports.
+ * Apps can render both structured Wire Contract citations and legacy flat fields through the same object.
  */
 final readonly class Citation
 {
     /**
      * Create a normalized citation DTO.
      *
-     * @param CitationLocation|null $location Structured citation location, when supplied.
-     * @param CitationSourceContent|null $sourceContent Source content associated with the
-     * citation, when supplied.
-     * @param CitationGeneratedContent|null $generatedContent Generated content associated
-     * with the citation, when supplied.
-     * @param string|null $source Raw source string from the wire payload, when supplied.
-     * @param string|null $title Citation title from the wire payload, when supplied.
-     * @param string|null $text Citation text from the wire payload, when supplied.
+     * @param CitationLocation|null $location Structured location; null means the wrapper supplied no location details.
+     * @param CitationSourceContent|null $sourceContent Source passage; null means the wrapper supplied no quoted content.
+     * @param CitationGeneratedContent|null $generatedContent Answer passage; null means no generated text was linked to the source.
+     * @param string|null $source Legacy source value; null means the wrapper omitted it, while an empty string is preserved.
+     * @param string|null $title Display title; null means unavailable, while an empty string is preserved.
+     * @param string|null $text Legacy citation text; null means unavailable, while an empty string is preserved.
      */
     public function __construct(
         public ?CitationLocation $location = null,
@@ -39,7 +35,7 @@ final readonly class Citation
     /**
      * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
+     * @param array<string, mixed> $data Raw decoded citation; an empty map creates an all-null citation the UI can omit.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
@@ -50,9 +46,9 @@ final readonly class Citation
         $sourceData = is_array($data['source_content'] ?? null) ? $data['source_content'] : [];
         /** @var array<string, mixed> $generatedData validated before app code uses it. */
         $generatedData = is_array($data['generated_content'] ?? null) ? $data['generated_content'] : [];
-        $source = self::string($data, 'source');
-        $title = self::string($data, 'title');
-        $text = self::string($data, 'text');
+        $source = self::optionalStringField($data, 'source');
+        $title = self::optionalStringField($data, 'title');
+        $text = self::optionalStringField($data, 'text');
 
         // Older wrappers send a flat source/title instead of a location block —
         // rebuild one so the app always has a link/title to show.
@@ -78,15 +74,15 @@ final readonly class Citation
     /**
      * Reads an optional citation string without leaking malformed wire values.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     * @param string $key citation field to read.
+     * @param array<string, mixed> $citationData Raw decoded citation JSON; empty means the wrapper supplied no citation fields.
+     * @param string $fieldName Citation field to read.
      * @return ?string Citation text the app can show, or null when absent.
      */
-    private static function string(array $data, string $key): ?string
+    private static function optionalStringField(array $citationData, string $fieldName): ?string
     {
-        $value = $data[$key] ?? null;
+        $fieldValue = $citationData[$fieldName] ?? null;
 
-        return is_string($value) ? $value : null;
+        return is_string($fieldValue) ? $fieldValue : null;
     }
 
     /**
@@ -142,11 +138,11 @@ final readonly class Citation
     /**
      * Determine whether a citation source is an absolute URL.
      *
-     * @param string $value Citation source string to test.
-     * @return bool True when the value is a valid absolute URL.
+     * @param string $citationSource Citation source to test; empty is not a link and returns false.
+     * @return bool True when the source is an absolute URL the UI can open; false for empty, relative, or malformed text.
      */
-    private static function isUrl(string $value): bool
+    private static function isUrl(string $citationSource): bool
     {
-        return filter_var($value, FILTER_VALIDATE_URL) !== false;
+        return filter_var($citationSource, FILTER_VALIDATE_URL) !== false;
     }
 }

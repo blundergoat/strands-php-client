@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Strands Client Factory behavior for app integrations.
+ * Exercises caller-visible Strands Client Factory behavior for app integrations.
+ *
+ * Use this file when changing Strands Client Factory or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
@@ -13,7 +16,10 @@ use StrandsPhpClient\Integration\Symfony\DependencyInjection\StrandsClientFactor
 use StrandsPhpClient\StrandsClient;
 
 /**
- * Verifies Strands Client Factory behavior that application users rely on.
+ * Exercises Strands Client Factory through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class StrandsClientFactoryTest extends TestCase
 {
@@ -34,7 +40,7 @@ class StrandsClientFactoryTest extends TestCase
     }
 
     /**
-     * Verifies that create returns client.
+     * Confirms create() returns client so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -64,7 +70,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create throws for unknown agent.
+     * Confirms create() throws for unknown agent so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -95,7 +101,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create throws for unsupported auth driver.
+     * Confirms create() throws for unsupported auth driver so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -129,7 +135,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with api key auth.
+     * Confirms create() configures API-key authentication so framework users can securely call the agent.
      *
      * @return void
      */
@@ -159,7 +165,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with api key auth throws when missing key.
+     * Confirms create() with api key auth throws when missing key so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -193,7 +199,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with retry config.
+     * Confirms create() applies retry settings so framework users receive the intended recovery behavior.
      *
      * @return void
      */
@@ -228,7 +234,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with api key auth custom header.
+     * Confirms create() applies a custom API-key header so framework users can match their gateway.
      *
      * @return void
      */
@@ -261,7 +267,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create with empty api key throws.
+     * Confirms create() with empty api key throws so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -292,7 +298,7 @@ class StrandsClientFactoryTest extends TestCase
 
 
     /**
-     * Verifies that create uses defaults when retry fields missing.
+     * Confirms create() uses defaults when retry fields missing so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -308,7 +314,7 @@ class StrandsClientFactoryTest extends TestCase
     }
 
     /**
-     * Verifies that unknown agent lists configured agents.
+     * Confirms unknown agent lists configured agents so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -330,9 +336,10 @@ class StrandsClientFactoryTest extends TestCase
         try {
             $strandsClientFactory->create('missing');
             $this->fail('Expected InvalidArgumentException');
-        } catch (\InvalidArgumentException $e) {
-            $this->assertStringContainsString('analyst', $e->getMessage());
-            $this->assertStringContainsString('skeptic', $e->getMessage());
+        } catch (\InvalidArgumentException $invalidAgentException) {
+            // For example, an app route may request an unknown agent; the message must name valid choices the developer can configure.
+            $this->assertStringContainsString('analyst', $invalidAgentException->getMessage());
+            $this->assertStringContainsString('skeptic', $invalidAgentException->getMessage());
         }
     }
 }

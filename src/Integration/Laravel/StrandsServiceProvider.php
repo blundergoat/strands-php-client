@@ -16,10 +16,8 @@ use StrandsPhpClient\StrandsClient;
 /**
  * Wires Strands clients into a Laravel application's service container.
  *
- * Merges the package config, registers the shared factory, binds the default
- * StrandsClient for type-hint injection, and adds a "strands.client.<name>"
- * binding per configured agent. Also publishes the config file for `artisan
- * vendor:publish`. Laravel calls this automatically at boot.
+ * It registers the shared factory, default client, and one named binding for each configured agent.
+ * Laravel runs it at boot; apps use its bindings for injection and can publish the package config.
  */
 class StrandsServiceProvider extends ServiceProvider
 {
@@ -39,21 +37,37 @@ class StrandsServiceProvider extends ServiceProvider
             /** @var ConfigRepository $config validated before app code uses it. */
             $config = $application->make('config');
 
-            /** @var array<string, array{endpoint: string, auth: array{driver: string, api_key?: string|null, header_name?: string, value_prefix?: string, region?: string|null, service?: string, access_key_id?: string|null, secret_access_key?: string|null, session_token?: string|null}, timeout: int, connect_timeout?: int, max_retries?: int, retry_delay_ms?: int}> $agents validated before app code uses it. */
+            /**
+             * @var array<string, array{
+             *     endpoint: string,
+             *     auth: array{
+             *         driver: string,
+             *         api_key?: string|null,
+             *         header_name?: string,
+             *         value_prefix?: string,
+             *         region?: string|null,
+             *         service?: string,
+             *         access_key_id?: string|null,
+             *         secret_access_key?: string|null,
+             *         session_token?: string|null
+             *     },
+             *     timeout: int,
+             *     connect_timeout?: int,
+             *     max_retries?: int,
+             *     retry_delay_ms?: int
+             * }> $agents Validated framework configuration used to build app clients.
+             */
             $agents = $config->get('strands.agents', []);
 
             /** @var LoggerInterface $logger validated before app code uses it. */
             $logger = $application->make(LoggerInterface::class);
 
-            // Resolve any middleware tagged with 'strands.middleware'.
-            // To register middleware in your app:
-            //   $this->app->tag([MyTracingMiddleware::class], 'strands.middleware');
+            // Resolve middleware tagged as strands.middleware; for example, an app may tag MyTracingMiddleware during registration.
             /** @var list<RequestMiddleware> $middleware validated before app code uses it. */
             $middleware = $application->tagged('strands.middleware');
 
-            // Response observers receive parsed terminal data for metrics/tracing.
-            // Middleware that implements ResponseObserver is also auto-detected by
-            // StrandsClient, so existing strands.middleware registrations keep working.
+            // Response observers receive parsed terminal data for metrics and tracing.
+            // StrandsClient also detects observers in the middleware list, preserving existing app registrations.
             /** @var list<ResponseObserver> $responseObservers validated before app code uses it. */
             $responseObservers = $application->tagged('strands.response_observer');
 

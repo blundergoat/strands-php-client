@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 /**
  * Exercises the tracing data emitted around caller-visible agent operations.
+ *
  * It mirrors app requests that succeed, fail, stream, or use custom routes.
  * Failures here mean a telemetry screen could be wrong, unsafe, or incomplete.
  */
@@ -86,8 +87,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "happy path span attributes" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "happy path span attributes" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -122,8 +122,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "header injection contains traceparent" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "header injection contains traceparent" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -150,8 +149,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "http error without exception" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "http error without exception" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -169,8 +167,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "thrown exception recorded" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "thrown exception recorded" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -197,8 +194,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "agent error exception sets strands status code" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "agent error exception sets strands status code" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -221,8 +217,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "sequential operations on same instance" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "sequential operations on same instance" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -241,8 +236,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "nested operations preserve outer span" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "nested operations preserve outer span" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -261,8 +255,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "query string stripping" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "query string stripping" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -276,8 +269,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "status zero is not recorded as http status" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "status zero is not recorded as http status" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -291,8 +283,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "path segment span naming" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "path segment span naming" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -323,8 +314,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "custom span name prefix is preserved" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "custom span name prefix is preserved" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -343,8 +333,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "after response on empty stack does not throw" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "after response on empty stack does not throw" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -358,8 +347,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "server address and port attributes" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "server address and port attributes" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -375,8 +363,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "custom paths collapse to stable telemetry labels" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "custom paths collapse to stable telemetry labels" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -392,8 +379,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "response observer adds invoke attributes before span ends" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "response observer adds invoke attributes before span ends" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -437,8 +423,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "invoke observer marks error stop reason as failed" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "invoke observer marks error stop reason as failed" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -461,8 +446,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "invoke observer exports sdk limit stop reason" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "invoke observer exports sdk limit stop reason" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -481,8 +465,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "post json observer exports only safe summary fields" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "post json observer exports only safe summary fields" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -514,8 +497,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "post json observer drops unknown stop reason" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "post json observer drops unknown stop reason" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -532,8 +514,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "stream sse observer adds sanitized summary attributes" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "stream sse observer adds sanitized summary attributes" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -561,8 +542,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "base path standard operations are classified by final segment" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "base path standard operations are classified by final segment" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -581,8 +561,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "custom sse operation uses case insensitive accept header" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "custom sse operation uses case insensitive accept header" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -597,8 +576,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "stream observer adds safe summary attributes" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "stream observer adds safe summary attributes" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -638,8 +616,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "stream observer marks terminal error as failed" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "stream observer marks terminal error as failed" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -661,8 +638,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "stream sse observer marks terminal error as failed" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "stream sse observer marks terminal error as failed" so telemetry still explains the user's request.
      *
      * @return void
      */
@@ -682,8 +658,7 @@ class OtelTracingMiddlewareTest extends TestCase
     }
 
     /**
-     * Covers "after response swallows span lifecycle exceptions" so telemetry still explains the user's request.
-     * Use this regression case when span naming, attributes, or middleware lifecycle changes.
+     * Protects "after response swallows span lifecycle exceptions" so telemetry still explains the user's request.
      *
      * @return void
      */

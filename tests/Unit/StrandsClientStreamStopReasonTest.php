@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 /**
  * Exercises a streamed stop reason added after the public 1.4 enum was released.
+ *
  * It mirrors an application receiving a newer wrapper value while remaining on client 1.x.
  * Failures here mean the UI could lose the reason a streamed answer stopped.
  */
@@ -24,8 +25,7 @@ use StrandsPhpClient\StrandsClient;
 final class StrandsClientStreamStopReasonTest extends TestCase
 {
     /**
-     * Covers "stream preserves unknown raw stop reason" so apps can show newer outcomes without breaking 1.x enum switches.
-     * Use this regression case when terminal event or stop-reason parsing changes.
+     * Protects "stream preserves unknown raw stop reason" so apps can show newer outcomes without breaking 1.x enum switches.
      *
      * @return void
      */
@@ -33,8 +33,18 @@ final class StrandsClientStreamStopReasonTest extends TestCase
     {
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->once())->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk): void {
-                $onChunk->__invoke("data: {\"type\": \"complete\", \"text\": \"Done\", \"usage\": {}, \"tools_used\": [], \"stop_reason\": \"limit_turns\"}\n\n");
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ): void {
+                $onChunk->__invoke(
+                    'data: {"type": "complete", "text": "Done", "usage": {}, '
+                    . '"tools_used": [], "stop_reason": "limit_turns"}' . "\n\n",
+                );
             });
 
         $strandsClient = new StrandsClient(

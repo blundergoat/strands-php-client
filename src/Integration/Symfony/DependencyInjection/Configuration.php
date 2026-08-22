@@ -11,10 +11,8 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
 /**
  * Defines and validates the shape of the app's `strands:` config.
  *
- * Symfony uses this schema to check the bundle config an app writes in YAML:
- * which agents exist and, for each, its endpoint, auth driver, timeouts, and
- * retry policy. Bad or missing values are rejected at container-compile time,
- * so misconfiguration surfaces at deploy rather than on the first user request.
+ * Symfony uses it to validate each agent's endpoint, authentication, timeouts, and retry policy.
+ * Invalid app configuration fails during container compilation rather than during a user's first request.
  */
 class Configuration implements ConfigurationInterface
 {
@@ -68,12 +66,8 @@ class Configuration implements ConfigurationInterface
     }
 
     /**
-     * Define the auth configuration node.
-     *
-     * Supports three drivers:
-     *   'null'    - NullAuth (no authentication, default)
-     *   'api_key' - ApiKeyAuth (sends API key in an HTTP header)
-     *   'sigv4'   - SigV4Auth (AWS Signature V4 for IAM-protected endpoints)
+     * Define the authentication choices available in an app's strands.yaml file.
+     * Use null for local agents, api_key for header credentials, or sigv4 for IAM-protected endpoints.
      *
      * @return ArrayNodeDefinition The `auth` sub-schema (driver plus its per-driver options).
      */

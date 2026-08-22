@@ -11,9 +11,8 @@ use Symfony\Component\HttpKernel\Bundle\Bundle;
 /**
  * Registers the Strands client as a Symfony bundle.
  *
- * Symfony discovers this bundle at boot and loads its dependency-injection
- * extension, which reads the app's `strands` config and wires up named agent
- * clients so controllers and services can inject a ready-to-use client.
+ * Symfony discovers it at boot and loads the extension that reads the app's `strands` configuration.
+ * Use the resulting named services when controllers or services need a ready agent client.
  */
 class StrandsBundle extends Bundle
 {
@@ -23,7 +22,7 @@ class StrandsBundle extends Bundle
      * Called once while the container is compiled; without it the bundle's
      * config and service definitions would never be registered.
      *
-     * @return ExtensionInterface|null The DI extension that loads Strands services.
+     * @return ExtensionInterface|null The DI extension that loads Strands services; this bundle never returns null.
      */
     public function getContainerExtension(): ?ExtensionInterface
     {

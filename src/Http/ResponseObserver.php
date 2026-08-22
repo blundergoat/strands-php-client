@@ -11,10 +11,8 @@ use StrandsPhpClient\Streaming\StreamSseSummary;
 /**
  * A place to watch the finished, parsed result of each agent call.
  *
- * Where RequestMiddleware sees raw HTTP, an observer receives the typed
- * outcome — the AgentResponse, StreamResult, or sanitized SSE summary — after
- * the client has parsed it. Ideal for metrics, tracing, and audit logging.
- * Kept separate from RequestMiddleware so existing implementations still compile.
+ * It receives a typed invoke result, stream result, or safe SSE summary after parsing completes.
+ * Use it for metrics, tracing, or audit logs without affecting the user's request or existing middleware.
  */
 interface ResponseObserver
 {

@@ -1,5 +1,9 @@
 #!/bin/bash
-# Preflight check: Run all quality gates before committing
+# Run every project quality gate before a contributor commits or publishes the client.
+#
+# Use this after code changes to see one concise pass/fail summary matching the CI expectations.
+# Optional coverage and mutation flags tighten verification without changing application code.
+#
 # Usage: ./scripts/preflight-checks.sh [--coverage-min=80] [--mutate]
 
 cd "$(dirname "$0")/.." || exit 1
@@ -23,12 +27,13 @@ TOTAL=0
 PASSED=0
 FAILED=0
 FAILURES=()
-# php hrtime works on macOS+Linux (date +%s%N is GNU-only)
+# Read a portable nanosecond timestamp so each quality result includes useful feedback time.
 now_ns() { php -r 'echo hrtime(true);'; }
 START_TIME=$(now_ns)
 MIN_COVERAGE=80
 RUN_MUTATE=false
 
+# Apply each requested verification option before any gate starts.
 for arg in "$@"; do
     case "$arg" in
         --mutate)
@@ -40,12 +45,14 @@ for arg in "$@"; do
     esac
 done
 
+# An empty, non-numeric, or out-of-range threshold cannot describe meaningful application coverage.
 if ! [[ "$MIN_COVERAGE" =~ ^[0-9]+$ ]] || ((MIN_COVERAGE < 0 || MIN_COVERAGE > 100)); then
     echo "Invalid --coverage-min value: '$MIN_COVERAGE' (expected integer 0-100)"
     exit 1
 fi
 
 # ── Helpers ───────────────────────────────────────────────────────
+# Print the preflight heading a contributor sees before checks begin.
 header() {
     echo ""
     echo -e "${BOLD}  Preflight Check - strands-php-client${RESET}"
@@ -54,15 +61,18 @@ header() {
     echo ""
 }
 
+# Start one named quality gate and count it in the final summary.
 step() {
     local label="$1"
     TOTAL=$((TOTAL + 1))
     printf "  ${ARROW} %-40s" "$label"
 }
 
+# Mark a quality gate successful and show optional timing or result detail.
 pass() {
     local detail="${1:-}"
     PASSED=$((PASSED + 1))
+    # Non-empty detail gives the contributor useful evidence such as duration or test counts.
     if [[ -n "$detail" ]]; then
         echo -e "${PASS}  ${DIM}${detail}${RESET}"
     else
@@ -70,6 +80,7 @@ pass() {
     fi
 }
 
+# Record one failed gate so the final summary can tell the contributor what blocks shipping.
 fail() {
     local label="$1"
     FAILED=$((FAILED + 1))
@@ -77,20 +88,24 @@ fail() {
     echo -e "${FAIL}"
 }
 
+# Explain why an optional or unavailable gate did not run.
 skip() {
     local reason="${1:-skipped}"
     echo -e "${SKIP}  ${DIM}${reason}${RESET}"
 }
 
+# Separate detailed gate output from the final result.
 divider() {
     echo -e "  ${DIM}$(printf '─%.0s' {1..44})${RESET}"
 }
 
+# Format elapsed gate time in milliseconds or seconds for quick developer feedback.
 elapsed_since() {
     local start=$1
     local end
     end=$(now_ns)
     local ms=$(( (end - start) / 1000000 ))
+    # Short checks are easier to scan in milliseconds; longer checks read better in seconds.
     if [[ $ms -lt 1000 ]]; then
         echo "${ms}ms"
     else
@@ -100,6 +115,7 @@ elapsed_since() {
     fi
 }
 
+# Print the combined preflight result and exit non-zero when any gate failed.
 summary() {
     local end_time
     end_time=$(now_ns)
@@ -110,6 +126,7 @@ summary() {
     echo ""
     divider
 
+    # No recorded failures means every required user-facing quality gate passed.
     if [[ $FAILED -eq 0 ]]; then
         echo ""
         echo -e "  ${GREEN}${BOLD}All ${PASSED}/${TOTAL} checks passed${RESET}  ${DIM}(${total_secs}.${total_frac}s)${RESET}"
@@ -118,8 +135,9 @@ summary() {
         echo ""
         echo -e "  ${RED}${BOLD}${FAILED}/${TOTAL} checks failed${RESET}  ${DIM}(${total_secs}.${total_frac}s)${RESET}"
         echo ""
-        for f in "${FAILURES[@]}"; do
-            echo -e "    ${FAIL}  ${f}"
+        # List every failed gate so the contributor can fix all blockers in one pass.
+        for failed_check in "${FAILURES[@]}"; do
+            echo -e "    ${FAIL}  ${failed_check}"
         done
         echo ""
         exit 1
@@ -132,11 +150,10 @@ header
 # 1. Composer validate
 step "Composer validate"
 t=$(now_ns)
-# Read the exit status, not the wording: `--strict` still prints "is valid for simple usage" while
-# exiting non-zero on publish errors, so matching that phrase reported a pass for a manifest
-# Composer had rejected.
+# Trust Composer's exit code because --strict can print friendly wording while still rejecting the package for publishing.
 validate_output=$(composer validate --strict 2>&1)
 validate_exit=$?
+# A zero exit code proves the package metadata is publishable, regardless of Composer's friendly wording.
 if [[ $validate_exit -eq 0 ]]; then
     pass "$(elapsed_since "$t")"
 else
@@ -151,6 +168,7 @@ step "Security audit"
 t=$(now_ns)
 audit_output=$(composer audit 2>&1)
 audit_exit=$?
+# A clean audit means no known vulnerable dependency would reach applications installing this client.
 if [[ $audit_exit -eq 0 ]]; then
     pass "$(elapsed_since "$t")"
 else
@@ -168,13 +186,16 @@ t=$(now_ns)
 alias_raw=$(php -r '
     $j = json_decode(file_get_contents("composer.json"), true);
     echo $j["extra"]["branch-alias"]["dev-main"] ?? "";' 2>/dev/null)
+# An empty alias is allowed for projects that do not advertise a development version.
 if [[ -z "$alias_raw" ]]; then
     skip "no branch alias in composer.json"
 else
     alias_minor=$(echo "$alias_raw" | grep -oE '^[0-9]+\.[0-9]+')
     changelog_minor=$(grep -oE '## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | head -1 | sed 's/## \[//;s/\]//' | cut -d. -f1,2)
+    # An empty changelog version leaves nothing reliable to compare with the Composer branch alias.
     if [[ -z "$changelog_minor" ]]; then
         skip "no version in CHANGELOG.md"
+    # Matching minor versions keep development installs aligned with the release users are reading about.
     elif [[ "$alias_minor" == "$changelog_minor" ]]; then
         pass "${alias_raw} $(elapsed_since "$t")"
     else
@@ -185,17 +206,21 @@ fi
 # 4. Shell scripts
 step "Shell scripts (shellcheck)"
 t=$(now_ns)
+# ShellCheck must be installed so release and setup helpers do not fail on a contributor's machine.
 if command -v shellcheck >/dev/null 2>&1; then
     shell_files=()
+    # Collect each repository shell script in stable order so the reported result is reproducible.
     while IFS= read -r shell_file; do
         shell_files+=("$shell_file")
     done < <(find scripts .goat-flow/hooks -type f -name '*.sh' | sort)
 
+    # An empty script list means this gate has no relevant code to inspect.
     if [[ ${#shell_files[@]} -eq 0 ]]; then
         skip "no shell scripts found"
     else
         shellcheck_output=$(shellcheck "${shell_files[@]}" 2>&1)
         shellcheck_exit=$?
+        # A clean ShellCheck exit means contributors can run the helpers without known shell defects.
         if [[ $shellcheck_exit -eq 0 ]]; then
             pass "$(elapsed_since "$t")"
         else
@@ -214,9 +239,11 @@ fi
 # 5. Code style (PHP-CS-Fixer)
 step "Code style (PHP-CS-Fixer)"
 t=$(now_ns)
+# Run formatting only when the project's pinned PHP-CS-Fixer executable is available.
 if [[ -x vendor/bin/php-cs-fixer ]]; then
     cs_output=$(vendor/bin/php-cs-fixer fix --dry-run --diff --sequential 2>&1)
     cs_exit=$?
+    # A clean dry run means application code already matches the published project style.
     if [[ $cs_exit -eq 0 ]]; then
         pass "$(elapsed_since "$t")"
     else
@@ -231,9 +258,11 @@ fi
 step "Cyclomatic complexity (max 20)"
 t=$(now_ns)
 complexity_script="$(dirname "$0")/check-cyclomatic-complexity.php"
+# The local checker owns the project's complexity threshold; a missing file makes this optional gate unavailable.
 if [[ -f "$complexity_script" ]]; then
     complexity_output=$(php "$complexity_script" --path=src --max=20 2>&1)
     complexity_exit=$?
+    # A clean result means no method is too difficult to reason about safely in an app request flow.
     if [[ $complexity_exit -eq 0 ]]; then
         pass "$(elapsed_since "$t")"
     else
@@ -250,13 +279,16 @@ fi
 # 7. Mess detector (PHPMD)
 step "Mess detector (PHPMD)"
 t=$(now_ns)
+# Run maintainability checks only when the project's pinned PHPMD executable is installed.
 if [[ -x vendor/bin/phpmd ]]; then
+    # Prefer the repository ruleset so findings match the standards contributors agreed to.
     if [[ -f phpmd.xml ]]; then
         phpmd_output=$(vendor/bin/phpmd src text phpmd.xml 2>&1)
     else
         phpmd_output=$(vendor/bin/phpmd src text codesize,design,unusedcode 2>&1)
     fi
     phpmd_exit=$?
+    # A clean PHPMD exit means no configured design or maintainability defect blocks the client.
     if [[ $phpmd_exit -eq 0 ]]; then
         pass "$(elapsed_since "$t")"
     else
@@ -273,7 +305,9 @@ fi
 # 8. PHPStan
 step "Static analysis (PHPStan L10)"
 t=$(now_ns)
+# Run type analysis only when the project's pinned PHPStan executable is installed.
 if [[ -x vendor/bin/phpstan ]]; then
+    # A repository config includes framework and wire-contract knowledge that a plain src scan would miss.
     if [[ -f phpstan.neon || -f phpstan.neon.dist ]]; then
         stan_output=$(vendor/bin/phpstan analyse --no-progress --error-format=raw 2>&1)
     else
@@ -281,8 +315,10 @@ if [[ -x vendor/bin/phpstan ]]; then
     fi
     stan_exit=$?
 
+    # Some constrained environments block PHPStan worker sockets, so retry serially instead of failing valid app code.
     if [[ $stan_exit -ne 0 ]] && echo "$stan_output" | grep -q 'Failed to listen on "tcp://127.0.0.1:0"'; then
         # Fallback for constrained environments where PHPStan worker sockets cannot bind.
+        # Keep the repository configuration on the serial retry when one exists.
         if [[ -f phpstan.neon || -f phpstan.neon.dist ]]; then
             stan_output=$(vendor/bin/phpstan analyse --no-progress --error-format=raw --debug 2>&1)
         else
@@ -291,6 +327,7 @@ if [[ -x vendor/bin/phpstan ]]; then
         stan_exit=$?
     fi
 
+    # A clean level-10 result means callers will not encounter a known type mismatch in the analyzed paths.
     if [[ $stan_exit -eq 0 ]]; then
         pass "$(elapsed_since "$t")"
     else
@@ -307,9 +344,11 @@ fi
 # 9. PHPUnit
 step "Tests (PHPUnit)"
 t=$(now_ns)
+# Run behavior checks only when the project's pinned PHPUnit executable is installed.
 if [[ -x vendor/bin/phpunit ]]; then
     test_output=$(vendor/bin/phpunit 2>&1)
     test_exit=$?
+    # A zero exit code means every exercised request, stream, and integration outcome matched its assertion.
     if [[ $test_exit -eq 0 ]]; then
         test_summary=$(echo "$test_output" | grep -oE '[0-9]+ tests, [0-9]+ assertions' || echo "")
         pass "${test_summary:+$test_summary }$(elapsed_since "$t")"
@@ -327,14 +366,17 @@ fi
 # 10. Coverage
 step "Coverage (PHPUnit)"
 t=$(now_ns)
+# No coverage driver means tests can still run, but this optional measurement cannot inspect executed app lines.
 if ! php -m 2>/dev/null | grep -qi "xdebug\|pcov"; then
     skip "no coverage driver — install one with: scripts/setup-initial.sh"
+# Coverage also needs the project's pinned PHPUnit executable to run the behavior suite.
 elif [[ ! -x vendor/bin/phpunit ]]; then
     skip "phpunit not installed"
 else
     coverage_output=$(XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-clover=coverage.xml 2>&1)
     coverage_exit=$?
 
+    # A failed coverage run is different from a low percentage and needs its own actionable output.
     if [[ $coverage_exit -ne 0 ]]; then
         fail "Coverage run failed"
         echo "$coverage_output" | tail -20 | while read -r line; do
@@ -344,12 +386,14 @@ else
         # shellcheck disable=SC2016
         coverage_stats=$(php -r '
             $xml = @simplexml_load_file("coverage.xml");
+            // A missing or malformed report leaves no trustworthy coverage result for the contributor.
             if ($xml === false || !isset($xml->project->metrics)) {
                 exit(1);
             }
             $metrics = $xml->project->metrics;
             $statements = (float) ($metrics["statements"] ?? 0);
             $covered = (float) ($metrics["coveredstatements"] ?? 0);
+            // A project with no executable statements reports an explicit zero instead of dividing by zero.
             if ($statements <= 0.0) {
                 echo "0.00|0|0";
                 exit(0);
@@ -359,11 +403,13 @@ else
         parse_exit=$?
         IFS='|' read -r coverage_pct covered_lines total_lines <<< "$coverage_stats"
 
+        # Missing parsed output means coverage.xml could not prove what portion of app code the tests exercised.
         if [[ $parse_exit -ne 0 || -z "$coverage_pct" ]]; then
             fail "Coverage parse failed (coverage.xml)"
             echo "$coverage_output" | tail -10 | while read -r line; do
                 echo -e "    ${DIM}${line}${RESET}"
             done
+        # Meeting the requested threshold gives the contributor a publishable coverage result.
         elif awk "BEGIN {exit !($coverage_pct >= $MIN_COVERAGE)}"; then
             pass "${coverage_pct}% line coverage (${covered_lines}/${total_lines}, min ${MIN_COVERAGE}%) $(elapsed_since "$t")"
         else
@@ -375,16 +421,20 @@ else
 fi
 
 # 11. Mutation testing (optional)
+# Mutation testing runs only when the contributor explicitly asks for the slower assertion-strength check.
 if [[ "$RUN_MUTATE" == true ]]; then
     step "Mutation testing (Infection)"
     t=$(now_ns)
+    # The optional gate needs the project's pinned Infection executable.
     if [[ ! -x vendor/bin/infection ]]; then
         fail "Mutation testing (infection not installed)"
+    # Infection also needs execution coverage to identify mutations reached by the tests.
     elif ! php -m 2>/dev/null | grep -qi "xdebug\|pcov"; then
         fail "Mutation testing (no coverage driver - install xdebug or pcov)"
     else
         mutate_output=$(XDEBUG_MODE=coverage vendor/bin/infection --threads=4 --show-mutations=0 2>&1)
         mutate_exit=$?
+        # A clean Infection exit means the configured mutation threshold accepted the test suite's detection strength.
         if [[ $mutate_exit -eq 0 ]]; then
             msi=$(echo "$mutate_output" | grep -oE 'Covered Code MSI: [0-9]+%' | grep -oE '[0-9]+%' || echo "")
             killed=$(echo "$mutate_output" | grep -oE '[0-9]+ mutants were killed' | grep -oE '[0-9]+' || echo "")
@@ -406,13 +456,19 @@ if [[ "$RUN_MUTATE" == true ]]; then
             [[ -n "$not_detected" && "$not_detected" != "0" ]] && detail_parts+=("${not_detected} escaped")
 
             detail_text=$(IFS=', '; echo "${detail_parts[*]}")
+            # Non-empty metrics make the failed mutation result actionable in the compact summary.
             if [[ -n "$detail_text" ]]; then
                 fail "Mutation testing (${detail_text})"
             else
                 fail "Mutation testing"
             fi
 
-            mutate_context=$(echo "$mutate_output" | grep -E 'MSI|mutations were generated|mutants? were killed|not covered|not detected|Escaped|Fatal|Exception|minimum|Min' | head -12)
+            mutate_context=$(
+                echo "$mutate_output" |
+                    grep -E 'MSI|mutations were generated|mutants? were killed|not covered|not detected|Escaped|Fatal|Exception|minimum|Min' |
+                    head -12
+            )
+            # Prefer concise mutation metrics; empty metrics fall back to the command tail for diagnostics.
             if [[ -n "$mutate_context" ]]; then
                 echo "$mutate_context" | while read -r line; do
                     echo -e "    ${DIM}${line}${RESET}"

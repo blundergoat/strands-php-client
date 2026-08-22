@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Citation behavior for app integrations.
+ * Exercises caller-visible Citation behavior for app integrations.
+ *
+ * Use this file when changing Citation or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Response\Citation;
@@ -15,14 +18,17 @@ use StrandsPhpClient\Response\Citation\CitationLocation;
 use StrandsPhpClient\Response\Citation\CitationSourceContent;
 
 /**
- * Verifies Citation behavior that application users rely on.
+ * Exercises Citation through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class CitationTest extends TestCase
 {
     /**
      * Data fixture for testFromArrayWithFullData().
      *
-     * @return array<string, mixed> Scenarios that keep from array with full data behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayWithFullData(): array
     {
@@ -49,15 +55,15 @@ class CitationTest extends TestCase
     }
 
     /**
-     * Verifies that from array with full data.
+     * Confirms fromArray() hydrates complete citation data so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testFromArrayWithFullData(): void
     {
-        $data = $this->dataForFromArrayWithFullData();
+        $citationData = $this->dataForFromArrayWithFullData();
 
-        $citation = Citation::fromArray($data);
+        $citation = Citation::fromArray($citationData);
 
         $this->assertInstanceOf(CitationLocation::class, $citation->location);
         $this->assertSame('DOCUMENT', $citation->location->type);
@@ -78,7 +84,7 @@ class CitationTest extends TestCase
     /**
      * Data fixture for testFromArrayWithPartialData().
      *
-     * @return array<string, mixed> Scenarios that keep from array with partial data behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayWithPartialData(): array
     {
@@ -92,15 +98,15 @@ class CitationTest extends TestCase
 
 
     /**
-     * Verifies that from array with partial data.
+     * Confirms fromArray() accepts partial citation data so the app can render the details that are available.
      *
      * @return void
      */
     public function testFromArrayWithPartialData(): void
     {
-        $data = $this->dataForFromArrayWithPartialData();
+        $citationData = $this->dataForFromArrayWithPartialData();
 
-        $citation = Citation::fromArray($data);
+        $citation = Citation::fromArray($citationData);
 
         $this->assertNotNull($citation->location);
         $this->assertSame('WEB', $citation->location->type);
@@ -112,7 +118,7 @@ class CitationTest extends TestCase
     /**
      * Data fixture for testFromArrayPreservesFlatCitationData().
      *
-     * @return array<string, mixed> Scenarios that keep from array preserves flat citation data behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayPreservesFlatCitationData(): array
     {
@@ -125,15 +131,15 @@ class CitationTest extends TestCase
 
 
     /**
-     * Verifies that from array preserves flat citation data.
+     * Confirms fromArray() preserves flat citation data so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testFromArrayPreservesFlatCitationData(): void
     {
-        $data = $this->dataForFromArrayPreservesFlatCitationData();
+        $citationData = $this->dataForFromArrayPreservesFlatCitationData();
 
-        $citation = Citation::fromArray($data);
+        $citation = Citation::fromArray($citationData);
 
         $this->assertSame('https://example.com/docs', $citation->source);
         $this->assertSame('Official Documentation', $citation->title);
@@ -144,7 +150,7 @@ class CitationTest extends TestCase
     }
 
     /**
-     * Verifies that from array maps flat document source to source content.
+     * Confirms fromArray() maps flat document source to source content so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -162,7 +168,7 @@ class CitationTest extends TestCase
     }
 
     /**
-     * Verifies that either flat source field can construct a citation location.
+     * Confirms either flat source field can construct a citation location so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -176,7 +182,7 @@ class CitationTest extends TestCase
     }
 
     /**
-     * Verifies that explicit structured location data wins over legacy flat fields.
+     * Confirms explicit structured location data wins over legacy flat fields so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -198,7 +204,7 @@ class CitationTest extends TestCase
     }
 
     /**
-     * Verifies that from array with empty data.
+     * Confirms fromArray() gives empty citation data safe defaults so the app can omit unavailable details.
      *
      * @return void
      */

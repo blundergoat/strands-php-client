@@ -7,10 +7,8 @@ namespace StrandsPhpClient\Response;
 /**
  * One policy check the guardrail ran on a turn, in typed form.
  *
- * Each assessment records which policy fired (topic, content, word,
- * sensitive-info, or grounding), what it did, and how confident it was. Apps
- * read these to explain to the user why a response was blocked or altered.
- * Every field is nullable because an assessment fills in only the parts that apply.
+ * It records the applicable policy, action, and confidence returned for the user's request.
+ * Apps use it to explain a blocked or altered answer; fields remain null when that policy did not report them.
  */
 final readonly class GuardrailAssessment
 {
@@ -19,16 +17,16 @@ final readonly class GuardrailAssessment
      *
      * Usually built by fromArray() from a guardrail trace.
      *
-     * @param string|null               $type                         Assessment type.
-     * @param string|null               $action                       Action taken (e.g. 'BLOCKED').
-     * @param array<string, mixed>|null $topicPolicy                  Topic policy details.
-     * @param array<string, mixed>|null $contentPolicy                Content policy details.
-     * @param array<string, mixed>|null $wordPolicy                   Word policy details.
-     * @param array<string, mixed>|null $sensitiveInformationPolicy   Sensitive information policy details.
-     * @param array<string, mixed>|null $contextualGroundingPolicy    Contextual grounding policy details.
-     * @param string|null               $name                         Normalized assessment name (e.g. 'safety').
-     * @param string|null               $result                       Normalized result (e.g. 'blocked', 'allowed').
-     * @param float|null                $confidence                   Confidence score from 0.0 to 1.0.
+     * @param string|null $type Assessment type; null means the wrapper did not identify it.
+     * @param string|null $action Action such as BLOCKED; null means no action was reported.
+     * @param array<string, mixed>|null $topicPolicy Details; null means this policy did not apply, while an empty map is preserved.
+     * @param array<string, mixed>|null $contentPolicy Details; null means this policy did not apply, while an empty map is preserved.
+     * @param array<string, mixed>|null $wordPolicy Details; null means this policy did not apply, while an empty map is preserved.
+     * @param array<string, mixed>|null $sensitiveInformationPolicy Details; null means this policy did not apply; an empty map is preserved.
+     * @param array<string, mixed>|null $contextualGroundingPolicy Details; null means this policy did not apply; an empty map is preserved.
+     * @param string|null $name Normalized policy name; null means unavailable, while an empty string is preserved.
+     * @param string|null $result Normalized result; null means unavailable, while an empty string is preserved.
+     * @param float|null $confidence Confidence from 0.0 to 1.0; null means no score was reported.
      */
     public function __construct(
         public ?string $type = null,
@@ -47,7 +45,7 @@ final readonly class GuardrailAssessment
     /**
      * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
+     * @param array<string, mixed> $data Raw assessment map; an empty map creates all-null fields the UI can omit.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
@@ -73,29 +71,29 @@ final readonly class GuardrailAssessment
             contextualGroundingPolicy: $contextualGroundingPolicy,
             name: is_string($data['name'] ?? null) ? $data['name'] : null,
             result: is_string($data['result'] ?? null) ? $data['result'] : null,
-            confidence: self::float($data, 'confidence'),
+            confidence: self::optionalFloatField($data, 'confidence'),
         );
     }
 
     /**
      * Read a confidence score, tolerating number-or-string wire values.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     * @param string $key Assessment field holding the score (e.g. 'confidence').
+     * @param array<string, mixed> $assessmentData Raw assessment JSON; empty means no confidence was reported.
+     * @param string $fieldName Assessment field holding the score, such as confidence.
      * @return ?float Score the app can show as a percentage, or null when absent.
      */
-    private static function float(array $data, string $key): ?float
+    private static function optionalFloatField(array $assessmentData, string $fieldName): ?float
     {
-        $value = $data[$key] ?? null;
+        $fieldValue = $assessmentData[$fieldName] ?? null;
 
         // Accept a plain number as-is (an int or float both become a float score).
-        if (is_float($value) || is_int($value)) {
-            return (float) $value;
+        if (is_float($fieldValue) || is_int($fieldValue)) {
+            return (float) $fieldValue;
         }
 
         // Some wrappers send the score as a numeric string (e.g. "0.87").
-        if (is_string($value) && is_numeric($value)) {
-            return (float) $value;
+        if (is_string($fieldValue) && is_numeric($fieldValue)) {
+            return (float) $fieldValue;
         }
 
         return null;

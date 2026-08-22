@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Configuration behavior for app integrations.
+ * Exercises caller-visible Configuration behavior for app integrations.
+ *
+ * Use this file when changing Configuration or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
@@ -14,7 +17,10 @@ use StrandsPhpClient\Integration\Symfony\DependencyInjection\Configuration;
 use Symfony\Component\Config\Definition\Processor;
 
 /**
- * Verifies Configuration behavior that application users rely on.
+ * Exercises Configuration through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class ConfigurationTest extends TestCase
 {
@@ -33,7 +39,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testMinimalConfig().
      *
-     * @return array<string, mixed> Scenarios that keep minimal config behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForMinimalConfig(): array
     {
@@ -48,7 +54,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that minimal config.
+     * Confirms minimal configuration receives safe defaults so framework users can create a client with only an endpoint.
      *
      * @return void
      */
@@ -64,7 +70,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testMultipleAgents().
      *
-     * @return array<string, mixed> Scenarios that keep multiple agents behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForMultipleAgents(): array
     {
@@ -79,7 +85,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that multiple agents.
+     * Confirms multiple named agents remain available so framework users can select the right assistant.
      *
      * @return void
      */
@@ -92,7 +98,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testCustomTimeout().
      *
-     * @return array<string, mixed> Scenarios that keep custom timeout behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForCustomTimeout(): array
     {
@@ -108,7 +114,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that custom timeout.
+     * Confirms a custom timeout replaces the default so framework users control how long a request may wait.
      *
      * @return void
      */
@@ -121,7 +127,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testAuthDriverDefault().
      *
-     * @return array<string, mixed> Scenarios that keep auth driver default behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForAuthDriverDefault(): array
     {
@@ -136,7 +142,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that auth driver default.
+     * Confirms authentication defaults to none so framework users can call an open gateway.
      *
      * @return void
      */
@@ -149,7 +155,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testExplicitNullAuth().
      *
-     * @return array<string, mixed> Scenarios that keep explicit null auth behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForExplicitNullAuth(): array
     {
@@ -165,7 +171,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that explicit null auth.
+     * Confirms explicit null authentication remains valid so framework users can document an open gateway.
      *
      * @return void
      */
@@ -178,7 +184,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testApiKeyAuthDriver().
      *
-     * @return array<string, mixed> Scenarios that keep api key auth driver behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForApiKeyAuthDriver(): array
     {
@@ -197,7 +203,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that api key auth driver.
+     * Confirms API-key authentication keeps its defaults so framework users can securely call the agent.
      *
      * @return void
      */
@@ -213,7 +219,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testApiKeyAuthWithCustomHeader().
      *
-     * @return array<string, mixed> Scenarios that keep api key auth with custom header behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForApiKeyAuthWithCustomHeader(): array
     {
@@ -234,7 +240,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that api key auth with custom header.
+     * Confirms API-key authentication accepts a custom header so framework users can match their gateway.
      *
      * @return void
      */
@@ -246,11 +252,6 @@ class ConfigurationTest extends TestCase
         $this->assertSame('', $config['agents']['primary']['auth']['value_prefix']);
     }
 
-    /**
-     * Verifies that rejects unsupported auth driver.
-     *
-     * @return void
-     */
     /**
      * Each invalid-agent-config case must surface an InvalidConfigurationException whose
      * message identifies the offending field so consumers can act on it.
@@ -290,7 +291,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testNewConfigDefaults().
      *
-     * @return array<string, mixed> Scenarios that keep new config defaults behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForNewConfigDefaults(): array
     {
@@ -305,7 +306,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that new config defaults.
+     * Confirms retry and connection defaults are added so framework users receive a resilient client.
      *
      * @return void
      */
@@ -321,7 +322,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testCustomRetrySettings().
      *
-     * @return array<string, mixed> Scenarios that keep custom retry settings behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForCustomRetrySettings(): array
     {
@@ -339,7 +340,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that custom retry settings.
+     * Confirms custom retry settings replace the defaults so framework users control recovery behavior.
      *
      * @return void
      */
@@ -354,19 +355,7 @@ class ConfigurationTest extends TestCase
     }
 
     /**
-     * Verifies that rejects zero timeout.
-     *
-     * @return void
-     */
-
-    /**
-     * Verifies that rejects max retries above 20.
-     *
-     * @return void
-     */
-
-    /**
-     * Verifies that accepts boundary max retries.
+     * Confirms accepts boundary max retries so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -395,7 +384,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testAcceptsBoundaryTimeouts().
      *
-     * @return array<string, mixed> Scenarios that keep accepts boundary timeouts behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForAcceptsBoundaryTimeouts(): array
     {
@@ -413,7 +402,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that accepts boundary timeouts.
+     * Confirms accepts boundary timeouts so framework users receive a correctly configured client.
      *
      * @return void
      */
@@ -429,7 +418,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testDefaultRetryableStatusCodes().
      *
-     * @return array<string, mixed> Scenarios that keep default retryable status codes behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForDefaultRetryableStatusCodes(): array
     {
@@ -444,13 +433,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that rejects negative max retries.
-     *
-     * @return void
-     */
-
-    /**
-     * Verifies that default retryable status codes.
+     * Confirms retryable status defaults are added so framework users receive resilient request behavior.
      *
      * @return void
      */
@@ -463,7 +446,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testCustomRetryableStatusCodes().
      *
-     * @return array<string, mixed> Scenarios that keep custom retryable status codes behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForCustomRetryableStatusCodes(): array
     {
@@ -479,7 +462,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that custom retryable status codes.
+     * Confirms custom retryable status codes replace the defaults so framework users control which failures retry.
      *
      * @return void
      */
@@ -492,7 +475,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testEmptyRetryableStatusCodes().
      *
-     * @return array<string, mixed> Scenarios that keep empty retryable status codes behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForEmptyRetryableStatusCodes(): array
     {
@@ -508,7 +491,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that empty retryable status codes.
+     * Confirms an empty retryable status list is preserved so framework users can disable status-based retries.
      *
      * @return void
      */
@@ -521,7 +504,7 @@ class ConfigurationTest extends TestCase
     /**
      * Test fixture for testDefaultRetryableFields().
      *
-     * @return array<string, mixed> Scenarios that keep default retryable fields behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForDefaultRetryableFields(): array
     {
@@ -536,7 +519,7 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Verifies that default retryable fields.
+     * Confirms all retry defaults are populated so framework users receive predictable recovery behavior.
      *
      * @return void
      */

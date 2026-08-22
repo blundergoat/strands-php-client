@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Printing Callback Handler behavior for app integrations.
+ * Exercises caller-visible Printing Callback Handler behavior for app integrations.
+ *
+ * Use this file when changing Printing Callback Handler or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Streaming;
@@ -14,12 +17,15 @@ use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 
 /**
- * Verifies Printing Callback Handler behavior that application users rely on.
+ * Exercises Printing Callback Handler through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class PrintingCallbackHandlerTest extends TestCase
 {
     /**
-     * Verifies that text event writes text.
+     * Confirms text event writes text so live answer updates and completion state stay reliable.
      *
      * @return void
      */
@@ -36,7 +42,7 @@ class PrintingCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Verifies that complete event writes newline.
+     * Confirms complete event writes newline so live answer updates and completion state stay reliable.
      *
      * @return void
      */
@@ -63,7 +69,7 @@ class PrintingCallbackHandlerTest extends TestCase
 
 
     /**
-     * Verifies that error event writes to stderr.
+     * Confirms error event writes to stderr so live answer updates and completion state stay reliable.
      *
      * @return void
      */
@@ -96,7 +102,7 @@ class PrintingCallbackHandlerTest extends TestCase
 
 
     /**
-     * Verifies that nonText events produce no output.
+     * Confirms non-text events produce no output so the user's live answer contains only visible text.
      *
      * @return void
      */
@@ -115,15 +121,16 @@ class PrintingCallbackHandlerTest extends TestCase
             StreamEventType::ReasoningRedacted,
         ];
 
-        foreach ($silentTypes as $type) {
-            $printingCallbackHandler->__invoke(new StreamEvent(type: $type));
+        // Non-text activity may update another widget, but it must not print into the user's answer text.
+        foreach ($silentTypes as $silentEventType) {
+            $printingCallbackHandler->__invoke(new StreamEvent(type: $silentEventType));
 
-            $this->assertSame('', $output, "Unexpected output for {$type->value}");
+            $this->assertSame('', $output, "Unexpected output for {$silentEventType->value}");
         }
     }
 
     /**
-     * Verifies that multiple text events concatenate.
+     * Confirms multiple text events concatenate so live answer updates and completion state stay reliable.
      *
      * @return void
      */

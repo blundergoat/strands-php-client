@@ -2,6 +2,9 @@
 
 /**
  * Boots PHPUnit so tests exercise the client like an app would.
+ *
+ * Use this file when test startup or Composer loading changes.
+ * It gives every test the same client classes an application receives.
  */
 
 declare(strict_types=1);

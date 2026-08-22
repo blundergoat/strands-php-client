@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Request Middleware behavior for app integrations.
+ * Exercises caller-visible Request Middleware behavior for app integrations.
+ *
+ * Use this file when changing Request Middleware or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -21,32 +24,37 @@ use StrandsPhpClient\StrandsClient;
 use StrandsPhpClient\Streaming\StreamResult;
 
 /**
- * Verifies Request Middleware behavior that application users rely on.
+ * Exercises Request Middleware through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class RequestMiddlewareTest extends TestCase
 {
     /**
-     * Supports the load fixture step in the app-facing flow.
+     * Load one decoded agent response used while testing middleware around an app request.
+     * Use it when the scenario needs realistic wire data; the returned map is never empty for a valid fixture.
      *
-     * @param string $name Fixture or attachment name used in the test flow.
-     * @return array<string, mixed> Fixture payload used to simulate an agent response.
+     * @param string $name Fixture filename; empty cannot identify a response file and triggers a RuntimeException.
+     * @return array<string, mixed> Decoded response fields; never null or empty for the fixtures used here.
      */
     private function loadFixture(string $name): array
     {
-        $path = __DIR__ . '/../Fixtures/' . $name;
-        $content = file_get_contents($path);
-        if ($content === false) {
-            throw new \RuntimeException("Fixture not found: $path");
+        $fixturePath = __DIR__ . '/../Fixtures/' . $name;
+        $fixtureContents = file_get_contents($fixturePath);
+        // A missing fixture means the test cannot model the agent response the application would receive.
+        if ($fixtureContents === false) {
+            throw new \RuntimeException("Fixture not found: $fixturePath");
         }
 
-        /** @var array<string, mixed> $data validated before app code uses it. */
-        $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        /** @var array<string, mixed> $fixtureData Validated response fields used by the middleware scenario. */
+        $fixtureData = json_decode($fixtureContents, true, 512, JSON_THROW_ON_ERROR);
 
-        return $data;
+        return $fixtureData;
     }
 
     /**
-     * Verifies that middleware before request called on invoke.
+     * Confirms beforeRequest() called on invoke so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -72,7 +80,7 @@ class RequestMiddlewareTest extends TestCase
             ->method('post')
             ->with(
                 $this->anything(),
-                $this->callback(fn (array $h) => ($h['X-Trace-Id'] ?? null) === 'abc-123'),
+                $this->callback(fn (array $headers) => ($headers['X-Trace-Id'] ?? null) === 'abc-123'),
                 $this->anything(),
                 $this->anything(),
                 $this->anything(),
@@ -91,7 +99,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware after response called on success.
+     * Confirms afterResponse() called on success so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -130,7 +138,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware after response called onError.
+     * Confirms afterResponse() called onError so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -169,7 +177,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware after response runs when request setup fails after beforeRequest.
+     * Confirms afterResponse() runs when request setup fails after beforeRequest so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -212,7 +220,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that setup failures before middleware starts do not send after response.
+     * Confirms setup failures before middleware starts do not send after response so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -238,7 +246,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware after response exception is logged.
+     * Confirms afterResponse() exception is logged so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -280,7 +288,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that multiple middleware executed in order.
+     * Confirms multiple middleware executed in order so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -317,7 +325,7 @@ class RequestMiddlewareTest extends TestCase
         $transport->expects($this->any())->method('post')
             ->with(
                 $this->anything(),
-                $this->callback(fn (array $h) => ($h['X-First'] ?? null) === '1' && ($h['X-Second'] ?? null) === '2'),
+                $this->callback(fn (array $headers) => ($headers['X-First'] ?? null) === '1' && ($headers['X-Second'] ?? null) === '2'),
                 $this->anything(),
                 $this->anything(),
                 $this->anything(),
@@ -336,7 +344,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware called on stream.
+     * Confirms middleware called on stream so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -368,7 +376,14 @@ class RequestMiddlewareTest extends TestCase
 
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
                 $onChunk->__invoke($sseData);
             });
 
@@ -388,7 +403,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware called on stream error.
+     * Confirms middleware called on stream error so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -431,7 +446,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware called on stream interrupted.
+     * Confirms middleware called on stream interrupted so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -457,7 +472,14 @@ class RequestMiddlewareTest extends TestCase
 
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
                 $onChunk->__invoke($sseData);
             });
 
@@ -477,7 +499,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware applied to post JSON.
+     * Confirms middleware applied to post JSON so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -498,7 +520,7 @@ class RequestMiddlewareTest extends TestCase
             ->method('post')
             ->with(
                 $this->anything(),
-                $this->callback(fn (array $h) => ($h['X-Custom'] ?? null) === 'traced'),
+                $this->callback(fn (array $headers) => ($headers['X-Custom'] ?? null) === 'traced'),
                 $this->anything(),
                 $this->anything(),
                 $this->anything(),
@@ -517,7 +539,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware after response called on post JSON success.
+     * Confirms afterResponse() called on post JSON success so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -553,7 +575,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware after response called on post JSON error.
+     * Confirms afterResponse() called on post JSON error so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -591,7 +613,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware after response called on stream SSE success.
+     * Confirms afterResponse() called on stream SSE success so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -616,7 +638,14 @@ class RequestMiddlewareTest extends TestCase
 
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
                 $onChunk->__invoke($sseData);
             });
 
@@ -635,7 +664,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware after response called on stream SSE error.
+     * Confirms afterResponse() called on stream SSE error so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -674,7 +703,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware after response called on stream SSE cancelled.
+     * Confirms afterResponse() called on stream SSE cancelled so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -699,7 +728,14 @@ class RequestMiddlewareTest extends TestCase
 
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
                 $onChunk->__invoke($sseData);
             });
 
@@ -720,7 +756,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that a middleware whose beforeRequest threw still receives afterResponse.
+     * Confirms a middleware whose beforeRequest threw still receives afterResponse so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -755,7 +791,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that middleware never entered before a setup failure gets no afterResponse.
+     * Confirms middleware never entered before a setup failure gets no afterResponse so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -806,6 +842,7 @@ class RequestMiddlewareTest extends TestCase
             $strandsClient->invoke(message: 'Test');
             $this->fail('invoke() must rethrow the middleware setup failure');
         } catch (\RuntimeException $caught) {
+            // For example, request middleware can reject invalid app context before transport starts; the same setup error must reach the caller.
             $this->assertSame($setupException, $caught);
         }
 
@@ -813,7 +850,7 @@ class RequestMiddlewareTest extends TestCase
     }
 
     /**
-     * Verifies that cancelled stream reports status zero.
+     * Confirms cancelled stream reports status zero so request monitoring leaves the user outcome unchanged.
      *
      * @return void
      */
@@ -839,7 +876,14 @@ class RequestMiddlewareTest extends TestCase
 
         $transport = $this->createMock(HttpTransport::class);
         $transport->expects($this->any())->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
                 $onChunk->__invoke($sseData);
             });
 

@@ -7,9 +7,8 @@ namespace StrandsPhpClient\Streaming;
 /**
  * A ready-made stream handler that prints the answer as it arrives.
  *
- * Drop this into StrandsClient::stream() to echo streamed text to stdout (and
- * errors to stderr) — handy for CLI tools and quick demos. Pass custom writers
- * to redirect output elsewhere, such as a log file or a test buffer.
+ * Pass it to StrandsClient::stream() for CLI output, with errors sent separately to stderr.
+ * Supply custom writers when an app needs a log, test buffer, or another text destination.
  *
  * @SuppressWarnings("PHPMD.UnusedFormalParameter") -- onComplete() keeps the parent's $event name for named-arg callers.
  */

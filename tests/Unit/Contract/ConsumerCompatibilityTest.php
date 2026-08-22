@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Consumer Compatibility behavior for app integrations.
+ * Exercises caller-visible Consumer Compatibility behavior for app integrations.
+ *
+ * Use this file when changing Consumer Compatibility or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Contract;
@@ -17,12 +20,15 @@ use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 
 /**
- * Verifies Consumer Compatibility behavior that application users rely on.
+ * Exercises Consumer Compatibility through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class ConsumerCompatibilityTest extends TestCase
 {
     /**
-     * Verifies that summit chatroom standard stream profile still parses typed events.
+     * Confirms summit chatroom standard stream profile still parses typed events so existing apps remain compatible with Wire Contract v1.
      *
      * @return void
      */
@@ -58,7 +64,7 @@ class ConsumerCompatibilityTest extends TestCase
     }
 
     /**
-     * Verifies that ambient scribe custom post JSON profiles preserve raw arrays.
+     * Confirms ambient scribe custom post JSON profiles preserve raw arrays so existing apps remain compatible with Wire Contract v1.
      *
      * @return void
      */
@@ -84,7 +90,7 @@ class ConsumerCompatibilityTest extends TestCase
     }
 
     /**
-     * Verifies that halaxy custom post JSON profiles preserve raw arrays.
+     * Confirms halaxy custom post JSON profiles preserve raw arrays so existing apps remain compatible with Wire Contract v1.
      *
      * @return void
      */
@@ -116,7 +122,7 @@ class ConsumerCompatibilityTest extends TestCase
     }
 
     /**
-     * Verifies that healthkit custom post JSON profiles preserve raw arrays.
+     * Confirms healthkit custom post JSON profiles preserve raw arrays so existing apps remain compatible with Wire Contract v1.
      *
      * @return void
      */
@@ -142,7 +148,7 @@ class ConsumerCompatibilityTest extends TestCase
     }
 
     /**
-     * Verifies that custom stream SSE profiles preserve unknown fields for callbacks.
+     * Confirms custom stream SSE profiles preserve unknown fields for callbacks so existing apps remain compatible with Wire Contract v1.
      *
      * @return void
      */
@@ -169,7 +175,7 @@ class ConsumerCompatibilityTest extends TestCase
     }
 
     /**
-     * Verifies that healthkit booking stream SSE profile preserves domain events.
+     * Confirms healthkit booking stream SSE profile preserves domain events so existing apps remain compatible with Wire Contract v1.
      *
      * @return void
      */
@@ -223,7 +229,14 @@ class ConsumerCompatibilityTest extends TestCase
     {
         $transport = $this->createMock(HttpTransport::class);
         $transport->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData): void {
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData): void {
                 $onChunk->__invoke($sseData);
             });
 
@@ -252,10 +265,10 @@ class ConsumerCompatibilityTest extends TestCase
      */
     private function jsonFixture(string $filename): array
     {
-        $data = json_decode($this->fixture($filename), true, flags: JSON_THROW_ON_ERROR);
-        self::assertIsArray($data);
+        $fixtureData = json_decode($this->fixture($filename), true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($fixtureData);
 
         /** @var array<string, mixed> $data validated before app code uses it. */
-        return $data;
+        return $fixtureData;
     }
 }

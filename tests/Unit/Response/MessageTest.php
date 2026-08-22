@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests defensive parsing of raw message content blocks.
+ * Exercises defensive parsing of raw message content blocks.
+ *
+ * Use this file when changing how wire messages become user-visible content.
+ * It protects the UI from malformed or incomplete response blocks.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Response;
@@ -12,12 +15,15 @@ use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\Message;
 
 /**
- * Verifies Message behavior that application users rely on.
+ * Exercises Message through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 final class MessageTest extends TestCase
 {
     /**
-     * Verifies that malformed content entries are ignored without dropping valid blocks.
+     * Confirms malformed content entries are ignored without dropping valid blocks so the app renders trustworthy answer details.
      *
      * @return void
      */

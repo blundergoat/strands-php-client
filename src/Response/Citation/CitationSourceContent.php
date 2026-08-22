@@ -7,9 +7,8 @@ namespace StrandsPhpClient\Response\Citation;
 /**
  * The source passage a citation quotes, for display beside the answer.
  *
- * Holds the cited text and, for file-based sources, the document name — what the
- * app shows when the user expands "where did this come from?". Fields stay null
- * when the wrapper provided only a bare reference.
+ * It holds the cited text and optional document name shown when a user opens source details.
+ * Its fields stay null when the wrapper provided only a bare reference.
  */
 final readonly class CitationSourceContent
 {
@@ -18,9 +17,9 @@ final readonly class CitationSourceContent
      *
      * Usually built by fromArray() from a response citation block.
      *
-     * @param string|null $type          Content type identifier.
-     * @param string|null $text          The source text that was cited.
-     * @param string|null $documentName  Name of the source document.
+     * @param string|null $type Content type; null means unavailable, while an empty string is preserved.
+     * @param string|null $text Quoted source text; null means unavailable, while an empty string is preserved.
+     * @param string|null $documentName File name; null means unavailable, while an empty string is preserved.
      */
     public function __construct(
         public ?string $type = null,
@@ -32,7 +31,7 @@ final readonly class CitationSourceContent
     /**
      * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
+     * @param array<string, mixed> $data Raw source-content map; an empty map creates all-null fields the UI can omit.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self

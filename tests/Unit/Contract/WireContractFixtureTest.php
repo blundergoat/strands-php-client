@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Wire Contract Fixture behavior for app integrations.
+ * Exercises caller-visible Wire Contract Fixture behavior for app integrations.
+ *
+ * Use this file when changing Wire Contract Fixture or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Contract;
@@ -15,7 +18,10 @@ use StrandsPhpClient\Streaming\StreamEventType;
 use StrandsPhpClient\Streaming\StreamParser;
 
 /**
- * Verifies Wire Contract Fixture behavior that application users rely on.
+ * Exercises Wire Contract Fixture through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 final class WireContractFixtureTest extends TestCase
 {
@@ -32,6 +38,7 @@ final class WireContractFixtureTest extends TestCase
         $paths = glob(self::FIXTURE_DIR . '/invoke-response-*.json') ?: [];
         sort($paths);
 
+        // Each invoke-response fixture represents one terminal answer shape a consuming app must keep parsing.
         foreach ($paths as $path) {
             yield basename($path) => [$path];
         }
@@ -47,6 +54,7 @@ final class WireContractFixtureTest extends TestCase
         $paths = glob(self::FIXTURE_DIR . '/invoke-request-*.json') ?: [];
         sort($paths);
 
+        // Each invoke-request fixture represents one prompt envelope an app may send to its wrapper.
         foreach ($paths as $path) {
             yield basename($path) => [$path];
         }
@@ -62,6 +70,7 @@ final class WireContractFixtureTest extends TestCase
         $paths = glob(self::FIXTURE_DIR . '/stream-*.sse') ?: [];
         sort($paths);
 
+        // Each stream fixture represents one event sequence a live answer UI must accept.
         foreach ($paths as $path) {
             yield basename($path) => [$path];
         }
@@ -77,8 +86,10 @@ final class WireContractFixtureTest extends TestCase
         $paths = glob(self::FIXTURE_DIR . '/*.json') ?: [];
         sort($paths);
 
+        // Walk every JSON fixture, then leave the invoke and error files to their more specific tests below.
         foreach ($paths as $path) {
             $filename = basename($path);
+            // Invoke and error fixtures have dedicated assertions, so this provider keeps only custom response objects.
             if (
                 str_starts_with($filename, 'invoke-request-')
                 || str_starts_with($filename, 'invoke-response-')
@@ -92,7 +103,7 @@ final class WireContractFixtureTest extends TestCase
     }
 
     /**
-     * Verifies that invoke response fixtures parse as agent responses.
+     * Confirms invoke response fixtures parse as agent responses so existing apps remain compatible with Wire Contract v1.
      *
      * @param string $path Fixture path supplied by the data provider.
      * @return void
@@ -100,16 +111,16 @@ final class WireContractFixtureTest extends TestCase
     #[DataProvider('invokeResponseFixtureProvider')]
     public function testInvokeResponseFixturesParseAsAgentResponses(string $path): void
     {
-        $data = self::jsonFixture($path);
+        $fixtureData = self::jsonFixture($path);
 
-        $response = AgentResponse::fromArray($data);
+        $response = AgentResponse::fromArray($fixtureData);
 
-        $this->assertArrayHasKey('text', $data, basename($path));
-        $this->assertSame($data['text'], $response->text, basename($path));
+        $this->assertArrayHasKey('text', $fixtureData, basename($path));
+        $this->assertSame($fixtureData['text'], $response->text, basename($path));
     }
 
     /**
-     * Verifies that invoke request fixtures are valid request envelopes.
+     * Confirms invoke request fixtures are valid request envelopes so existing apps remain compatible with Wire Contract v1.
      *
      * @param string $path Fixture path supplied by the data provider.
      * @return void
@@ -117,46 +128,50 @@ final class WireContractFixtureTest extends TestCase
     #[DataProvider('invokeRequestFixtureProvider')]
     public function testInvokeRequestFixturesAreValidRequestEnvelopes(string $path): void
     {
-        $data = self::jsonFixture($path);
+        $fixtureData = self::jsonFixture($path);
 
-        $this->assertArrayHasKey('message', $data, basename($path));
+        $this->assertArrayHasKey('message', $fixtureData, basename($path));
         $this->assertTrue(
-            is_string($data['message']) || is_array($data['message']),
+            is_string($fixtureData['message']) || is_array($fixtureData['message']),
             sprintf('%s message must be a string or rich message object', basename($path)),
         );
 
-        if (isset($data['session_id'])) {
-            $this->assertIsString($data['session_id'], basename($path));
+        // A session ID is optional, but when present it must be a string the app can reuse on the next turn.
+        if (isset($fixtureData['session_id'])) {
+            $this->assertIsString($fixtureData['session_id'], basename($path));
         }
 
-        if (isset($data['context'])) {
-            $this->assertIsArray($data['context'], basename($path));
+        // Optional context must remain an object so callers can safely add it to a follow-up request.
+        if (isset($fixtureData['context'])) {
+            $this->assertIsArray($fixtureData['context'], basename($path));
         }
     }
 
     /**
-     * Verifies that error response fixture is structured JSON.
+     * Confirms error response fixture is structured JSON so existing apps remain compatible with Wire Contract v1.
      *
      * @return void
      */
     public function testErrorResponseFixtureIsStructuredJson(): void
     {
-        $data = self::jsonFixture(self::FIXTURE_DIR . '/error-response.json');
+        $fixtureData = self::jsonFixture(self::FIXTURE_DIR . '/error-response.json');
 
-        $this->assertArrayHasKey('message', $data);
-        $this->assertIsString($data['message']);
+        $this->assertArrayHasKey('message', $fixtureData);
+        $this->assertIsString($fixtureData['message']);
 
-        if (isset($data['code'])) {
-            $this->assertIsString($data['code']);
+        // A wrapper may omit its machine code, but a present code must be safe for app-side branching.
+        if (isset($fixtureData['code'])) {
+            $this->assertIsString($fixtureData['code']);
         }
 
-        if (isset($data['detail'])) {
-            $this->assertIsArray($data['detail']);
+        // Structured detail is optional; when present it must remain an object the error UI can inspect.
+        if (isset($fixtureData['detail'])) {
+            $this->assertIsArray($fixtureData['detail']);
         }
     }
 
     /**
-     * Verifies that other JSON fixtures are structured objects.
+     * Confirms other JSON fixtures are structured objects so existing apps remain compatible with Wire Contract v1.
      *
      * @param string $path Fixture path supplied by the data provider.
      * @return void
@@ -164,13 +179,13 @@ final class WireContractFixtureTest extends TestCase
     #[DataProvider('nonInvokeJsonFixtureProvider')]
     public function testOtherJsonFixturesAreStructuredObjects(string $path): void
     {
-        $data = self::jsonFixture($path);
+        $fixtureData = self::jsonFixture($path);
 
-        $this->assertNotSame([], $data, basename($path));
+        $this->assertNotSame([], $fixtureData, basename($path));
     }
 
     /**
-     * Verifies that stream fixtures parse to terminal events.
+     * Confirms stream() fixtures parse to terminal events so existing apps remain compatible with Wire Contract v1.
      *
      * @param string $path Fixture path supplied by the data provider.
      * @return void

@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Guardrail Trace behavior for app integrations.
+ * Exercises caller-visible Guardrail Trace behavior for app integrations.
+ *
+ * Use this file when changing Guardrail Trace or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -13,14 +16,17 @@ use StrandsPhpClient\Response\GuardrailAssessment;
 use StrandsPhpClient\Response\GuardrailTrace;
 
 /**
- * Verifies Guardrail Trace behavior that application users rely on.
+ * Exercises Guardrail Trace through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class GuardrailTraceTest extends TestCase
 {
     /**
      * Data fixture for testFromArrayHydratesAllFields().
      *
-     * @return array<string, mixed> Scenarios that keep from array hydrates all fields behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayHydratesAllFields(): array
     {
@@ -35,15 +41,15 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Verifies that from array hydrates all fields.
+     * Confirms fromArray() hydrates all fields so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testFromArrayHydratesAllFields(): void
     {
-        $data = $this->dataForFromArrayHydratesAllFields();
+        $traceData = $this->dataForFromArrayHydratesAllFields();
 
-        $trace = GuardrailTrace::fromArray($data);
+        $trace = GuardrailTrace::fromArray($traceData);
 
         $this->assertSame('INTERVENED', $trace->action);
         $this->assertCount(2, $trace->assessments);
@@ -53,7 +59,7 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Verifies that from array handles missing fields.
+     * Confirms fromArray() handles missing fields so the app renders trustworthy answer details.
      *
      * @return void
      */
@@ -68,7 +74,7 @@ class GuardrailTraceTest extends TestCase
     /**
      * Data fixture for testFromArrayFiltersNonArrayAssessments().
      *
-     * @return array<string, mixed> Scenarios that keep from array filters non array assessments behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayFiltersNonArrayAssessments(): array
     {
@@ -85,15 +91,15 @@ class GuardrailTraceTest extends TestCase
 
 
     /**
-     * Verifies that from array filters non array assessments.
+     * Confirms fromArray() filters non array assessments so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testFromArrayFiltersNonArrayAssessments(): void
     {
-        $data = $this->dataForFromArrayFiltersNonArrayAssessments();
+        $traceData = $this->dataForFromArrayFiltersNonArrayAssessments();
 
-        $trace = GuardrailTrace::fromArray($data);
+        $trace = GuardrailTrace::fromArray($traceData);
 
         $this->assertCount(2, $trace->assessments);
         $this->assertSame('valid', $trace->assessments[0]['type']);
@@ -101,47 +107,47 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Verifies that from array handles non array assessments.
+     * Confirms fromArray() handles non array assessments so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testFromArrayHandlesNonArrayAssessments(): void
     {
-        $data = [
+        $traceData = [
             'action' => 'NONE',
             'assessments' => 'not_an_array',
         ];
 
-        $trace = GuardrailTrace::fromArray($data);
+        $trace = GuardrailTrace::fromArray($traceData);
 
         $this->assertSame([], $trace->assessments);
     }
 
     /**
-     * Verifies that from array handles non string model output.
+     * Confirms fromArray() handles non string model output so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testFromArrayHandlesNonStringModelOutput(): void
     {
-        $data = [
+        $traceData = [
             'action' => 'NONE',
             'model_output' => 123,
         ];
 
-        $trace = GuardrailTrace::fromArray($data);
+        $trace = GuardrailTrace::fromArray($traceData);
 
         $this->assertNull($trace->modelOutput);
     }
 
     /**
-     * Verifies that get assessment objects returns typed list.
+     * Confirms getAssessmentObjects() returns typed list so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testGetAssessmentObjectsReturnsTypedList(): void
     {
-        $data = [
+        $traceData = [
             'action' => 'INTERVENED',
             'assessments' => [
                 ['type' => 'content_filter', 'action' => 'BLOCKED'],
@@ -149,7 +155,7 @@ class GuardrailTraceTest extends TestCase
             ],
         ];
 
-        $trace = GuardrailTrace::fromArray($data);
+        $trace = GuardrailTrace::fromArray($traceData);
         $objects = $trace->getAssessmentObjects();
 
         $this->assertCount(2, $objects);
@@ -161,20 +167,20 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Verifies that get assessment objects caches result.
+     * Confirms getAssessmentObjects() caches result so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testGetAssessmentObjectsCachesResult(): void
     {
-        $data = [
+        $traceData = [
             'action' => 'NONE',
             'assessments' => [
                 ['type' => 'test'],
             ],
         ];
 
-        $trace = GuardrailTrace::fromArray($data);
+        $trace = GuardrailTrace::fromArray($traceData);
         $first = $trace->getAssessmentObjects();
         $second = $trace->getAssessmentObjects();
 
@@ -182,7 +188,7 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Verifies that get assessment objects returns empty for no assessments.
+     * Confirms getAssessmentObjects() returns empty for no assessments so the app renders trustworthy answer details.
      *
      * @return void
      */

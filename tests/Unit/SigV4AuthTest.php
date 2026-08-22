@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Sig V4 Auth behavior for app integrations.
+ * Exercises caller-visible Sig V4 Auth behavior for app integrations.
+ *
+ * Use this file when changing Sig V4 Auth or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -13,7 +16,10 @@ use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Auth\SigV4Auth;
 
 /**
- * Verifies Sig V4 Auth behavior that application users rely on.
+ * Exercises Sig V4 Auth through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class SigV4AuthTest extends TestCase
 {
@@ -32,13 +38,13 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Build a SigV4Auth pre-configured with the canonical AWS SigV4 example
-     * credentials. Tests that don't care about the credential values use this
-     * to keep the test body focused on the call under test.
+     * Builds SigV4Auth with the canonical AWS example credentials.
+     *
+     * Use it when the scenario concerns request signing rather than credential values.
      *
      * @param string $region AWS region for the signed request.
      * @param string $service AWS service name (defaults to API Gateway's value).
-     * @param string|null $sessionToken Optional STS session token to include in the signature.
+     * @param string|null $sessionToken STS token; null omits it, while an empty string is included explicitly.
      * @param string $accessKeyId access key shown in the generated credential scope.
      * @param string $secretAccessKey secret key used to prove the signature changes.
      * @return SigV4Auth Configured signer ready for an authenticate() call.
@@ -60,7 +66,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate adds required headers.
+     * Confirms authenticate() adds required headers so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -83,7 +89,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate includes session token.
+     * Confirms authenticate() includes session token so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -99,7 +105,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate omits security token when null.
+     * Confirms authenticate() omits security token when null so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -114,7 +120,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate includes correct region and service.
+     * Confirms authenticate() includes correct region and service so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -128,7 +134,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate default service is execute api.
+     * Confirms authenticate() default service is execute api so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -142,7 +148,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate preserves existing headers.
+     * Confirms authenticate() preserves existing headers so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -162,7 +168,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate payload hash is correct.
+     * Confirms authenticate() payload hash is correct so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -183,7 +189,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate handles URL with query string.
+     * Confirms authenticate() handles URL with query string so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -197,7 +203,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate handles URL with non standard port.
+     * Confirms authenticate() handles URL with non standard port so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -221,7 +227,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate ignores default https port.
+     * Confirms authenticate() ignores default https port so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -243,7 +249,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate ignores default HTTP port.
+     * Confirms authenticate() ignores default HTTP port so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -264,7 +270,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that from environment throws on missing access key.
+     * Confirms fromEnvironment() throws on missing access key so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -285,7 +291,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that from environment throws on missing secret key.
+     * Confirms fromEnvironment() throws on missing secret key so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -306,7 +312,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that from environment creates auth.
+     * Confirms fromEnvironment() creates auth so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -331,7 +337,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that signature is deterministic for same inputs.
+     * Confirms signature is deterministic for same inputs so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -361,14 +367,16 @@ class SigV4AuthTest extends TestCase
      * @param string $url Request URL to sign.
      * @param string $body Request body to sign.
      * @param SigV4Auth $sigV4Auth Signer used to build the outgoing auth header.
-     * @return array{0: array<string, string>, 1: array<string, string>} Two header arrays from calls in the same UTC second.
+     * @return array{0: array<string, string>, 1: array<string, string>} Non-empty pair of signed header maps from one UTC second.
      */
     private function authenticatePairInSameSecond(SigV4Auth $sigV4Auth, string $method, string $url, string $body): array
     {
+        // Retry around a UTC second boundary so the test compares headers produced for the same request time.
         for ($attempt = 0; $attempt < 3; $attempt++) {
             $firstHeaders = $sigV4Auth->authenticate([], $method, $url, $body);
             $secondHeaders = $sigV4Auth->authenticate([], $method, $url, $body);
 
+            // Matching timestamps prove identical app requests produce a deterministic authorization header.
             if ($firstHeaders['X-Amz-Date'] === $secondHeaders['X-Amz-Date']) {
                 return [$firstHeaders, $secondHeaders];
             }
@@ -378,7 +386,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that content type is included in signed headers.
+     * Confirms content type is included in signed headers so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -397,7 +405,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that different bodies produce different signatures.
+     * Confirms different bodies produce different signatures so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -409,15 +417,15 @@ class SigV4AuthTest extends TestCase
             region: 'us-east-1',
         );
 
-        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{"a":1}');
-        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{"a":2}');
+        $firstResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{"a":1}');
+        $secondResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{"a":2}');
 
-        $this->assertNotSame($r1['Authorization'], $r2['Authorization']);
-        $this->assertNotSame($r1['X-Amz-Content-Sha256'], $r2['X-Amz-Content-Sha256']);
+        $this->assertNotSame($firstResponseHeaders['Authorization'], $secondResponseHeaders['Authorization']);
+        $this->assertNotSame($firstResponseHeaders['X-Amz-Content-Sha256'], $secondResponseHeaders['X-Amz-Content-Sha256']);
     }
 
     /**
-     * Verifies that different paths produce different signatures.
+     * Confirms different paths produce different signatures so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -429,16 +437,16 @@ class SigV4AuthTest extends TestCase
             region: 'us-east-1',
         );
 
-        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/stream', '{}');
+        $firstResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $secondResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/stream', '{}');
 
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertNotSame($sig1, $sig2);
+        $firstSignature = $this->extractSignature($firstResponseHeaders['Authorization']);
+        $secondSignature = $this->extractSignature($secondResponseHeaders['Authorization']);
+        $this->assertNotSame($firstSignature, $secondSignature);
     }
 
     /**
-     * Verifies that different methods produce different signatures.
+     * Confirms different methods produce different signatures so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -450,31 +458,31 @@ class SigV4AuthTest extends TestCase
             region: 'us-east-1',
         );
 
-        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $sigV4Auth->authenticate([], 'GET', 'https://api.example.com/invoke', '{}');
+        $firstResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $secondResponseHeaders = $sigV4Auth->authenticate([], 'GET', 'https://api.example.com/invoke', '{}');
 
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertNotSame($sig1, $sig2);
+        $firstSignature = $this->extractSignature($firstResponseHeaders['Authorization']);
+        $secondSignature = $this->extractSignature($secondResponseHeaders['Authorization']);
+        $this->assertNotSame($firstSignature, $secondSignature);
     }
 
     /**
      * Verifies that varying one credential field (region/service/keys/session token) on
      * SigV4Auth changes the produced signature for the same request.
      *
-     * @param SigV4Auth $first First signer; expected to disagree with $second on the signed Authorization header.
-     * @param SigV4Auth $second Second signer; differs from $first by exactly one credential dimension.
+     * @param SigV4Auth $baselineSigner Signer used as the comparison baseline.
+     * @param SigV4Auth $changedSigner Signer whose one changed credential must alter the Authorization header.
      * @return void
      */
     #[DataProvider('signaturePairProvider')]
-    public function testSignatureChangesWhenOneCredentialFieldDiffers(SigV4Auth $first, SigV4Auth $second): void
+    public function testSignatureChangesWhenOneCredentialFieldDiffers(SigV4Auth $baselineSigner, SigV4Auth $changedSigner): void
     {
-        $r1 = $first->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $second->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $firstResponseHeaders = $baselineSigner->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $secondResponseHeaders = $changedSigner->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertNotSame($sig1, $sig2);
+        $firstSignature = $this->extractSignature($firstResponseHeaders['Authorization']);
+        $secondSignature = $this->extractSignature($secondResponseHeaders['Authorization']);
+        $this->assertNotSame($firstSignature, $secondSignature);
     }
 
     /**
@@ -499,7 +507,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authorization header format.
+     * Confirms the authorization header follows the AWS format so authenticated requests reach the agent.
      *
      * @return void
      */
@@ -524,7 +532,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that signed headers are sorted.
+     * Confirms signed headers are sorted so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -556,7 +564,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that amz date format is correct.
+     * Confirms amz date format is correct so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -571,7 +579,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that credential scope contains date region service suffix.
+     * Confirms credential scope contains date region service suffix so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -593,7 +601,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that query string parameters affect signature.
+     * Confirms query string parameters affect signature so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -601,16 +609,16 @@ class SigV4AuthTest extends TestCase
     {
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
-        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=bar', '{}');
-        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=baz', '{}');
+        $firstResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=bar', '{}');
+        $secondResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=baz', '{}');
 
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertNotSame($sig1, $sig2);
+        $firstSignature = $this->extractSignature($firstResponseHeaders['Authorization']);
+        $secondSignature = $this->extractSignature($secondResponseHeaders['Authorization']);
+        $this->assertNotSame($firstSignature, $secondSignature);
     }
 
     /**
-     * Verifies that query string parameters are sorted.
+     * Confirms query string parameters are sorted so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -619,16 +627,16 @@ class SigV4AuthTest extends TestCase
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // Different order, same parameters — should produce same signature
-        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?a=1&b=2', '{}');
-        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?b=2&a=1', '{}');
+        $firstResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?a=1&b=2', '{}');
+        $secondResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?b=2&a=1', '{}');
 
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertSame($sig1, $sig2);
+        $firstSignature = $this->extractSignature($firstResponseHeaders['Authorization']);
+        $secondSignature = $this->extractSignature($secondResponseHeaders['Authorization']);
+        $this->assertSame($firstSignature, $secondSignature);
     }
 
     /**
-     * Verifies that authenticate produces a signature for a deep path.
+     * Confirms authenticate() produces a signature for a deep path so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -642,7 +650,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that authenticate produces a signature for the root path.
+     * Confirms authenticate() produces a signature for the root path so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -656,7 +664,8 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that a deep multi-segment path and the root path produce different signatures.
+     * Confirms a deep multi-segment path and the root path produce different signatures so authenticated requests reach the agent with the intended
+     * headers.
      *
      * @return void
      */
@@ -673,7 +682,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that host is included in signature.
+     * Confirms host is included in signature so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -682,16 +691,16 @@ class SigV4AuthTest extends TestCase
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // Different hosts — different signatures
-        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api1.example.com/invoke', '{}');
-        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api2.example.com/invoke', '{}');
+        $firstResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api1.example.com/invoke', '{}');
+        $secondResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api2.example.com/invoke', '{}');
 
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertNotSame($sig1, $sig2);
+        $firstSignature = $this->extractSignature($firstResponseHeaders['Authorization']);
+        $secondSignature = $this->extractSignature($secondResponseHeaders['Authorization']);
+        $this->assertNotSame($firstSignature, $secondSignature);
     }
 
     /**
-     * Verifies that session token affects signature.
+     * Confirms session token affects signature so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -703,10 +712,8 @@ class SigV4AuthTest extends TestCase
         $headersWithToken = $sigV4AuthWithToken->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
         $headersWithoutToken = $sigV4AuthWithoutToken->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
-        // Session token affects more than just the signature — it adds the
-        // X-Amz-Security-Token header and changes the signed-headers list. We
-        // keep this as a standalone test (not folded into the parameterised
-        // signature-pair check) so the contract is named.
+        // A session token adds X-Amz-Security-Token and changes the signed-header list.
+        // Keeping this separate names the temporary-credential behavior an app relies on.
         $this->assertSame('TOKEN', $headersWithToken['X-Amz-Security-Token'] ?? null);
         $this->assertArrayNotHasKey('X-Amz-Security-Token', $headersWithoutToken);
         $this->assertNotSame(
@@ -716,7 +723,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that from environment ignores empty session token.
+     * Confirms fromEnvironment() ignores empty session token so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -738,7 +745,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that signature is 64 char hex.
+     * Confirms signature is 64 char hex so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -752,7 +759,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that content hash is 64 char hex.
+     * Confirms content hash is 64 char hex so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -765,22 +772,18 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that canonical header format is correct.
+     * Confirms canonical header format is correct so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
     public function testCanonicalHeaderFormatIsCorrect(): void
     {
-        // Verifies the "key:value\n" format of canonical headers
-        // by checking that removing the colon, the key, the value, or the newline
-        // would produce a different signature.
+        // The AWS "key:value\n" format ensures each app header contributes predictably to the signature.
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
-        // The signature depends on the canonical request which includes
-        // "host:hostname\nx-amz-content-sha256:hash\nx-amz-date:date\n"
-        // Any mutation to this format would change the canonical request hash
-        // and therefore the signature.
-        $r1 = $sigV4Auth->authenticate(
+        // The canonical request includes the host, payload hash, and date in sorted header form.
+        // Any formatting change produces a different signature that AWS would reject.
+        $firstResponseHeaders = $sigV4Auth->authenticate(
             ['Content-Type' => 'application/json'],
             'POST',
             'https://api.example.com/invoke',
@@ -788,20 +791,20 @@ class SigV4AuthTest extends TestCase
         );
 
         // Extract the signature
-        $signature = $this->extractSignature($r1['Authorization']);
+        $canonicalHeaderSignature = $this->extractSignature($firstResponseHeaders['Authorization']);
 
         // The signature is 64 hex chars — verifies the full signing pipeline
         // (canonical headers → canonical request → string to sign → signature)
-        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $signature);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $canonicalHeaderSignature);
 
         // Verify SignedHeaders contains content-type, host, x-amz headers in sorted order
-        preg_match('/SignedHeaders=([^,]+)/', $r1['Authorization'], $matches);
-        $signedHeaders = $matches[1];
+        preg_match('/SignedHeaders=([^,]+)/', $firstResponseHeaders['Authorization'], $signedHeadersMatch);
+        $signedHeaders = $signedHeadersMatch[1];
         $this->assertSame('content-type;host;x-amz-content-sha256;x-amz-date', $signedHeaders);
     }
 
     /**
-     * Verifies that signing key prefix is AWS 4.
+     * Confirms the signing key uses the AWS4 prefix so authenticated requests reach the agent with valid headers.
      *
      * @return void
      */
@@ -812,19 +815,19 @@ class SigV4AuthTest extends TestCase
         $sigV4AuthOriginalSecret = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
         $sigV4AuthPrefixedSecret = new SigV4Auth('AKID', 'AWS4SECRET', 'us-east-1');
 
-        $r1 = $sigV4AuthOriginalSecret->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $sigV4AuthPrefixedSecret->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $firstResponseHeaders = $sigV4AuthOriginalSecret->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $secondResponseHeaders = $sigV4AuthPrefixedSecret->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
 
         // If 'AWS4' were dropped or reordered, SECRET and AWS4SECRET would produce
         // the same signatures. They must be different.
         $this->assertNotSame(
-            $this->extractSignature($r1['Authorization']),
-            $this->extractSignature($r2['Authorization']),
+            $this->extractSignature($firstResponseHeaders['Authorization']),
+            $this->extractSignature($secondResponseHeaders['Authorization']),
         );
     }
 
     /**
-     * Verifies that query string value with equals sign.
+     * Confirms an equals sign in a query value is encoded so the user-requested URL is signed correctly.
      *
      * @return void
      */
@@ -833,16 +836,16 @@ class SigV4AuthTest extends TestCase
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // A query value containing '=' — the explode('=', $pair, 2) limit matters
-        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?token=abc=def', '{}');
-        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?token=abc', '{}');
+        $firstResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?token=abc=def', '{}');
+        $secondResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?token=abc', '{}');
 
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertNotSame($sig1, $sig2, 'Query value with = must produce different signature');
+        $firstSignature = $this->extractSignature($firstResponseHeaders['Authorization']);
+        $secondSignature = $this->extractSignature($secondResponseHeaders['Authorization']);
+        $this->assertNotSame($firstSignature, $secondSignature, 'Query value with = must produce different signature');
     }
 
     /**
-     * Verifies that query string key and value order.
+     * Confirms query keys and values are sorted so the user-requested URL is signed consistently.
      *
      * @return void
      */
@@ -851,16 +854,16 @@ class SigV4AuthTest extends TestCase
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // key=value vs value=key should produce different signatures
-        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=bar', '{}');
-        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?bar=foo', '{}');
+        $firstResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?foo=bar', '{}');
+        $secondResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?bar=foo', '{}');
 
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertNotSame($sig1, $sig2);
+        $firstSignature = $this->extractSignature($firstResponseHeaders['Authorization']);
+        $secondSignature = $this->extractSignature($secondResponseHeaders['Authorization']);
+        $this->assertNotSame($firstSignature, $secondSignature);
     }
 
     /**
-     * Verifies that normalize path returns slash for root.
+     * Confirms normalize path returns slash for root so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -869,16 +872,16 @@ class SigV4AuthTest extends TestCase
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // Root path and empty path should produce the same signature
-        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/', '{}');
-        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com', '{}');
+        $firstResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/', '{}');
+        $secondResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com', '{}');
 
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertSame($sig1, $sig2, 'Root path and empty path must produce same signature');
+        $firstSignature = $this->extractSignature($firstResponseHeaders['Authorization']);
+        $secondSignature = $this->extractSignature($secondResponseHeaders['Authorization']);
+        $this->assertSame($firstSignature, $secondSignature, 'Root path and empty path must produce same signature');
     }
 
     /**
-     * Verifies that empty query string does not affect signature.
+     * Confirms empty query string does not affect signature so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -887,18 +890,18 @@ class SigV4AuthTest extends TestCase
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // URL without query string and with empty query should produce same signature
-        $r1 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
-        $r2 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?', '{}');
+        $firstResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke', '{}');
+        $secondResponseHeaders = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com/invoke?', '{}');
 
         // parse_url returns '' for '?' with no params — canonicalizeQueryString('') returns ''
         // So these should be the same
-        $sig1 = $this->extractSignature($r1['Authorization']);
-        $sig2 = $this->extractSignature($r2['Authorization']);
-        $this->assertSame($sig1, $sig2);
+        $firstSignature = $this->extractSignature($firstResponseHeaders['Authorization']);
+        $secondSignature = $this->extractSignature($secondResponseHeaders['Authorization']);
+        $this->assertSame($firstSignature, $secondSignature);
     }
 
     /**
-     * Verifies that string to sign includes algorithm prefix.
+     * Confirms the string to sign includes its algorithm so AWS can authenticate the user's request.
      *
      * @return void
      */
@@ -921,7 +924,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that port host format includes colon.
+     * Confirms a non-default port remains in the host value so AWS can authenticate the user's endpoint.
      *
      * @return void
      */
@@ -929,21 +932,19 @@ class SigV4AuthTest extends TestCase
     {
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
-        // With a non-standard port, the host in the canonical request should be
-        // "hostname:port", not "portHostname", "port:", ":port", etc.
-        // Different port formats produce different signatures.
-        $r8443 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com:8443/invoke', '{}');
-        $r9443 = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com:9443/invoke', '{}');
+        // A non-standard port must remain in hostname:port form for AWS to reproduce the app's signature.
+        $port8443Headers = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com:8443/invoke', '{}');
+        $port9443Headers = $sigV4Auth->authenticate([], 'POST', 'https://api.example.com:9443/invoke', '{}');
 
-        $sig8443 = $this->extractSignature($r8443['Authorization']);
-        $sig9443 = $this->extractSignature($r9443['Authorization']);
+        $port8443Signature = $this->extractSignature($port8443Headers['Authorization']);
+        $port9443Signature = $this->extractSignature($port9443Headers['Authorization']);
 
         // Different ports must produce different signatures
-        $this->assertNotSame($sig8443, $sig9443);
+        $this->assertNotSame($port8443Signature, $port9443Signature);
     }
 
     /**
-     * Verifies that debug info masks secrets.
+     * Confirms debug info masks secrets so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -960,7 +961,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that debug info shows null session token as null.
+     * Confirms debug info shows null session token as null so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -974,7 +975,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that debug info contains service key.
+     * Confirms debug info contains service key so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -989,7 +990,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that signature matches manual computation.
+     * Confirms signature matches manual computation so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -1048,7 +1049,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that signature with non standard port matches manual computation.
+     * Confirms signature with non standard port matches manual computation so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -1100,7 +1101,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that signature with query string matches manual computation.
+     * Confirms signature with query string matches manual computation so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -1152,7 +1153,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that path normalization is reflected in signed requests.
+     * Confirms path normalization is reflected in signed requests so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -1178,7 +1179,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that query normalization is reflected in signed requests.
+     * Confirms query normalization is reflected in signed requests so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -1212,7 +1213,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that canonical header trim is applied.
+     * Confirms canonical header trim is applied so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -1221,13 +1222,13 @@ class SigV4AuthTest extends TestCase
         $sigV4Auth = new SigV4Auth('AKID', 'SECRET', 'us-east-1');
 
         // Content-Type with leading/trailing whitespace — trim must normalize it
-        $r1 = $sigV4Auth->authenticate(
+        $firstResponseHeaders = $sigV4Auth->authenticate(
             ['Content-Type' => '  application/json  '],
             'POST',
             'https://api.example.com/invoke',
             '{}',
         );
-        $r2 = $sigV4Auth->authenticate(
+        $secondResponseHeaders = $sigV4Auth->authenticate(
             ['Content-Type' => 'application/json'],
             'POST',
             'https://api.example.com/invoke',
@@ -1236,13 +1237,13 @@ class SigV4AuthTest extends TestCase
 
         // If trim() were removed, whitespace would change the canonical request hash
         $this->assertSame(
-            $this->extractSignature($r1['Authorization']),
-            $this->extractSignature($r2['Authorization']),
+            $this->extractSignature($firstResponseHeaders['Authorization']),
+            $this->extractSignature($secondResponseHeaders['Authorization']),
         );
     }
 
     /**
-     * Verifies that signature with session token matches manual computation.
+     * Confirms signature with session token matches manual computation so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -1303,7 +1304,7 @@ class SigV4AuthTest extends TestCase
     }
 
     /**
-     * Verifies that pre encoded percent in path not double encoded.
+     * Confirms a pre-encoded path is not encoded twice so the user-requested URL keeps a valid signature.
      *
      * @return void
      */

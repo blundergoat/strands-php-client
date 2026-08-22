@@ -7,9 +7,8 @@ namespace StrandsPhpClient\Response;
 /**
  * Optional per-message extras a wrapper can attach to an agent message.
  *
- * Carries token usage for this specific message plus any metrics or app-owned
- * custom fields the wrapper added. Apps use it for per-message cost readouts or
- * debugging; it stays null whenever the wrapper sent no such details.
+ * It carries message-level usage, metrics, and app-owned fields for cost displays or diagnostics.
+ * The parent message leaves it null when the wrapper sent no metadata to show.
  */
 class MessageMetadata
 {

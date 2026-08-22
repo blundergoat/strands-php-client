@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 /**
  * Exercises the usage values an application shows for cost and response speed.
+ *
  * It covers missing fields, fractional timings, numeric strings, and unsafe numbers.
  * Failures here mean a user could see misleading token or latency information.
  */
@@ -23,8 +24,7 @@ use StrandsPhpClient\Response\Usage;
 final class UsageTest extends TestCase
 {
     /**
-     * Covers "from array defaults every usage field to zero" so token and timing readouts remain safe for users.
-     * Use this regression case when usage parsing or numeric validation changes.
+     * Protects "from array defaults every usage field to zero" so token and timing readouts remain safe for users.
      *
      * @return void
      */
@@ -43,8 +43,7 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Covers "from array rounds fractional token counts" so token and timing readouts remain safe for users.
-     * Use this regression case when usage parsing or numeric validation changes.
+     * Protects "from array rounds fractional token counts" so token and timing readouts remain safe for users.
      *
      * @return void
      */
@@ -60,8 +59,7 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Covers "from array rounds fractional timing values to integers" so token and timing readouts remain safe for users.
-     * Use this regression case when usage parsing or numeric validation changes.
+     * Protects "from array rounds fractional timing values to integers" so token and timing readouts remain safe for users.
      *
      * @return void
      */
@@ -79,8 +77,7 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Covers "from array rejects unsafe numeric values" so token and timing readouts remain safe for users.
-     * Use this regression case when usage parsing or numeric validation changes.
+     * Protects "from array rejects unsafe numeric values" so token and timing readouts remain safe for users.
      *
      * @param int|float|string $wireValue Non-finite or out-of-range value supplied by a wrapper.
      * @return void The assertion protects cost and latency displays from corrupt numeric input.
@@ -109,8 +106,7 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Covers "from array preserves exact integer string at platform boundary" so token and timing readouts remain safe for users.
-     * Use this regression case when usage parsing or numeric validation changes.
+     * Protects "from array preserves exact integer string at platform boundary" so token and timing readouts remain safe for users.
      *
      * @return void The assertion protects wrappers that encode large integer counters as strings.
      */
@@ -122,8 +118,7 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Covers "constructor rejects fractional timing values to keep integer contract" so token and timing readouts remain safe for users.
-     * Use this regression case when usage parsing or numeric validation changes.
+     * Protects "constructor rejects fractional timing values to keep integer contract" so token and timing readouts remain safe for users.
      *
      * @param \Closure(): Usage $constructUsage Builds the usage object for the selected timing field.
      * @param string $expectedParameter Identifies the rejected constructor parameter.

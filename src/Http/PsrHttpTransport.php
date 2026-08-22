@@ -15,9 +15,8 @@ use StrandsPhpClient\Exceptions\StrandsException;
 /**
  * PSR-18 based transport for framework-agnostic HTTP calls.
  *
- * Supports invoke() via any PSR-18 client (Guzzle, Buzz, etc.).
- * SSE streaming is not supported - PSR-18 has no chunked transfer API.
- * Timeout must be configured on the underlying client instance.
+ * Use it with a PSR-18 client for invoke() calls in apps that do not need live SSE updates.
+ * Configure timeouts on the underlying client; choose SymfonyHttpTransport when the UI needs streaming.
  */
 class PsrHttpTransport implements HttpTransport
 {
@@ -25,7 +24,7 @@ class PsrHttpTransport implements HttpTransport
     private LoggerInterface $logger;
 
     /** Tracks whether the one-time timeout warning has already been shown. */
-    private bool $timeoutWarningLogged = false;
+    private bool $hasLoggedTimeoutWarning = false;
 
     /**
      * Wire up a PSR-18 transport from the app's own HTTP client and factories.
@@ -64,8 +63,8 @@ class PsrHttpTransport implements HttpTransport
     public function post(string $url, array $headers, string $body, int $timeout, int $connectTimeout): array
     {
         // PSR-18 clients own their own timeouts, so warn once that our values are ignored.
-        if (!$this->timeoutWarningLogged) {
-            $this->timeoutWarningLogged = true;
+        if (!$this->hasLoggedTimeoutWarning) {
+            $this->hasLoggedTimeoutWarning = true;
             $this->logger->notice(
                 'PsrHttpTransport does not support timeout parameters. '
                 . 'Configure timeout on your PSR-18 client instance directly.',
@@ -89,30 +88,32 @@ class PsrHttpTransport implements HttpTransport
 
             $statusCode = $response->getStatusCode();
             $content = (string) $response->getBody();
-            $data = json_decode($content, true);
+            $responseData = json_decode($content, true);
 
             // Any 4xx/5xx means the agent rejected the request — surface it as a typed error.
             if ($statusCode >= 400) {
-                throw AgentErrorException::fromHttpResponse($statusCode, $content, $data);
+                throw AgentErrorException::fromHttpResponse($statusCode, $content, $responseData);
             }
 
             // A 2xx that isn't a JSON object means a broken/proxy response, not a real answer.
-            if (!is_array($data)) {
+            if (!is_array($responseData)) {
                 throw new StrandsException(sprintf(
                     'Expected JSON object from %s, got %s',
                     $url,
-                    get_debug_type($data),
+                    get_debug_type($responseData),
                 ));
             }
 
-            /** @var array<string, mixed> $data validated before app code uses it. */
-            return $data;
-        } catch (StrandsException $e) {
-            throw $e;
-        } catch (\Throwable $e) {
+            /** @var array<string, mixed> $responseData Validated agent response shown to app code. */
+            return $responseData;
+        } catch (StrandsException $strandsException) {
+            // For example, an agent can return a documented 429 or invalid JSON response; preserve that caller-ready exception unchanged.
+            throw $strandsException;
+        } catch (\Throwable $transportException) {
+            // For example, DNS, TLS, or the app's PSR-18 client can fail before an agent response exists; wrap that transport failure consistently.
             throw new StrandsException(
-                'HTTP request to agent failed: ' . $e->getMessage(),
-                previous: $e,
+                'HTTP request to agent failed: ' . $transportException->getMessage(),
+                previous: $transportException,
             );
         }
     }

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # Install all project dependencies (composer + npm).
+#
+# Use this before local development or CI so the client, tests, and optional frontend tools are ready.
+# Empty optional flags install both development dependency sets.
+#
 # Usage: ./scripts/dependencies-install.sh [--prod] [--composer-only] [--npm-only]
 #   --prod          Install without dev dependencies (composer --no-dev, npm --omit=dev)
 #   --composer-only Skip the npm step
@@ -18,9 +22,13 @@ DIM='\033[2m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
+# Show the dependency step currently running.
 info() { echo -e "${BLUE}▸${RESET} $*"; }
+# Confirm a dependency step completed successfully.
 ok()   { echo -e "  ${GREEN}✔${RESET} $*"; }
+# Explain a skipped optional dependency step.
 warn() { echo -e "  ${YELLOW}!${RESET} $*"; }
+# Show an install error the developer must resolve.
 err()  { echo -e "  ${RED}✘${RESET} $*"; }
 
 # ── Args ─────────────────────────────────────────────────────────
@@ -28,6 +36,7 @@ PROD=false
 RUN_COMPOSER=true
 RUN_NPM=true
 
+# Apply each install option so the developer gets the requested dependency sets only.
 for arg in "$@"; do
     case "$arg" in
         --prod)          PROD=true ;;
@@ -50,11 +59,14 @@ echo -e "  ${DIM}$(printf '─%.0s' {1..44})${RESET}"
 echo ""
 
 # ── Composer ─────────────────────────────────────────────────────
+# Run Composer unless the developer explicitly requested npm only.
 if [[ "$RUN_COMPOSER" == "true" ]]; then
+    # Missing Composer prevents the PHP client and its test tools from being installed.
     if ! command -v composer &>/dev/null; then
         err "composer not found in PATH"
         exit 1
     fi
+    # Production mode omits developer-only PHP tools from the deployed application.
     if [[ "$PROD" == "true" ]]; then
         info "composer install --no-dev --optimize-autoloader"
         composer install --no-dev --optimize-autoloader
@@ -66,14 +78,18 @@ if [[ "$RUN_COMPOSER" == "true" ]]; then
 fi
 
 # ── npm ──────────────────────────────────────────────────────────
+# Run npm unless the developer explicitly requested Composer only.
 if [[ "$RUN_NPM" == "true" ]]; then
+    # Missing npm prevents installation only when the requested project includes frontend packages.
     if ! command -v npm &>/dev/null; then
         err "npm not found in PATH"
         exit 1
     fi
+    # A project without package.json has no JavaScript dependencies, so the PHP install can still succeed.
     if [[ ! -f package.json ]]; then
         warn "No package.json found - skipping npm install"
     else
+        # Production mode omits frontend developer tools from the deployed application.
         if [[ "$PROD" == "true" ]]; then
             info "npm install --omit=dev"
             npm install --omit=dev

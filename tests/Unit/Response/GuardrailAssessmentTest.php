@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Guardrail Assessment behavior for app integrations.
+ * Exercises caller-visible Guardrail Assessment behavior for app integrations.
+ *
+ * Use this file when changing Guardrail Assessment or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit\Response;
@@ -12,14 +15,17 @@ use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\GuardrailAssessment;
 
 /**
- * Verifies Guardrail Assessment behavior that application users rely on.
+ * Exercises Guardrail Assessment through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class GuardrailAssessmentTest extends TestCase
 {
     /**
      * Data fixture for testFromArrayWithAllPolicies().
      *
-     * @return array<string, mixed> Scenarios that keep from array with all policies behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayWithAllPolicies(): array
     {
@@ -35,15 +41,15 @@ class GuardrailAssessmentTest extends TestCase
     }
 
     /**
-     * Verifies that from array with all policies.
+     * Confirms fromArray() hydrates all policy assessments so the app can explain a guardrail decision.
      *
      * @return void
      */
     public function testFromArrayWithAllPolicies(): void
     {
-        $data = $this->dataForFromArrayWithAllPolicies();
+        $assessmentData = $this->dataForFromArrayWithAllPolicies();
 
-        $assessment = GuardrailAssessment::fromArray($data);
+        $assessment = GuardrailAssessment::fromArray($assessmentData);
 
         $this->assertSame('content_filter', $assessment->type);
         $this->assertSame('BLOCKED', $assessment->action);
@@ -56,7 +62,7 @@ class GuardrailAssessmentTest extends TestCase
     /**
      * Data fixture for testFromArrayWithMinimalData().
      *
-     * @return array<string, mixed> Scenarios that keep from array with minimal data behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayWithMinimalData(): array
     {
@@ -68,15 +74,15 @@ class GuardrailAssessmentTest extends TestCase
 
 
     /**
-     * Verifies that from array with minimal data.
+     * Confirms fromArray() accepts minimal assessment data so the app can show the available guardrail result.
      *
      * @return void
      */
     public function testFromArrayWithMinimalData(): void
     {
-        $data = $this->dataForFromArrayWithMinimalData();
+        $assessmentData = $this->dataForFromArrayWithMinimalData();
 
-        $assessment = GuardrailAssessment::fromArray($data);
+        $assessment = GuardrailAssessment::fromArray($assessmentData);
 
         $this->assertSame('topic_filter', $assessment->type);
         $this->assertSame('NONE', $assessment->action);
@@ -88,7 +94,7 @@ class GuardrailAssessmentTest extends TestCase
     }
 
     /**
-     * Verifies that from array with empty data.
+     * Confirms fromArray() gives empty assessment data safe defaults so the app can omit unavailable policy details.
      *
      * @return void
      */
@@ -102,7 +108,7 @@ class GuardrailAssessmentTest extends TestCase
     /**
      * Data fixture for testFromArrayIgnoresNonArrayPolicies().
      *
-     * @return array<string, mixed> Scenarios that keep from array ignores non array policies behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForFromArrayIgnoresNonArrayPolicies(): array
     {
@@ -115,15 +121,15 @@ class GuardrailAssessmentTest extends TestCase
 
 
     /**
-     * Verifies that from array ignores non array policies.
+     * Confirms fromArray() ignores non array policies so the app renders trustworthy answer details.
      *
      * @return void
      */
     public function testFromArrayIgnoresNonArrayPolicies(): void
     {
-        $data = $this->dataForFromArrayIgnoresNonArrayPolicies();
+        $assessmentData = $this->dataForFromArrayIgnoresNonArrayPolicies();
 
-        $assessment = GuardrailAssessment::fromArray($data);
+        $assessment = GuardrailAssessment::fromArray($assessmentData);
 
         $this->assertNull($assessment->topicPolicy);
         $this->assertNull($assessment->contentPolicy);
@@ -145,10 +151,11 @@ class GuardrailAssessmentTest extends TestCase
             'array' => [[0.5], null],
         ];
 
-        foreach ($cases as $name => [$value, $expected]) {
-            $assessment = GuardrailAssessment::fromArray(['confidence' => $value]);
+        // Each wire representation must produce the confidence value, or null, that the safety UI can trust.
+        foreach ($cases as $caseName => [$confidenceValue, $expectedConfidence]) {
+            $assessment = GuardrailAssessment::fromArray(['confidence' => $confidenceValue]);
 
-            $this->assertSame($expected, $assessment->confidence, "Failed for {$name}");
+            $this->assertSame($expectedConfidence, $assessment->confidence, "Failed for {$caseName}");
         }
     }
 }

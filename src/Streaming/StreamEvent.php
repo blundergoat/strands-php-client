@@ -9,9 +9,8 @@ use StrandsPhpClient\Response\Citation\Citation;
 /**
  * A single typed event from an SSE stream.
  *
- * Created by StreamParser (via tryFromArray) or directly via fromArray.
- * Each property maps to a specific event type - most are null for types
- * that don't carry that field.
+ * StreamParser creates it for each live update delivered to an app callback.
+ * Each event type fills only its relevant UI fields, leaving the others null or empty.
  *
  * @SuppressWarnings("PHPMD.ExcessiveParameterList") -- the constructor mirrors every wire field of one stream event.
  */
@@ -24,24 +23,29 @@ class StreamEvent
      * something the UI shows as the answer streams in (a token, a tool call, …).
      *
      * @param StreamEventType  $type                The type of this event (Text, ToolUse, Complete, etc.).
-     * @param string|null      $text                The text token for Text/Thinking events.
-     * @param string|null      $fullText            The full accumulated text in Complete events.
-     * @param string|null      $sessionId           Session ID, typically in the Complete event.
-     * @param string|null      $errorCode           Error code for Error events.
-     * @param string|null      $errorMessage        Human-readable error description for Error events.
-     * @param array<string, mixed>  $usage          Token usage statistics.
-     * @param list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}>  $toolsUsed  Tools the agent used.
-     * @param string|null      $toolName            Tool name (for ToolUse/ToolResult events).
-     * @param array<string, mixed>  $toolInput      Input/arguments passed to the tool.
-     * @param string|null      $toolResult          Result/output from a tool (for ToolResult events).
-     * @param bool             $hasObjective        Whether this agent had a secret objective active.
-     * @param array<string, mixed>|null $citation    Citation content block for Citation events.
-     * @param string|null      $reasoningSignature  Reasoning signature for ReasoningSignature events.
-     * @param string|null      $stopReason          Why the agent stopped (in Complete events).
-     * @param list<array<string, mixed>> $interrupts  Raw interrupt data from Complete events.
-     * @param array<string, mixed>|null $guardrailTrace  Raw guardrail trace from Complete events.
-     * @param int|null         $contextSize         Current context size in tokens.
-     * @param int|null         $projectedContextSize Projected next-turn context size in tokens.
+     * @param string|null $text Text token; null means this event has no text update, while an empty string is preserved.
+     * @param string|null $fullText Final answer; null means this is not a Complete event, while an empty answer is preserved.
+     * @param string|null $sessionId Conversation ID; null means the wrapper supplied none, while an empty string is preserved.
+     * @param string|null $errorCode Error code; null means this event has no code, while an empty string is preserved.
+     * @param string|null $errorMessage Error text; null means this event has no message, while an empty string is preserved.
+     * @param array<string, mixed> $usage Usage values; empty means this event reported no token or timing data.
+     * @param list<array{
+     *     name: string,
+     *     duration_ms?: int,
+     *     input?: array<string, mixed>,
+     *     result?: array<string, mixed>
+     * }> $toolsUsed Tools shown under the answer; empty means no displayable tool activity was reported.
+     * @param string|null $toolName Tool name; null means this is not a named tool event, while an empty string is preserved.
+     * @param array<string, mixed> $toolInput Tool arguments; empty means no visible input was reported.
+     * @param string|null $toolResult Tool output; null means unavailable, while an empty string is preserved.
+     * @param bool $hasObjective Whether this agent had a secret objective active.
+     * @param array<string, mixed>|null $citation Citation block; null means this is not a citation event, while an empty map is preserved.
+     * @param string|null $reasoningSignature Signature; null means unavailable, while an empty string is preserved.
+     * @param string|null $stopReason Terminal reason; null means the wrapper supplied none, while an empty string is preserved.
+     * @param list<array<string, mixed>> $interrupts Paused actions; empty means the UI has nothing to ask the user.
+     * @param array<string, mixed>|null $guardrailTrace Guardrail detail; null means none was reported, while an empty map is preserved.
+     * @param int|null $contextSize Current context tokens; null means the UI should omit this capacity hint.
+     * @param int|null $projectedContextSize Projected context tokens; null means the UI should omit this forecast.
      */
     public function __construct(
         public readonly StreamEventType $type,
@@ -77,7 +81,7 @@ class StreamEvent
      */
     public static function fromArray(array $data): self
     {
-        $rawType = self::string($data, 'type') ?? '';
+        $rawType = self::optionalStringField($data, 'type') ?? '';
         $type = StreamEventType::tryFrom($rawType);
         // Strict path: an unrecognised event type is a hard error the caller must see.
         if ($type === null) {
@@ -101,7 +105,7 @@ class StreamEvent
      */
     public static function tryFromArray(array $data): ?self
     {
-        $rawType = self::string($data, 'type') ?? '';
+        $rawType = self::optionalStringField($data, 'type') ?? '';
         $type = StreamEventType::tryFrom($rawType);
         // Forgiving path: skip an event type a newer server added but this client can't map.
         if ($type === null) {
@@ -114,35 +118,34 @@ class StreamEvent
     /**
      * Build a StreamEvent from validated data and type.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     * @param StreamEventType $type The validated event type this data maps to.
+     * @param array<string, mixed> $eventData Raw decoded event JSON; empty cannot produce a recognized event.
+     * @param StreamEventType $eventType Validated event type this data maps to.
      * @return self New instance ready for app code.
      */
-    private static function buildFromArray(array $data, StreamEventType $type): self
+    private static function buildFromArray(array $eventData, StreamEventType $eventType): self
     {
-        // Field mapping note: the API uses different field names per event type.
-        // Text/Thinking events send tokens in 'content' → mapped to $text.
-        // Complete events send the full response in 'text' → mapped to $fullText.
+        // Text and Thinking events map content to the token text appended by the UI.
+        // Complete events map text to the full answer used for the final screen state.
         return new self(
-            type: $type,
-            text: self::string($data, 'content'),
-            fullText: self::string($data, 'text'),
-            sessionId: self::string($data, 'session_id'),
-            errorCode: self::string($data, 'code'),
-            errorMessage: self::string($data, 'message'),
-            usage: self::arrayField($data, 'usage'),
-            toolsUsed: self::toolsUsedField($data),
-            toolName: self::string($data, 'tool_name'),
-            toolInput: self::arrayField($data, 'tool_input'),
-            toolResult: self::encodeResult($data['result'] ?? null),
-            hasObjective: ($data['has_objective'] ?? false) === true,
-            citation: self::nullableArrayField($data, 'citation'),
-            reasoningSignature: self::string($data, 'signature'),
-            stopReason: self::string($data, 'stop_reason'),
-            interrupts: self::listOfArrays($data, 'interrupts'),
-            guardrailTrace: self::parseGuardrailTrace($data),
-            contextSize: self::nullableIntField($data, 'context_size'),
-            projectedContextSize: self::nullableIntField($data, 'projected_context_size'),
+            type: $eventType,
+            text: self::optionalStringField($eventData, 'content'),
+            fullText: self::optionalStringField($eventData, 'text'),
+            sessionId: self::optionalStringField($eventData, 'session_id'),
+            errorCode: self::optionalStringField($eventData, 'code'),
+            errorMessage: self::optionalStringField($eventData, 'message'),
+            usage: self::mapFieldOrEmpty($eventData, 'usage'),
+            toolsUsed: self::toolsUsedField($eventData),
+            toolName: self::optionalStringField($eventData, 'tool_name'),
+            toolInput: self::mapFieldOrEmpty($eventData, 'tool_input'),
+            toolResult: self::encodeResult($eventData['result'] ?? null),
+            hasObjective: ($eventData['has_objective'] ?? false) === true,
+            citation: self::optionalMapField($eventData, 'citation'),
+            reasoningSignature: self::optionalStringField($eventData, 'signature'),
+            stopReason: self::optionalStringField($eventData, 'stop_reason'),
+            interrupts: self::listOfMaps($eventData, 'interrupts'),
+            guardrailTrace: self::parseGuardrailTrace($eventData),
+            contextSize: self::optionalIntegerField($eventData, 'context_size'),
+            projectedContextSize: self::optionalIntegerField($eventData, 'projected_context_size'),
         );
     }
 
@@ -174,75 +177,86 @@ class StreamEvent
     /**
      * Reads an optional string field from a stream event.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     * @param string $key stream event field to read.
+     * @param array<string, mixed> $eventData Raw event JSON; empty means the event carries no fields.
+     * @param string $fieldName Stream event field to read.
      * @return ?string Text the app can show, or null when absent.
      */
-    private static function string(array $data, string $key): ?string
+    private static function optionalStringField(array $eventData, string $fieldName): ?string
     {
-        $value = $data[$key] ?? null;
+        $fieldValue = $eventData[$fieldName] ?? null;
 
-        return is_string($value) ? $value : null;
+        return is_string($fieldValue) ? $fieldValue : null;
     }
 
     /**
      * Reads a map field while shielding app code from malformed event data.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     *
-     * @param string $key stream event field to read.
+     * @param array<string, mixed> $eventData Raw event JSON; empty means the event carries no fields.
+     * @param string $fieldName Stream event field to read.
      * @return array<string, mixed> Map data from the event, or an empty map.
      */
-    private static function arrayField(array $data, string $key): array
+    private static function mapFieldOrEmpty(array $eventData, string $fieldName): array
     {
-        $value = $data[$key] ?? null;
+        $fieldValue = $eventData[$fieldName] ?? null;
 
         /** @var array<string, mixed> */
-        return is_array($value) ? $value : [];
+        return is_array($fieldValue) ? $fieldValue : [];
     }
 
     /**
      * Collect the tools named in a Complete event, for the app's "tools used" trail.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     *
-     * @return list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}> Tool calls reported during the stream.
+     * @param array<string, mixed> $eventData Raw Complete event JSON; empty means no tools were reported.
+     * @return list<array{
+     *     name: string,
+     *     duration_ms?: int,
+     *     input?: array<string, mixed>,
+     *     result?: array<string, mixed>
+     * }> Tools shown in the activity trail; empty means the Complete event reported no tools.
      */
-    private static function toolsUsedField(array $data): array
+    private static function toolsUsedField(array $eventData): array
     {
-        $value = $data['tools_used'] ?? null;
+        $reportedTools = $eventData['tools_used'] ?? null;
         // Most events aren't Complete events, so there's usually no tool list here.
-        if (!is_array($value)) {
+        if (!is_array($reportedTools)) {
             return [];
         }
 
         $tools = [];
         // Record each tool the agent used so the app can list them under the answer.
-        foreach ($value as $tool) {
+        foreach ($reportedTools as $tool) {
             // Keep only well-formed, named tool entries; ignore anything malformed.
             if (is_array($tool) && isset($tool['name']) && is_string($tool['name'])) {
-                $entry = ['name' => $tool['name']];
+                $toolSummary = ['name' => $tool['name']];
 
                 // Include the tool's duration when timed, for a per-tool latency hint.
                 if (isset($tool['duration_ms']) && is_int($tool['duration_ms'])) {
-                    $entry['duration_ms'] = $tool['duration_ms'];
+                    $toolSummary['duration_ms'] = $tool['duration_ms'];
                 }
 
                 // Preserve safe tool detail summaries on streams just like invoke() does.
                 if (isset($tool['input']) && is_array($tool['input'])) {
                     /** @var array<string, mixed> $input validated before app code uses it. */
                     $input = $tool['input'];
-                    $entry['input'] = $input;
+                    $toolSummary['input'] = $input;
                 }
 
+                // A structured result gives the UI a safe summary without exposing an arbitrary object.
                 if (isset($tool['result']) && is_array($tool['result'])) {
                     /** @var array<string, mixed> $result validated before app code uses it. */
                     $result = $tool['result'];
-                    $entry['result'] = $result;
+                    $toolSummary['result'] = $result;
                 }
 
-                /** @var array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>} $entry validated before app code uses it. */
-                $tools[] = $entry;
+                /**
+                 * @var array{
+                 *     name: string,
+                 *     duration_ms?: int,
+                 *     input?: array<string, mixed>,
+                 *     result?: array<string, mixed>
+                 * } $toolSummary Safe for the UI activity trail.
+                 */
+                $tools[] = $toolSummary;
             }
         }
 
@@ -252,64 +266,61 @@ class StreamEvent
     /**
      * Reads an optional map field from a stream event.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     *
-     * @param string $key stream event field to read.
+     * @param array<string, mixed> $eventData Raw event JSON; empty means the event carries no fields.
+     * @param string $fieldName Stream event field to read.
      * @return array<string, mixed>|null Map data, or null when the event omits it.
      */
-    private static function nullableArrayField(array $data, string $key): ?array
+    private static function optionalMapField(array $eventData, string $fieldName): ?array
     {
-        $value = $data[$key] ?? null;
+        $fieldValue = $eventData[$fieldName] ?? null;
 
         /** @var array<string, mixed>|null */
-        return is_array($value) ? $value : null;
+        return is_array($fieldValue) ? $fieldValue : null;
     }
 
     /**
      * Reads a list of maps while dropping malformed entries.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     *
-     * @param string $key stream event field to read.
+     * @param array<string, mixed> $eventData Raw event JSON; empty means the event carries no fields.
+     * @param string $fieldName Stream event field to read.
      * @return list<array<string, mixed>> List entries safe for DTO hydration.
      */
-    private static function listOfArrays(array $data, string $key): array
+    private static function listOfMaps(array $eventData, string $fieldName): array
     {
-        $value = $data[$key] ?? null;
+        $fieldValue = $eventData[$fieldName] ?? null;
         // Missing list fields are normal for stream events that do not need follow-up UI.
-        if (!is_array($value)) {
+        if (!is_array($fieldValue)) {
             return [];
         }
 
-        $result = [];
+        $validMaps = [];
         // Keep only valid list entries before the app turns them into interrupt or trace objects.
-        foreach ($value as $item) {
+        foreach ($fieldValue as $listItem) {
             // Drop any non-array entry so a malformed one can't reach the app.
-            if (is_array($item)) {
-                /** @var array<string, mixed> $item validated before app code uses it. */
-                $result[] = $item;
+            if (is_array($listItem)) {
+                /** @var array<string, mixed> $listItem Validated before app code uses it. */
+                $validMaps[] = $listItem;
             }
         }
 
-        return $result;
+        return $validMaps;
     }
 
     /**
      * Extract guardrail trace from top-level or nested trace.guardrail.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     *
+     * @param array<string, mixed> $eventData Raw event JSON; empty means no guardrail detail was reported.
      * @return array<string, mixed>|null Guardrail trace for UI warnings, or null when absent.
      */
-    private static function parseGuardrailTrace(array $data): ?array
+    private static function parseGuardrailTrace(array $eventData): ?array
     {
-        $raw = self::nullableArrayField($data, 'guardrail_trace');
+        $topLevelGuardrailTrace = self::optionalMapField($eventData, 'guardrail_trace');
         // A guardrail trace is present when the UI needs to explain a safety intervention.
-        if ($raw !== null) {
-            return $raw;
+        if ($topLevelGuardrailTrace !== null) {
+            return $topLevelGuardrailTrace;
         }
 
-        $trace = $data['trace'] ?? null;
+        $trace = $eventData['trace'] ?? null;
         // Some servers nest guardrail details under trace for the same user-facing result.
         if (is_array($trace)) {
             $guardrail = $trace['guardrail'] ?? null;
@@ -326,20 +337,20 @@ class StreamEvent
     /**
      * Normalize raw tool result data into a string for the event DTO.
      *
-     * @param mixed $raw Raw tool result payload; mixed is required because the wire
+     * @param mixed $rawToolResult Raw tool result payload; mixed is required because the wire
      * contract allows scalar, array, or null tool results.
      * @return string|null Stringified result, or null when no result exists.
      */
-    private static function encodeResult(mixed $raw): ?string
+    private static function encodeResult(mixed $rawToolResult): ?string
     {
         // A plain string result can be shown to the user as-is.
-        if (is_string($raw)) {
-            return $raw;
+        if (is_string($rawToolResult)) {
+            return $rawToolResult;
         }
 
         // A structured result (array/object) is JSON-encoded so the UI can display it.
-        if ($raw !== null) {
-            return json_encode($raw) ?: null;
+        if ($rawToolResult !== null) {
+            return json_encode($rawToolResult) ?: null;
         }
 
         return null;
@@ -348,26 +359,26 @@ class StreamEvent
     /**
      * Reads a token count field while tolerating numeric wire variations.
      *
-     * @param array<string, mixed> $data raw decoded JSON from the agent.
-     * @param string $key stream event field that may contain a token count.
+     * @param array<string, mixed> $eventData Raw event JSON; empty means no token count was reported.
+     * @param string $fieldName Stream event field that may contain a token count.
      * @return ?int Token count for UI hints, or null when unavailable.
      */
-    private static function nullableIntField(array $data, string $key): ?int
+    private static function optionalIntegerField(array $eventData, string $fieldName): ?int
     {
-        $value = $data[$key] ?? null;
+        $fieldValue = $eventData[$fieldName] ?? null;
         // Already a clean integer token count — hand it straight to the app.
-        if (is_int($value)) {
-            return $value;
+        if (is_int($fieldValue)) {
+            return $fieldValue;
         }
 
         // Some wrappers report the count as a float; round to whole tokens.
-        if (is_float($value)) {
-            return (int) round($value);
+        if (is_float($fieldValue)) {
+            return (int) round($fieldValue);
         }
 
         // Others send it as a numeric string (e.g. "8192"); accept those too.
-        if (is_string($value) && is_numeric($value)) {
-            return (int) round((float) $value);
+        if (is_string($fieldValue) && is_numeric($fieldValue)) {
+            return (int) round((float) $fieldValue);
         }
 
         return null;

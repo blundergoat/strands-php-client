@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Agent Context behavior for app integrations.
+ * Exercises caller-visible Agent Context behavior for app integrations.
+ *
+ * Use this file when changing Agent Context or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -12,12 +15,15 @@ use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Context\AgentContext;
 
 /**
- * Verifies Agent Context behavior that application users rely on.
+ * Exercises Agent Context through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class AgentContextTest extends TestCase
 {
     /**
-     * Verifies that create returns empty context.
+     * Confirms create() returns empty context so the agent receives the request the user assembled.
      *
      * @return void
      */
@@ -29,7 +35,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that with metadata adds key value.
+     * Confirms withMetadata() adds each UI context value so the agent receives the request the user assembled.
      *
      * @return void
      */
@@ -46,7 +52,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that with system prompt adds prompt.
+     * Confirms withSystemPrompt() adds the app's instructions so the agent receives the request the user assembled.
      *
      * @return void
      */
@@ -61,7 +67,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that withMetadata returns a new instance and leaves the original unchanged.
+     * Confirms withMetadata returns a new instance and leaves the original unchanged so the agent receives the request the user assembled.
      *
      * @return void
      */
@@ -75,7 +81,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that full context.
+     * Confirms callers can build a full context so the agent receives the request the user assembled.
      *
      * @return void
      */
@@ -98,7 +104,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that with permission adds token.
+     * Confirms withPermission() adds each access token so the agent receives the request the user assembled.
      *
      * @return void
      */
@@ -114,7 +120,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that with document adds document.
+     * Confirms withDocument() adds an uploaded file so the agent receives the request the user assembled.
      *
      * @return void
      */
@@ -133,7 +139,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that with multiple documents.
+     * Confirms multiple uploaded files retain their order so the agent receives the request the user assembled.
      *
      * @return void
      */
@@ -151,7 +157,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that with structured data adds data.
+     * Confirms withStructuredData() adds keyed app data so the agent receives the request the user assembled.
      *
      * @return void
      */
@@ -168,7 +174,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that full context with all fields.
+     * Confirms all context fields can be combined so the agent receives the request the user assembled.
      *
      * @return void
      */
@@ -192,7 +198,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that system prompt immutability.
+     * Confirms withSystemPrompt() leaves the original context unchanged so callers can safely reuse it.
      *
      * @return void
      */
@@ -206,7 +212,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that permission immutability.
+     * Confirms withPermission() leaves the original context unchanged so callers can safely reuse it.
      *
      * @return void
      */
@@ -220,7 +226,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that document immutability.
+     * Confirms withDocument() leaves the original context unchanged so callers can safely reuse it.
      *
      * @return void
      */
@@ -234,7 +240,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that structured data immutability.
+     * Confirms withStructuredData() leaves the original context unchanged so callers can safely reuse it.
      *
      * @return void
      */
@@ -248,7 +254,7 @@ class AgentContextTest extends TestCase
     }
 
     /**
-     * Verifies that empty fields are omitted.
+     * Confirms empty fields are omitted so the agent receives the request the user assembled.
      *
      * @return void
      */

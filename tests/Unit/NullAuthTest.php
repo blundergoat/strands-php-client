@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Tests caller-visible Null Auth behavior for app integrations.
+ * Exercises caller-visible Null Auth behavior for app integrations.
+ *
+ * Use this file when changing Null Auth or its integration boundary.
+ * It protects the request, UI update, or failure an application user sees.
  */
 
 namespace StrandsPhpClient\Tests\Unit;
@@ -12,12 +15,15 @@ use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Auth\NullAuth;
 
 /**
- * Verifies Null Auth behavior that application users rely on.
+ * Exercises Null Auth through the public surface used by application code.
+ *
+ * Use these tests when changing the feature or its integration boundary.
+ * They protect the request, UI update, or failure an application user sees.
  */
 class NullAuthTest extends TestCase
 {
     /**
-     * Verifies that returns headers unmodified.
+     * Confirms headers are returned unmodified so authenticated requests reach the agent with the intended headers.
      *
      * @return void
      */
@@ -33,7 +39,7 @@ class NullAuthTest extends TestCase
     /**
      * Test fixture for testPreservesAllMultipleHeaders().
      *
-     * @return array<string, mixed> Scenarios that keep preserves all multiple headers behavior stable for app callers.
+     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
      */
     private function dataForPreservesAllMultipleHeaders(): array
     {
@@ -45,7 +51,7 @@ class NullAuthTest extends TestCase
 
 
     /**
-     * Verifies that preserves all multiple headers.
+     * Confirms all caller headers are preserved so unauthenticated gateways receive the intended request.
      *
      * @return void
      */
