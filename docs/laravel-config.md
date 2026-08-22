@@ -1,6 +1,6 @@
 # Laravel Service Provider Configuration
 
-The Strands PHP Client includes a Laravel service provider that registers `StrandsClient` services from a publishable config file. This guide covers every configuration option with examples.
+The Laravel service provider registers `StrandsClient` services from a publishable config. This guide explains every option and when to change it.
 
 ## Table of Contents
 
@@ -15,6 +15,7 @@ The Strands PHP Client includes a Laravel service provider that registers `Stran
   - [connect_timeout](#connect_timeout)
   - [max_retries](#max_retries)
   - [retry_delay_ms](#retry_delay_ms)
+  - [retryable_status_codes](#retryable_status_codes)
 - [Examples](#examples)
   - [Local Development](#local-development)
   - [Production with API Key](#production-with-api-key)
@@ -53,15 +54,24 @@ STRANDS_ENDPOINT=http://localhost:8081
 ```php
 use StrandsPhpClient\StrandsClient;
 
-class ChatController extends Controller
+/**
+ * Answers questions submitted through a small Laravel chat screen.
+ *
+ * Use this controller when the screen should send every question to the configured default agent.
+ * The returned string is the completed answer the route can render or serialize.
+ */
+final class ChatController extends Controller
 {
+    /** Inject the default agent selected by config/strands.php. */
     public function __construct(
-        private readonly StrandsClient $client,
-    ) {}
+        private readonly StrandsClient $agentClient,
+    ) {
+    }
 
-    public function ask(string $question): string
+    /** Return the agent's completed answer for the question submitted by the user. */
+    public function answerQuestion(string $question): string
     {
-        return $this->client->invoke(message: $question)->text;
+        return $this->agentClient->invoke(message: $question)->text;
     }
 }
 ```
@@ -70,7 +80,8 @@ class ChatController extends Controller
 
 The service provider and facade are auto-discovered via the `extra.laravel` key in `composer.json`. No manual registration is needed.
 
-Middleware can be registered by tagging services with `strands.middleware`. Response-aware observers can be tagged with `strands.response_observer`; `OtelTracingMiddleware` also works when registered as regular middleware because the client detects observers already present in the middleware stack.
+Tag request middleware with `strands.middleware` and response-aware observers with `strands.response_observer`. `OtelTracingMiddleware` may use the
+middleware tag alone because the client detects observers already present in that stack.
 
 If you have disabled auto-discovery, add the provider and facade manually:
 
@@ -104,20 +115,20 @@ return [
 
             // Authentication settings.
             'auth' => [
-                // Which auth strategy to use: 'null', 'api_key', or 'sigv4'.
+                // Null means unauthenticated access; choose api_key or sigv4 for a protected agent endpoint.
                 'driver' => 'null',                    // default: 'null'
 
                 // Only used when driver is 'api_key':
-                'api_key' => null,                     // default: null (required for api_key driver)
+                'api_key' => null,                     // null is valid until api_key is selected, then the client cannot be created without a key
                 'header_name' => 'Authorization',      // default: 'Authorization'
                 'value_prefix' => 'Bearer ',           // default: 'Bearer '
 
                 // Only used when driver is 'sigv4':
-                'region' => null,                      // default: null (required for sigv4 driver)
+                'region' => null,                      // null is valid until sigv4 is selected, then the client cannot be created without a region
                 'service' => 'execute-api',            // default: 'execute-api'
-                'access_key_id' => null,               // default: null (falls back to env)
-                'secret_access_key' => null,            // default: null (falls back to env)
-                'session_token' => null,               // default: null
+                'access_key_id' => null,               // with both keys null, read AWS_ACCESS_KEY_ID from the PHP process
+                'secret_access_key' => null,            // with both keys null, read AWS_SECRET_ACCESS_KEY from the PHP process
+                'session_token' => null,               // null means no explicit temporary token; env fallback reads AWS_SESSION_TOKEN
             ],
 
             // How long to wait for the agent to respond (seconds).
@@ -153,19 +164,11 @@ Unlike Symfony (where the first agent is the default), Laravel uses an explicit 
 
 ### endpoint (required)
 
-The full URL of the Strands agent HTTP API. The client appends `/invoke` or `/stream` to this URL.
+The full URL of the Strands agent HTTP API. The client appends `/invoke` or `/stream` to this URL. Use `http://agent:8000` for a Docker service,
+`http://localhost:8081` for a directly hosted local gateway, or an HTTPS URL in production.
 
 ```php
-// Local Docker setup
-'endpoint' => 'http://agent:8000',
-
-// Local development (no Docker)
-'endpoint' => 'http://localhost:8081',
-
-// Production
-'endpoint' => 'https://api.example.com/agent',
-
-// Using an environment variable (recommended)
+// Let each deployment supply its own local or production URL.
 'endpoint' => env('STRANDS_ENDPOINT'),
 ```
 
@@ -223,7 +226,11 @@ Signs requests with AWS Signature Version 4 for agents behind API Gateway with I
 ],
 ```
 
-When `access_key_id` and `secret_access_key` are omitted (or null), the factory calls `SigV4Auth::fromEnvironment()`, which reads `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from the process environment. This is the recommended approach for ECS/EC2/Lambda deployments.
+When both explicit keys are omitted or null, the factory reads `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from the PHP process. Temporary
+credentials also require `AWS_SESSION_TOKEN`.
+
+This is an environment-variable lookup, not the AWS default credential-provider chain. For an EC2 instance profile, ECS task role, Lambda execution
+role, or shared profile, resolve the credentials separately and inject or pass all required values.
 
 To pass credentials explicitly:
 
@@ -239,12 +246,12 @@ To pass credentials explicitly:
 
 ### timeout
 
-Response timeout in seconds. This is the maximum time to wait for the agent to finish responding. LLMs can take a while, especially with tool use, so the default of 120 seconds (2 minutes) is intentionally generous.
+Response timeout in seconds. It limits how long the client waits for the agent to finish; the 120-second default leaves room for model generation and
+tool calls.
 
 ```php
-'timeout' => 120,    // default
-'timeout' => 300,    // 5 minutes for complex agent tasks with multiple tool calls
-'timeout' => 30,     // shorter timeout for simple, fast agents
+// The default is 120; use 300 for tool-heavy agents or 30 for a consistently fast endpoint.
+'timeout' => 120,
 ```
 
 ### connect_timeout
@@ -255,44 +262,54 @@ Connection timeout in seconds. How long to wait for the initial TCP connection t
 - A **slow LLM response** doesn't get confused with a down server (timeout: 120s)
 
 ```php
-'connect_timeout' => 10,    // default
-'connect_timeout' => 5,     // fail faster if the server is unreachable
+// The default is 10; use 5 when the UI should report an unreachable endpoint sooner.
+'connect_timeout' => 10,
 ```
 
 ### max_retries
 
-Maximum number of retries on transient HTTP errors. When a request fails with a retryable status code (429, 502, 503, 504), the client will retry up to this many times before throwing an exception.
+Maximum number of retries after the first request. HTTP responses retry only when their status appears in `retryable_status_codes`; connection and
+response-processing failures also use this retry budget.
 
 ```php
-'max_retries' => 0,     // default - no retries, fail immediately
-'max_retries' => 2,     // retry twice (3 total attempts)
-'max_retries' => 5,     // retry 5 times (for critical production workloads)
+// The default is 0; use 2 for three total attempts or a larger value only when the user can tolerate the added wait.
+'max_retries' => 0,
 ```
 
 Retries apply to `invoke()` and `postJson()` calls. Streaming requests (`stream()`, `streamSse()`) are not retried.
 
 ### retry_delay_ms
 
-Base delay between retries in milliseconds. Uses **exponential backoff** - the delay doubles after each retry:
+Base delay between retries in milliseconds. The base doubles for each retry and is capped at 30 seconds. Each actual delay is randomized to 50–100% of
+that base so several application requests do not retry the agent together.
 
-| Retry | Delay (500ms base) | Delay (1000ms base) |
-|-------|--------------------|---------------------|
-| 1st   | 500ms              | 1000ms              |
-| 2nd   | 1000ms             | 2000ms              |
-| 3rd   | 2000ms             | 4000ms              |
-| 4th   | 4000ms             | 8000ms              |
+| Retry | Actual delay (500ms base) | Actual delay (1000ms base) |
+|-------|---------------------------|----------------------------|
+| 1st   | 250–500ms                 | 500–1000ms                 |
+| 2nd   | 500–1000ms                | 1000–2000ms                |
+| 3rd   | 1000–2000ms               | 2000–4000ms                |
+| 4th   | 2000–4000ms               | 4000–8000ms                |
 
 ```php
-'retry_delay_ms' => 500,     // default
-'retry_delay_ms' => 1000,    // start with 1 second (more conservative)
-'retry_delay_ms' => 100,     // start with 100ms (aggressive retries)
+// The default is 500; use 1000 for slower retries or 100 when the agent service recovers quickly.
+'retry_delay_ms' => 500,
+```
+
+### retryable_status_codes
+
+HTTP statuses that may be retried when `max_retries` is greater than zero. Values must be integers from 400 through 599. An empty list disables status
+retries while leaving connection and response-processing retries available.
+
+```php
+'retryable_status_codes' => [429, 502, 503, 504], // default
+// Add 500 when the wrapper uses it for transient errors; use [] to retry connection and response-processing failures only.
 ```
 
 ## Examples
 
 ### Local Development
 
-Minimal config for running against a local Docker Compose or `start-dev.sh` setup:
+Minimal config for a local gateway, whether it runs directly or through Docker Compose:
 
 ```php
 // config/strands.php
@@ -338,12 +355,13 @@ return [
 ```dotenv
 # .env (or set via your deployment platform)
 STRANDS_ENDPOINT=https://agent.internal.example.com
-STRANDS_API_KEY=sk-prod-abc123def456
+STRANDS_API_KEY=replace-with-a-secret-from-your-deployment-platform
 ```
 
 ### Multiple Agents (Council Pattern)
 
-Multiple named agents that share the same endpoint but get different personas via context metadata:
+Register several named clients against one endpoint. Configuration creates the clients; the caller supplies `AgentContext` metadata when the wrapper
+uses a value such as `persona` to select agent instructions.
 
 ```php
 // config/strands.php
@@ -389,11 +407,12 @@ For critical production workloads where transient errors are expected:
 ```
 
 With `max_retries: 3` and `retry_delay_ms: 500`, the retry timing is:
+
 - Attempt 1: immediate
-- Retry 1: after 500ms
-- Retry 2: after 1000ms
-- Retry 3: after 2000ms
-- Total max wait: ~3.5 seconds of retry delays before giving up
+- Retry 1: after 250–500ms
+- Retry 2: after 500–1000ms
+- Retry 3: after 1000–2000ms
+- Total retry delay: about 1.75–3.5 seconds before the final failure reaches the caller
 
 ## Service Injection
 
@@ -404,11 +423,19 @@ The agent specified by the `default` config key is bound to `StrandsClient::clas
 ```php
 use StrandsPhpClient\StrandsClient;
 
-class MyService
+/**
+ * Receives the default client for an application service that answers user questions.
+ *
+ * Use this pattern when every method in the service should talk to the configured default agent.
+ * Add task-specific methods here rather than resolving the client from Laravel's container at each call site.
+ */
+final class AgentAnswerService
 {
+    /** Inject the default agent once for later user requests. */
     public function __construct(
-        private readonly StrandsClient $client,
-    ) {}
+        private readonly StrandsClient $agentClient,
+    ) {
+    }
 }
 ```
 
@@ -437,14 +464,19 @@ The `Strands` facade proxies to the default `StrandsClient`:
 
 ```php
 use StrandsPhpClient\Integration\Laravel\Facades\Strands;
+use StrandsPhpClient\Streaming\StreamEvent;
+use StrandsPhpClient\Streaming\StreamEventType;
 
 // Invoke
 $response = Strands::invoke('Analyse this proposal');
 echo $response->text;
 
-// Stream
-$result = Strands::stream('Explain quantum computing', onEvent: function ($event) {
-    echo $event->text;
+// Render each text update as the default agent streams it.
+$result = Strands::stream('Explain quantum computing', onEvent: function (StreamEvent $event): void {
+    // Non-text events drive other UI elements and should not print an empty text value.
+    if ($event->type === StreamEventType::Text) {
+        echo $event->text;
+    }
 });
 ```
 
@@ -461,7 +493,7 @@ Use Laravel's `env()` helper to keep secrets out of config files:
 ```dotenv
 # .env (not committed to git)
 STRANDS_ENDPOINT=http://localhost:8081
-STRANDS_API_KEY=sk-dev-abc123
+STRANDS_API_KEY=replace-with-your-local-secret
 STRANDS_TIMEOUT=60
 ```
 

@@ -1,6 +1,7 @@
 # Authentication
 
-The Strands PHP Client uses a **Strategy Pattern** for authentication. Every outgoing HTTP request passes through an `AuthStrategy` implementation that can add headers (API keys, tokens, signatures) before the request is sent.
+The Strands PHP Client uses an authentication strategy for every outgoing HTTP request. An `AuthStrategy` can add API keys, tokens, or signatures just
+before the request is sent.
 
 ## Table of Contents
 
@@ -15,13 +16,15 @@ The Strands PHP Client uses a **Strategy Pattern** for authentication. Every out
 
 ## How It Works
 
-Every `StrandsClient` has a `StrandsConfig`, and every `StrandsConfig` has an `AuthStrategy`. Three strategies are built-in: `NullAuth` (no-op, for local dev), `ApiKeyAuth` (API key in a header), and `SigV4Auth` (AWS Signature Version 4 for IAM-protected endpoints). Before each HTTP request (both `invoke()` and `stream()`), the client calls:
+Every `StrandsClient` has a `StrandsConfig`, and every config has an `AuthStrategy`. The built-in choices are `NullAuth` for unauthenticated local
+gateways, `ApiKeyAuth` for header credentials, and `SigV4Auth` for IAM-protected AWS endpoints. All four request methods use the strategy:
 
 ```php
 $headers = $this->config->auth->authenticate($headers, 'POST', $url, $body);
 ```
 
-The auth strategy receives the current headers, HTTP method, URL, and body, then returns a new set of headers with any authentication data added. This happens transparently - your application code doesn't need to think about auth after initial setup.
+The strategy receives the final method, URL, body, and headers after request middleware has run. It returns the headers to send, so a signing strategy
+covers any body changes middleware made. Application call sites need no authentication logic after setup.
 
 ```
 Your Code                StrandsClient              AuthStrategy
@@ -43,6 +46,7 @@ Your Code                StrandsClient              AuthStrategy
 `NullAuth` does nothing - it returns the headers exactly as received. This is the default, so you don't need to specify it:
 
 ```php
+use StrandsPhpClient\Auth\NullAuth;
 use StrandsPhpClient\Config\StrandsConfig;
 
 // These are equivalent - NullAuth is the default
@@ -50,7 +54,7 @@ $config = new StrandsConfig(endpoint: 'http://localhost:8081');
 $config = new StrandsConfig(endpoint: 'http://localhost:8081', auth: new NullAuth());
 ```
 
-`NullAuth` follows the **Null Object Pattern** - instead of checking `if ($auth !== null)` everywhere, we use a real object that simply does nothing. This keeps the code clean and avoids null checks.
+`NullAuth` is a no-op object rather than a nullable setting. The client can therefore authenticate every request without branching at each call site.
 
 ### ApiKeyAuth
 
@@ -107,7 +111,8 @@ X-API-Key: sk-your-api-key-here
 
 ### SigV4Auth
 
-**Use for:** Agents behind AWS API Gateway with IAM authorization, or any AWS service that requires Signature Version 4 request signing. Standalone implementation - does not require `aws/aws-sdk-php`.
+**Use for:** Agents behind AWS API Gateway with IAM authorization, or another AWS service that requires Signature Version 4 signing. No
+`aws/aws-sdk-php` dependency is required.
 
 #### Basic usage (explicit credentials)
 
@@ -118,8 +123,8 @@ use StrandsPhpClient\Config\StrandsConfig;
 $config = new StrandsConfig(
     endpoint: 'https://abc123.execute-api.us-east-1.amazonaws.com/prod',
     auth: new SigV4Auth(
-        accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
-        secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        accessKeyId: 'your-access-key-id',
+        secretAccessKey: 'your-secret-access-key',
         region: 'us-east-1',
     ),
 );
@@ -127,7 +132,8 @@ $config = new StrandsConfig(
 
 #### From environment variables
 
-For EC2 instances, ECS tasks, Lambda functions, or any environment where credentials are provided via `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN`:
+Use this factory when the deployment explicitly injects `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS_SESSION_TOKEN` into the PHP
+process:
 
 ```php
 $config = new StrandsConfig(
@@ -136,7 +142,8 @@ $config = new StrandsConfig(
 );
 ```
 
-`fromEnvironment()` throws `RuntimeException` if the required environment variables are not set.
+`fromEnvironment()` reads only those environment variables. It throws `RuntimeException` when either required value is missing; it does not query the
+EC2 metadata service, ECS task credentials, Lambda execution-role credentials, shared AWS profiles, or another provider chain.
 
 #### Temporary credentials (STS)
 
@@ -146,10 +153,10 @@ For IAM roles assumed via STS, pass the session token:
 $config = new StrandsConfig(
     endpoint: 'https://abc123.execute-api.us-east-1.amazonaws.com/prod',
     auth: new SigV4Auth(
-        accessKeyId: 'ASIA...',
-        secretAccessKey: 'wJalr...',
+        accessKeyId: 'your-temporary-access-key-id',
+        secretAccessKey: 'your-temporary-secret-access-key',
         region: 'us-east-1',
-        sessionToken: 'FwoGZXIvY...',
+        sessionToken: 'your-session-token',
     ),
 );
 ```
@@ -184,9 +191,11 @@ sequenceDiagram
     APIGW-->>Client: Response
 ```
 
-> **Security:** Never hardcode AWS credentials in source code. Use environment variables, IAM instance profiles, ECS task roles, or a secrets manager. The `fromEnvironment()` factory method is the recommended approach for production deployments.
+> **Security:** Never hardcode AWS credentials. Inject short-lived values through environment variables or a secrets manager. For an instance profile,
+> ECS task role, Lambda execution role, or shared profile, use an AWS credential provider to resolve the values before constructing `SigV4Auth`.
 >
-> `SigV4Auth` implements `__debugInfo()` to mask `secretAccessKey` and `sessionToken` in `var_dump()`/`print_r()` output, preventing accidental credential leakage in logs or error pages.
+> `SigV4Auth::__debugInfo()` masks `secretAccessKey` and `sessionToken` in `var_dump()` and `print_r()`. This reduces accidental exposure but does not
+> make it safe to log configuration objects.
 
 ## Symfony Configuration
 
@@ -238,15 +247,24 @@ strands:
             auth:
                 driver: sigv4
                 region: '%env(AWS_DEFAULT_REGION)%'
-                # Credentials fall back to environment variables if not set:
+                # Explicit credentials are optional because omitted values fall back to environment variables.
+
                 # access_key_id: '%env(AWS_ACCESS_KEY_ID)%'
                 # secret_access_key: '%env(AWS_SECRET_ACCESS_KEY)%'
+
+                # Temporary credentials also need the matching session token.
+
                 # session_token: '%env(AWS_SESSION_TOKEN)%'
 ```
 
-When `access_key_id` and `secret_access_key` are omitted, the factory calls `SigV4Auth::fromEnvironment()`, which reads `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from the process environment. This is the recommended approach for ECS/EC2/Lambda deployments.
+When `access_key_id` and `secret_access_key` are omitted, the factory calls `SigV4Auth::fromEnvironment()`. The PHP process must already contain
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`; temporary credentials also require `AWS_SESSION_TOKEN`.
 
-> **Security:** Never hardcode API keys or AWS credentials in config files. Always use environment variables via `%env(...)%` in Symfony or `.env` files.
+AWS roles do not populate those variables automatically. Resolve role credentials with an AWS credential provider, then inject all three temporary
+values or pass them explicitly.
+
+> **Security:** Never hardcode API keys or AWS credentials in config files. Reference secrets through Symfony `%env(...)%` values and keep production
+> secrets outside committed `.env` files.
 
 ## Laravel Configuration
 
@@ -303,81 +321,99 @@ When using the Laravel service provider, configure auth in `config/strands.php`.
         'auth' => [
             'driver' => 'sigv4',
             'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
-            // Credentials fall back to environment variables if not set:
-            // 'access_key_id' => env('AWS_ACCESS_KEY_ID'),
-            // 'secret_access_key' => env('AWS_SECRET_ACCESS_KEY'),
-            // 'session_token' => env('AWS_SESSION_TOKEN'),
+            // Omit both keys to read process env; otherwise add both keys and an optional session_token here.
         ],
     ],
 ],
 ```
 
-When `access_key_id` and `secret_access_key` are omitted (or null), the factory calls `SigV4Auth::fromEnvironment()`, which reads `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from the process environment. This is the recommended approach for ECS/EC2/Lambda deployments.
+When both explicit keys are omitted or null, the factory calls `SigV4Auth::fromEnvironment()`. The PHP process must contain the required credential
+variables; temporary credentials also require `AWS_SESSION_TOKEN`.
+
+AWS roles do not populate those variables automatically. Resolve role credentials with an AWS credential provider, then inject all three temporary
+values or pass them explicitly.
 
 > **Security:** Never hardcode API keys or AWS credentials in config files. Always use environment variables via `env()` in Laravel.
 
 ## Writing a Custom Strategy
 
-If you need something beyond the built-in strategies (e.g., OAuth2 with token refresh, HMAC signatures, mTLS headers), implement the `AuthStrategy` interface:
+For an application-specific header scheme, such as OAuth2 or HMAC, implement `AuthStrategy`. Mutual TLS belongs in the HTTP transport or client
+configuration because it negotiates a client certificate at the TLS layer rather than adding a header.
 
 ```php
 use StrandsPhpClient\Auth\AuthStrategy;
 
-class OAuth2RefreshAuth implements AuthStrategy
+/**
+ * Adds a timestamped HMAC signature that a matching gateway can verify.
+ *
+ * Use this example only when the agent service owns the same canonical signing format and rejects stale timestamps.
+ * The timestamp, nonce, and signature let that gateway authenticate a request without exposing the shared secret to the user.
+ */
+final readonly class TimestampedHmacAuth implements AuthStrategy
 {
-    private string $accessToken;
-
-    private int $expiresAt;
-
+    /**
+     * Store the app secret used to sign requests for the agent gateway.
+     * Use a secret-manager value; an empty string cannot authenticate requests and fails during client setup.
+     *
+     * @param string $sharedSecret Secret shared with the gateway; an empty value is rejected before any user request.
+     * @throws \InvalidArgumentException When no signing secret was configured.
+     */
     public function __construct(
-        private readonly string $clientId,
-        private readonly string $clientSecret,
-        private readonly string $tokenUrl,
+        private string $sharedSecret,
     ) {
-        $this->accessToken = '';
-        $this->expiresAt = 0;
+        // An empty secret would make every signature guessable, so stop before the app serves a request.
+        if ($sharedSecret === '') {
+            throw new \InvalidArgumentException('The HMAC shared secret cannot be empty.');
+        }
     }
 
+    /**
+     * Add the timestamp, nonce, and signature the gateway checks before serving the user's request.
+     * Use it through StrandsClient; callers should not invoke authentication separately.
+     *
+     * @param array<string, string> $headers Existing request headers; an empty array is valid and receives all three authentication headers.
+     * @param string $method HTTP method included in the signature; an empty value cannot match a correctly configured gateway.
+     * @param string $url Full agent URL included in the signature; an empty value cannot identify the protected endpoint.
+     * @param string $body Serialized request body; an empty value signs an intentionally empty body.
+     * @return array<string, string> Original headers plus authentication values; never empty.
+     * @throws \Random\RandomException When the runtime cannot generate a secure request nonce.
+     */
     public function authenticate(
         array $headers,
         string $method,
         string $url,
         string $body,
     ): array {
-        if (time() >= $this->expiresAt) {
-            $this->refreshToken();
-        }
-
-        $headers['Authorization'] = 'Bearer ' . $this->accessToken;
+        $requestTimestamp = (string) time();
+        $requestNonce = bin2hex(random_bytes(16));
+        $canonicalRequest = implode("\n", [$requestTimestamp, $requestNonce, $method, $url, $body]);
+        $headers['X-Request-Timestamp'] = $requestTimestamp;
+        $headers['X-Request-Nonce'] = $requestNonce;
+        $headers['X-Request-Signature'] = hash_hmac('sha256', $canonicalRequest, $this->sharedSecret);
 
         return $headers;
-    }
-
-    private function refreshToken(): void
-    {
-        // Exchange client credentials for an access token
-        // (implementation depends on your OAuth2 provider)
-        $response = $this->fetchToken($this->clientId, $this->clientSecret, $this->tokenUrl);
-        $this->accessToken = $response['access_token'];
-        $this->expiresAt = time() + $response['expires_in'] - 30; // 30s buffer
     }
 }
 ```
 
+The gateway must use HTTPS, compare signatures with `hash_equals()`, enforce a short timestamp window, and reject a reused nonce within that window.
+Those server-side checks are part of this custom protocol; the client strategy cannot enforce them by itself.
+
 The interface requires a single method:
 
 ```php
+/** Attach authentication to the final request headers before the user's call leaves the PHP application. */
 public function authenticate(
-    array $headers,   // Existing headers (Content-Type, Accept, etc.)
-    string $method,   // HTTP method ('POST')
-    string $url,      // Full request URL
-    string $body,     // JSON request body
-): array;             // Return headers WITH auth added
+    array $headers,   // Existing headers; an empty array is valid.
+    string $method,   // Non-empty HTTP method, normally 'POST'.
+    string $url,      // Non-empty full request URL.
+    string $body,     // JSON request body; an empty string means there is no body.
+): array;             // Complete headers; authentication normally makes this non-empty.
 ```
 
 **Parameters explained:**
 
-- **`$headers`** - The headers already set by the client (`Content-Type: application/json`, `Accept: ...`). Add your auth headers to this array and return it. Don't remove existing headers.
+- **`$headers`** - Headers already set by the client, such as `Content-Type` and `Accept`. Add authentication values and return the complete array.
 - **`$method`** - Always `'POST'` for Strands requests. Included because some auth schemes (like SigV4) need it for request signing.
 - **`$url`** - The full URL (`https://api.example.com/agent/invoke`). Needed by auth schemes that include the URL in their signature.
 - **`$body`** - The JSON request body. Needed by auth schemes that sign the body content (like SigV4 or HMAC).
@@ -388,13 +424,10 @@ Then use it directly:
 $client = new StrandsClient(
     config: new StrandsConfig(
         endpoint: 'https://api.example.com/agent',
-        auth: new OAuth2RefreshAuth(
-            clientId: 'my-app',
-            clientSecret: 'secret',
-            tokenUrl: 'https://auth.example.com/token',
-        ),
+        auth: new TimestampedHmacAuth($secretFromYourSecretManager),
     ),
 );
 ```
 
-> **Tip:** To add a custom auth driver to the Symfony bundle config (so it can be configured in YAML), you would need to extend `StrandsClientFactory::resolveAuth()` and `Configuration::getConfigTreeBuilder()`. See those files for the pattern used by `api_key` and `sigv4`.
+> **Tip:** Direct construction accepts any custom strategy. Adding a YAML or Laravel `driver` requires application-owned factory wiring because the
+> package factory recognizes only `null`, `api_key`, and `sigv4`.

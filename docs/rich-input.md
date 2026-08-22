@@ -1,6 +1,7 @@
 # Rich Input (AgentInput)
 
-`AgentInput` is an immutable builder for sending multi-modal content to Strands wrapper services. It supports text, images, documents, videos, S3 and URL sources, cache points, document context/citation controls, structured output prompts, and interrupt responses.
+`AgentInput` is an immutable builder for multimodal content. It supports text, images, documents, videos, S3 and URL sources, cache points, document
+context and citation controls, structured-output prompts, and interrupt responses.
 
 ## Table of Contents
 
@@ -26,9 +27,10 @@
 
 ## Why AgentInput?
 
-The standard `invoke()` and `stream()` methods accept a plain `string` message. This works for text-only conversations, but modern LLMs support multi-modal input: images, documents, videos. The Strands HTTP Wire Contract represents these as **content blocks** within the message payload.
+The standard `invoke()` and `stream()` methods accept a plain string for text-only conversations. Images, documents, and videos use **content blocks**
+inside the Strands HTTP Wire Contract message.
 
-`AgentInput` provides a type-safe, immutable builder that serializes to the content block format the wrapper expects. When no content blocks are attached, it serializes as a plain string for backward compatibility.
+`AgentInput` builds that payload without mutating a prior input. With no content blocks, it serializes to a backward-compatible plain string.
 
 ```mermaid
 graph LR
@@ -215,19 +217,15 @@ $response = $client->invoke(message: $input);
 
 ### Interrupt Response
 
-When an agent returns an interrupt (human-in-the-loop), use `interruptResponse()` to resume:
+When an agent pauses for human input, build the resume payload from its `InterruptDetail`. This preserves the interrupt ID and falls back to the
+tool-use ID when the wrapper supplied no separate interrupt ID:
 
 ```php
-use StrandsPhpClient\Context\AgentInput;
-
-// After receiving an interrupt from a previous invoke()...
-$input = AgentInput::interruptResponse(
-    interruptId: $interrupt->interruptId,
-    response: ['approved' => true],
-);
+// The user approved an interrupt returned by an earlier invoke() call.
+$resumeInput = $interrupt->toResumeInput(['approved' => true]);
 
 $response = $client->invoke(
-    message: $input,
+    message: $resumeInput,
     sessionId: 'session-001', // Same session
 );
 ```
@@ -238,7 +236,8 @@ See [interrupts-and-guardrails.md](interrupts-and-guardrails.md) for the full in
 
 `AgentInput` serializes differently depending on whether content blocks are attached:
 
-This is the PHP-facing Strands HTTP Wire Contract shape. A Python wrapper translates it into sdk-python/model-provider content blocks. URL source blocks are wrapper extensions and require explicit server support.
+This is the PHP-facing Strands HTTP Wire Contract shape. A Python wrapper translates it into sdk-python or provider content blocks. URL sources are
+wrapper extensions and require explicit server support.
 
 ```mermaid
 graph TD
@@ -275,6 +274,7 @@ graph TD
             { "type": "text", "text": "Describe this" },
             {
                 "type": "image",
+                "format": "png",
                 "source": {
                     "type": "base64",
                     "media_type": "image/png",
@@ -353,43 +353,95 @@ graph TD
 
 ## Framework Integration
 
-`AgentInput` works with any `StrandsClient` instance, regardless of how it was created. Here are framework-specific examples showing it in context.
+`AgentInput` works with any `StrandsClient`, regardless of how the application created it. The following controllers validate file presence, type, and
+size before reading an upload; adjust the allowlist and limit for the agent service you operate. They use an app-owned document name instead of
+forwarding the untrusted browser filename.
 
 ### Symfony
 
 ```php
-use StrandsPhpClient\Context\AgentInput;
-use StrandsPhpClient\StrandsClient;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
-class DocumentController extends AbstractController
+use StrandsPhpClient\Context\AgentInput;
+use StrandsPhpClient\StrandsClient;
+
+/**
+ * Accepts a small supported document and returns the agent's summary.
+ *
+ * Use this controller for an upload screen after applying the application's normal authorization and CSRF controls.
+ * Its JSON response supplies either actionable upload feedback or the summary shown on that screen.
+ */
+final class DocumentController extends AbstractController
 {
+    /**
+     * Inject the named agent that handles document-analysis requests.
+     *
+     * @param StrandsClient $analystClient Configured agent for this upload screen; never null.
+     */
     public function __construct(
         #[Autowire(service: 'strands.client.analyst')]
-        private readonly StrandsClient $analyst,
-    ) {}
+        private readonly StrandsClient $analystClient,
+    ) {
+    }
 
+    /**
+     * Validate the upload and return a summary the document screen can render.
+     *
+     * @param Request $request Form submission; a missing file or blank question receives useful UI feedback or a default prompt.
+     * @return JsonResponse Summary on success, or a non-empty validation error with HTTP 422.
+     */
     #[Route('/analyse-document', methods: ['POST'])]
-    public function analyse(Request $request): JsonResponse
+    public function analyseDocument(Request $request): JsonResponse
     {
-        $file = $request->files->get('document');
-        $question = $request->request->getString('question', 'Summarise this document');
+        $uploadedDocument = $request->files->get('document');
+        $submittedQuestion = trim($request->request->getString('question'));
 
-        $input = AgentInput::text($question)
+        // A blank question uses a useful default instead of asking the agent to interpret an empty prompt.
+        $summaryQuestion = $submittedQuestion !== '' ? $submittedQuestion : 'Summarise this document';
+
+        // A missing or failed upload gives the user a validation response instead of a server error.
+        if (!$uploadedDocument instanceof UploadedFile || !$uploadedDocument->isValid()) {
+            return $this->json(['error' => 'Choose a valid document to analyse.'], 422);
+        }
+
+        // An unrecognized MIME type maps to null so the validation response can explain the supported formats.
+        $documentFormat = match ($uploadedDocument->getMimeType()) {
+            'application/pdf' => 'pdf',
+            'text/plain' => 'txt',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+            default => null,
+        };
+
+        $documentSizeBytes = $uploadedDocument->getSize();
+
+        // Unsupported, unreadable-size, or oversized files are rejected before their bytes leave the PHP application.
+        if ($documentFormat === null || !is_int($documentSizeBytes) || $documentSizeBytes > 10 * 1024 * 1024) {
+            return $this->json(['error' => 'Upload a PDF, TXT, or DOCX file no larger than 10 MB.'], 422);
+        }
+
+        $documentBytes = file_get_contents($uploadedDocument->getPathname());
+        // A transient filesystem failure means there is no safe document payload to send to the agent.
+        if ($documentBytes === false) {
+            return $this->json(['error' => 'The uploaded document could not be read.'], 422);
+        }
+
+        $documentInput = AgentInput::text($summaryQuestion)
             ->withDocument(
-                base64_encode(file_get_contents($file->getPathname())),
-                $file->getClientOriginalExtension(),
-                $file->getClientOriginalName(),
+                base64_encode($documentBytes),
+                $documentFormat,
+                'uploaded-document',
             );
 
-        $response = $this->analyst->invoke(message: $input);
+        $summaryResponse = $this->analystClient->invoke(message: $documentInput);
 
         return $this->json([
-            'summary' => $response->text,
-            'tokens' => $response->usage->totalTokens(),
+            'summary' => $summaryResponse->text,
+            'tokens' => $summaryResponse->usage->totalTokens(),
         ]);
     }
 }
@@ -398,34 +450,82 @@ class DocumentController extends AbstractController
 ### Laravel
 
 ```php
-use StrandsPhpClient\Context\AgentInput;
-use StrandsPhpClient\StrandsClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 
-class DocumentController extends Controller
+use StrandsPhpClient\Context\AgentInput;
+use StrandsPhpClient\StrandsClient;
+
+/**
+ * Accepts a small supported document and returns the agent's summary.
+ *
+ * Use this controller for an upload screen after applying the application's normal authorization and CSRF controls.
+ * Its JSON response supplies either actionable upload feedback or the summary shown on that screen.
+ */
+final class DocumentController extends Controller
 {
+    /**
+     * Inject the default agent used by the document-analysis screen.
+     *
+     * @param StrandsClient $documentAgentClient Configured agent for this upload screen; never null.
+     */
     public function __construct(
-        private readonly StrandsClient $client,
-    ) {}
+        private readonly StrandsClient $documentAgentClient,
+    ) {
+    }
 
-    public function analyse(Request $request): JsonResponse
+    /**
+     * Validate the upload and return a summary the document screen can render.
+     *
+     * @param Request $request Form submission; a missing file or blank question receives useful UI feedback or a default prompt.
+     * @return JsonResponse Summary on success; Laravel converts invalid input into a non-empty validation response.
+     */
+    public function analyseDocument(Request $request): JsonResponse
     {
-        $file = $request->file('document');
-        $question = $request->input('question', 'Summarise this document');
+        $validatedInput = $request->validate([
+            'document' => ['required', 'file', 'mimes:pdf,txt,docx', 'max:10240'],
+            'question' => ['nullable', 'string', 'max:2000'],
+        ]);
+        /** @var UploadedFile $uploadedDocument The required file Laravel accepted for this request. */
+        $uploadedDocument = $request->file('document');
 
-        $input = AgentInput::text($question)
+        // A missing or non-string question becomes blank before the default prompt is selected.
+        $submittedQuestion = is_string($validatedInput['question'] ?? null) ? trim($validatedInput['question']) : '';
+        // A blank question uses a useful default instead of asking the agent to interpret an empty prompt.
+        $summaryQuestion = $submittedQuestion !== '' ? $submittedQuestion : 'Summarise this document';
+
+        // An unrecognized MIME type maps to null so the validation response can explain the supported formats.
+        $documentFormat = match ($uploadedDocument->getMimeType()) {
+            'application/pdf' => 'pdf',
+            'text/plain' => 'txt',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+            default => null,
+        };
+
+        // A MIME result outside the validated allowlist cannot become a trusted AgentInput document format.
+        if ($documentFormat === null) {
+            abort(422, 'Upload a PDF, TXT, or DOCX file.');
+        }
+
+        $documentBytes = file_get_contents($uploadedDocument->getPathname());
+        // A transient filesystem failure means there is no safe document payload to send to the agent.
+        if ($documentBytes === false) {
+            abort(422, 'The uploaded document could not be read.');
+        }
+
+        $documentInput = AgentInput::text($summaryQuestion)
             ->withDocument(
-                base64_encode(file_get_contents($file->getPathname())),
-                $file->getClientOriginalExtension(),
-                $file->getClientOriginalName(),
+                base64_encode($documentBytes),
+                $documentFormat,
+                'uploaded-document',
             );
 
-        $response = $this->client->invoke(message: $input);
+        $summaryResponse = $this->documentAgentClient->invoke(message: $documentInput);
 
         return response()->json([
-            'summary' => $response->text,
-            'tokens' => $response->usage->totalTokens(),
+            'summary' => $summaryResponse->text,
+            'tokens' => $summaryResponse->usage->totalTokens(),
         ]);
     }
 }

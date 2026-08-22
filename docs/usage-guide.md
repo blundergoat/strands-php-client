@@ -1,6 +1,7 @@
 # Usage Guide
 
-This guide walks through real-world usage patterns for the Strands PHP Client, based on the [the-summit-chat](https://github.com/blundergoat/the-summit-chat) demo application - a Symfony app where three AI agents (Analyst, Skeptic, Strategist) debate your decisions.
+This guide covers real-world Strands PHP Client patterns, with examples from
+[`the-summit-chatroom`](https://github.com/blundergoat/the-summit-chatroom), where three agents debate a decision in a Symfony application.
 
 ## Table of Contents
 
@@ -56,21 +57,23 @@ graph TB
     Agent --> Model
 ```
 
-The PHP side never runs an agentic loop. It sends a message, optionally with context and a session ID, and gets back a response or a stream of events. All reasoning, tool calling, and state management happens in the Python agent.
+The PHP side never runs an agentic loop. It sends a message with optional context and a session ID, then receives one response or a stream of events.
+Reasoning, tool calls, and conversation state stay in the Python agent service.
 
 ## Wire Contract
 
-`StrandsClient` targets the [Strands HTTP Wire Contract](wire-contract.md): a PHP-facing JSON/SSE contract emitted by Python wrapper services built on top of sdk-python. It is not a raw mirror of sdk-python `TypedDict` objects.
+`StrandsClient` targets the [Strands HTTP Wire Contract](wire-contract.md), a PHP-facing JSON and SSE contract emitted by Python wrappers. It is not a
+raw mirror of sdk-python `TypedDict` objects.
 
-The wrapper owns translation between PHP request/response shapes and sdk-python messages, results, citations, guardrails, usage counters, and stream events.
+The wrapper translates between PHP request and response shapes and sdk-python messages, results, citations, guardrails, usage, and stream events.
 
 ## Basic Invoke
 
 The simplest usage - send a message, get a response:
 
 ```php
-use StrandsPhpClient\StrandsClient;
 use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\StrandsClient;
 
 $client = new StrandsClient(
     config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -94,7 +97,7 @@ print_r($response->wrapperMetadata);    // Canonical wrapper-owned metadata
 
 ## Rich Input (AgentInput)
 
-For multi-modal input - images, documents, videos, S3 locations, and wrapper-supported URL sources - use `AgentInput` instead of a plain string. It serializes to the content block format described by the Strands HTTP Wire Contract.
+Use `AgentInput` for images, documents, videos, S3 locations, and wrapper-supported URL sources. It serializes those values to Wire Contract blocks.
 
 ```php
 use StrandsPhpClient\Context\AgentInput;
@@ -122,13 +125,14 @@ $input = AgentInput::text('List the key findings')
     ->withStructuredOutputPrompt('Return a JSON array of strings');
 ```
 
-When no content blocks are attached, `AgentInput::text('hello')` serializes as the plain string `"hello"` - fully backward compatible with agents that expect a simple message.
+With no content blocks, `AgentInput::text('hello')` serializes as the plain string `"hello"` for compatibility with simple-message wrappers.
 
 For the full API reference and wire format details, see [rich-input.md](rich-input.md).
 
 ## Streaming with SSE
 
-For real-time token delivery, use `stream()`. Each event arrives as the agent produces it, and `stream()` returns a `StreamResult` with the accumulated text and metadata:
+For real-time delivery, use `stream()`. Events arrive as the agent produces them, and the returned `StreamResult` contains the accumulated answer and
+terminal metadata:
 
 ```php
 use StrandsPhpClient\Streaming\StreamEvent;
@@ -137,6 +141,7 @@ use StrandsPhpClient\Streaming\StreamEventType;
 $result = $client->stream(
     message: 'Explain quantum computing',
     onEvent: function (StreamEvent $event) {
+        // Known event types this chat view does not render return null so streaming continues.
         match ($event->type) {
             StreamEventType::Text       => print($event->text),
             StreamEventType::ToolUse    => print("[Using tool: {$event->toolName}]"),
@@ -144,7 +149,7 @@ $result = $client->stream(
             StreamEventType::Thinking   => print("[Thinking...]"),
             StreamEventType::Complete   => print("\n[Done]"),
             StreamEventType::Error      => print("Error: {$event->errorMessage}"),
-            default                     => null, // Forward-compatible: ignore unknown event types
+            default                     => null,
         };
     },
     sessionId: 'session-001',
@@ -157,7 +162,7 @@ echo $result->usage->inputTokens;            // Token usage
 echo $result->usage->outputTokens;
 echo $result->usage->totalTokens();          // Total tokens (input + output)
 echo $result->textEvents;                    // Number of Text events received
-echo $result->totalEvents;                   // Total events (text + tools + complete)
+echo $result->totalEvents;                   // All parsed events, including thinking, tools, citations, and terminal events
 echo $result->timeToFirstTextTokenMs;        // Client-measured TTFT in milliseconds
 echo $result->stopReason?->value;             // Known typed stop reason, when recognised
 echo $result->rawStopReason;                  // Exact stop_reason, including future values
@@ -181,13 +186,13 @@ echo $result->isInterrupted() ? 'yes' : 'no'; // Whether the agent was interrupt
 `Complete` and `Error` are terminal events. If the stream ends without one, the client throws `StreamInterruptedException`.
 When present, `has_objective` is exposed as `$event->hasObjective`.
 
-> **Tip:** Use `default => null` in your `match` expression to gracefully ignore event types added in future versions. The `StreamParser` already skips truly unknown events at the parse level, but new `StreamEventType` enum cases (like `Citation`) will be delivered to your callback.
+> **Tip:** Keep `default => null` in callback `match` expressions. Unknown wire names are skipped; future typed enum cases fall through safely.
 
 > **Note:** Streaming requires `symfony/http-client` via `SymfonyHttpTransport`. PSR-18 clients only support `invoke()`.
 
 ## Custom Endpoints
 
-For agent endpoints that don't follow the standard `/invoke` and `/stream` wire contract - file processing, metadata extraction, custom validation - use `postJson()` and `streamSse()`. These work with arbitrary payloads and return raw decoded JSON instead of typed DTOs.
+Use `postJson()` and `streamSse()` for file processing, metadata extraction, validation, or another custom endpoint. They preserve app-owned arrays.
 
 ### postJson() - Synchronous custom requests
 
@@ -204,7 +209,8 @@ echo $result['model'];
 echo $result['confidence'];
 ```
 
-`postJson()` reuses the same auth, retry, and timeout infrastructure as `invoke()`. The difference is that it accepts an arbitrary path and payload, and returns the raw decoded JSON array instead of an `AgentResponse`.
+`postJson()` reuses the authentication, retry, and timeout behaviour of `invoke()`, but accepts a custom path and returns a decoded array instead of
+`AgentResponse`.
 
 ### streamSse() - Streaming custom requests
 
@@ -213,7 +219,7 @@ echo $result['confidence'];
 $client->streamSse('/file-summarise-stream', [
     'file_base64' => base64_encode($fileBytes),
 ], function (array $event) {
-    // Each $event is a raw decoded JSON array - all fields preserved
+    // A missing or app-specific type produces no visible output but leaves every raw event field available to other handling.
     match ($event['type'] ?? '') {
         'progress' => printf("Processing: %d%%\n", $event['percent']),
         'text'     => print($event['content']),
@@ -223,11 +229,11 @@ $client->streamSse('/file-summarise-stream', [
 });
 ```
 
-Unlike `stream()` which delivers typed `StreamEvent` objects, `streamSse()` delivers raw decoded arrays. This preserves domain-specific fields (like `percent` above) that `StreamEvent` would discard.
+Unlike the typed events from `stream()`, `streamSse()` delivers decoded arrays, so domain fields such as `percent` reach the callback intact.
 
 ### Per-request timeout
 
-Both `postJson()` and `streamSse()` accept an optional `timeout:` parameter (in seconds) that overrides the global config timeout for that single call:
+Both custom methods accept an optional timeout in seconds that overrides the configured response timeout for that call:
 
 ```php
 // Different timeouts for different operations, same client
@@ -236,11 +242,11 @@ $client->postJson('/file-summarise', $payload, timeout: 120);   // Slow: 2min
 $client->streamSse('/long-analysis', $payload, $callback, timeout: 300); // Very slow: 5min
 ```
 
-This avoids creating separate `StrandsClient` instances for operations with different timeout needs. The timeout must be at least 1 second; values less than 1 throw `InvalidArgumentException`.
+Per-call timeouts avoid separate clients for fast and slow operations. A value below one second throws `InvalidArgumentException` before the request.
 
 ## Stream Cancellation
 
-Both `stream()` and `streamSse()` callbacks can return `false` to cancel the stream. This is a true transport-level abort - the HTTP connection is closed immediately via `$response->cancel()`, not just skipping events.
+Both stream callbacks can return `false` to cancel. `SymfonyHttpTransport` then closes the HTTP response instead of merely ignoring later events.
 
 ### Cancelling a stream() call
 
@@ -251,10 +257,12 @@ $tokenCount = 0;
 $result = $client->stream(
     message: 'Write a long essay',
     onEvent: function (StreamEvent $event) use (&$tokenCount, $maxTokens): bool {
+        // Only visible text contributes to the user's requested display limit.
         if ($event->type === StreamEventType::Text) {
             $tokenCount++;
             print($event->text);
 
+            // Reaching the limit closes the HTTP stream before more answer text reaches the screen.
             if ($tokenCount >= $maxTokens) {
                 return false; // Cancel - HTTP connection closes immediately
             }
@@ -281,11 +289,11 @@ $client->streamSse('/long-analysis', $payload, function (array $event): bool {
 
 ### Backward compatibility
 
-Returning `void` (i.e., no explicit return) from the callback continues the stream as before. Only an explicit `return false` triggers cancellation. Existing callbacks don't need changes.
+A callback with no explicit return continues the stream. Only the literal `false` cancels, so existing `void` callbacks retain their behaviour.
 
 ## Interrupt Handling
 
-When an agent's tool requires user approval before proceeding (human-in-the-loop), it returns an **interrupt**. The response contains the tool name, its proposed input, and an ID for resuming the conversation.
+When a tool requires approval, the agent returns an **interrupt** instead of executing it. The response identifies the action and how to resume.
 
 ```mermaid
 sequenceDiagram
@@ -314,7 +322,9 @@ $response = $client->invoke(
     sessionId: 'session-001',
 );
 
+// An interrupted response becomes one or more approval cards in the UI.
 if ($response->isInterrupted()) {
+    // Each interrupt describes one paused tool action the user can review.
     foreach ($response->interrupts as $interrupt) {
         echo "Tool: {$interrupt->toolName}\n";       // e.g. "bank_transfer"
         echo "Reason: {$interrupt->reason}\n";        // e.g. "Amount exceeds $1,000 limit"
@@ -326,19 +336,15 @@ if ($response->isInterrupted()) {
 
 ### Resuming after an interrupt
 
-Use `AgentInput::interruptResponse()` to send the user's decision back to the agent:
+Build the resume input from the returned `InterruptDetail`. It prefers `interruptId`, falls back to `toolUseId`, and throws if the wrapper supplied
+neither identifier:
 
 ```php
-use StrandsPhpClient\Context\AgentInput;
-
 // User approved the action
-$input = AgentInput::interruptResponse(
-    interruptId: $interrupt->interruptId,
-    response: ['approved' => true],
-);
+$resumeInput = $interrupt->toResumeInput(['approved' => true]);
 
 $response = $client->invoke(
-    message: $input,
+    message: $resumeInput,
     sessionId: 'session-001', // Same session to continue the conversation
 );
 
@@ -351,6 +357,7 @@ echo $response->text; // "Transfer of $10,000 to ACCT-789 completed successfully
 $result = $client->stream(
     message: 'Transfer $10,000 to account ACCT-789',
     onEvent: function (StreamEvent $event) {
+        // Known event types this approval view does not render return null so streaming continues.
         match ($event->type) {
             StreamEventType::Text     => print($event->text),
             StreamEventType::Complete => print("\n[Done]"),
@@ -360,9 +367,10 @@ $result = $client->stream(
     sessionId: 'session-001',
 );
 
+// A terminal interrupt becomes the approval state shown after live text stops.
 if ($result->isInterrupted()) {
+    // Each item is the same InterruptDetail type returned by invoke().
     foreach ($result->interrupts as $interrupt) {
-        // Same InterruptDetail objects as invoke()
         echo "Needs approval: {$interrupt->toolName}\n";
     }
 }
@@ -372,7 +380,7 @@ For more details and diagrams, see [interrupts-and-guardrails.md](interrupts-and
 
 ## Guardrail Traces
 
-When the agent has guardrails configured (content safety filters, topic restrictions, etc.), the response may include a **guardrail trace** showing what action was taken.
+When the agent uses content or topic guardrails, the response may include a **guardrail trace** that explains whether a policy intervened.
 
 ```php
 $response = $client->invoke(
@@ -380,18 +388,20 @@ $response = $client->invoke(
     sessionId: 'session-001',
 );
 
+// Guardrail detail lets the UI explain why it shows a replacement answer.
 if ($response->guardrailTrace !== null) {
     echo "Action: {$response->guardrailTrace->action}\n"; // 'INTERVENED' or 'NONE'
 
-    foreach ($response->guardrailTrace->assessments as $assessment) {
-        print_r($assessment); // Detailed assessment data
-    }
-
-    if ($response->guardrailTrace->modelOutput !== null) {
-        echo "Original output: {$response->guardrailTrace->modelOutput}\n";
+    // Typed assessments avoid wrapper-specific array-key checks in a policy-details panel.
+    foreach ($response->guardrailTrace->getAssessmentObjects() as $assessment) {
+        echo 'Policy: ' . ($assessment->name ?? $assessment->type ?? 'unknown') . "\n";
+        echo 'Result: ' . ($assessment->result ?? $assessment->action ?? 'unknown') . "\n";
     }
 }
 ```
+
+`modelOutput` may contain the unsafe text the guardrail replaced. Do not render it in a normal UI or write it to application logs. Restrict access to
+an explicitly authorized audit workflow with suitable retention controls.
 
 Guardrail traces are also available on `StreamResult`:
 
@@ -399,6 +409,7 @@ Guardrail traces are also available on `StreamResult`:
 $result = $client->stream(
     message: 'How do I pick a lock?',
     onEvent: function (StreamEvent $event) {
+        // Known event types this guardrail view does not render return null so streaming continues.
         match ($event->type) {
             StreamEventType::Text => print($event->text),
             default               => null,
@@ -406,6 +417,7 @@ $result = $client->stream(
     },
 );
 
+// A streamed replacement answer uses the same guardrail detail as invoke().
 if ($result->guardrailTrace !== null) {
     echo "Guardrail action: {$result->guardrailTrace->action}\n";
 }
@@ -449,19 +461,20 @@ use StrandsPhpClient\Exceptions\AgentErrorException;
 
 try {
     $client->postJson('/validate', $payload);
-} catch (AgentErrorException $e) {
-    echo $e->statusCode;    // 422
-    echo $e->getMessage();  // "Validation failed"
+} catch (AgentErrorException $agentError) {
+    // For example, a validation screen may receive a structured 422 response from its custom endpoint.
+    echo $agentError->statusCode;    // 422
+    echo $agentError->getMessage();  // "Validation failed"
 
-    // Full decoded response body for structured debugging
-    if ($e->responseBody !== null) {
-        print_r($e->responseBody);
+    // A JSON error body can populate field-level feedback; a plain-text server error leaves it null.
+    if ($agentError->responseBody !== null) {
+        print_r($agentError->responseBody);
         // ['detail' => 'Validation failed', 'errors' => ['field' => 'required']]
     }
 }
 ```
 
-The `responseBody` is `null` when the server returned non-JSON content (e.g., plain text error pages). It's available on both `SymfonyHttpTransport` and `PsrHttpTransport` errors.
+`responseBody` is null when the server returned non-JSON content, such as a proxy error page. Both built-in transports preserve decoded JSON errors.
 
 ### Exception hierarchy
 
@@ -469,6 +482,9 @@ The `responseBody` is `null` when the server returned non-JSON content (e.g., pl
 |-----------|------|----------------|
 | `StrandsException` | Base class for all library errors | Standard exception |
 | `AgentErrorException` | HTTP 4xx/5xx from the agent | `$statusCode`, `$errorCode`, `$responseBody` |
+| `ThrottledException` | HTTP 429 after automatic retries are exhausted | Same fields as `AgentErrorException` |
+| `ContextOverflowException` | Agent error code identifies a context overflow | Same fields as `AgentErrorException` |
+| `MaxTokensException` | Agent error code contains `max_tokens` | Same fields as `AgentErrorException` |
 | `StreamInterruptedException` | Stream ended without terminal event | Standard exception |
 
 ## Session Management
@@ -476,26 +492,27 @@ The `responseBody` is `null` when the server returned non-JSON content (e.g., pl
 Sessions enable multi-turn conversations. The client sends a `session_id` - the Python agent manages all state server-side.
 
 ```php
-// First turn
-$r1 = $client->invoke(
+// The first turn establishes the conversation the user can refine.
+$draftResponse = $client->invoke(
     message: 'Draft a referral letter for a patient',
     sessionId: 'consult-001',
 );
 
-// Second turn - agent remembers the full conversation
-$r2 = $client->invoke(
+// Reusing the session lets the agent revise the answer with the earlier turn in context.
+$revisedResponse = $client->invoke(
     message: 'Make it more formal and add the diagnosis',
     sessionId: 'consult-001',
 );
 ```
 
-**How the-summit-chat handles sessions:**
+**How `the-summit-chatroom` handles sessions:**
 
 The browser generates a UUID per tab and sends it with every request:
 
 ```javascript
 // Browser-side session management
 let sessionId = sessionStorage.getItem('summit_session_id');
+// A new browser tab gets a conversation ID that later requests in that tab reuse.
 if (!sessionId) {
     sessionId = crypto.randomUUID();
     sessionStorage.setItem('summit_session_id', sessionId);
@@ -514,6 +531,7 @@ fetch('/chat', {
 The controller passes it through to the client:
 
 ```php
+// A missing session starts a one-shot turn; a valid string continues that browser conversation.
 $sessionId = is_string($data['session_id'] ?? null) ? $data['session_id'] : null;
 
 $response = $client->invoke(
@@ -522,11 +540,14 @@ $response = $client->invoke(
 );
 ```
 
-**Session sharing across agents:** In the-summit-chat, all three agents receive the same `session_id`. The Skeptic sees what the Analyst said, and the Strategist sees both. This is how multi-agent debate works - shared session history.
+A session ID locates conversation state; it is not authorization. Bind every stored session to the authenticated user or tenant and reject an ID that
+belongs to someone else.
+
+**Session sharing across agents:** In `the-summit-chatroom`, all agents receive one `session_id`. Shared history lets each see earlier answers.
 
 ## Context Builder
 
-`AgentContext` is an immutable builder for passing application context to agents. It uses a clone-and-mutate pattern - every `with*()` call returns a new instance.
+`AgentContext` is an immutable builder for application context. Every `with*()` call returns a new instance, leaving prior inputs unchanged.
 
 ```php
 use StrandsPhpClient\Context\AgentContext;
@@ -551,7 +572,7 @@ $response = $client->invoke(
 );
 ```
 
-**What the-summit-chat passes as context:**
+**What `the-summit-chatroom` passes as context:**
 
 Each agent gets a `persona` metadata field that tells the Python agent which system prompt to use:
 
@@ -565,11 +586,12 @@ $response = $client->invoke(
 );
 ```
 
-Instead of three separate endpoints, one endpoint with metadata selects the persona. The Python agent reads `context.metadata.persona` and applies the matching system prompt (Analyst, Skeptic, or Strategist).
+One endpoint can select a persona from metadata instead of exposing three routes. The Python wrapper reads `context.metadata.persona` and applies the
+matching system prompt.
 
 ## Authentication
 
-The client supports pluggable authentication strategies. See [docs/auth.md](auth.md) for the full guide.
+The client supports pluggable authentication strategies. See the [authentication guide](auth.md) for the full reference.
 
 **No auth (local dev - the default):**
 
@@ -602,7 +624,7 @@ $config = new StrandsConfig(
 ```php
 use StrandsPhpClient\Auth\SigV4Auth;
 
-// From environment variables (recommended for ECS/EC2/Lambda)
+// Use this only when the PHP process already contains the AWS credential variables.
 $config = new StrandsConfig(
     endpoint: 'https://abc123.execute-api.us-east-1.amazonaws.com/prod',
     auth: SigV4Auth::fromEnvironment(region: 'us-east-1'),
@@ -612,8 +634,8 @@ $config = new StrandsConfig(
 $config = new StrandsConfig(
     endpoint: 'https://abc123.execute-api.us-east-1.amazonaws.com/prod',
     auth: new SigV4Auth(
-        accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
-        secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        accessKeyId: 'your-access-key-id',
+        secretAccessKey: 'your-secret-access-key',
         region: 'us-east-1',
     ),
 );
@@ -622,15 +644,17 @@ $config = new StrandsConfig(
 $config = new StrandsConfig(
     endpoint: 'https://abc123.execute-api.us-east-1.amazonaws.com/prod',
     auth: new SigV4Auth(
-        accessKeyId: 'ASIA...',
-        secretAccessKey: 'wJalr...',
+        accessKeyId: 'your-temporary-access-key-id',
+        secretAccessKey: 'your-temporary-secret-access-key',
         region: 'us-east-1',
-        sessionToken: 'FwoGZXIvY...',
+        sessionToken: 'your-session-token',
     ),
 );
 ```
 
-`SigV4Auth` is a standalone implementation (~260 lines) that does not require `aws/aws-sdk-php`. Use `fromEnvironment()` for production deployments where credentials are provided by the runtime (EC2 instance profiles, ECS task roles, Lambda execution roles).
+`SigV4Auth` does not require `aws/aws-sdk-php`. Its `fromEnvironment()` factory reads only `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional
+`AWS_SESSION_TOKEN`; it does not query instance profiles, ECS task credentials, Lambda roles, shared profiles, or another provider chain. Resolve role
+credentials separately, then inject or pass all required values.
 
 ## Retries and Timeouts
 
@@ -642,19 +666,23 @@ $config = new StrandsConfig(
     timeout: 120,           // Response timeout in seconds (default: 120)
     connectTimeout: 5,      // TCP connection timeout (default: 10)
     maxRetries: 3,          // Retry up to 3 times on 429/502/503/504
-    retryDelayMs: 500,      // Base delay: 500ms → 1000ms → 2000ms
+    retryDelayMs: 500,      // Base waits are 500ms → 1s → 2s; each actual wait is randomized to 50–100%
 );
 ```
 
-The `connectTimeout` is separate from `timeout` so a down server fails fast (5 seconds) without affecting slow LLM generation (which can legitimately take 120+ seconds).
+`connectTimeout` lets an unreachable server fail quickly without shortening the response timeout needed for model generation and tool calls.
 
 Retries apply to `invoke()` and `postJson()` calls. Streaming requests (`stream()`, `streamSse()`) are not retried.
 
 ## Logging
 
 `StrandsClient` accepts an optional PSR-3 logger. It logs:
+
 - `debug` - Request URLs, response metadata (session ID, token usage, event counts)
 - `warning` - Retry attempts with delay and error details
+
+Session IDs and upstream errors can be sensitive. Apply the application's access, redaction, and retention controls to these logs. OpenTelemetry spans
+record only whether a session is present, never its value.
 
 ```php
 use Psr\Log\LoggerInterface;
@@ -671,7 +699,7 @@ $client = new StrandsClient(
 
 ## Symfony Integration
 
-The Symfony bundle registers named `StrandsClient` services from YAML config. This is the recommended setup for Symfony projects. See [docs/symfony-config.md](symfony-config.md) for the full configuration reference.
+The Symfony bundle registers named `StrandsClient` services from YAML. See the [Symfony configuration reference](symfony-config.md) for every option.
 
 ### Configuration
 
@@ -701,11 +729,19 @@ Each agent entry creates a service named `strands.client.<name>`.
 Inject named clients into your services using Symfony's `#[Autowire]` attribute:
 
 ```php
-use StrandsPhpClient\StrandsClient;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
-class SummitCouncilOrchestrator
+use StrandsPhpClient\StrandsClient;
+
+/**
+ * Receives the specialist agents used by a council-style answer screen.
+ *
+ * Use this orchestrator when analyst, skeptic, and strategist responses contribute to one user decision.
+ * Its workflow methods call the named clients in the order the interface presents them.
+ */
+final class SummitCouncilOrchestrator
 {
+    /** Inject each named agent once so a request never needs a runtime service lookup. */
     public function __construct(
         #[Autowire(service: 'strands.client.analyst')]
         private readonly StrandsClient $analyst,
@@ -720,7 +756,7 @@ class SummitCouncilOrchestrator
 }
 ```
 
-The bundle auto-detects `symfony/http-client` and creates `SymfonyHttpTransport` instances - both `invoke()` and `stream()` work out of the box. A PSR-3 logger is injected automatically.
+The bundle detects `symfony/http-client`, creates `SymfonyHttpTransport` instances, and injects the application's PSR-3 logger.
 
 ### Bundle registration
 
@@ -735,41 +771,68 @@ return [
 
 ## Multi-Agent Orchestration
 
-the-summit-chat demonstrates a **council pattern** - multiple agents called sequentially with a shared session, each building on the previous responses.
+`the-summit-chatroom` demonstrates a **council pattern**: agents run sequentially in one session, so each can build on earlier answers.
 
 ### Synchronous orchestration
 
 All three agents are called in sequence. Each sees what prior agents said via the shared session:
 
 ```php
-class SummitCouncilOrchestrator
+use StrandsPhpClient\Context\AgentContext;
+use StrandsPhpClient\StrandsClient;
+
+/**
+ * Collects three specialist answers for one council result.
+ *
+ * Use it when a decision screen presents analysis, challenge, and synthesis in a fixed order.
+ * Reusing one non-empty session ID lets later agents receive the earlier conversation history.
+ */
+final class SummitCouncilOrchestrator
 {
-    public function deliberate(string $message, ?string $sessionId): array
+    /** Inject the three agents whose answers make up the council result. */
+    public function __construct(
+        private readonly StrandsClient $analyst,
+        private readonly StrandsClient $skeptic,
+        private readonly StrandsClient $strategist,
+    ) {
+    }
+
+    /**
+     * Ask each specialist for its part of the answer shown to the user.
+     * Pass the authenticated conversation ID shared by all three calls; an empty ID would lose the council's shared history.
+     *
+     * @param string $decisionQuestion User's decision question; an empty value is rejected before this method is called.
+     * @param string $sessionId Authorized conversation ID; an empty value must be rejected so every specialist shares the same history.
+     * @return list<array{persona: string, text: string}> Three ordered cards for the council-results screen; never empty on success.
+     */
+    public function buildCouncilCards(string $decisionQuestion, string $sessionId): array
     {
-        $clients = [
+        $specialistClients = [
             'analyst'    => $this->analyst,
             'skeptic'    => $this->skeptic,
             'strategist' => $this->strategist,
         ];
 
-        $responses = [];
+        // Start with no result cards because each specialist contributes one in turn.
+        $councilResponses = [];
 
-        foreach ($clients as $persona => $client) {
-            $context = AgentContext::create()->withMetadata('persona', $persona);
+        // Each named client produces the next card in the order the user reads the debate.
+        foreach ($specialistClients as $persona => $specialistClient) {
+            $agentContext = AgentContext::create()->withMetadata('persona', $persona);
 
-            $response = $client->invoke(
-                message: $message,
-                context: $context,
+            $specialistResponse = $specialistClient->invoke(
+                message: $decisionQuestion,
+                context: $agentContext,
                 sessionId: $sessionId,
             );
 
-            $responses[] = [
+            $councilResponses[] = [
                 'persona' => $persona,
-                'text' => $response->text,
+                'text' => $specialistResponse->text,
             ];
         }
 
-        return $responses;
+        return $councilResponses;
     }
 }
 ```
@@ -782,102 +845,206 @@ class SummitCouncilOrchestrator
 
 ### Controller wiring
 
+The route must verify that `session_id` belongs to the authenticated user or tenant. The following fragment handles payload validation after that
+ownership check:
+
 ```php
-#[Route('/chat', name: 'chat_submit', methods: ['POST'])]
-public function submit(Request $request): JsonResponse
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Attribute\Route;
+
+/**
+ * Validates one decision question before starting the council workflow.
+ *
+ * Use this controller for a chat route whose access-control layer already verifies conversation ownership.
+ * Its JSON response contains validation feedback or the three cards the browser renders.
+ */
+final class CouncilController extends AbstractController
 {
-    $data = json_decode($request->getContent(), true);
-    $message = is_string($data['message'] ?? null) ? $data['message'] : '';
-    $sessionId = is_string($data['session_id'] ?? null) ? $data['session_id'] : null;
+    /** Inject the workflow that asks all three specialist agents. */
+    public function __construct(
+        private readonly SummitCouncilOrchestrator $orchestrator,
+    ) {
+    }
 
-    $responses = $this->orchestrator->deliberate($message, $sessionId);
+    /**
+     * Validate a chat submission and return the ordered council cards the browser will render.
+     *
+     * @param Request $request JSON chat request; an empty or malformed body returns validation feedback.
+     * @return JsonResponse Three result cards on success, or a non-empty validation error with HTTP 422.
+     */
+    #[Route('/chat', name: 'chat_submit', methods: ['POST'])]
+    public function submit(Request $request): JsonResponse
+    {
+        $decodedRequest = json_decode($request->getContent(), true);
 
-    return $this->json([
-        'responses' => $responses,
-        'session_id' => $sessionId,
-    ]);
+        // Malformed or non-object JSON becomes an empty input map so the route can return normal validation feedback.
+        $submittedChat = is_array($decodedRequest) ? $decodedRequest : [];
+        // A missing or non-string message becomes empty and is rejected before an agent request starts.
+        $decisionQuestion = is_string($submittedChat['message'] ?? null) ? trim($submittedChat['message']) : '';
+
+        // An empty message cannot produce a useful council answer, so return feedback the chat form can display.
+        if ($decisionQuestion === '') {
+            return $this->json(['error' => 'Enter a question for the council.'], 422);
+        }
+
+        // A missing or non-string session ID becomes empty and cannot identify the shared council conversation.
+        $sessionId = is_string($submittedChat['session_id'] ?? null) ? trim($submittedChat['session_id']) : '';
+
+        // Without one authorized session ID, later specialists would not receive the answers already shown to this user.
+        if ($sessionId === '') {
+            return $this->json(['error' => 'Start or select a conversation before asking the council.'], 422);
+        }
+
+        $councilResponses = $this->orchestrator->buildCouncilCards($decisionQuestion, $sessionId);
+
+        return $this->json([
+            'responses' => $councilResponses,
+            'session_id' => $sessionId,
+        ]);
+    }
 }
 ```
 
 ## Streaming to the Browser with Mercure
 
-the-summit-chat uses [Mercure](https://mercure.rocks/) to push stream events from the PHP backend to the browser in real-time. This is a pattern for any app that needs to show tokens as they arrive.
+`the-summit-chatroom` uses [Mercure](https://mercure.rocks/) to push stream events from PHP to the browser. The same pattern works for any application
+that must render tokens as they arrive.
 
 ### The streaming orchestrator
 
 ```php
-class SummitCouncilStreamOrchestrator
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Mercure\HubInterface;
+use Symfony\Component\Mercure\Update;
+
+use StrandsPhpClient\Context\AgentContext;
+use StrandsPhpClient\StrandsClient;
+use StrandsPhpClient\Streaming\StreamEvent;
+use StrandsPhpClient\Streaming\StreamEventType;
+
+/**
+ * Streams each specialist's progress to its own Mercure topic.
+ *
+ * Use it when a council screen renders analyst, skeptic, and strategist cards as their text arrives.
+ * Tool and terminal events keep each card's activity and completion state synchronized with the agent.
+ */
+final class SummitCouncilStreamOrchestrator
 {
+    /** Inject every named agent plus the Mercure hub that updates the browser. */
     public function __construct(
         #[Autowire(service: 'strands.client.analyst')]
         private readonly StrandsClient $analyst,
-        // ... skeptic, strategist
+
+        #[Autowire(service: 'strands.client.skeptic')]
+        private readonly StrandsClient $skeptic,
+
+        #[Autowire(service: 'strands.client.strategist')]
+        private readonly StrandsClient $strategist,
+
         private readonly HubInterface $hub,
     ) {
     }
 
-    public function deliberateStreaming(
-        string $message,
+    /**
+     * Stream the three specialist cards for one decision question and shared conversation.
+     * Use a private, authorized topic base so only this user's browser can receive the updates.
+     *
+     * @param string $decisionQuestion User's question; an empty value must be rejected before streaming begins.
+     * @param string $sessionId Authorized conversation ID; an empty value cannot safely share history between specialists.
+     * @param string $topicBase Private Mercure topic prefix; an empty value cannot route updates to the correct browser.
+     * @return void Publishes card updates as they arrive; the caller receives no separate result payload.
+     */
+    public function streamCouncilCards(
+        string $decisionQuestion,
         string $sessionId,
         string $topicBase,
     ): void {
-        $clients = [
+        $specialistClients = [
             'analyst'    => $this->analyst,
             'skeptic'    => $this->skeptic,
             'strategist' => $this->strategist,
         ];
 
-        foreach ($clients as $persona => $client) {
-            $topic = "{$topicBase}/{$persona}";
-            $context = AgentContext::create()->withMetadata('persona', $persona);
+        // Each specialist publishes to a separate topic so its card can update independently.
+        foreach ($specialistClients as $persona => $specialistClient) {
+            $browserTopic = "{$topicBase}/{$persona}";
+            $agentContext = AgentContext::create()->withMetadata('persona', $persona);
 
-            $client->stream(
-                message: $message,
-                onEvent: function (StreamEvent $event) use ($topic, $persona) {
-                    match ($event->type) {
-                        StreamEventType::Text => $this->publish($topic, [
+            $specialistClient->stream(
+                message: $decisionQuestion,
+                onEvent: function (StreamEvent $streamEvent) use ($browserTopic, $persona) {
+                    // Events without visible council-card output return null so streaming continues.
+                    match ($streamEvent->type) {
+                        StreamEventType::Text => $this->publishCardUpdate($browserTopic, [
                             'type' => 'text',
                             'persona' => $persona,
-                            'content' => $event->text,
+                            'content' => $streamEvent->text,
                         ]),
-                        StreamEventType::ToolUse => $this->publish($topic, [
+                        StreamEventType::ToolUse => $this->publishCardUpdate($browserTopic, [
                             'type' => 'tool_use',
                             'persona' => $persona,
-                            'tool_name' => $event->toolName,
+                            'tool_name' => $streamEvent->toolName,
                         ]),
-                        StreamEventType::Complete => $this->publish($topic, [
+                        StreamEventType::Complete => $this->publishCardUpdate($browserTopic, [
                             'type' => 'complete',
                             'persona' => $persona,
                         ]),
-                        StreamEventType::Error => $this->publish($topic, [
+                        StreamEventType::Error => $this->publishCardUpdate($browserTopic, [
                             'type' => 'error',
                             'persona' => $persona,
-                            'message' => $event->errorMessage,
+                            'message' => $streamEvent->errorMessage,
                         ]),
                         default => null,
                     };
                 },
-                context: $context,
+                context: $agentContext,
                 sessionId: $sessionId,
             );
         }
+    }
+
+    /**
+     * Publish one safe event map to the browser topic for a specialist card.
+     * An empty payload is valid and lets the UI react to an event type without extra detail.
+     *
+     * @param string $browserTopic Authorized card topic; an empty value cannot route the update to the intended browser.
+     * @param array<string, mixed> $eventPayload Event fields the browser may render; empty means the type alone carries the update.
+     * @return void Publishes one private update and returns no response body.
+     * @throws \RuntimeException When the event cannot be encoded for the browser.
+     */
+    private function publishCardUpdate(string $browserTopic, array $eventPayload): void
+    {
+        $encodedUpdate = json_encode($eventPayload);
+
+        // Encoding failure means the browser cannot receive a trustworthy update for this agent card.
+        if ($encodedUpdate === false) {
+            throw new \RuntimeException('Could not encode the council stream event.');
+        }
+
+        // Private delivery requires a subscriber JWT, preventing another browser from reading this user's council cards.
+        $this->hub->publish(new Update($browserTopic, $encodedUpdate, true));
     }
 }
 ```
 
 ### Deferring streaming to kernel.terminate
 
-The controller returns a response immediately, then starts streaming after the response is sent. This gives the browser time to subscribe to Mercure topics before tokens start arriving:
+The controller responds first and starts streaming during `kernel.terminate`, giving the browser time to subscribe before tokens arrive. This
+fragment runs after the controller has validated a non-empty `$decisionQuestion` and an app-owned `$sessionId` for the current user:
 
 ```php
+// Streaming starts only after the user selects live mode and the optional browser-stream service is available.
 if ($streaming && $this->streamOrchestrator !== null) {
-    $topicBase = 'summit-council/' . ($sessionId ?? 'anonymous');
+    $streamOrchestrator = $this->streamOrchestrator;
+    $topicBase = 'https://app.example/council/' . rawurlencode($sessionId);
 
-    // Schedule streaming AFTER the HTTP response is sent
+    // Deferring the agent calls lets the browser receive its topic and subscribe before the first card update arrives.
     $this->eventDispatcher->addListener(
         'kernel.terminate',
-        static function () use ($orchestrator, $message, $sessionId, $topicBase): void {
-            $orchestrator->deliberateStreaming($message, $sessionId, $topicBase);
+        static function () use ($streamOrchestrator, $decisionQuestion, $sessionId, $topicBase): void {
+            $streamOrchestrator->streamCouncilCards($decisionQuestion, $sessionId, $topicBase);
         },
     );
 
@@ -891,21 +1058,31 @@ if ($streaming && $this->streamOrchestrator !== null) {
 
 ### Browser-side: subscribing to the stream
 
+Configure [Mercure subscriber authorization](https://symfony.com/doc/current/mercure.html#authorization) for the three private topics. When the hub
+uses its authorization cookie, the browser can subscribe with:
+
 ```javascript
-const eventSource = new EventSource(`${mercureUrl}?topic=${topicBase}/analyst&topic=${topicBase}/skeptic&topic=${topicBase}/strategist`);
+const subscribedTopics = ['analyst', 'skeptic', 'strategist']
+    .map((persona) => `${topicBase}/${persona}`)
+    .map((browserTopic) => `topic=${encodeURIComponent(browserTopic)}`)
+    .join('&');
+const councilEvents = new EventSource(`${mercureUrl}?${subscribedTopics}`, { withCredentials: true });
 
-eventSource.onmessage = (event) => {
-    const data = JSON.parse(event.data);
+councilEvents.onmessage = (mercureMessage) => {
+    const cardUpdate = JSON.parse(mercureMessage.data);
 
-    switch (data.type) {
+    switch (cardUpdate.type) {
         case 'text':
-            appendToken(data.persona, data.content);
+            appendToken(cardUpdate.persona, cardUpdate.content);
+            break;
+        case 'tool_use':
+            showToolActivity(cardUpdate.persona, cardUpdate.tool_name);
             break;
         case 'complete':
-            markAgentDone(data.persona);
+            markAgentDone(cardUpdate.persona);
             break;
         case 'error':
-            showError(data.persona, data.message);
+            showError(cardUpdate.persona, cardUpdate.message);
             break;
     }
 };
@@ -913,7 +1090,8 @@ eventSource.onmessage = (event) => {
 
 ## Building Your Python Agent
 
-The PHP client sends HTTP requests to your Python wrapper and expects the JSON and SSE response formats documented in the [wire contract](wire-contract.md). This section covers the practical wrapper shape, common sdk-python pitfalls behind that wrapper, and a minimal working example.
+The PHP client expects its Python wrapper to emit the JSON and SSE shapes in the [wire contract](wire-contract.md). This section covers the wrapper
+boundary, common sdk-python pitfalls, and the maintained gateway example.
 
 The maintained starting point is [examples/python-gateway](../examples/python-gateway). It is source-repository example code, excluded from Composer
 archives, and is not a published Python package. It includes a fake-agent `/invoke`, `/stream`, `/health`, custom endpoint blueprint, sdk-python
@@ -942,9 +1120,10 @@ When you call `$client->invoke()` or `$client->stream()`, the PHP client sends a
 }
 ```
 
-- `message` (string, required) - The user's message.
-- `session_id` (string, optional) - UUID for multi-turn conversation continuity. Omitted for one-shot requests.
-- `context` (object, optional) - Application context from `AgentContext`. Only non-empty fields are included (`system_prompt`, `metadata`, `permissions`, `documents`, `structured_data`). Null/empty values are omitted entirely.
+- `message` (string or rich-input object, required) - The user's message or serialized `AgentInput`.
+- `session_id` (string, optional) - Application-owned conversation identifier. Omit it for a one-shot request.
+- `context` (object, optional) - Application context from `AgentContext`. Only non-empty `system_prompt`, `metadata`, `permissions`, `documents`, and
+  `structured_data` fields are included.
 
 ### SSE event contract (streaming)
 
@@ -962,7 +1141,7 @@ For `/stream`, the PHP client's `StreamParser` expects Server-Sent Events with `
 | `complete` | `text` | Stream finished - includes full response text |
 | `error` | `message` | Stream failed - includes error description |
 
-Every stream **must** end with either `complete` or `error`. If the connection drops without a terminal event, the PHP client throws `StreamInterruptedException`.
+Every stream **must** end with `complete` or `error`. A connection that closes first produces `StreamInterruptedException` in PHP.
 
 Example SSE output:
 
@@ -978,11 +1157,12 @@ data: {"type": "complete", "text": "The answer is 42.", "session_id": "abc-123",
 
 ### OpenTelemetry trace continuation
 
-The PHP client injects W3C `traceparent` and `tracestate` headers when `OtelTracingMiddleware` is configured. Python wrappers should extract those headers and start wrapper/sdk-python spans as children of the PHP client span.
+When tracing is configured, PHP injects W3C `traceparent` and `tracestate` headers. The wrapper extracts them and starts child spans.
 
-The reference middleware lives in `examples/python-gateway/tracing.py`. It continues the inbound trace and records only safe wrapper metadata such as operation, route, and wire version. Do not attach prompts, response text, document content, filenames, raw context metadata, raw tool payloads, or session ID values to spans.
+The reference middleware in `examples/python-gateway/tracing.py` records only operation, sanitized route, and wire version. Never attach prompts,
+responses, documents, filenames, raw context or tool payloads, or session ID values to spans.
 
-Custom endpoints should follow the same rule. `postJson()` and `streamSse()` may carry app-owned payloads, so telemetry should summarize them by route, status, duration, event counts, terminal state, and safe usage counters only.
+For custom endpoints, record only sanitized route, status, duration, event counts, terminal state, and safe usage. Never inspect app-owned payloads.
 
 ### Calling the Strands SDK correctly
 
@@ -1005,19 +1185,21 @@ async for event in agent.stream_async(messages):
 **Common mistake - passing messages as a keyword argument:**
 
 ```python
-# WRONG -"messages" goes into **kwargs, NOT the prompt parameter.
-# The agent runs with NO conversation history and only sees its system prompt.
+# WRONG - "messages" goes into **kwargs, not the prompt parameter.
+# The agent runs with no conversation history and sees only its system prompt.
 result = agent(messages=messages)
-async for event in agent.stream_async(messages=messages):  # Also wrong
+async for event in agent.stream_async(messages=messages):  # Also wrong.
+    ...
 ```
 
 This is wrong because the SDK signature is:
 
 ```python
 def __call__(self, prompt=None, *, invocation_state=None, **kwargs):
+    ...
 ```
 
-Passing `messages=messages` sends it into `**kwargs` (deprecated), not `prompt`. The agent never sees the user's question and generates a generic response based on the system prompt alone.
+Passing `messages=messages` puts the list into deprecated `**kwargs`, not `prompt`. The agent then runs without that conversation input.
 
 ### Message content format
 
@@ -1034,183 +1216,103 @@ messages = [{"role": "user", "content": [{"text": "Hello world"}]}]
 If your session store uses plain strings internally (which is simpler), convert before passing to the SDK:
 
 ```python
-def to_sdk_messages(messages: list[dict]) -> list[dict]:
-    """Convert plain-text messages to Strands SDK format."""
+from typing import Any
+
+
+def to_sdk_messages(stored_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert stored conversation turns into the content-block lists expected by Strands.
+    Use this at the SDK boundary; an empty history returns an empty list and starts no conversation."""
+    # Start with no SDK turns because each stored message contributes one normalized item.
     sdk_messages = []
-    for msg in messages:
-        content = msg["content"]
-        if isinstance(content, str):
-            content = [{"text": content}]
-        sdk_messages.append({"role": msg["role"], "content": content})
+
+    # Preserve conversation order so the agent sees the same sequence the user saw.
+    for stored_message in stored_messages:
+        message_content = stored_message["content"]
+        # Plain text becomes one content block; an existing block list passes through unchanged.
+        if isinstance(message_content, str):
+            message_content = [{"text": message_content}]
+
+        sdk_messages.append({"role": stored_message["role"], "content": message_content})
+
     return sdk_messages
 ```
 
-### Minimal working FastAPI agent
+### Start from the maintained FastAPI gateway
 
-Here's a complete, minimal Python agent that works with the PHP client:
+Use [`examples/python-gateway`](../examples/python-gateway) as the starting point. Its credential-free fake agent exercises the same boundaries as a
+real wrapper.
+
+When replacing the fake response with `Agent`:
+
+1. Pass the prompt or message list as the first positional argument to `agent()` or `agent.stream_async()`.
+2. Remove only the single newline that `AgentResult.__str__()` appends: `str(agent_result).removesuffix("\n")`.
+3. Pass every mapping callback through `map_sdk_event(..., fallback_session_id=request.session_id)` and skip a `None` result.
+4. Frame only normalized events with `sse_frame()`, stop after the first terminal event, and emit a safe `error` if the SDK ends first.
+5. Log internal exceptions on the server, but send the PHP caller a stable error code and safe message rather than `str(error)`.
+
+The streaming adapter is intentionally small:
 
 ```python
-from collections.abc import Mapping
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
-from strands import Agent
-from strands.models.ollama import OllamaModel
+import logging
+from collections.abc import AsyncIterator, Mapping
+from typing import Any
 
-# Copy examples/python-gateway/contract.py beside this app.
 from contract import map_sdk_event, sse_frame
 
-app = FastAPI()
-
-model = OllamaModel(host="http://localhost:11434", model_id="qwen2.5:7b")
+logger = logging.getLogger(__name__)
 
 
-class RequestContext(BaseModel):
-    system_prompt: str | None = None
-    metadata: dict = Field(default_factory=dict)
+async def normalized_frames(
+    agent: Any,
+    sdk_messages: list[dict[str, Any]],
+    session_id: str | None,
+) -> AsyncIterator[str]:
+    """Translate one real Agent stream into the SSE frames consumed by PHP.
 
+    Use it as the StreamingResponse body; a None session means the caller started a one-shot turn.
+    """
+    try:
+        # The message list is the positional prompt; passing messages= would leave it in deprecated kwargs.
+        async for sdk_event in agent.stream_async(sdk_messages):
+            # Lifecycle values without a mapping shape cannot become Wire Contract events.
+            if not isinstance(sdk_event, Mapping):
+                continue
 
-class AgentRequest(BaseModel):
-    message: str
-    session_id: str | None = None
-    context: RequestContext = Field(default_factory=RequestContext)
+            normalized_event = map_sdk_event(sdk_event, fallback_session_id=session_id)
+            # None identifies a lifecycle or incomplete update that should stay invisible to the user.
+            if normalized_event is None:
+                continue
 
+            framed_event = sse_frame(normalized_event)
+            # The first terminal frame finalizes the PHP result, so later SDK callbacks must not create another ending.
+            if normalized_event.get("type") in {"complete", "error"}:
+                yield framed_event
+                return
 
-def to_sdk_messages(message: str) -> list[dict]:
-    """Convert a plain text message to Strands SDK message format."""
-    return [{"role": "user", "content": [{"text": message}]}]
+            yield framed_event
+    # For example, the model provider may disconnect while the user is watching the answer stream.
+    except Exception:
+        logger.exception("Agent stream failed before a terminal event")
+        yield sse_frame({"type": "error", "message": "The agent stream failed.", "code": "agent_stream_failed"})
+        return
 
-
-@app.post("/invoke")
-async def invoke(req: AgentRequest):
-    system_prompt = req.context.system_prompt or "You are a helpful assistant."
-    agent = Agent(model=model, system_prompt=system_prompt, tools=[])
-
-    # Pass messages as the FIRST POSITIONAL argument
-    messages = to_sdk_messages(req.message)
-    result = agent(messages)
-
-    return {
-        "text": str(result),
-        "agent": req.context.metadata.get("persona", "default"),
-        "session_id": req.session_id,
-        "usage": {},
-        "tools_used": [],
-    }
-
-
-@app.post("/stream")
-async def stream(req: AgentRequest):
-    system_prompt = req.context.system_prompt or "You are a helpful assistant."
-    agent = Agent(model=model, system_prompt=system_prompt, tools=[])
-    messages = to_sdk_messages(req.message)
-
-    async def generate():
-        full_text = ""
-        got_terminal = False
-
-        try:
-            # Pass messages as the FIRST POSITIONAL argument - not messages=messages
-            async for sdk_event in agent.stream_async(messages):
-                if not isinstance(sdk_event, Mapping):
-                    continue
-
-                event = map_sdk_event(sdk_event)
-                if event is None:  # sdk-python lifecycle/control callback
-                    continue
-
-                if event["type"] == "text":
-                    full_text += event.get("content", "")
-                if event["type"] in ("complete", "error"):
-                    got_terminal = True
-
-                yield sse_frame(event)
-
-            if not got_terminal:
-                yield sse_frame({"type": "complete", "text": full_text, "session_id": req.session_id, "usage": {}, "tools_used": []})
-        except Exception as error:
-            if not got_terminal:
-                yield sse_frame({"type": "error", "message": str(error)})
-
-    return StreamingResponse(generate(), media_type="text/event-stream")
-
-
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+    # If the SDK closes without a result, send an explicit error so PHP does not discard the partial answer as an unexplained interruption.
+    yield sse_frame({"type": "error", "message": "The agent stream ended early.", "code": "agent_stream_incomplete"})
 ```
 
-### Adding session history
-
-The minimal example above is single-turn. For multi-turn conversations (where agents see prior responses), add a session store:
-
-```python
-from collections import defaultdict
-
-class SessionStore:
-    def __init__(self):
-        self._sessions: dict[str, list[dict]] = defaultdict(list)
-
-    def append_user(self, session_id: str, content: str) -> None:
-        history = self._sessions[session_id]
-        # Deduplicate - the same message may be sent to multiple agents
-        if history and history[-1]["role"] == "user" and history[-1]["content"] == content:
-            return
-        history.append({"role": "user", "content": content})
-
-    def append_assistant(self, session_id: str, content: str, persona: str) -> None:
-        self._sessions[session_id].append({
-            "role": "assistant",
-            "content": content,
-            "metadata": {"persona": persona},
-        })
-
-    def get_messages(self, session_id: str) -> list[dict]:
-        """Return messages in Strands SDK format (content as list of ContentBlock)."""
-        messages = []
-        for turn in self._sessions.get(session_id, []):
-            content = turn["content"]
-            # Prefix assistant messages so agents know who said what
-            if turn["role"] == "assistant" and turn.get("metadata", {}).get("persona"):
-                content = f"[{turn['metadata']['persona'].upper()}]: {content}"
-            messages.append({"role": turn["role"], "content": [{"text": content}]})
-        return messages
-```
-
-Then in your endpoint:
-
-```python
-sessions = SessionStore()
-
-@app.post("/invoke")
-async def invoke(req: AgentRequest):
-    persona = req.context.metadata.get("persona", "default")
-    agent = Agent(model=model, system_prompt=PROMPTS[persona], tools=[])
-
-    if req.session_id:
-        sessions.append_user(req.session_id, req.message)
-        messages = sessions.get_messages(req.session_id)
-    else:
-        messages = [{"role": "user", "content": [{"text": req.message}]}]
-
-    result = agent(messages)  # Positional - not agent(messages=messages)!
-
-    if req.session_id:
-        sessions.append_assistant(req.session_id, str(result), persona)
-
-    return {"text": str(result), "agent": persona, "session_id": req.session_id, "usage": {}, "tools_used": []}
-```
-
-This is how [the-summit-chat](https://github.com/blundergoat/the-summit-chat) implements its council debate - all three agents share the same `session_id`, so the Skeptic sees the Analyst's response and the Strategist sees both.
+The template echoes `session_id` but deliberately does not persist conversation history. A production wrapper needs an application-owned session store
+with authorization, concurrency control, bounded retention, and expiry.
+[`the-summit-chatroom`](https://github.com/blundergoat/the-summit-chatroom) shows one council integration; choose storage that fits your deployment.
 
 ## Migrating an Existing Wrapper
 
-Projects that already run a hand-copied FastAPI wrapper do not need to rewrite anything for this release - existing `invoke()`, `stream()`, `postJson()`, and `streamSse()` call sites keep working unchanged. To converge on the shared contract incrementally:
+Existing FastAPI wrappers do not need an all-at-once rewrite. Current PHP call sites remain compatible while the wrapper adopts the shared contract in
+stages:
 
-1. **Keep your custom routes.** App-owned endpoints stay app-owned; the wire contract only standardizes `/invoke`, `/stream`, and the optional discovery response. Nothing forces custom request/response schemas into the canonical shapes.
-2. **Adopt the normalization helpers first.** Replace your copied usage/event mapping with [`extract_usage()` and `map_sdk_event()`](../examples/python-gateway/contract.py) from the reference gateway (or port their behavior). This removes the most common drift source: usage casing and event shape differences.
-3. **Add trace continuation.** Drop in [`TraceContextMiddleware`](../examples/python-gateway/tracing.py) so the `traceparent` header sent by `OtelTracingMiddleware` becomes the parent of your wrapper's spans.
-4. **Validate against the shared fixtures.** Your wrapper's responses should match the JSON/SSE fixtures in `tests/Fixtures/wire-contract/` - the same files the PHP contract tests parse. Diffing one real response per endpoint against the matching fixture is usually enough to catch drift.
+1. **Keep custom routes app-owned.** The contract standardizes only `/invoke`, `/stream`, and optional discovery; custom schemas stay unchanged.
+2. **Adopt normalization helpers.** Use [`extract_usage()` and `map_sdk_event()`](../examples/python-gateway/contract.py), or port their behaviour.
+3. **Continue traces.** Add [`TraceContextMiddleware`](../examples/python-gateway/tracing.py) so PHP's `traceparent` parents wrapper spans.
+4. **Validate shared fixtures.** Compare real wrapper responses with `tests/Fixtures/wire-contract/`, which the PHP contract tests also parse.
 
 The wrapper stays yours; only the helpers and the canonical envelope shapes are shared.
 
@@ -1233,7 +1335,7 @@ one unfinished frame exceeds 10 MB, while allowing one network chunk to contain 
 
 ### Stream will not cancel
 
-Cancellation requires the callback to return the literal `false`. A `void` callback or a falsy value like `null` or `0` keeps the stream running by design, so an existing observer callback can never cancel by accident. If the user's stop button does nothing, check that the callback actually reaches `return false;`.
+Cancellation requires the literal `false`; `void`, `null`, and `0` continue. If a stop control fails, verify its callback reaches `return false;`.
 
 ### URL media is rejected or ignored
 
@@ -1251,7 +1353,11 @@ promoted wrapper metadata and context sizes have canonical properties plus depre
 
 ### Traces do not stitch across PHP and Python
 
-If the outbound request has no `traceparent` header, the middleware is not registered on the client (or was constructed without a tracer). If the header arrives but Python spans start a new trace, the wrapper is not extracting the incoming context - add the FastAPI middleware from `examples/python-gateway/tracing.py` or the equivalent OTEL instrumentation. Custom-endpoint spans use the low-cardinality operation names `strands.client.post_json` and `strands.client.stream_sse`; arbitrary custom paths collapse to `/{custom}`. Session IDs never appear on spans - only a `strands.session.present` boolean.
+If the request has no `traceparent`, the middleware is absent or has no tracer. If the header arrives but Python starts a new trace, add the FastAPI
+middleware from `examples/python-gateway/tracing.py` or equivalent OpenTelemetry extraction.
+
+Custom endpoints use the low-cardinality operations `strands.client.post_json` and `strands.client.stream_sse`; arbitrary paths collapse to
+`/{custom}`. Spans record only the `strands.session.present` boolean, never a session ID.
 
 ## Testing
 
@@ -1261,43 +1367,50 @@ All tests use mocked HTTP responses - no network calls, no Docker, no API keys.
 
 ```php
 use PHPUnit\Framework\TestCase;
-use StrandsPhpClient\StrandsClient;
-use StrandsPhpClient\Config\StrandsConfig;
-use StrandsPhpClient\Response\AgentResponse;
 
-class SummitCouncilOrchestratorTest extends TestCase
+use StrandsPhpClient\Response\AgentResponse;
+use StrandsPhpClient\StrandsClient;
+
+/**
+ * Verifies the council workflow without contacting an agent service.
+ *
+ * Run this test when the order or shape of specialist cards changes.
+ * It models the three answers a user receives from one council request.
+ */
+final class SummitCouncilOrchestratorTest extends TestCase
 {
-    public function testDeliberateCallsAllThreeAgentsInOrder(): void
+    /** Confirm all three specialist cards are returned in the order the UI expects. */
+    public function testBuildCouncilCardsCallsAllThreeAgentsInOrder(): void
     {
+        // Start with no calls because each mocked specialist appends its name when invoked.
         $callOrder = [];
 
-        $analyst = $this->createMock(StrandsClient::class);
-        $analyst
-            ->expects($this->once())
-            ->method('invoke')
-            ->willReturnCallback(function () use (&$callOrder) {
-                $callOrder[] = 'analyst';
+        // Build each fake client with the answer text its matching result card should display.
+        $buildAgentClient = function (string $agentName) use (&$callOrder): StrandsClient {
+            $agentClient = $this->createMock(StrandsClient::class);
+            $agentClient
+                ->expects($this->once())
+                ->method('invoke')
+                ->willReturnCallback(function () use (&$callOrder, $agentName): AgentResponse {
+                    $callOrder[] = $agentName;
 
-                return new AgentResponse(text: 'Analyst response');
-            });
+                    return new AgentResponse(text: ucfirst($agentName) . ' response');
+                });
 
-        $skeptic = $this->createMock(StrandsClient::class);
-        $skeptic
-            ->expects($this->once())
-            ->method('invoke')
-            ->willReturnCallback(function () use (&$callOrder) {
-                $callOrder[] = 'skeptic';
+            return $agentClient;
+        };
 
-                return new AgentResponse(text: 'Skeptic response');
-            });
+        $orchestrator = new SummitCouncilOrchestrator(
+            analyst: $buildAgentClient('analyst'),
+            skeptic: $buildAgentClient('skeptic'),
+            strategist: $buildAgentClient('strategist'),
+        );
 
-        // ... create orchestrator with mocked clients ...
+        $councilCards = $orchestrator->buildCouncilCards('What is AI?', 'session-1');
 
-        $responses = $orchestrator->deliberate('What is AI?', 'session-1');
-
-        $this->assertSame(['analyst', 'skeptic'], $callOrder);
-        $this->assertCount(2, $responses);
-        $this->assertSame('Analyst response', $responses[0]['text']);
+        $this->assertSame(['analyst', 'skeptic', 'strategist'], $callOrder);
+        $this->assertCount(3, $councilCards);
+        $this->assertSame('Analyst response', $councilCards[0]['text']);
     }
 }
 ```

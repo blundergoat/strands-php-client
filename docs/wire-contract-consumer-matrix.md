@@ -1,6 +1,7 @@
 # Wire Contract Consumer Matrix
 
-This matrix records how active projects use `strands-php-client` today. It is a compatibility input for the Strands HTTP Wire Contract v1, not a request to migrate projects onto raw sdk-python shapes.
+This matrix records how active projects use `strands-php-client`. It informs Strands HTTP Wire Contract v1 compatibility; it does not ask consumers to
+migrate to raw sdk-python shapes.
 
 ## Summary
 
@@ -13,19 +14,20 @@ This matrix records how active projects use `strands-php-client` today. It is a 
 
 ## Project Details
 
-Evidence paths belong to the consumer repositories, never to this client. Each is prefixed with its owning repository and is otherwise relative to that repository's root, so a path can be read without relying on the heading above it.
+Evidence paths belong to consumer repositories. Each path starts with its repository name and is otherwise relative to that repository's root.
 
 ### `ambient-scribe`
 
 Evidence:
 
 - `ambient-scribe/src/Controller/ScribeController.php` (search: `postJson`) calls `postJson("/session/{$sessionId}/history", [], timeout: 10)`.
-- `ambient-scribe/src/Service/RoleInferenceService.php` (search: `postJson`) calls `postJson("/session/{$sessionId}/roles", [], timeout: self::ROLE_SNAPSHOT_TIMEOUT)`.
+- `ambient-scribe/src/Service/RoleInferenceService.php` (search: `postJson`) calls
+  `postJson("/session/{$sessionId}/roles", [], timeout: self::ROLE_SNAPSHOT_TIMEOUT)`.
 - `ambient-scribe/config/packages/strands.yaml` (search: `streamSse`) documents future role streaming through `streamSse`.
 
 Compatibility notes:
 
-- Dynamic session IDs appear in custom endpoint paths. Telemetry must sanitize route values and expose only a session-present boolean, never the ID value.
+- Dynamic session IDs appear in custom endpoint paths. Telemetry must sanitize route values and expose only a session-present boolean, never the ID.
 - Responses are raw arrays owned by the app. Typed `AgentResponse` changes do not cover this project unless it adopts `/invoke`.
 
 ### `the-summit-chatroom`
@@ -44,8 +46,10 @@ Compatibility notes:
 
 Evidence:
 
-- `halaxy-agents-lab/src/Service/FileSummariserStreamOrchestrator.php` (search: `streamSse('/file-summarise-stream'`) streams raw file summariser events and later calls `postJson('/file-metadata', ...)`.
-- `halaxy-agents-lab/src/Service/SuggestedActionsStreamOrchestrator.php` (search: `postJson('/suggested-actions/analyse'`) calls custom JSON analysis endpoints.
+- `halaxy-agents-lab/src/Service/FileSummariserStreamOrchestrator.php` (search: `streamSse('/file-summarise-stream'`) streams events, then calls
+  `postJson('/file-metadata', ...)`.
+- `halaxy-agents-lab/src/Service/SuggestedActionsStreamOrchestrator.php` (search: `postJson('/suggested-actions/analyse'`) calls custom JSON analysis
+  endpoints.
 - `halaxy-agents-lab/src/Service/OnlineBookingStreamOrchestrator.php` (search: `streamSse`) calls custom booking responder streams.
 
 Compatibility notes:
@@ -57,9 +61,12 @@ Compatibility notes:
 
 Evidence:
 
-- `healthkit/src/App/ExternalProvider/AI/StrandsAgents/FileSummariserStreamOrchestrator.php` (search: `streamSse`) streams file summariser events and forwards sanitized app payloads.
-- `healthkit/src/App/ExternalProvider/AI/ChatAssistant/ChatAssistantOrchestrator.php` (search: `postJson('/chat'`) calls custom `/chat` and `/intent` endpoints.
-- `healthkit/src/App/ExternalProvider/AI/ChatOnlineBooking/OnlineBookingChatOrchestrator.php` (search: `streamSse`) calls custom booking responder streams.
+- `healthkit/src/App/ExternalProvider/AI/StrandsAgents/FileSummariserStreamOrchestrator.php` (search: `streamSse`) streams file summariser events and
+  forwards sanitized app payloads.
+- `healthkit/src/App/ExternalProvider/AI/ChatAssistant/ChatAssistantOrchestrator.php` (search: `postJson('/chat'`) calls custom `/chat` and `/intent`
+  endpoints.
+- `healthkit/src/App/ExternalProvider/AI/ChatOnlineBooking/OnlineBookingResponsePublisher.php` (search: `streamSse('/respond-stream'`) calls the
+  custom booking responder stream.
 
 Compatibility notes:
 

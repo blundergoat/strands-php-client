@@ -1,10 +1,13 @@
 # Strands HTTP Wire Contract
 
-This package targets the Strands HTTP Wire Contract v1: a small JSON/SSE contract emitted by HTTP wrapper services built on top of `strands-agents/sdk-python`.
+This package targets the Strands HTTP Wire Contract v1: a small JSON/SSE contract emitted by HTTP wrapper services built on
+`strands-agents/sdk-python`.
 
-It does not target raw sdk-python `TypedDict` shapes directly. The Python wrapper is responsible for translating sdk-python requests, results, and stream events into the stable PHP-facing wire shape described here.
+It does not target raw sdk-python `TypedDict` shapes directly. The Python wrapper translates sdk-python requests, results, and stream events into the
+stable PHP-facing shape described here.
 
-Canonical examples live in [tests/Fixtures/wire-contract](../tests/Fixtures/wire-contract). When this contract changes, update those fixtures and the architecture decision that owns the contract.
+Canonical examples live in [tests/Fixtures/wire-contract](../tests/Fixtures/wire-contract). When this contract changes, update those fixtures and the
+architecture decision that owns the contract.
 
 ## Contract Principles
 
@@ -25,7 +28,8 @@ Canonical examples live in [tests/Fixtures/wire-contract](../tests/Fixtures/wire
 
 ## Fixture Layout
 
-Canonical v1 fixtures live under `tests/Fixtures/wire-contract/`. Older fixtures under `tests/Fixtures/` are legacy compatibility fixtures and should remain covered when they represent deployed wrapper shapes that differ from the canonical examples.
+Canonical v1 fixtures live under `tests/Fixtures/wire-contract/`. Older files under `tests/Fixtures/` preserve deployed shapes that differ from the
+canonical examples and should remain covered as compatibility fixtures.
 
 ## Request Envelope
 
@@ -81,7 +85,8 @@ Rich request:
 
 ## Rich Content Blocks
 
-The PHP `AgentInput` builder emits wrapper-contract content blocks. The wrapper then translates them into whatever sdk-python, model provider, or retrieval layer needs.
+The PHP `AgentInput` builder emits wrapper-contract content blocks. The wrapper then translates them into the shape required by sdk-python, the model
+provider, or its retrieval layer.
 
 | Block | Required fields | Notes |
 | --- | --- | --- |
@@ -108,7 +113,8 @@ Source objects:
 }
 ```
 
-URL sources are a wrapper extension. A wrapper that accepts URL blocks must fetch, validate, and translate the resource before invoking sdk-python or the model provider.
+URL sources are a wrapper extension. A wrapper that accepts them must fetch, validate, and translate the resource before invoking sdk-python or the
+model provider.
 
 Cache point block:
 
@@ -191,13 +197,15 @@ Checkpoint, snapshot, and stream resume fields are intentionally not part of thi
 
 ## Observability
 
-Wrappers should accept W3C `traceparent` and `tracestate` headers and continue the trace into Python wrapper and sdk-python spans when tracing is enabled.
+Wrappers should accept W3C `traceparent` and `tracestate` headers and continue the trace into wrapper and sdk-python spans when tracing is enabled.
 
-Span attributes must not contain prompt text, response text, raw document content, filenames, raw context metadata, raw tool input/output, citation source text, credentials, or session ID values. Use booleans, counts, safe names, sanitized error type/code/status, and token usage values instead.
+Span attributes must not contain prompt or response text, document content, filenames, raw context or tool payloads, citation text, credentials, or
+session IDs. Use booleans, counts, safe names, sanitized error detail, and token usage instead.
 
 ## Discovery
 
-Wrappers may expose `/health` or `/discover` style endpoints for templates and tooling. A discovery response is optional and must not be required for existing `invoke()`, `stream()`, `postJson()`, or `streamSse()` calls.
+Wrappers may expose `/health` or `/discover` endpoints for templates and tooling. Discovery is optional and cannot become a prerequisite for existing
+request methods.
 
 ```json
 {
@@ -334,4 +342,5 @@ HTTP error responses should prefer a JSON body with a human-readable message plu
 }
 ```
 
-Wrappers should preserve the HTTP status code and include structured error details when available. PHP exceptions keep the decoded response body for callers that need wrapper-specific diagnostics.
+Wrappers should preserve the HTTP status and include structured error details when available. PHP exceptions retain the decoded body for callers that
+need wrapper-specific diagnostics.

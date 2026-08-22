@@ -3,7 +3,8 @@
 This directory contains source-repository example code for a Python HTTP wrapper around `strands-agents/sdk-python`. Composer archives exclude
 `examples/`; copy it from the repository rather than treating it as installed PHP runtime code.
 
-The PHP client targets the Strands HTTP Wire Contract v1, not raw sdk-python `TypedDict` payloads. A wrapper built from this template accepts PHP-friendly JSON, calls your Python agent, and emits the snake_case response/SSE shapes documented in `docs/wire-contract.md`.
+The PHP client targets the Strands HTTP Wire Contract v1, not raw sdk-python `TypedDict` payloads. This template accepts PHP-friendly JSON, calls a
+Python agent, and emits the snake_case JSON and SSE shapes documented in the [Wire Contract](../../docs/wire-contract.md).
 
 ## Run Locally
 
@@ -27,7 +28,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 examples/python-gateway/tests/smoke_contract.p
 
 The example uses a fake agent by default, so it does not require model credentials.
 
-## What To Copy
+## What to Copy
 
 - `contract.py`: wire-contract normalization helpers for actual sdk-python text, result, reasoning, citation, and tool callback shapes.
 - `tracing.py`: FastAPI trace-context continuation middleware.
@@ -41,4 +42,12 @@ and A2A remain disabled until the app adds their request-side behavior.
 
 ## URL Media
 
-URL media fetching is intentionally not implemented in the template. If an app accepts URL source blocks, it must add an explicit fetcher that rejects localhost, link-local, metadata-service IPs, RFC1918/private networks, non-HTTP schemes, oversized content, unsafe content types, and slow responses before passing bytes into sdk-python or a provider.
+URL media fetching is intentionally absent. `contract.py::assert_safe_url_source()` validates the scheme, host, and resolved public addresses but does
+not fetch anything.
+
+A production fetcher must also:
+
+- Connect to one validated IP while preserving the original hostname for the HTTP `Host` header and TLS verification.
+- Repeat validation and address pinning after every redirect so DNS rebinding cannot switch the request to a private address.
+- Reject localhost, link-local, metadata-service, and private-network destinations.
+- Enforce response-size, content-type, redirect-count, and timeout limits before passing bytes to sdk-python or a model provider.

@@ -1,6 +1,7 @@
 # Interrupts and Guardrails
 
-This guide covers two mechanisms for controlling agent behavior: **interrupts** (human-in-the-loop approval) and **guardrails** (content safety filters). Both are supported in `invoke()` and `stream()` responses.
+This guide covers two controls around an agent response: **interrupts** pause an action for human approval, while **guardrails** report content-safety
+decisions. Both are available on `invoke()` and `stream()` results.
 
 ## Table of Contents
 
@@ -23,7 +24,8 @@ This guide covers two mechanisms for controlling agent behavior: **interrupts** 
 
 ### What Are Interrupts?
 
-When an agent's tool is configured to require user approval before executing (e.g., transferring money, deleting data, sending an email), the agent **interrupts** its execution and returns control to the caller. The PHP application can then present the pending action to the user, collect their decision, and resume the conversation.
+When a tool requires approval before transferring money, deleting data, sending an email, or taking another sensitive action, the agent interrupts its
+turn. The PHP application shows the proposed action, collects the decision, and resumes the same conversation.
 
 This is a key pattern for building safe, auditable AI applications where certain actions require human oversight.
 
@@ -62,8 +64,8 @@ sequenceDiagram
 ### Detecting Interrupts (invoke)
 
 ```php
-use StrandsPhpClient\StrandsClient;
 use StrandsPhpClient\Config\StrandsConfig;
+use StrandsPhpClient\StrandsClient;
 
 $client = new StrandsClient(
     config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -74,8 +76,9 @@ $response = $client->invoke(
     sessionId: 'session-001',
 );
 
-// Check if the agent was interrupted
+// An interrupted turn becomes one or more approval controls instead of a final answer.
 if ($response->isInterrupted()) {
+    // Each interrupt explains one tool action the user can approve or deny.
     foreach ($response->interrupts as $interrupt) {
         echo "Tool: {$interrupt->toolName}\n";
         echo "Reason: {$interrupt->reason}\n";
@@ -104,6 +107,7 @@ use StrandsPhpClient\Streaming\StreamEventType;
 $result = $client->stream(
     message: 'Delete all expired user accounts',
     onEvent: function (StreamEvent $event) {
+        // Event types without visible approval-screen output return null so streaming continues.
         match ($event->type) {
             StreamEventType::Text     => print($event->text),
             StreamEventType::ToolUse  => print("[Calling: {$event->toolName}]\n"),
@@ -114,7 +118,9 @@ $result = $client->stream(
     sessionId: 'session-001',
 );
 
+// A terminal interrupt becomes the approval state shown after live output stops.
 if ($result->isInterrupted()) {
+    // Each interrupt describes one tool action awaiting the user's decision.
     foreach ($result->interrupts as $interrupt) {
         echo "Needs approval: {$interrupt->toolName}\n";
         echo "Reason: {$interrupt->reason}\n";
@@ -124,19 +130,15 @@ if ($result->isInterrupted()) {
 
 ### Resuming After an Interrupt
 
-Use `AgentInput::interruptResponse()` to send the user's decision back to the agent. The session ID must match the original request so the agent can continue from where it left off.
+Call `InterruptDetail::toResumeInput()` with the user's decision. It prefers `interruptId`, falls back to `toolUseId`, and rejects the response when
+neither exists. Send the result with the same session ID so the agent can continue the paused conversation.
 
 ```php
-use StrandsPhpClient\Context\AgentInput;
-
 // User approved the action
-$input = AgentInput::interruptResponse(
-    interruptId: $interrupt->interruptId,
-    response: ['approved' => true],
-);
+$resumeInput = $interrupt->toResumeInput(['approved' => true]);
 
 $response = $client->invoke(
-    message: $input,
+    message: $resumeInput,
     sessionId: 'session-001', // Same session
 );
 
@@ -147,13 +149,13 @@ echo $response->text;
 To deny the action:
 
 ```php
-$input = AgentInput::interruptResponse(
-    interruptId: $interrupt->interruptId,
-    response: ['approved' => false, 'reason' => 'Amount too high'],
-);
+$resumeInput = $interrupt->toResumeInput([
+    'approved' => false,
+    'reason' => 'Amount too high',
+]);
 
 $response = $client->invoke(
-    message: $input,
+    message: $resumeInput,
     sessionId: 'session-001',
 );
 
@@ -177,7 +179,8 @@ echo $response->text;
 
 ### What Are Guardrails?
 
-Guardrails are server-side content safety filters that inspect the model's output before it reaches the caller. When a guardrail determines that the content violates a policy (e.g., harmful content, PII exposure, off-topic response), it can **intervene** by replacing or blocking the output.
+Guardrails are server-side filters that inspect model output before it reaches the caller. A policy can intervene when it detects harmful content,
+personal information, an off-topic answer, or another configured condition. The visible response text is the wrapper's allowed replacement.
 
 The PHP client surfaces the guardrail's trace data so your application can understand what happened and react accordingly.
 
@@ -214,6 +217,7 @@ $response = $client->invoke(
 echo $response->text;
 // "I'm sorry, I can't help with that request."
 
+// Trace detail lets the UI explain why it shows a replacement answer.
 if ($response->guardrailTrace !== null) {
     $trace = $response->guardrailTrace;
 
@@ -221,23 +225,16 @@ if ($response->guardrailTrace !== null) {
     // 'INTERVENED' - the guardrail blocked or modified the output
     // 'NONE' - the guardrail checked but took no action
 
-    // Detailed assessments from each guardrail rule
-    foreach ($trace->assessments as $assessment) {
-        print_r($assessment);
-        // [
-        //     'guardrail_id' => 'content-safety-v1',
-        //     'topic' => 'HARMFUL_CONTENT',
-        //     'action' => 'BLOCKED',
-        //     'confidence' => 'HIGH',
-        // ]
-    }
-
-    // The model's original output before intervention (if available)
-    if ($trace->modelOutput !== null) {
-        echo "Original output was: {$trace->modelOutput}\n";
+    // Each typed assessment can populate a policy-details panel without array-key checks.
+    foreach ($trace->getAssessmentObjects() as $assessment) {
+        echo 'Policy: ' . ($assessment->name ?? $assessment->type ?? 'unknown') . "\n";
+        echo 'Result: ' . ($assessment->result ?? $assessment->action ?? 'unknown') . "\n";
     }
 }
 ```
+
+`modelOutput` may contain the unsafe text the guardrail replaced. Do not render it in a normal user interface or write it to application logs. Read it
+only inside an explicitly authorized audit workflow with appropriate access controls and retention.
 
 ### Inspecting Guardrail Traces (stream)
 
@@ -250,6 +247,7 @@ use StrandsPhpClient\Streaming\StreamEventType;
 $result = $client->stream(
     message: 'Tell me about restricted topics',
     onEvent: function (StreamEvent $event) {
+        // Event types without visible guardrail-screen output return null so streaming continues.
         match ($event->type) {
             StreamEventType::Text     => print($event->text),
             StreamEventType::Complete => print("\n[Done]\n"),
@@ -258,12 +256,14 @@ $result = $client->stream(
     },
 );
 
+// A streamed replacement answer carries the same policy detail as invoke().
 if ($result->guardrailTrace !== null) {
     echo "Guardrail action: {$result->guardrailTrace->action}\n";
 
-    foreach ($result->guardrailTrace->assessments as $assessment) {
-        echo "Rule: " . ($assessment['guardrail_id'] ?? 'unknown') . "\n";
-        echo "Action: " . ($assessment['action'] ?? 'unknown') . "\n";
+    // Render each available policy result beside the replacement answer.
+    foreach ($result->guardrailTrace->getAssessmentObjects() as $assessment) {
+        echo 'Policy: ' . ($assessment->name ?? $assessment->type ?? 'unknown') . "\n";
+        echo 'Result: ' . ($assessment->result ?? $assessment->action ?? 'unknown') . "\n";
     }
 }
 ```
@@ -278,9 +278,11 @@ if ($result->guardrailTrace !== null) {
 | `assessments` | `list<array<string, mixed>>` | Individual guardrail rule assessments. |
 | `modelOutput` | `?string` | The model's original output before intervention. |
 
-The `assessments` array contains raw guardrail data from the server. The exact structure depends on the guardrail implementation on the Python side. Common fields include `guardrail_id`, `topic`, `action`, and `confidence`.
+`getAssessmentObjects()` returns typed `GuardrailAssessment` values for application code. The raw `assessments` array remains available when a wrapper
+adds policy-specific fields that the typed DTO does not yet expose.
 
 **Parsing note:** The PHP client looks for guardrail trace data in two locations:
+
 1. Top-level `guardrail_trace` field in the response.
 2. Nested `trace.guardrail` field (alternative format).
 
@@ -291,21 +293,28 @@ Both are supported transparently.
 A real-world handler that checks for both interrupts and guardrails:
 
 ```php
-use StrandsPhpClient\Context\AgentInput;
-use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\StrandsClient;
 
-function handleAgentResponse(
-    StrandsClient $client,
-    string $message,
+/**
+ * Convert one agent turn into the state a chat interface should render.
+ * Use it when the same endpoint may return a completed answer, a guardrail replacement, or approval controls.
+ *
+ * @param StrandsClient $agentClient Client for the agent behind this chat; never null.
+ * @param string $userMessage User's submitted message; an empty value is rejected before the HTTP request.
+ * @param string $sessionId Authorized conversation ID; an empty value cannot safely identify the paused turn.
+ * @return array<string, mixed> UI state; pending_actions is empty or absent when the user has nothing to approve.
+ */
+function buildAgentTurnView(
+    StrandsClient $agentClient,
+    string $userMessage,
     string $sessionId,
 ): array {
-    $response = $client->invoke(
-        message: $message,
+    $response = $agentClient->invoke(
+        message: $userMessage,
         sessionId: $sessionId,
     );
 
-    // Check guardrails first - if content was blocked, don't proceed
+    // A blocked answer becomes the safe replacement message shown by the UI.
     if ($response->guardrailTrace !== null && $response->guardrailTrace->action === 'INTERVENED') {
         return [
             'status' => 'blocked',
@@ -314,13 +323,16 @@ function handleAgentResponse(
         ];
     }
 
-    // Check for interrupts - agent needs user approval
+    // A paused action becomes an approval card instead of a completed answer.
     if ($response->isInterrupted()) {
+        // Start with no cards because each returned interrupt adds one user decision.
         $pendingActions = [];
 
+        // Each interrupt becomes one action the user may approve or deny.
         foreach ($response->interrupts as $interrupt) {
             $pendingActions[] = [
-                'interrupt_id' => $interrupt->interruptId,
+                // Prefer the wrapper's interrupt ID and fall back to the underlying tool-use ID.
+                'resume_id' => $interrupt->interruptId ?? $interrupt->toolUseId,
                 'tool' => $interrupt->toolName,
                 'reason' => $interrupt->reason,
                 'input' => $interrupt->toolInput,
@@ -333,7 +345,7 @@ function handleAgentResponse(
         ];
     }
 
-    // Normal response
+    // With no intervention or pause, show the completed answer and its usage.
     return [
         'status' => 'complete',
         'text' => $response->text,
@@ -341,3 +353,6 @@ function handleAgentResponse(
     ];
 }
 ```
+
+Allowlist the `toolInput` fields shown on an approval card because tool arguments may contain secrets or server-only values. Bind `sessionId` to the
+authenticated user or tenant before resuming the turn.
