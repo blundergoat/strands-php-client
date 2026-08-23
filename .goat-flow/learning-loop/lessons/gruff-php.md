@@ -1,6 +1,6 @@
 ---
 category: gruff-php
-last_reviewed: 2026-08-08
+last_reviewed: 2026-08-24
 ---
 
 > **Version boundary (2026-08-08).** These lessons were written against `blundergoat/gruff-php` **v0.1.x**; the package is now pinned at **^0.5.1** in `require-dev`. The analyzer's rule directory was renamed from Rule to Rules, and `naming.parameter-type-name` was **removed** in favour of `naming.identifier-quality`, whose single global `ignoredNames` option replaces the old parameter-only allowlist. Evidence paths have been re-pointed and re-verified against v0.5.1 where the class survives. Lessons whose mechanics belonged to the removed rule carry their own supersession note — the workflow advice in them still holds, the rule internals do not.
@@ -19,6 +19,16 @@ last_reviewed: 2026-08-08
 4. **Semantically-richer-than-type names** (e.g. `$now`, `$previous`, `$completeEvent`) — allowlist or accept.
 
 Classification took one Python script over the JSON output (`gruff-php analyse --format json`). Doing it up-front turned 466 findings into 1 remaining (the irreducible `$now` local) with zero BC breaks. See `.goat-flow/learning-loop/patterns/gruff-php.md` for the workflow.
+
+## Lesson: Scope method renames to the declaring receiver
+
+**Created:** 2026-08-24
+**Decision changed:** Rename a private helper only at its declaration and `$this->` call sites; audit other receivers before replacing the same method token.
+**Trigger phase:** ACT
+
+A word-boundary rename of the private test helper `getSpans()` to `exportedSpans()` also changed `$this->exporter->getSpans()` to a method that the OpenTelemetry exporter does not provide. The helper name was safe to change, but the identical selector on another receiver was not. The full suite exposed the mistake as 25 errors before the two vendor calls were restored.
+
+For a method rename, match the receiver as well as the token: update `private function oldName` and `$this->oldName(` explicitly, then grep every `->oldName(` and `->newName(` occurrence by receiver before running the focused tests. Evidence: `tests/Http/Middleware/OtelTracingMiddlewareTest.php` and `tests/Http/Middleware/OtelTracingMiddlewareObserverTest.php` (search: `private function exportedSpans`); `vendor/open-telemetry/sdk/Trace/SpanExporter/InMemoryExporter.php` (search: `public function getSpans`).
 
 ## Lesson: gruff's token-sequence variant check accepts descriptive name expansions
 
