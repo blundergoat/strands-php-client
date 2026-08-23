@@ -31,10 +31,10 @@ class StrandsExtension extends Extension
     public function load(array $configs, ContainerBuilder $container): void
     {
         $configuration = new Configuration();
-        $config = $this->processConfiguration($configuration, $configs);
+        $processedConfig = $this->processConfiguration($configuration, $configs);
 
         /** @var array<string, array<string, mixed>> $agents validated before app code uses it. */
-        $agents = is_array($config['agents'] ?? null) ? $config['agents'] : [];
+        $agents = is_array($processedConfig['agents'] ?? null) ? $processedConfig['agents'] : [];
 
         // No agents configured means the app isn't using Strands yet — register nothing.
         if ($agents === []) {
@@ -56,12 +56,12 @@ class StrandsExtension extends Extension
         $firstServiceId = null;
 
         // Register one injectable client service per configured agent.
-        foreach (array_keys($agents) as $name) {
-            $serviceId = 'strands.client.' . (string) $name;
+        foreach (array_keys($agents) as $agentName) {
+            $serviceId = 'strands.client.' . (string) $agentName;
 
             $definition = new Definition(StrandsClient::class);
             $definition->setFactory([new Reference('strands.client_factory'), 'create']);
-            $definition->setArgument(0, $name);
+            $definition->setArgument(0, $agentName);
             // Keep the documented named lookup public because Symfony may inline or remove private definitions.
             // Apps can then use either `$container->get('strands.client.<name>')` or #[Autowire] to select an agent.
             $definition->setPublic(true);

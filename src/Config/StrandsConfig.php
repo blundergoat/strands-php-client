@@ -11,7 +11,7 @@ use StrandsPhpClient\Auth\NullAuth;
  * Everything the client needs to reach one Strands agent.
  *
  * It combines the endpoint, authentication, timeouts, and retry behavior used for each request.
- * Apps build it directly or through framework config; invalid values fail at startup rather than during a user's call.
+ * Apps build it directly or through framework config; invalid settings are rejected before the client sends a request.
  */
 class StrandsConfig
 {
@@ -62,12 +62,12 @@ class StrandsConfig
      */
     private static function assertValidEndpoint(string $endpoint): void
     {
-        $parts = parse_url($endpoint);
-        $scheme = is_array($parts) ? ($parts['scheme'] ?? null) : null;
+        $endpointParts = parse_url($endpoint);
+        $scheme = is_array($endpointParts) ? ($endpointParts['scheme'] ?? null) : null;
 
         // Accept only an absolute http(s) URL with a host — this is the address the
         // app's agent actually lives at (e.g. STRANDS_ENDPOINT=http://localhost:8081).
-        if (is_array($parts) && isset($parts['host']) && in_array($scheme, ['http', 'https'], true)) {
+        if (is_array($endpointParts) && isset($endpointParts['host']) && in_array($scheme, ['http', 'https'], true)) {
             return;
         }
 
@@ -87,7 +87,6 @@ class StrandsConfig
      */
     private static function assertMinimum(string $optionName, int $configuredValue, int $minimum): void
     {
-        // Meets the floor, so this timeout/retry value is safe to use as configured.
         if ($configuredValue >= $minimum) {
             return;
         }
@@ -109,7 +108,6 @@ class StrandsConfig
      */
     private static function assertRange(string $optionName, int $configuredValue, int $minimum, int $maximum): void
     {
-        // Sits inside the allowed band, so accept the value the app configured.
         if ($configuredValue >= $minimum && $configuredValue <= $maximum) {
             return;
         }
@@ -131,7 +129,6 @@ class StrandsConfig
      */
     private static function assertRetryableStatusCodes(array $retryableStatusCodes): void
     {
-        // Vet every status code the app asked us to retry on before we trust it.
         foreach ($retryableStatusCodes as $statusCode) {
             // Only genuine 4xx/5xx failures are worth retrying; anything else is a
             // config mistake (retrying a 200 would turn a success into an error).

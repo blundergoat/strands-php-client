@@ -7,10 +7,10 @@ namespace StrandsPhpClient\Context;
 /**
  * Builds immutable text, attachment, interrupt, and structured-output input for one user turn.
  *
- * Start with text() or interruptResponse(), then chain attachment helpers for what the screen collected.
+ * Start with text() or interruptResponse(), then chain attachment helpers for caller-provided content.
  * Plain document methods preserve 1.x override signatures; the Options methods add context and citation controls.
  *
- * For example, an upload screen can call text('Summarise this')->withDocumentOptions(...) without changing the original input.
+ * For example, an app can call text('Summarise this')->withDocumentOptions(...) without changing the original input.
  * toPayloadValue() creates the Wire Contract v1 message value sent by StrandsClient.
  */
 class AgentInput
@@ -37,7 +37,7 @@ class AgentInput
 
     /**
      * Starts a new user turn with plain text that can later gain attachments.
-     * Use it for chat input, including attachment-only screens that pass an empty prompt before adding a content block.
+     * Use it for chat input, including attachment-only calls that pass an empty prompt before adding a content block.
      *
      * @param string $text The message the user typed; empty must be followed by a content block or StrandsClient rejects the send.
      *
@@ -50,28 +50,28 @@ class AgentInput
 
     /**
      * Builds the user's answer to an agent pause, such as approving a tool action.
-     * Use it after AgentResponse::isInterrupted() when the UI submits an InterruptDetail response.
+     * Use it after AgentResponse::isInterrupted() when the caller submits an InterruptDetail response.
      *
      * @param string $interruptId The InterruptDetail ID being answered; an empty ID is forwarded and the wrapper may reject it.
-     * @param mixed  $response    Approval, denial, form data, or null when the UI intentionally submits no value.
+     * @param mixed  $response    Approval, denial, form data, or null when the caller intentionally submits no value.
      *
      * @return self New immutable interrupt input; never null and valid without text.
      */
     public static function interruptResponse(string $interruptId, mixed $response): self
     {
-        $input                  = new self('');
-        $input->contentBlocks[] = [
+        $interruptInput                  = new self('');
+        $interruptInput->contentBlocks[] = [
             'type'         => 'interrupt_response',
             'interrupt_id' => $interruptId,
             'response'     => $response,
         ];
 
-        return $input;
+        return $interruptInput;
     }
 
     /**
      * Returns a copy with the image a user attached from their device.
-     * Use it when the UI already has base64 bytes and a MIME type rather than an S3 or public URL.
+     * Use it when the caller already has base64 bytes and a MIME type rather than an S3 or public URL.
      *
      * @param string $base64Data Base64-encoded image data.
      * @param string $mediaType  MIME type (e.g. 'image/png', 'image/jpeg').
@@ -96,7 +96,7 @@ class AgentInput
 
     /**
      * Returns a copy with a plain base64 document while preserving the original 1.x signature.
-     * Use withDocumentOptions() when the upload UI also collects document context or citation controls.
+     * Use withDocumentOptions() when the caller also supplies document context or citation controls.
      *
      * @param string $base64Data Base64-encoded document data.
      * @param string $format     Document format (e.g. 'pdf', 'txt', 'docx').
@@ -111,7 +111,7 @@ class AgentInput
 
     /**
      * Returns a copy with a base64 document and its optional wrapper instructions.
-     * Use it when an upload screen lets the user add per-document context or request citations.
+     * Use it when the caller adds per-document context or requests citations.
      *
      * @param string                    $base64Data Base64-encoded document data.
      * @param string                    $format     Document format (e.g. 'pdf', 'txt', 'docx').
@@ -147,7 +147,7 @@ class AgentInput
 
     /**
      * Returns a copy with a plain S3 document while preserving the original 1.x signature.
-     * Use withDocumentFromS3Options() when the UI also collects document context or citation controls.
+     * Use withDocumentFromS3Options() when the caller also supplies document context or citation controls.
      *
      * @param string      $s3Uri       S3 URI (e.g. 's3://my-bucket/report.pdf').
      * @param string      $format      Document format (e.g. 'pdf').
@@ -238,7 +238,7 @@ class AgentInput
 
     /**
      * Returns a copy with video bytes the user attached from their device.
-     * Use it when the UI already has base64 video rather than an S3 or public URL.
+     * Use it when the caller already has base64 video rather than an S3 or public URL.
      *
      * @param string $base64Data Base64-encoded video data.
      * @param string $format     Video format (e.g. 'mp4', 'webm').
@@ -383,7 +383,7 @@ class AgentInput
 
     /**
      * Returns a copy with a cache boundary for reusable conversation content.
-     * Use it when the UI sends a long reusable prefix and the wrapper supports prompt caching.
+     * Use it when the caller sends a long reusable prefix and the wrapper supports prompt caching.
      *
      * @param string  $type Cache scope for this block (e.g. 'default').
      * @param ?string $ttl  Cache lifetime label; null omits it for wrapper defaults, while an empty string is sent as an explicit value.
@@ -393,24 +393,24 @@ class AgentInput
     public function withCachePoint(string $type = 'default', ?string $ttl = null): self
     {
         $updatedInput = clone $this;
-        $block = [
+        $cachePointBlock = [
             'type'       => 'cache_point',
             'cache_type' => $type,
         ];
 
         // A TTL is optional; include it only when the app wants the cache to expire.
         if ($ttl !== null) {
-            $block['ttl'] = $ttl;
+            $cachePointBlock['ttl'] = $ttl;
         }
 
-        $updatedInput->contentBlocks[] = $block;
+        $updatedInput->contentBlocks[] = $cachePointBlock;
 
         return $updatedInput;
     }
 
     /**
      * Returns a copy that asks the agent for a predictable structured answer.
-     * Use it when the UI needs fields it can hydrate into a form, card, or DTO instead of free text alone.
+     * Use it when the caller needs fields it can hydrate into a form, card, or DTO instead of free text alone.
      *
      * @param string $prompt Structured-output instruction sent to the agent.
      *
@@ -450,35 +450,34 @@ class AgentInput
             return $this->text;
         }
 
-        /** @var list<array<string, mixed>> $content validated before app code uses it. */
-        $content = [];
+        /** @var list<array<string, mixed>> $messageContent validated before app code uses it. */
+        $messageContent = [];
 
         // Rich requests still include the user's typed prompt before attachments.
         if ($this->text !== '') {
-            $content[] = [
+            $messageContent[] = [
                 'type' => 'text',
                 'text' => $this->text,
             ];
         }
 
-        // Each block represents something the user added, such as an image or document.
-        foreach ($this->contentBlocks as $block) {
-            $content[] = $block;
+        foreach ($this->contentBlocks as $contentBlock) {
+            $messageContent[] = $contentBlock;
         }
 
-        /** @var array<string, mixed> $payload validated before app code uses it. */
-        $payload = ['content' => $content];
+        /** @var array<string, mixed> $messagePayload validated before app code uses it. */
+        $messagePayload = ['content' => $messageContent];
 
-        // The UI may ask for a structured answer, such as JSON for a form preview.
+        // A structured-output prompt asks the wrapper for a predictable result alongside the content.
         if ($this->structuredOutputPrompt !== null) {
-            $payload['structured_output_prompt'] = $this->structuredOutputPrompt;
+            $messagePayload['structured_output_prompt'] = $this->structuredOutputPrompt;
         }
 
-        return $payload;
+        return $messagePayload;
     }
 
     /**
-     * Derives the image format expected by the wire contract from the MIME type collected by an upload screen.
+     * Derives the image format expected by the wire contract from the attachment MIME type.
      * Use it while building base64 or URL image blocks; for example, image/png becomes png and an unknown value remains unchanged.
      *
      * @param string $mediaType MIME type used to describe the attachment.
@@ -488,16 +487,16 @@ class AgentInput
     private static function deriveImageFormat(string $mediaType): string
     {
         $normalizedMediaType = strtolower(trim(explode(';', $mediaType)[0]));
-        $separator = strpos($normalizedMediaType, '/');
+        $slashPosition = strpos($normalizedMediaType, '/');
 
         // A media type without a slash is already the best format label available; an empty value therefore remains empty.
-        return $separator === false
+        return $slashPosition === false
             ? $normalizedMediaType
-            : substr($normalizedMediaType, $separator + 1);
+            : substr($normalizedMediaType, $slashPosition + 1);
     }
 
     /**
-     * Maps the file extension collected by an upload screen to the MIME type the wrapper expects.
+     * Maps the supplied file extension to the MIME type the wrapper expects.
      * Use it for URL and base64 documents; unknown formats become application/{format}, including application/ for an empty format.
      *
      * @param string $format Attachment format sent with the user message.
@@ -524,7 +523,7 @@ class AgentInput
 
     /**
      * Builds the shared wire block used by every document attachment path.
-     * Use it after the UI has chosen the document source and any optional context or citation controls.
+     * Use it after the caller has chosen the document source and any optional context or citation controls.
      *
      * @param array<string, mixed>      $source    Attachment source sent in the request payload.
      * @param array<string, mixed>|null $citations Citation controls; null omits the field; an empty array sends an explicit empty configuration.
@@ -541,23 +540,21 @@ class AgentInput
         ?string $context = null,
         ?array  $citations = null,
     ): array {
-        $block = [
+        $documentBlock = [
             'type'   => 'document',
             'source' => $source,
             'format' => $format,
             'name'   => $name,
         ];
 
-        // Optional per-document guidance the app can attach for the agent to follow.
         if ($context !== null) {
-            $block['context'] = $context;
+            $documentBlock['context'] = $context;
         }
 
-        // Citation controls are attached only when the app wants sourced answers back.
         if ($citations !== null) {
-            $block['citations'] = $citations;
+            $documentBlock['citations'] = $citations;
         }
 
-        return $block;
+        return $documentBlock;
     }
 }

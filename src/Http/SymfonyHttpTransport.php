@@ -112,13 +112,13 @@ class SymfonyHttpTransport implements HttpTransport
             ]);
 
             $statusCode = $response->getStatusCode();
-            // Reject up front on an error status so the user sees a clear failure, not a dead stream.
+            // Reject an error status before opening the stream callback lifecycle.
             if ($statusCode >= 400) {
                 $content = $response->getContent(false);
                 throw AgentErrorException::fromHttpResponse($statusCode, $content, json_decode($content, true));
             }
 
-            // Pull chunks as the agent produces them — this is what makes the answer appear live.
+            // Pull chunks as the agent produces them so callbacks receive incremental output.
             foreach ($this->httpClient->stream($response, $timeout) as $chunk) {
                 // A gap longer than the idle timeout means the stream stalled; stop waiting.
                 if ($chunk->isTimeout()) {
@@ -129,7 +129,7 @@ class SymfonyHttpTransport implements HttpTransport
 
                 // Forward only non-empty chunks (Symfony also emits empty control chunks).
                 if ($content !== '') {
-                    // The app returns false to stop early (e.g. the user hit "stop generating").
+                    // The callback can return false to cancel before the terminal chunk.
                     if ($onChunk($content) === false) {
                         $response->cancel();
 
@@ -137,13 +137,13 @@ class SymfonyHttpTransport implements HttpTransport
                     }
                 }
 
-                // The final chunk marks a clean end of the answer.
+                // The final chunk marks a clean transport-level end.
                 if ($chunk->isLast()) {
                     break;
                 }
             }
         } catch (StrandsException $strandsException) {
-            // For example, an agent error or idle timeout already has the message the streaming screen needs; preserve that exception unchanged.
+            // Agent errors and idle timeouts already carry caller-ready details; preserve them unchanged.
             throw $strandsException;
         } catch (\Throwable $transportException) {
             // For example, Symfony can lose the socket while an answer is streaming; wrap it as the client's standard transport failure.

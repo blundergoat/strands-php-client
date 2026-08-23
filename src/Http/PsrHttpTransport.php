@@ -16,11 +16,11 @@ use StrandsPhpClient\Exceptions\StrandsException;
  * PSR-18 based transport for framework-agnostic HTTP calls.
  *
  * Use it with a PSR-18 client for invoke() calls in apps that do not need live SSE updates.
- * Configure timeouts on the underlying client; choose SymfonyHttpTransport when the UI needs streaming.
+ * Configure timeouts on the underlying client; choose SymfonyHttpTransport when the caller needs streaming.
  */
 class PsrHttpTransport implements HttpTransport
 {
-    /** Logger that surfaces transport warnings without changing user flow. */
+    /** Logger for transport warnings that do not change request outcomes. */
     private LoggerInterface $logger;
 
     /** Tracks whether the one-time timeout warning has already been shown. */
@@ -75,7 +75,6 @@ class PsrHttpTransport implements HttpTransport
         try {
             $request = $this->requestFactory->createRequest('POST', $url);
 
-            // Copy every auth/content header onto the request before it goes out.
             foreach ($headers as $name => $value) {
                 $request = $request->withHeader($name, $value);
             }

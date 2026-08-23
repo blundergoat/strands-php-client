@@ -13,7 +13,7 @@ use StrandsPhpClient\Streaming\StreamSseSummary;
  * Fans one parsed agent result out to every registered response observer.
  *
  * It deduplicates app observers registered directly or through middleware, then notifies each once.
- * Observer failures are logged and skipped so telemetry never replaces the user's answer with an error.
+ * Observer failures are logged and skipped so telemetry never replaces the caller's result with an error.
  */
 final class ResponseObserverNotifier implements ResponseObserver
 {
@@ -25,7 +25,7 @@ final class ResponseObserverNotifier implements ResponseObserver
      *
      * @param list<RequestMiddleware> $middleware        Request middleware the app registered; entries that also observe responses are auto-detected.
      * @param list<ResponseObserver> $responseObservers Explicit observers; empty means middleware supplies every observer.
-     * @param LoggerInterface         $logger            Logger that records observer failures without interrupting the user's request.
+     * @param LoggerInterface         $logger            Logger that records observer failures without interrupting the request.
      */
     public function __construct(
         array $middleware,
@@ -124,7 +124,7 @@ final class ResponseObserverNotifier implements ResponseObserver
         ));
 
         // Symfony can register one class as middleware and observer, so deduplicate by object identity.
-        // This keeps each completed user request from producing the same metric or trace twice.
+        // This keeps each completed request from producing the same metric or trace twice.
         $seenObserverIds = [];
 
         return array_values(array_filter(
@@ -142,19 +142,19 @@ final class ResponseObserverNotifier implements ResponseObserver
     /**
      * Runs observer callbacks without breaking the app call.
      *
-     * @param callable(ResponseObserver): void $notify Observer callback run after an app-facing hook.
-     * @param string $hook Observer hook name used in warning logs.
+     * @param callable(ResponseObserver): void $notifyObserver Observer callback run after an app-facing hook.
+     * @param string $hookName Observer hook name used in warning logs.
      * @return void No returned value; updates client or observer state.
      */
-    private function notifyResponseObservers(callable $notify, string $hook): void
+    private function notifyResponseObservers(callable $notifyObserver, string $hookName): void
     {
-        // Fan out to each observer; one that throws is logged, never breaking the user's call.
+        // Fan out to each observer; one that throws is logged without breaking the caller's operation.
         foreach ($this->responseObservers as $responseObserver) {
             try {
-                $notify($responseObserver);
+                $notifyObserver($responseObserver);
             } catch (\Throwable $observerException) {
-                // For example, an app metrics exporter can be offline after a valid answer arrives; log it without replacing the user's result.
-                $this->logger->warning(sprintf('Response observer %s threw an exception', $hook), [
+                // A metrics exporter can fail after a valid answer arrives; log it without replacing the caller's result.
+                $this->logger->warning(sprintf('Response observer %s threw an exception', $hookName), [
                     'observer' => $responseObserver::class,
                     'error' => $observerException->getMessage(),
                 ]);

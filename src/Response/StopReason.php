@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response;
 
 /**
- * Names the 1.x reasons an agent can stop generating a user-facing answer.
+ * Names the 1.x reasons an agent can stop generating a response.
  *
  * Read it to choose a completed state, continue action, safety notice, or human-input prompt after invoke() or stream().
- * Unknown future wire values deliberately stay out of this enum so 1.x switches remain exhaustive; read rawStopReason to display or log them.
+ * Unknown future wire values deliberately stay out of this enum so 1.x switches remain exhaustive; read rawStopReason to inspect or log them.
  */
 enum StopReason: string
 {

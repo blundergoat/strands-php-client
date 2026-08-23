@@ -8,7 +8,7 @@ namespace StrandsPhpClient\Exceptions;
  * Exception thrown when the Strands agent returns an HTTP error response (400+).
  *
  * Apps can use the status and error code to choose a recovery message or retry behavior.
- * The decoded response body remains available for safe diagnostics when a request fails.
+ * The decoded response body remains available for wrapper-specific diagnostics when a request fails.
  */
 class AgentErrorException extends StrandsException
 {
@@ -57,7 +57,7 @@ class AgentErrorException extends StrandsException
         ) {
             $detailText = $detail;
         } else {
-            // Structured or missing detail becomes readable fallback text instead of leaking an unusable value into the UI.
+            // Structured or missing detail becomes readable fallback text for the exception message.
             $detailText = json_encode($detail) ?: 'Unknown agent error';
         }
         $errorMessage = sprintf('Agent returned HTTP %d: %s', $statusCode, $detailText);
@@ -66,9 +66,9 @@ class AgentErrorException extends StrandsException
         $errorCode = is_string($rawCode) ? $rawCode : null;
         $responseBody = $errorData !== [] ? $errorData : null;
 
-        $class = self::resolveExceptionClass($statusCode, $errorCode);
+        $exceptionClass = self::resolveExceptionClass($statusCode, $errorCode);
 
-        return new $class(
+        return new $exceptionClass(
             message: $errorMessage,
             statusCode: $statusCode,
             errorCode: $errorCode,
@@ -95,15 +95,15 @@ class AgentErrorException extends StrandsException
         // When the agent named a specific error, pick the matching typed exception so the
         // app can catch (e.g.) a context overflow without string-matching the message.
         if ($errorCode !== null) {
-            $lower = strtolower($errorCode);
+            $normalizedErrorCode = strtolower($errorCode);
 
             // Conversation grew past the model's window — the app should trim or restart it.
-            if (str_contains($lower, 'context') && str_contains($lower, 'overflow')) {
+            if (str_contains($normalizedErrorCode, 'context') && str_contains($normalizedErrorCode, 'overflow')) {
                 return ContextOverflowException::class;
             }
 
             // The answer was cut off at the token cap — the app may offer to continue.
-            if (str_contains($lower, 'max_tokens')) {
+            if (str_contains($normalizedErrorCode, 'max_tokens')) {
                 return MaxTokensException::class;
             }
         }

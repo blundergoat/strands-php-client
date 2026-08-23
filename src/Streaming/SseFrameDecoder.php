@@ -7,10 +7,10 @@ namespace StrandsPhpClient\Streaming;
 use StrandsPhpClient\Exceptions\StreamInterruptedException;
 
 /**
- * Converts arbitrary HTTP chunks into complete SSE frames for live app updates.
+ * Converts arbitrary HTTP chunks into complete SSE frames.
  *
  * It normalizes split line endings and limits each unfinished frame to 10 MB while allowing one network chunk to hold many safe frames.
- * The typed `stream()` and raw `streamSse()` paths share this decoder so users see the same framing and safety behaviour in either API.
+ * The typed `stream()` and raw `streamSse()` paths share this decoder so both APIs apply the same framing and safety behaviour.
  *
  * @internal Shared by the typed and raw streaming entry points.
  */
@@ -35,7 +35,7 @@ final class SseFrameDecoder
      */
     public function feed(string $chunk): array
     {
-        // An empty transport callback adds no user-visible update, so keep waiting for bytes that can finish the current frame.
+        // An empty transport callback cannot finish the buffered frame.
         if ($chunk === '') {
             return [];
         }
@@ -49,7 +49,7 @@ final class SseFrameDecoder
             $this->isPreviousChunkEndingWithCarriageReturn = false;
         }
 
-        // A chunk containing only the LF half of a split CRLF is now empty and cannot advance the user's stream.
+        // A chunk containing only the LF half of a split CRLF is now empty and cannot advance framing.
         if ($chunk !== '') {
             $this->isPreviousChunkEndingWithCarriageReturn = str_ends_with($chunk, "\r");
             $normalizedChunk = str_replace(["\r\n", "\r"], "\n", $chunk);
@@ -63,7 +63,7 @@ final class SseFrameDecoder
     /**
      * Split normalized bytes at SSE blank lines and retain only the unfinished tail.
      *
-     * Use this after each callback so a large chunk containing several bounded events reaches the UI without tripping the per-frame guard.
+     * Use this after each callback so a large chunk containing several bounded events reaches the caller without tripping the per-frame guard.
      *
      * @param string $normalizedChunk Current chunk with every line ending represented by `\n`.
      * @return list<string> Complete normalized SSE frames without their blank-line delimiters; empty when the chunk finished no event.
@@ -81,7 +81,7 @@ final class SseFrameDecoder
             $unreadOffset = 1;
         }
 
-        // Each blank line completes one user-visible SSE update, so enforce the size limit before emitting that individual frame.
+        // Each blank line completes one SSE frame; enforce the size limit before emitting it.
         while (($frameBoundaryPosition = strpos($normalizedChunk, "\n\n", $unreadOffset)) !== false) {
             $this->appendFrameBytes(substr($normalizedChunk, $unreadOffset, $frameBoundaryPosition - $unreadOffset));
             $completeFrames[] = $this->buffer;
@@ -105,7 +105,7 @@ final class SseFrameDecoder
      */
     private function appendFrameBytes(string $frameBytes): void
     {
-        // A wrapper that never terminates an event could otherwise grow memory until the user's PHP process fails.
+        // A wrapper that never terminates an event could otherwise grow the caller's process memory without a bound.
         if (strlen($this->buffer) + strlen($frameBytes) > self::MAX_FRAME_SIZE) {
             throw new StreamInterruptedException(
                 sprintf('SSE buffer exceeded %d bytes without a complete event', self::MAX_FRAME_SIZE),

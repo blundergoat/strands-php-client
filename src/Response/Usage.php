@@ -7,7 +7,7 @@ namespace StrandsPhpClient\Response;
 /**
  * Holds token counts and server timing for one agent turn.
  *
- * Read it for usage, cost, caching, and latency displays after invoke() or stream().
+ * Read it for usage, cost, caching, and latency reporting after invoke() or stream().
  * Every public property remains an integer for 1.x compatibility; fractional wire timings are rounded and unsafe numbers become zero.
  *
  * Missing usage also becomes zero, so an app never needs nullable counter checks.
@@ -39,9 +39,9 @@ class Usage
 
     /**
      * Returns the server total when available, otherwise adds input and output tokens.
-     * Use it for one caller-facing total without duplicating the fallback rule in the UI.
+     * Use it without duplicating the fallback rule in caller code.
      *
-     * @return int Total tokens consumed, for the app's usage/cost readout.
+     * @return int Total tokens consumed.
      */
     public function totalTokens(): int
     {
@@ -54,7 +54,7 @@ class Usage
     }
 
     /**
-     * Converts a raw usage block into safe integer counters for app readouts.
+     * Converts a raw usage block into safe integer counters.
      * Use it at response boundaries; missing, malformed, non-finite, or out-of-range values become zero.
      *
      * @param array<string, mixed> $data Decoded usage block; an empty array leaves every caller-visible counter at zero.
@@ -80,7 +80,7 @@ class Usage
      * @param array<string, mixed> $usageData Decoded usage block; a missing or unusable value becomes zero for the caller.
      * @param string $snakeCaseField Snake-case wire field; an empty name reads only an empty-name key if one exists.
      * @param ?string $camelCaseField Older camelCase fallback; null skips fallback lookup, while an empty string checks an empty-name key.
-     * @return int Count the app shows as usage, or 0 when the field is missing.
+     * @return int Normalized count, or 0 when the field is missing or unusable.
      */
     private static function intField(array $usageData, string $snakeCaseField, ?string $camelCaseField = null): int
     {
@@ -93,7 +93,7 @@ class Usage
 
         $roundedUsageValue = round($numericUsageValue);
 
-        // A corrupt or extreme wrapper value must not wrap into a believable token count in the app's cost display.
+        // A corrupt or extreme wrapper value must not wrap into a believable token count.
         if (!is_finite($roundedUsageValue) || $roundedUsageValue >= (float) PHP_INT_MAX || $roundedUsageValue < (float) PHP_INT_MIN) {
             return 0;
         }
@@ -102,17 +102,17 @@ class Usage
     }
 
     /**
-     * Reads one wire number before intField() rounds it for the public usage display.
+     * Reads one wire number before intField() rounds it for the public integer property.
      * Use it to accept exact integers, finite floats, and numeric strings while rejecting every other value as zero.
      *
      * @param array<string, mixed> $usageData Decoded usage block; a missing or unusable value becomes zero for the caller.
      * @param string $snakeCaseField Snake-case wire field; an empty name reads only an empty-name key if one exists.
      * @param ?string $camelCaseField Older camelCase fallback; null skips fallback lookup, while an empty string checks an empty-name key.
-     * @return int|float Numeric value for app readouts, or 0 when the field is missing.
+     * @return int|float Numeric value, or 0 when the field is missing or unusable.
      */
     private static function numberField(array $usageData, string $snakeCaseField, ?string $camelCaseField = null): int|float
     {
-        // A missing snake_case value falls back to the older camelCase spelling when one exists, then to zero for the app display.
+        // A missing snake_case value falls back to the older camelCase spelling when one exists, then to zero.
         $wireValue = $usageData[$snakeCaseField] ?? ($camelCaseField !== null ? ($usageData[$camelCaseField] ?? 0) : 0);
 
         // Already a clean integer — the common case, hand it straight back.

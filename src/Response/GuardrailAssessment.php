@@ -7,8 +7,8 @@ namespace StrandsPhpClient\Response;
 /**
  * One policy check the guardrail ran on a turn, in typed form.
  *
- * It records the applicable policy, action, and confidence returned for the user's request.
- * Apps use it to explain a blocked or altered answer; fields remain null when that policy did not report them.
+ * It records the applicable policy, action, and confidence returned for the evaluated turn.
+ * Callers can inspect why a response was blocked or altered; fields remain null when that policy did not report them.
  */
 final readonly class GuardrailAssessment
 {
@@ -26,7 +26,7 @@ final readonly class GuardrailAssessment
      * @param array<string, mixed>|null $contextualGroundingPolicy Details; null means this policy did not apply; an empty map is preserved.
      * @param string|null $name Normalized policy name; null means unavailable, while an empty string is preserved.
      * @param string|null $result Normalized result; null means unavailable, while an empty string is preserved.
-     * @param float|null $confidence Confidence from 0.0 to 1.0; null means no score was reported or the wrapper sent one the app cannot display.
+     * @param float|null $confidence Confidence from 0.0 to 1.0; null means no usable score was reported.
      */
     public function __construct(
         public ?string $type = null,
@@ -45,7 +45,7 @@ final readonly class GuardrailAssessment
     /**
      * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data Raw assessment map; an empty map creates all-null fields the UI can omit.
+     * @param array<string, mixed> $data Raw assessment map; an empty map creates all-null fields.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self

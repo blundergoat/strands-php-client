@@ -15,7 +15,7 @@ class AgentContext
     /** @var array<string, mixed> */
     private array $metadata = [];
 
-    /** System instruction sent with the user-visible agent turn. */
+    /** System instruction included with the agent turn. */
     private ?string $systemPrompt = null;
 
     /** @var list<string> */
@@ -27,9 +27,7 @@ class AgentContext
     /** @var array<string, mixed> */
     private array $structuredData = [];
 
-    /**
-     * Create an empty immutable context builder.
-     */
+    /** Restricts construction to empty() so every context starts with the documented builder defaults. */
     private function __construct()
     {
     }
@@ -53,10 +51,10 @@ class AgentContext
      */
     public function withMetadata(string $key, mixed $value): self
     {
-        $clone = clone $this;
-        $clone->metadata[$key] = $value;
+        $updatedContext = clone $this;
+        $updatedContext->metadata[$key] = $value;
 
-        return $clone;
+        return $updatedContext;
     }
 
     /**
@@ -67,10 +65,10 @@ class AgentContext
      */
     public function withSystemPrompt(string $systemPrompt): self
     {
-        $clone = clone $this;
-        $clone->systemPrompt = $systemPrompt;
+        $updatedContext = clone $this;
+        $updatedContext->systemPrompt = $systemPrompt;
 
-        return $clone;
+        return $updatedContext;
     }
 
     /**
@@ -82,10 +80,10 @@ class AgentContext
      */
     public function withPermission(string $permission): self
     {
-        $clone = clone $this;
-        $clone->permissions[] = $permission;
+        $updatedContext = clone $this;
+        $updatedContext->permissions[] = $permission;
 
-        return $clone;
+        return $updatedContext;
     }
 
     /**
@@ -99,14 +97,14 @@ class AgentContext
      */
     public function withDocument(string $name, string $base64Content, string $mimeType): self
     {
-        $clone = clone $this;
-        $clone->documents[] = [
+        $updatedContext = clone $this;
+        $updatedContext->documents[] = [
             'name' => $name,
             'content' => $base64Content,
             'mime_type' => $mimeType,
         ];
 
-        return $clone;
+        return $updatedContext;
     }
 
     /**
@@ -118,10 +116,10 @@ class AgentContext
      */
     public function withStructuredData(string $key, mixed $value): self
     {
-        $clone = clone $this;
-        $clone->structuredData[$key] = $value;
+        $updatedContext = clone $this;
+        $updatedContext->structuredData[$key] = $value;
 
-        return $clone;
+        return $updatedContext;
     }
 
     /**
@@ -133,28 +131,24 @@ class AgentContext
     {
         $context = [];
 
-        // Send only the sections the app actually set, so the agent payload stays lean.
         // A custom system prompt overrides the agent's default persona for this turn.
         if ($this->systemPrompt !== null) {
             $context['system_prompt'] = $this->systemPrompt;
         }
 
-        // Extra metadata the app tagged the request with (feature flags, user tier, ...).
         if ($this->metadata !== []) {
             $context['metadata'] = $this->metadata;
         }
 
-        // Informational permission labels the agent may mention but must not rely on.
+        // Permission labels are context only; they do not authorize the request.
         if ($this->permissions !== []) {
             $context['permissions'] = $this->permissions;
         }
 
-        // Documents the user supplied as background reading for this turn.
         if ($this->documents !== []) {
             $context['documents'] = $this->documents;
         }
 
-        // Structured records (cart, profile, ...) the agent can reason over.
         if ($this->structuredData !== []) {
             $context['structured_data'] = $this->structuredData;
         }

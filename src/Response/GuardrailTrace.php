@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response;
 
 /**
- * Describes a guardrail decision attached to the answer a user received.
+ * Describes a guardrail decision attached to an agent response.
  *
- * Read the action for the overall outcome, assessments for policy details, and modelOutput when an authorized UI may show the pre-intervention text.
+ * Read the action for the overall outcome, assessments for policy details, and modelOutput only when the caller is authorized to use pre-intervention text.
  * Apps normally receive this through AgentResponse or StreamResult; absence there means no intervention detail was returned.
  */
 final readonly class GuardrailTrace
@@ -29,7 +29,7 @@ final readonly class GuardrailTrace
         public ?string $modelOutput = null,
     ) {
         $assessmentObjects = [];
-        // Each raw policy result becomes a typed item the app can render in its guardrail details view.
+        // Build typed assessments once so repeated reads do not rehydrate the raw maps.
         foreach ($assessments as $assessmentData) {
             $assessmentObjects[] = GuardrailAssessment::fromArray($assessmentData);
         }
@@ -38,10 +38,10 @@ final readonly class GuardrailTrace
     }
 
     /**
-     * Returns typed policy assessments for a guardrail details panel.
-     * Use it when the UI prefers DTOs; an empty list means there is no policy-level detail to render.
+     * Returns typed policy assessments for caller-side handling.
+     * An empty list means there is no policy-level detail.
      *
-     * @return list<GuardrailAssessment> Typed assessments to show the user; empty when the guardrail flagged nothing.
+     * @return list<GuardrailAssessment> Typed assessments; empty when the guardrail reported no assessment objects.
      */
     public function getAssessmentObjects(): array
     {

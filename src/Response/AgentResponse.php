@@ -9,7 +9,7 @@ use StrandsPhpClient\Exceptions\StrandsException;
 /**
  * Represents the complete result an app receives from invoke().
  *
- * Read it to render answer text, continue a session, show usage and tools, request interrupt input, or display citations and guardrail details.
+ * Read it for answer text, session continuation, usage, tools, interrupts, citations, and guardrail details.
  * Unrecognized top-level fields remain in $metadata for forward compatibility.
  *
  * Dedicated 1.5 properties are canonical, while their former metadata locations remain deprecated aliases throughout 1.x.
@@ -28,18 +28,18 @@ class AgentResponse
      * @param string|null  $sessionId      Conversation ID; null prevents session continuation, while an empty string is preserved.
      * @param Usage   $usage              Token usage statistics.
      * @param list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}> $toolsUsed
-     *        Tools the agent called; empty means no tool activity to show.
-     * @param bool    $hasObjective       Whether this agent had a secret objective active.
+     *        Tools the agent called; empty means no tool activity was reported.
+     * @param bool    $hasObjective       Whether the wrapper reported an active objective.
      * @param StopReason|null $stopReason  Known 1.x reason; null means absent or newer, when rawStopReason may still explain the outcome.
      * @param array<string, mixed>|null $structuredOutput Structured answer; null means none was returned; an empty array is a valid result.
      * @param array<string, mixed> $metadata Unrecognised fields plus deprecated aliases; empty means the wrapper sent no extensions.
-     * @param list<InterruptDetail> $interrupts  User prompts raised by the agent; empty means the UI has nothing to answer.
+     * @param list<InterruptDetail> $interrupts  Paused actions raised by the agent; empty means the caller has nothing to answer.
      * @param GuardrailTrace|null $guardrailTrace  Intervention detail; null means no guardrail trace was returned.
-     * @param list<array<string, mixed>> $citations  Raw citation blocks; empty means no sources are available to render.
-     * @param Message|null $message  Normalized raw message for advanced displays; null means the wrapper omitted it or sent a malformed value.
+     * @param list<array<string, mixed>> $citations  Raw citation blocks; empty means no sources were reported.
+     * @param Message|null $message  Normalized raw message for advanced inspection; null means the wrapper omitted it or sent a malformed value.
      * @param array<string, mixed> $wrapperMetadata  Wrapper-owned metadata; empty means no wrapper metadata was supplied.
-     * @param int|null $contextSize  Current context tokens; null means the UI should omit this capacity hint.
-     * @param int|null $projectedContextSize  Projected next-turn context tokens; null means the UI should omit this forecast.
+     * @param int|null $contextSize  Current context tokens; null means the wrapper supplied no capacity value.
+     * @param int|null $projectedContextSize  Projected next-turn context tokens; null means the wrapper supplied no forecast.
      * @param string|null $rawStopReason  Exact wire stop reason, including future values; null means the wrapper supplied none.
      */
     public function __construct(
@@ -64,32 +64,31 @@ class AgentResponse
     }
 
     /**
-     * Reports whether the agent paused and needs another user action.
-     * Use it to decide whether the UI should render approval or follow-up controls from $interrupts.
+     * Reports whether the agent paused with interrupt details to answer.
+     * Use it to decide whether the caller should handle an item from $interrupts.
      *
-     * @return bool true when the agent paused and is waiting on the user.
+     * @return bool true when at least one interrupt needs a response.
      */
     public function isInterrupted(): bool
     {
-        // An empty interrupt list means the answer needs no approval or follow-up input from the user.
         return $this->interrupts !== [];
     }
 
     /**
-     * Returns cached typed citations ready for a source list below the answer.
-     * Use it when the UI prefers Citation DTOs; an empty result means there are no sources to render.
+     * Returns cached typed citations for caller-side source handling.
+     * Use it when the caller prefers Citation DTOs; an empty result means there are no sources to inspect.
      *
-     * @return list<Citation\Citation> Typed citations to render under the answer; empty when nothing was cited.
+     * @return list<Citation\Citation> Typed citations; empty when nothing was cited.
      */
     public function getCitationObjects(): array
     {
-        // Build the typed list once, then reuse it — the UI may ask on every redraw.
+        // Cache the typed list so repeated calls do not hydrate the same citation blocks again.
         if ($this->citationObjects !== null) {
             return $this->citationObjects;
         }
 
         $this->citationObjects = [];
-        // Turn each raw citation into a DTO the app can render as a source footnote.
+        // Hydrate each raw citation once; subsequent calls reuse the cached DTO list.
         foreach ($this->citations as $citationData) {
             $this->citationObjects[] = Citation\Citation::fromArray($citationData);
         }
@@ -98,7 +97,7 @@ class AgentResponse
     }
 
     /**
-     * Converts the structured answer into the DTO used by an app form, card, or workflow.
+     * Converts the structured answer into a caller-selected DTO.
      * Use it only after requesting structured output; a missing result or incompatible DTO raises StrandsException.
      *
      * @template T of object
@@ -121,11 +120,11 @@ class AgentResponse
 
             // Prefer the DTO's own fromArray() factory when it exposes one.
             if ($reflectionClass->hasMethod('fromArray')) {
-                $method = $reflectionClass->getMethod('fromArray');
+                $fromArrayMethod = $reflectionClass->getMethod('fromArray');
                 // Only a public static fromArray() is safe to call without an instance.
-                if ($method->isStatic() && $method->isPublic()) {
+                if ($fromArrayMethod->isStatic() && $fromArrayMethod->isPublic()) {
                     /** @var T */
-                    return $method->invoke(null, $this->structuredOutput);
+                    return $fromArrayMethod->invoke(null, $this->structuredOutput);
                 }
             }
 
@@ -133,7 +132,7 @@ class AgentResponse
             /** @var T */
             return new $class(...$this->structuredOutput);
         } catch (StrandsException $exception) {
-            // For example, the target DTO's own fromArray() may reject a missing field with a deliberate app-facing StrandsException.
+            // The target DTO's own fromArray() may reject a missing field with a deliberate StrandsException.
             throw $exception;
         } catch (\Throwable $exception) {
             // For example, a constructor may require a field the structured response omitted; wrap that reflection/type error for the caller.
@@ -145,7 +144,7 @@ class AgentResponse
     }
 
     /**
-     * Defensively converts decoded /invoke JSON into fields an answer screen can read safely.
+     * Defensively converts decoded /invoke JSON into fields callers can read safely.
      * Use it at the transport boundary; missing optional data becomes null, empty collections, or zero counters according to each public property.
      *
      * @param array<string, mixed> $data Raw decoded agent JSON; an empty map produces an empty answer with safe defaults.
@@ -159,7 +158,7 @@ class AgentResponse
         $stopReason = is_string($rawStopReason) ? StopReason::tryFrom($rawStopReason) : null;
 
         $rawStructuredOutput = $data['structured_output'] ?? null;
-        // This is present when the user asked the app for a structured answer instead of plain text only.
+        // This is present when the caller requested a structured answer instead of plain text only.
         /** @var array<string, mixed>|null $structuredOutput validated before app code uses it. */
         $structuredOutput = is_array($rawStructuredOutput) ? $rawStructuredOutput : null;
 
@@ -198,10 +197,10 @@ class AgentResponse
     }
 
     /**
-     * Converts the optional wire usage block into counters safe for the app's usage display.
+     * Converts the optional wire usage block into normalized counters.
      * Use it during response hydration; an absent or malformed block produces a zeroed Usage object.
      *
-     * @param array<string, mixed> $responseData Decoded response; a missing usage block gives the app zeroed usage counters.
+     * @param array<string, mixed> $responseData Decoded response; a missing usage block produces zeroed counters.
      * @return Usage Token usage for the turn; zeroed when the response omitted it.
      */
     private static function parseUsage(array $responseData): Usage
@@ -213,7 +212,7 @@ class AgentResponse
     }
 
     /**
-     * Filters raw tool activity into the small summaries an answer screen can safely display.
+     * Filters raw tool activity into small summaries callers can safely inspect.
      * Use it during response hydration; missing or malformed entries are omitted without hiding valid tools around them.
      *
      * @param array<string, mixed> $responseData Decoded response; missing or malformed tool entries produce an empty or filtered activity trail.
@@ -223,16 +222,15 @@ class AgentResponse
      *     duration_ms?: int,
      *     input?: array<string, mixed>,
      *     result?: array<string, mixed>
-     * }> Safe tool summaries; empty means no displayable tool activity.
+     * }> Safe tool summaries; empty means no valid tool activity.
      */
     private static function parseToolsUsed(array $responseData): array
     {
         $toolsUsed = [];
         $rawTools = is_array($responseData['tools_used'] ?? null) ? $responseData['tools_used'] : [];
 
-        // Each entry is one tool the agent called, which the app can show in a "used these tools" trail under the answer.
         foreach ($rawTools as $toolData) {
-            // A tool with no usable name can't be displayed, so skip it.
+            // A tool with no usable name cannot form the required summary shape.
             if (!is_array($toolData) || !isset($toolData['name']) || !is_string($toolData['name'])) {
                 continue;
             }
@@ -244,14 +242,14 @@ class AgentResponse
                 $toolSummary['duration_ms'] = $toolData['duration_ms'];
             }
 
-            // Keep the arguments the tool was called with when present (for a details view).
+            // Preserve structured tool input when the wrapper reports it.
             if (isset($toolData['input']) && is_array($toolData['input'])) {
                 /** @var array<string, mixed> $toolInput validated before app code uses it. */
                 $toolInput = $toolData['input'];
                 $toolSummary['input'] = $toolInput;
             }
 
-            // Keep what the tool returned when present, so the app can show its output.
+            // Preserve structured tool output when the wrapper reports it.
             if (isset($toolData['result']) && is_array($toolData['result'])) {
                 /** @var array<string, mixed> $toolResult validated before app code uses it. */
                 $toolResult = $toolData['result'];
@@ -266,25 +264,23 @@ class AgentResponse
     }
 
     /**
-     * Converts raw interrupt blocks into the prompts an app can show for human input.
-     * Use it during hydration; no valid blocks means the turn can continue without an approval or follow-up screen.
+     * Converts raw interrupt blocks into typed follow-up details.
+     * Use it during hydration; no valid blocks means the turn needs no approval or follow-up input.
      *
-     * @param array<string, mixed> $responseData Decoded response; a missing interrupts field means the agent needs no user action.
+     * @param array<string, mixed> $responseData Decoded response; a missing interrupts field means no follow-up was reported.
      *
-     * @return list<InterruptDetail> Interrupts to surface as prompts; empty when the agent needs nothing from the user.
+     * @return list<InterruptDetail> Typed interrupts; empty when no valid follow-up details were reported.
      */
     private static function parseInterrupts(array $responseData): array
     {
         $rawInterrupts = $responseData['interrupts'] ?? null;
-        // Most answers do not ask the user for approval or extra input.
         if (!is_array($rawInterrupts)) {
             return [];
         }
 
         $interrupts = [];
-        // Each interrupt can become an approval card or follow-up question in the app.
         foreach ($rawInterrupts as $interruptData) {
-            // Skip any malformed entry so one bad interrupt can't break the prompt.
+            // Skip malformed entries without discarding valid interrupts around them.
             if (is_array($interruptData)) {
                 /** @var array<string, mixed> $interruptData validated before app code uses it. */
                 $interrupts[] = InterruptDetail::fromArray($interruptData);
@@ -295,15 +291,15 @@ class AgentResponse
     }
 
     /**
-     * Finds guardrail detail in either supported wrapper location and converts it for a safety notice.
-     * Use it during hydration; null means the app has no intervention detail to display.
+     * Finds guardrail detail in either supported wrapper location and converts it to a DTO.
+     * Use it during hydration; null means no intervention detail was reported.
      *
-     * @param array<string, mixed> $responseData Decoded response; missing guardrail data means the answer had no intervention details to show.
+     * @param array<string, mixed> $responseData Decoded response; missing guardrail data means no intervention detail was reported.
      * @return ?GuardrailTrace Guardrail trace, or null when the turn had no guardrail intervention.
      */
     private static function parseGuardrailTrace(array $responseData): ?GuardrailTrace
     {
-        // Try top-level first; this is what the app inspects after a visible guardrail intervention.
+        // Prefer the top-level Wire Contract field when present.
         $guardrailData = $responseData['guardrail_trace'] ?? null;
 
         // Fall back to nested trace.guardrail for wrappers that keep trace data grouped.
@@ -315,7 +311,7 @@ class AgentResponse
             }
         }
 
-        // Neither shape was present — this turn had no guardrail activity to show.
+        // Neither supported shape contained a guardrail object.
         if (!is_array($guardrailData)) {
             return null;
         }
@@ -325,31 +321,31 @@ class AgentResponse
     }
 
     /**
-     * Extracts citation blocks from the normalized message so an answer screen can render sources.
+     * Extracts citation blocks from the normalized message so callers can inspect sources.
      * Use it during hydration; missing, empty, or malformed content produces an empty citation list.
      *
-     * @param array<string, mixed> $responseData Decoded response; a missing message/content list means the answer has no citations to render.
+     * @param array<string, mixed> $responseData Decoded response; a missing message/content list means no citations were reported.
      *
-     * @return list<array<string, mixed>> Citation blocks the app can render with the answer.
+     * @return list<array<string, mixed>> Raw citation blocks in message order.
      */
     private static function parseCitations(array $responseData): array
     {
-        $message = $responseData['message'] ?? null;
+        $rawMessage = $responseData['message'] ?? null;
         // No message envelope means there are no citations to pull out.
-        if (!is_array($message)) {
+        if (!is_array($rawMessage)) {
             return [];
         }
 
-        $content = $message['content'] ?? null;
+        $rawContent = $rawMessage['content'] ?? null;
         // No content blocks means nothing was cited in this answer.
-        if (!is_array($content)) {
+        if (!is_array($rawContent)) {
             return [];
         }
 
         $citations = [];
         // Scan the answer's blocks for the ones that carry citation data.
-        foreach ($content as $contentBlock) {
-            // Ignore any malformed block so it can't break citation rendering.
+        foreach ($rawContent as $contentBlock) {
+            // Ignore malformed blocks without discarding valid citations around them.
             if (!is_array($contentBlock)) {
                 continue;
             }
@@ -365,7 +361,7 @@ class AgentResponse
     }
 
     /**
-     * Converts the optional raw message envelope for advanced transcript or content-block displays.
+     * Converts the optional raw message envelope for advanced inspection.
      * Use it during hydration; null means the wrapper omitted the message or supplied a non-map value.
      *
      * @param array<string, mixed> $responseData Decoded response; a missing message field leaves advanced message details unavailable.
@@ -373,16 +369,16 @@ class AgentResponse
      */
     private static function parseMessage(array $responseData): ?Message
     {
-        $message = $responseData['message'] ?? null;
+        $rawMessage = $responseData['message'] ?? null;
 
-        $messageData = self::stringKeyedArray($message);
+        $messageData = self::stringKeyedArray($rawMessage);
 
-        // Missing or malformed message metadata leaves advanced displays unavailable rather than creating an empty DTO.
+        // A missing or malformed message envelope stays null rather than becoming an empty DTO.
         return $messageData !== null ? Message::fromArray($messageData) : null;
     }
 
     /**
-     * Keeps only string-keyed metadata so advanced app views receive a predictable name-to-value map.
+     * Keeps only string-keyed metadata so callers receive a predictable name-to-value map.
      * Use it at a metadata boundary; non-arrays become null and an empty or numeric-only array becomes an empty map.
      *
      * @param mixed $candidateMetadata Candidate wire metadata; null or another non-array value means no map is available.

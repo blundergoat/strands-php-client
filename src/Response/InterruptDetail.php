@@ -8,17 +8,17 @@ namespace StrandsPhpClient\Response;
  * Details of an interrupt raised by the agent (human-in-the-loop).
  *
  * It describes a tool action that needs user approval before the agent can continue.
- * Apps display the reason, collect a decision, and use the interrupt identifier to resume the conversation.
+ * Callers can inspect the reason, collect a decision, and use the interrupt identifier to resume the conversation.
  */
 final readonly class InterruptDetail
 {
     /**
-     * Hold one interrupt the agent raised — a pause awaiting the user.
+     * Hold one interrupt the agent raised while awaiting a response.
      *
      * Usually built by fromArray(); call toResumeInput() to send the user's answer back.
      *
      * @param string      $toolName     The tool that raised the interrupt.
-     * @param array<string, mixed> $toolInput Tool arguments; empty means the paused action had no visible inputs.
+     * @param array<string, mixed> $toolInput Tool arguments; empty means the paused action reported no input.
      * @param string|null $toolUseId Tool invocation ID; null means resume must use interruptId instead.
      * @param string|null $interruptId Interrupt ID; null means resume must use toolUseId instead.
      * @param string|null $reason User-facing explanation; null means unavailable, while an empty string is preserved.
@@ -47,8 +47,7 @@ final readonly class InterruptDetail
     {
         $resumeInterruptId = $this->interruptId ?? $this->toolUseId;
 
-        // Without an id we can't tell the agent which pause the user is answering,
-        // so refuse now rather than send a blank id and get a confusing server error.
+        // Without an ID, the wrapper cannot associate the response with a paused action.
         if ($resumeInterruptId === null) {
             throw new \LogicException(
                 'Cannot resume: InterruptDetail has neither interruptId nor toolUseId.',

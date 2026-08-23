@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response;
 
 /**
- * The raw message envelope behind an agent response, for advanced displays.
+ * The raw message envelope behind an agent response, for advanced inspection.
  *
- * Rich UIs can render ordered text, citation, and tool blocks plus the assistant role and message metadata.
- * Use AgentResponse::$text for simple screens; absent envelope fields remain empty or null.
+ * Callers can inspect ordered text, citation, and tool blocks plus the assistant role and message metadata.
+ * Use AgentResponse::$text when only the final text is needed; absent envelope fields remain empty or null.
  */
 class Message
 {
@@ -35,15 +35,14 @@ class Message
     public static function fromArray(array $data): self
     {
         $rawContent = $data['content'] ?? null;
-        $content = [];
-        // The message body is a list of blocks the UI renders in order; skip if absent.
+        $contentBlocks = [];
+        // Preserve the wrapper's block order while dropping malformed entries.
         if (is_array($rawContent)) {
-            // Each block is one piece of the answer — a paragraph, a citation, a tool result.
-            foreach ($rawContent as $block) {
-                // Keep only well-formed blocks so a malformed one can't corrupt the display.
-                if (is_array($block)) {
-                    /** @var array<string, mixed> $block validated before app code uses it. */
-                    $content[] = $block;
+            foreach ($rawContent as $contentBlock) {
+                // Keep only map-shaped blocks so callers receive a predictable list.
+                if (is_array($contentBlock)) {
+                    /** @var array<string, mixed> $contentBlock validated before app code uses it. */
+                    $contentBlocks[] = $contentBlock;
                 }
             }
         }
@@ -53,7 +52,7 @@ class Message
 
         return new self(
             role: is_string($data['role'] ?? null) ? $data['role'] : null,
-            content: $content,
+            content: $contentBlocks,
             metadata: $metadata !== null ? MessageMetadata::fromArray($metadata) : null,
         );
     }
@@ -61,25 +60,25 @@ class Message
     /**
      * Keeps only string-keyed metadata so app code gets a stable map.
      *
-     * @param mixed $value candidate metadata from the message payload.
+     * @param mixed $candidateMetadata Candidate metadata from the message payload.
      * @return array<string, mixed>|null String-keyed metadata, or null for non-map input.
      */
-    private static function stringKeyedArray(mixed $value): ?array
+    private static function stringKeyedArray(mixed $candidateMetadata): ?array
     {
         // No metadata map on the message means there is nothing for the app to read.
-        if (!is_array($value)) {
+        if (!is_array($candidateMetadata)) {
             return null;
         }
 
-        $result = [];
+        $stringKeyedMetadata = [];
         // Keep only string keys so the app always gets a predictable name => value map.
-        foreach ($value as $key => $item) {
+        foreach ($candidateMetadata as $metadataKey => $metadataValue) {
             // Drop any stray numeric keys the wrapper may have mixed in.
-            if (is_string($key)) {
-                $result[$key] = $item;
+            if (is_string($metadataKey)) {
+                $stringKeyedMetadata[$metadataKey] = $metadataValue;
             }
         }
 
-        return $result;
+        return $stringKeyedMetadata;
     }
 }

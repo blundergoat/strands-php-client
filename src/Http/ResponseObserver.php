@@ -12,7 +12,7 @@ use StrandsPhpClient\Streaming\StreamSseSummary;
  * A place to watch the finished, parsed result of each agent call.
  *
  * It receives a typed invoke result, stream result, or safe SSE summary after parsing completes.
- * Use it for metrics, tracing, or audit logs without affecting the user's request or existing middleware.
+ * Use it for metrics, tracing, or audit logs without affecting the caller's result or existing middleware.
  */
 interface ResponseObserver
 {
@@ -37,7 +37,7 @@ interface ResponseObserver
     public function afterStream(string $url, StreamResult $result, float $durationMs): void;
 
     /**
-     * Records parsed custom-endpoint data for app telemetry.
+     * Observe parsed custom-endpoint data after the HTTP request completes.
      *
      * @param array<string, mixed> $response Parsed custom-endpoint result; empty when the endpoint returned no data.
      * @param string $url agent endpoint the app is calling.

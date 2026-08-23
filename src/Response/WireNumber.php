@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response;
 
 /**
- * Turns the optional numbers a wrapper sends into values an app can display without checking them again.
+ * Normalizes optional numeric wire fields for response DTOs.
  *
- * Invoke responses, stream events, and citations all hydrate through it, so one wrapper value cannot mean two different things on two screens.
- * Anything absent, malformed, non-finite, or past PHP's integer range becomes null, which the app hides rather than showing a wrong number.
+ * Invoke responses, stream events, and citations all hydrate through it, so they apply the same conversion rules.
+ * Anything absent, malformed, non-finite, or past PHP's integer range becomes null.
  * Required token counters keep their own zero-defaulting rules in Usage::fromArray().
  *
  * @internal Hydration helper shared by this library's DTOs; not part of the supported public API.
@@ -16,18 +16,18 @@ namespace StrandsPhpClient\Response;
 final class WireNumber
 {
     /**
-     * Reads a whole number the app may show or hide, such as a context size or a citation page offset.
-     * Use it in any fromArray() that hydrates a count or position the screen can leave out.
+     * Reads an optional whole number, such as a context size or citation page offset.
+     * Use it in any fromArray() that hydrates a count or position the wrapper may omit.
      *
-     * @param array<string, mixed> $wireData Decoded wire map; an empty map means the wrapper sent no number and the screen shows none.
+     * @param array<string, mixed> $wireData Decoded wire map; an empty map means the wrapper sent no number.
      * @param string $fieldName Wire field to read; a name the map does not contain counts as absent.
-     * @return ?int Whole number the app can display, or null when the wrapper sent nothing it can trust.
+     * @return ?int Whole number, or null when the field is absent or unusable.
      */
     public static function optionalWholeNumber(array $wireData, string $fieldName): ?int
     {
         $wireValue = $wireData[$fieldName] ?? null;
 
-        // A clean integer needs no conversion, so the app sees the wrapper's own value.
+        // A clean integer needs no conversion and preserves the wrapper's exact value.
         if (is_int($wireValue)) {
             return $wireValue;
         }
@@ -38,11 +38,11 @@ final class WireNumber
         }
 
         // Other wrappers send the number as text. Reading it as an integer first keeps large counts exact.
-        // Converting a value like "9223372036854775807" through float instead would wrap it to a negative number the user would believe.
+        // Converting a value like "9223372036854775807" through float could wrap it to an unrelated negative number.
         if (is_string($wireValue) && is_numeric($wireValue)) {
             $exactWholeNumber = filter_var($wireValue, FILTER_VALIDATE_INT);
 
-            // Text that is already a whole number needs no rounding, so the app shows exactly what the wrapper sent.
+            // Text that is already a whole number avoids precision loss through a float conversion.
             if ($exactWholeNumber !== false) {
                 return $exactWholeNumber;
             }
@@ -54,12 +54,12 @@ final class WireNumber
     }
 
     /**
-     * Reads a decimal the app may show or hide, such as the confidence behind a guardrail decision.
-     * Use it in any fromArray() that hydrates a fractional value the screen can leave out.
+     * Reads an optional decimal, such as the confidence behind a guardrail decision.
+     * Use it in any fromArray() that hydrates a fractional value the wrapper may omit.
      *
-     * @param array<string, mixed> $wireData Decoded wire map; an empty map means the wrapper sent no value and the screen shows none.
+     * @param array<string, mixed> $wireData Decoded wire map; an empty map means the wrapper sent no value.
      * @param string $fieldName Wire field to read; a name the map does not contain counts as absent.
-     * @return ?float Decimal the app can display, or null when the wrapper sent nothing it can trust.
+     * @return ?float Decimal, or null when the field is absent or unusable.
      */
     public static function optionalDecimal(array $wireData, string $fieldName): ?float
     {
@@ -79,17 +79,17 @@ final class WireNumber
     }
 
     /**
-     * Rounds a wrapper number only while the result still fits the integer the app will display.
-     * Use it after float or text parsing so an unusable size is hidden instead of shown incorrectly.
+     * Rounds a wrapper number only while the result still fits a PHP integer.
+     * Use it after float or text parsing so an unusable value becomes null instead of wrapping.
      *
-     * @param float $wireValue Number supplied by a wrapper; non-finite or out-of-range means the app cannot show it.
-     * @return ?int Rounded whole number for the app, or null so the screen omits an unsafe value.
+     * @param float $wireValue Number supplied by a wrapper; non-finite or out-of-range values are rejected.
+     * @return ?int Rounded whole number, or null when the value is unsafe.
      */
     private static function roundedWholeNumberOrNull(float $wireValue): ?int
     {
         $roundedWireValue = round($wireValue);
 
-        // NaN, infinity, and overflowing values must not wrap into an unrelated number the user would read as a real limit.
+        // NaN, infinity, and overflowing values must not wrap into an unrelated integer.
         if (!is_finite($roundedWireValue) || $roundedWireValue >= (float) PHP_INT_MAX || $roundedWireValue < (float) PHP_INT_MIN) {
             return null;
         }
@@ -98,11 +98,11 @@ final class WireNumber
     }
 
     /**
-     * Keeps a decimal only while it can still survive the app's own JSON encoding.
+     * Keeps a decimal only while it can survive JSON encoding.
      * Use it for every optional decimal, because json_encode() fails outright on infinity and NaN.
      *
-     * @param float $wireValue Number supplied by a wrapper; infinity or NaN means the app can neither show nor re-encode it.
-     * @return ?float Finite decimal for the app, or null so the screen omits an unusable value.
+     * @param float $wireValue Number supplied by a wrapper; infinity and NaN are rejected.
+     * @return ?float Finite decimal, or null when the value is unusable.
      */
     private static function finiteDecimalOrNull(float $wireValue): ?float
     {

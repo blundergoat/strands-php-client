@@ -78,10 +78,10 @@ class StrandsServiceProvider extends ServiceProvider
             /** @var ConfigRepository $config validated before app code uses it. */
             $config = $application->make('config');
 
-            /** @var string $default validated before app code uses it. */
-            $default = $config->get('strands.default', 'default');
+            /** @var string $defaultAgentName validated before app code uses it. */
+            $defaultAgentName = $config->get('strands.default', 'default');
 
-            return $application->make(StrandsClientFactory::class)->create($default);
+            return $application->make(StrandsClientFactory::class)->create($defaultAgentName);
         });
 
         /** @var ConfigRepository $config validated before app code uses it. */
@@ -92,10 +92,10 @@ class StrandsServiceProvider extends ServiceProvider
 
         // Give every configured agent its own container binding so an app can inject a
         // specific one (e.g. app('strands.client.support')) alongside the default client.
-        foreach (array_keys($agents) as $name) {
-            $binding = 'strands.client.' . $name;
-            $this->app->singleton($binding, function (Application $application) use ($name): StrandsClient {
-                return $application->make(StrandsClientFactory::class)->create($name);
+        foreach (array_keys($agents) as $agentName) {
+            $serviceId = 'strands.client.' . $agentName;
+            $this->app->singleton($serviceId, function (Application $application) use ($agentName): StrandsClient {
+                return $application->make(StrandsClientFactory::class)->create($agentName);
             });
         }
     }

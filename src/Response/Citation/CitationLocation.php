@@ -20,8 +20,8 @@ final readonly class CitationLocation
      * Usually built by fromArray() from a response citation block.
      *
      * @param string|null $type Location type; null means unknown, while an empty string is preserved.
-     * @param int|null $startCharacterIndex Start character; null means the UI cannot highlight an exact range.
-     * @param int|null $endCharacterIndex End character; null means the UI cannot highlight an exact range.
+     * @param int|null $startCharacterIndex Start character; null means no exact range start was reported.
+     * @param int|null $endCharacterIndex End character; null means no exact range end was reported.
      * @param int|null $startChunkIndex First content chunk; null means no chunk range was reported.
      * @param int|null $endChunkIndex Last content chunk; null means no chunk range was reported.
      * @param int|null $startPageIndex First document page; null means no page range was reported.
@@ -49,7 +49,7 @@ final readonly class CitationLocation
     /**
      * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data Raw location map; an empty map creates all-null fields the UI can omit.
+     * @param array<string, mixed> $data Raw location map; an empty map creates all-null fields.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
@@ -74,7 +74,7 @@ final readonly class CitationLocation
      *
      * @param array<string, mixed> $locationData Raw location JSON; empty means the citation has no jump target.
      * @param string $fieldName Location field to read, such as url or title.
-     * @return ?string The value for the app to display, or null when absent.
+     * @return ?string String value, or null when the field is absent or malformed.
      */
     private static function optionalStringField(array $locationData, string $fieldName): ?string
     {

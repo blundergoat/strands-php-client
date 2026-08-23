@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Exceptions;
 
 /**
- * Base type for every error this client can raise.
+ * Base type for failures the client wraps as Strands runtime errors.
  *
- * Catch it to give every client failure one app-level fallback, from connection problems to agent errors.
- * Catch a subtype when the UI needs a specific recovery path, such as retrying throttling or shortening a conversation.
+ * Catch it for transport, parsing, and agent-response failures represented by this library.
+ * Input validation and missing environment configuration can still raise native PHP exceptions.
  */
 class StrandsException extends \RuntimeException
 {

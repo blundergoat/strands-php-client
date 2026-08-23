@@ -7,7 +7,7 @@ namespace StrandsPhpClient\Streaming;
 use StrandsPhpClient\Exceptions\StreamInterruptedException;
 
 /**
- * Converts incremental Server-Sent Events bytes into typed updates for a live answer screen.
+ * Converts incremental Server-Sent Events bytes into typed stream updates.
  *
  * Feed it every transport chunk; it handles split CRLF/LF boundaries, heartbeats, malformed JSON, and unknown future event types.
  * Complete recognized frames become StreamEvent objects, while skipped frames are counted for compatibility diagnostics.
@@ -32,12 +32,12 @@ class StreamParser
     }
 
     /**
-     * Adds one raw transport chunk and returns the complete typed events now ready for the UI.
+     * Adds one raw transport chunk and returns the complete typed events now ready for the caller.
      * Use it for every streaming callback; an empty or still-partial chunk returns an empty list without losing buffered bytes.
      *
      * @param string $chunk Raw SSE bytes; empty means the transport delivered no progress and produces no events.
      *
-     * @return list<StreamEvent> Complete events in arrival order; empty means no user-visible event finished in this chunk.
+     * @return list<StreamEvent> Complete events in arrival order; empty means no recognized event finished in this chunk.
      * @throws StreamInterruptedException If a broken stream grows beyond the safety limit.
      */
     public function feed(string $chunk): array
@@ -47,7 +47,7 @@ class StreamParser
         // A 1.x consumer subclass may have its own constructor, so create its decoder when the first network chunk arrives.
         $frameDecoder = $this->frameDecoder ??= new SseFrameDecoder();
 
-        // Each complete frame can become one live app update; heartbeats and malformed/future frames are filtered by parseEvent().
+        // Heartbeats and malformed or future frames are filtered before events reach the caller.
         foreach ($frameDecoder->feed($chunk) as $rawEvent) {
             $streamEvent = $this->parseEvent($rawEvent);
 
@@ -61,11 +61,11 @@ class StreamParser
     }
 
     /**
-     * Converts one complete SSE frame into the typed update shown by a live app screen.
+     * Converts one complete SSE frame into a typed stream update.
      * Use it after framing; heartbeat-only, malformed, non-object, and future events return null and update diagnostics as relevant.
      *
      * @param string $rawEvent Raw SSE event block received from the stream.
-     * @return StreamEvent|null Parsed event, or null when the block has nothing safe and recognized to show.
+     * @return StreamEvent|null Parsed event, or null when the block has no recognized event.
      */
     private function parseEvent(string $rawEvent): ?StreamEvent
     {
@@ -73,7 +73,7 @@ class StreamParser
 
         // Walk the event's lines, keeping the payload and ignoring SSE bookkeeping.
         foreach (explode("\n", $rawEvent) as $eventLine) {
-            // Lines starting with ":" are heartbeat/comment lines — nothing to display.
+            // Lines starting with ":" are heartbeat/comment lines and carry no event data.
             if (str_starts_with($eventLine, ':')) {
                 continue;
             }
@@ -97,11 +97,10 @@ class StreamParser
             return null;
         }
 
-        // Skip malformed JSON rather than throwing, which would prevent later valid frames from updating the user's screen.
         try {
             $decodedEvent = json_decode($eventData, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
-            // For example, a proxy can cut one JSON event short; skip it so later complete frames can still update the user's screen.
+            // A proxy can cut one JSON event short; skipping it lets later valid frames reach the callback.
             $this->skippedEvents++;
 
             return null;
@@ -114,7 +113,7 @@ class StreamParser
             return null;
         }
 
-        // tryFromArray() returns null for future event types, keeping a newer server compatible with this user's current client.
+        // tryFromArray() returns null for future event types, keeping a newer server compatible with this client.
         /** @var array<string, mixed> $decodedEvent validated before app code uses it. */
         $streamEvent = StreamEvent::tryFromArray($decodedEvent);
         // A type this client doesn't know yet (newer server) is skipped, not fatal.

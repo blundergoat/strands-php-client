@@ -8,7 +8,7 @@ namespace StrandsPhpClient\Auth;
  * AWS Signature Version 4 authentication strategy.
  *
  * Signs outgoing requests for agents behind API Gateway with IAM auth.
- * Standalone implementation (~260 lines) - does not require aws/aws-sdk-php.
+ * This implementation does not require aws/aws-sdk-php.
  *
  * @see https://docs.aws.amazon.com/general/latest/gr/sigv4_signing.html
  */
@@ -66,17 +66,14 @@ class SigV4Auth implements AuthStrategy
      */
     public static function fromEnvironment(string $region, string $service = 'execute-api'): self
     {
-        // Read the standard AWS credential env vars the app's host or container provides.
         $accessKeyId = getenv('AWS_ACCESS_KEY_ID');
         $secretAccessKey = getenv('AWS_SECRET_ACCESS_KEY');
 
-        // No access key means the app never wired up AWS auth — fail loudly at startup
-        // instead of letting every agent call come back as a 403 later.
+        // Reject incomplete credentials before constructing a signer that cannot authenticate requests.
         if ($accessKeyId === false || $accessKeyId === '') {
             throw new \RuntimeException('AWS_ACCESS_KEY_ID environment variable is not set');
         }
 
-        // Same for the secret half of the credential pair.
         if ($secretAccessKey === false || $secretAccessKey === '') {
             throw new \RuntimeException('AWS_SECRET_ACCESS_KEY environment variable is not set');
         }
@@ -125,16 +122,10 @@ class SigV4Auth implements AuthStrategy
         $path = $parsedUrl['path'] ?? '/';
         $queryString = $parsedUrl['query'] ?? '';
 
-        // Canonical URI - normalize path
         $canonicalUri = $this->normalizePath($path);
-
-        // Canonical query string - parameters sorted by key
         $canonicalQueryString = $this->canonicalizeQueryString($queryString);
-
-        // Content hash
         $payloadHash = hash('sha256', $body);
 
-        // Build signed headers
         $signingHeaders = [
             'host' => $host,
             'x-amz-content-sha256' => $payloadHash,
@@ -154,7 +145,6 @@ class SigV4Auth implements AuthStrategy
             }
         }
 
-        // Sort headers by lowercase key
         ksort($signingHeaders);
 
         $canonicalHeaders = '';
@@ -166,7 +156,6 @@ class SigV4Auth implements AuthStrategy
         }
         $signedHeaders = implode(';', $signedHeaderNames);
 
-        // Canonical request
         $canonicalRequest = implode("\n", [
             $method,
             $canonicalUri,
@@ -176,10 +165,8 @@ class SigV4Auth implements AuthStrategy
             $payloadHash,
         ]);
 
-        // Credential scope
         $credentialScope = $dateStamp . '/' . $this->region . '/' . $this->service . '/aws4_request';
 
-        // String to sign
         $stringToSign = implode("\n", [
             'AWS4-HMAC-SHA256',
             $amzDate,
@@ -187,13 +174,9 @@ class SigV4Auth implements AuthStrategy
             hash('sha256', $canonicalRequest),
         ]);
 
-        // Signing key
         $signingKey = $this->deriveSigningKey($dateStamp);
-
-        // Signature
         $signature = hash_hmac('sha256', $stringToSign, $signingKey);
 
-        // Authorization header
         $authorization = sprintf(
             'AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s',
             $this->accessKeyId,

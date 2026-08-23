@@ -37,13 +37,13 @@ class MessageMetadata
         $rawUsage = $data['usage'] ?? null;
         $rawMetrics = $data['metrics'] ?? null;
         $rawCustom = $data['custom'] ?? null;
-        $usage = self::stringKeyedArray($rawUsage);
+        $usageData = self::stringKeyedArray($rawUsage);
 
         $metrics = self::stringKeyedArray($rawMetrics) ?? [];
         $custom = self::stringKeyedArray($rawCustom) ?? [];
 
         return new self(
-            usage: $usage !== null ? Usage::fromArray($usage) : null,
+            usage: $usageData !== null ? Usage::fromArray($usageData) : null,
             metrics: $metrics,
             custom: $custom,
         );
@@ -52,25 +52,25 @@ class MessageMetadata
     /**
      * Keeps only string-keyed metadata so app code gets a stable map.
      *
-     * @param mixed $value candidate metadata from the message wrapper.
+     * @param mixed $candidateMetadata Candidate metadata from the message wrapper.
      * @return array<string, mixed>|null String-keyed metadata, or null for non-map input.
      */
-    private static function stringKeyedArray(mixed $value): ?array
+    private static function stringKeyedArray(mixed $candidateMetadata): ?array
     {
         // No such section on the message means there is nothing for the app to read.
-        if (!is_array($value)) {
+        if (!is_array($candidateMetadata)) {
             return null;
         }
 
-        $result = [];
+        $stringKeyedMetadata = [];
         // Keep only string keys so the app always gets a predictable name => value map.
-        foreach ($value as $key => $item) {
+        foreach ($candidateMetadata as $metadataKey => $metadataValue) {
             // Drop any stray numeric keys the wrapper may have mixed in.
-            if (is_string($key)) {
-                $result[$key] = $item;
+            if (is_string($metadataKey)) {
+                $stringKeyedMetadata[$metadataKey] = $metadataValue;
             }
         }
 
-        return $result;
+        return $stringKeyedMetadata;
     }
 }

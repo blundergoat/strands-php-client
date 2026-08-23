@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response\Citation;
 
 /**
- * One source the agent cited, normalized for display next to the answer.
+ * One source the agent cited, normalized across supported wire shapes.
  *
- * It gives the UI a source link, quoted text, and the part of the answer that source supports.
- * Apps can render both structured Wire Contract citations and legacy flat fields through the same object.
+ * It gives callers a source location, quoted text, and the part of the answer that source supports.
+ * Callers can inspect both structured Wire Contract citations and legacy flat fields through the same object.
  */
 final readonly class Citation
 {
@@ -35,36 +35,35 @@ final readonly class Citation
     /**
      * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data Raw decoded citation; an empty map creates an all-null citation the UI can omit.
+     * @param array<string, mixed> $data Raw decoded citation; an empty map creates an all-null citation callers can ignore.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {
         /** @var array<string, mixed> $locationData validated before app code uses it. */
         $locationData = is_array($data['location'] ?? null) ? $data['location'] : [];
-        /** @var array<string, mixed> $sourceData validated before app code uses it. */
-        $sourceData = is_array($data['source_content'] ?? null) ? $data['source_content'] : [];
-        /** @var array<string, mixed> $generatedData validated before app code uses it. */
-        $generatedData = is_array($data['generated_content'] ?? null) ? $data['generated_content'] : [];
+        /** @var array<string, mixed> $sourceContentData validated before app code uses it. */
+        $sourceContentData = is_array($data['source_content'] ?? null) ? $data['source_content'] : [];
+        /** @var array<string, mixed> $generatedContentData validated before app code uses it. */
+        $generatedContentData = is_array($data['generated_content'] ?? null) ? $data['generated_content'] : [];
         $source = self::optionalStringField($data, 'source');
         $title = self::optionalStringField($data, 'title');
         $text = self::optionalStringField($data, 'text');
 
-        // Older wrappers send a flat source/title instead of a location block —
-        // rebuild one so the app always has a link/title to show.
+        // Older wrappers send flat source/title fields, so translate any representable location details.
         if ($locationData === [] && ($source !== null || $title !== null)) {
             $locationData = self::flatLocationData($source, $title);
         }
 
         // Likewise reconstruct the quoted source text when only flat fields arrived.
-        if ($sourceData === []) {
-            $sourceData = self::flatSourceContentData($source, $text);
+        if ($sourceContentData === []) {
+            $sourceContentData = self::flatSourceContentData($source, $text);
         }
 
         return new self(
             location: $locationData !== [] ? CitationLocation::fromArray($locationData) : null,
-            sourceContent: $sourceData !== [] ? CitationSourceContent::fromArray($sourceData) : null,
-            generatedContent: $generatedData !== [] ? CitationGeneratedContent::fromArray($generatedData) : null,
+            sourceContent: $sourceContentData !== [] ? CitationSourceContent::fromArray($sourceContentData) : null,
+            generatedContent: $generatedContentData !== [] ? CitationGeneratedContent::fromArray($generatedContentData) : null,
             source: $source,
             title: $title,
             text: $text,
@@ -76,7 +75,7 @@ final readonly class Citation
      *
      * @param array<string, mixed> $citationData Raw decoded citation JSON; empty means the wrapper supplied no citation fields.
      * @param string $fieldName Citation field to read.
-     * @return ?string Citation text the app can show, or null when absent.
+     * @return ?string Citation text, or null when the field is absent or malformed.
      */
     private static function optionalStringField(array $citationData, string $fieldName): ?string
     {
@@ -89,19 +88,18 @@ final readonly class Citation
      * Converts legacy flat citation fields into a location block.
      *
      * @param ?string $source Raw source value from the citation; null when the citation names no source.
-     * @param ?string $title Title shown beside the cited source; null when the source is untitled.
-     * @return array<string, string> Location data the app can render as citation context.
+     * @param ?string $title Citation title; null when the source is untitled.
+     * @return array<string, string> Representable legacy location data.
      */
     private static function flatLocationData(?string $source, ?string $title): array
     {
         $location = [];
 
-        // A source that looks like a URL becomes the clickable link in the citation.
+        // Only absolute URLs can populate the structured location URL.
         if ($source !== null && self::isUrl($source)) {
             $location['url'] = $source;
         }
 
-        // Show the human-readable title beside the link when we have one.
         if ($title !== null) {
             $location['title'] = $title;
         }
@@ -113,14 +111,13 @@ final readonly class Citation
      * Converts legacy flat citation fields into source content.
      *
      * @param ?string $source Raw source value from the citation; null when the citation names no source.
-     * @param ?string $text Cited text shown beside the answer; null when the citation quotes nothing.
-     * @return array<string, string> Source content data for the citation UI.
+     * @param ?string $text Cited text; null when the citation quotes nothing.
+     * @return array<string, string> Source content data for the citation DTO.
      */
     private static function flatSourceContentData(?string $source, ?string $text): array
     {
         $sourceContent = [];
 
-        // The cited passage itself — what the app quotes back to the user.
         if ($text !== null) {
             $sourceContent['type'] = 'TEXT';
             $sourceContent['text'] = $text;
@@ -139,7 +136,7 @@ final readonly class Citation
      * Determine whether a citation source is an absolute URL.
      *
      * @param string $citationSource Citation source to test; empty is not a link and returns false.
-     * @return bool True when the source is an absolute URL the UI can open; false for empty, relative, or malformed text.
+     * @return bool True when the source is an absolute URL; false for empty, relative, or malformed text.
      */
     private static function isUrl(string $citationSource): bool
     {

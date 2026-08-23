@@ -29,7 +29,7 @@ final readonly class CitationGeneratedContent
     /**
      * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data Raw generated-content map; an empty map creates all-null fields the UI can omit.
+     * @param array<string, mixed> $data Raw generated-content map; an empty map creates all-null fields.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self

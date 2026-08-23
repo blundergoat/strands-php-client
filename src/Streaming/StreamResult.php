@@ -13,7 +13,7 @@ use StrandsPhpClient\Response\Usage;
  * Holds the final app-facing result assembled after stream() stops.
  *
  * Read it after live callbacks to render final text, continue the session, show usage and tools, handle interrupts, or explain errors and guardrails.
- * It also exposes event counts and client-measured time to first text token for UI and operational diagnostics.
+ * It also exposes event counts and client-measured time to first text token for caller and operational diagnostics.
  *
  * Typed stop reasons preserve 1.x switches, while rawStopReason retains future wire values.
  *
@@ -23,10 +23,10 @@ class StreamResult
 {
     /**
      * Stores the live updates and terminal fields as one result after streaming finishes.
-     * StrandsClient builds it automatically; app code reads it for the final screen state and conversation controls.
+     * StrandsClient builds it automatically; app code reads it for final state and conversation controls.
      *
      * @param string          $text                    Full assembled answer; empty means the stream produced no text.
-     * @param string|null     $sessionId               Conversation ID; null means the UI cannot continue this stream as a session.
+     * @param string|null     $sessionId               Conversation ID; null means no resumable session was reported.
      * @param Usage           $usage                   Token usage statistics.
      * @param list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}> $toolsUsed
      *        Tools the agent used; empty means no activity to show.
@@ -36,11 +36,11 @@ class StreamResult
      * @param bool            $cancelled               True if the stream was cancelled by the onEvent callback.
      * @param float|null      $timeToFirstTextTokenMs  Client time from stream start to first Text event; null means no text arrived.
      *                                                  This differs from server-reported Usage::$timeToFirstByteMs.
-     * @param list<InterruptDetail> $interrupts        User prompts raised by the agent; empty means the UI has nothing to answer.
+     * @param list<InterruptDetail> $interrupts        Follow-up prompts raised by the agent; empty means nothing is awaiting an answer.
      * @param GuardrailTrace|null $guardrailTrace      Intervention detail; null means no guardrail trace was returned.
      * @param list<array<string, mixed>> $citations    Raw citation blocks; empty means no sources are available to render.
-     * @param int|null $contextSize                    Current context tokens; null means the UI should omit this capacity hint.
-     * @param int|null $projectedContextSize           Projected next-turn context tokens; null means the UI should omit this forecast.
+     * @param int|null $contextSize                    Current context tokens; null means the wrapper supplied no capacity value.
+     * @param int|null $projectedContextSize           Projected next-turn context tokens; null means the wrapper supplied no forecast.
      * @param string|null $terminalType                Terminal type; null means no complete/error event was observed; empty is preserved.
      * @param string|null $errorCode                   Terminal error code; null means no code was reported, while an empty string is preserved.
      * @param string|null $errorMessage                Terminal error text; null means no message was reported, while an empty string is preserved.
@@ -69,14 +69,13 @@ class StreamResult
     }
 
     /**
-     * Reports whether the agent paused and needs another user action.
-     * Use it to decide whether the UI should render approval or follow-up controls from $interrupts.
+     * Reports whether the agent paused with interrupt details to answer.
+     * Use it to decide whether the caller needs to answer an item from $interrupts.
      *
-     * @return bool true when the agent paused and is waiting on the user.
+     * @return bool true when at least one interrupt needs a response.
      */
     public function isInterrupted(): bool
     {
-        // An empty interrupt list means the finished stream needs no approval or follow-up input from the user.
         return $this->interrupts !== [];
     }
 }

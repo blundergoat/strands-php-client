@@ -23,8 +23,8 @@ class PrintingCallbackHandler extends StreamCallbackHandler
     /**
      * Choose where streamed text and errors are written (defaults to stdout/stderr).
      *
-     * @param callable(string): void|null $outputWriter Writer used to show streamed text to the user.
-     * @param callable(string): void|null $errorWriter Writer used to show stream errors to the user.
+     * @param callable(string): void|null $outputWriter Destination for streamed text.
+     * @param callable(string): void|null $errorWriter Destination for stream errors.
      */
     public function __construct(?callable $outputWriter = null, ?callable $errorWriter = null)
     {

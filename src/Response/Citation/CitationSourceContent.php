@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Response\Citation;
 
 /**
- * The source passage a citation quotes, for display beside the answer.
+ * The source passage a citation quotes.
  *
- * It holds the cited text and optional document name shown when a user opens source details.
+ * It holds the cited text and optional document name for callers that expose source details.
  * Its fields stay null when the wrapper provided only a bare reference.
  */
 final readonly class CitationSourceContent
@@ -31,7 +31,7 @@ final readonly class CitationSourceContent
     /**
      * Build this object from the agent's raw JSON.
      *
-     * @param array<string, mixed> $data Raw source-content map; an empty map creates all-null fields the UI can omit.
+     * @param array<string, mixed> $data Raw source-content map; an empty map creates all-null fields.
      * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self

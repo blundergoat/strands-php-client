@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Exceptions;
 
 /**
- * Raised when a streaming answer ends before the agent signalled completion.
+ * Raised when a stream cannot produce a complete terminal result.
  *
- * It means a dropped connection, timeout, or safety limit left only a partial answer on screen.
- * Use it to show an interrupted state and let the user retry the message.
+ * A timeout, oversized frame, or missing terminal event may leave the caller with partial output.
+ * Treat that output as incomplete before deciding whether to retry.
  */
 class StreamInterruptedException extends StrandsException
 {

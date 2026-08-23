@@ -22,7 +22,7 @@ use StrandsPhpClient\Streaming\StreamResult;
 use StrandsPhpClient\Streaming\StreamSseSummary;
 
 /**
- * Adds OpenTelemetry client spans and W3C trace headers around calls a user makes to an agent.
+ * Adds OpenTelemetry client spans and W3C trace headers around agent calls.
  *
  * Pass it to StrandsClient when operators need request timing, usage, tool, session, and finish-reason diagnostics without recording bodies or PHI.
  * Its LIFO span stack fits synchronous PHP-FPM request handling, but it is not safe when one instance is shared across Fibers or coroutines.
@@ -149,7 +149,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * Closes the active request span and records whether the user's action succeeded or failed.
+     * Closes the active request span and records whether the operation succeeded or failed.
      * StrandsClient calls it after transport completion or failure; calling it with no open span is a safe no-op.
      *
      * @param string $url Request URL being observed.
@@ -175,7 +175,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
 
             $span->setAttribute('strands.operation.duration_ms', $durationMs);
 
-            // The user's request failed with an exception — flag the span red and note why.
+            // An exception marks the operation as failed and supplies a bounded error category.
             if ($error !== null) {
                 $span->addEvent('exception', [
                     'exception.type' => $error::class,
@@ -191,12 +191,12 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
                 }
             }
 
-            // An HTTP error without an exception still means the user's agent action failed and should appear red in traces.
+            // An HTTP error without an exception still marks the operation as failed.
             if ($error === null && $statusCode >= 400) {
                 $span->setStatus(StatusCode::STATUS_ERROR, sprintf('HTTP %d', $statusCode));
             }
         } catch (\Throwable $tracingException) {
-            // For example, an exporter rejects an attribute while the span is annotated. Tracing must never replace the answer the user already has.
+            // An exporter can reject an attribute while the span is annotated; tracing must not replace the caller's result.
             // Discard the captured exception explicitly so static analysis can see that the middleware contract intentionally swallows it.
             unset($tracingException);
         } finally {
@@ -216,7 +216,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
      */
     private static function endSpanAndReleaseScope(SpanInterface $span, ?ScopeInterface $scope): void
     {
-        // A scope exists only once activation succeeded, and leaving it attached would trace the user's next call as a child of this one.
+        // A scope exists only once activation succeeded; leaving it attached would parent the next call under this completed span.
         if ($scope !== null) {
             try {
                 $scope->detach();
@@ -229,13 +229,13 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
         try {
             $span->end();
         } catch (\Throwable $endException) {
-            // For example, an exporter times out as the span ends; the user's answer or original agent error still stands.
+            // An exporter can time out as the span ends; the caller's result or original agent error still stands.
             unset($endException);
         }
     }
 
     /**
-     * Adds parsed invoke details that help operators explain the answer shown to the user.
+     * Adds parsed invoke details that help operators diagnose the completed operation.
      * StrandsClient calls it after hydration; with no active span it leaves the app result untouched.
      *
      * @param string $url Request URL being observed.
@@ -261,7 +261,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             $span->setAttribute('gen_ai.response.finish_reason', $finishReason);
         }
 
-        // A terminal agent error can arrive in a successful HTTP response, so mark the user's invoke operation as failed in telemetry.
+        // A terminal agent error can arrive in a successful HTTP response, so mark the invoke operation as failed.
         if ($finishReason === 'error') {
             $span->setAttribute('error.type', 'agent_error');
             $span->setStatus(StatusCode::STATUS_ERROR, 'agent terminal error');
@@ -275,7 +275,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * Adds the typed stream summary used to diagnose the live answer the user saw.
+     * Adds the typed stream summary used to diagnose the completed stream operation.
      * StrandsClient calls it after streaming ends; with no active span it is a safe no-op.
      *
      * @param string $url Request URL being observed.
@@ -310,13 +310,13 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             $span->setAttribute('gen_ai.response.finish_reason', $finishReason);
         }
 
-        // A terminal agent error can arrive over a successful HTTP stream, so mark the user's operation as failed in telemetry.
+        // A terminal agent error can arrive over a successful HTTP stream, so mark the operation as failed.
         if ($finishReason === 'error') {
             $span->setAttribute('error.type', 'agent_error');
             $span->setStatus(StatusCode::STATUS_ERROR, 'agent terminal error');
         }
 
-        // An explicit stream error event is also a failed user action even when no transport exception was thrown.
+        // An explicit stream error event also marks failure when no transport exception was thrown.
         if ($result->terminalType === 'error') {
             $span->setAttribute('error.type', 'stream_error');
             $span->setStatus(StatusCode::STATUS_ERROR, 'stream terminal error');
@@ -344,7 +344,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * Adds a sanitized raw-SSE summary after a custom live screen finishes receiving events.
+     * Adds a sanitized raw-SSE summary after a custom SSE call finishes receiving events.
      * Use it through streamSse(); unknown or absent summary fields are omitted rather than exported as high-cardinality labels.
      *
      * @param string $url Request URL being observed.
@@ -375,7 +375,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             $span->setAttribute('gen_ai.response.finish_reason', $stopReason);
         }
 
-        // A raw terminal agent error still represents a failed user action despite the successful HTTP connection.
+        // A raw terminal agent error still marks failure despite the successful HTTP connection.
         if ($stopReason === 'error') {
             $span->setAttribute('error.type', 'agent_error');
             $span->setStatus(StatusCode::STATUS_ERROR, 'agent terminal error');
@@ -404,7 +404,7 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
     }
 
     /**
-     * Maps the safe route and Accept header to the operation users recognize in telemetry.
+     * Maps the safe route and Accept header to a stable telemetry operation.
      * Use it before opening a span so standard and custom endpoints group consistently.
      *
      * @param array<string, string> $headers Headers reaching the agent; an empty map makes a custom route a post_json operation.
@@ -457,25 +457,25 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
      */
     private static function sanitizeUrl(string $url): string
     {
-        $parts = parse_url($url);
+        $urlParts = parse_url($url);
         // If the URL will not parse, fail closed instead of emitting caller-controlled text.
-        if (!is_array($parts)) {
+        if (!is_array($urlParts)) {
             return '/';
         }
 
         // Rebuild only the safe parts (scheme/host/port), dropping any query string that could hold PII.
-        $result = isset($parts['scheme']) ? $parts['scheme'] . '://' : '';
+        $sanitizedUrl = isset($urlParts['scheme']) ? $urlParts['scheme'] . '://' : '';
         // Host is the agent's address.
-        if (isset($parts['host'])) {
-            $result .= $parts['host'];
+        if (isset($urlParts['host'])) {
+            $sanitizedUrl .= $urlParts['host'];
         }
         // Include the port only when one is present.
-        if (isset($parts['port'])) {
-            $result .= ':' . $parts['port'];
+        if (isset($urlParts['port'])) {
+            $sanitizedUrl .= ':' . $urlParts['port'];
         }
-        $result .= self::sanitizeRoute($url);
+        $sanitizedUrl .= self::sanitizeRoute($url);
 
-        return $result;
+        return $sanitizedUrl;
     }
 
     /**
@@ -483,15 +483,15 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
      * Use it when classifying custom routes; an absent header returns an empty string and therefore does not select SSE.
      *
      * @param array<string, string> $headers Request headers.
-     * @param string $name Header name to read.
+     * @param string $requestedHeaderName Header name to read.
      * @return string Header value, or an empty string when the caller did not send it.
      */
-    private static function headerValue(array $headers, string $name): string
+    private static function headerValue(array $headers, string $requestedHeaderName): string
     {
         // Callers may supply any HTTP-header casing, so inspect every header until the requested name matches case-insensitively.
         foreach ($headers as $headerName => $headerValue) {
-            // The first matching name is the value that controls this request, such as whether a custom screen expects SSE.
-            if (strcasecmp($headerName, $name) === 0) {
+            // The first matching name controls this request, such as whether the caller requested SSE.
+            if (strcasecmp($headerName, $requestedHeaderName) === 0) {
                 return $headerValue;
             }
         }
@@ -573,21 +573,21 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
      */
     private static function setToolsAttributes(SpanInterface $span, array $toolsUsed): void
     {
-        $names = [];
+        $toolNames = [];
         // Pull out each tool's name so the trace shows what the agent actually did.
-        foreach ($toolsUsed as $tool) {
-            $name = $tool['name'] ?? null;
+        foreach ($toolsUsed as $toolSummary) {
+            $toolName = $toolSummary['name'] ?? null;
             // Keep only well-formed string names; ignore malformed tool entries.
-            if (is_string($name)) {
-                $names[] = $name;
+            if (is_string($toolName)) {
+                $toolNames[] = $toolName;
             }
         }
 
-        $span->setAttribute('strands.tools.count', count($names));
+        $span->setAttribute('strands.tools.count', count($toolNames));
 
         // Only add the names list when at least one tool ran (keeps empty traces clean).
-        if ($names !== []) {
-            $span->setAttribute('strands.tools.names', array_values(array_unique($names)));
+        if ($toolNames !== []) {
+            $span->setAttribute('strands.tools.names', array_values(array_unique($toolNames)));
         }
     }
 
@@ -667,13 +667,15 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
      * Removes the namespace from an exception class before showing it in traces.
      * Use it for error.type and generic status descriptions so labels stay readable and bounded.
      *
-     * @param class-string $class Fully-qualified class name to shorten for telemetry.
+     * @param class-string $className Fully-qualified class name to shorten for telemetry.
      * @return non-empty-string Short class name shown in trace attributes; malformed empty input falls back to Throwable.
      */
-    private static function classBasename(string $class): string
+    private static function classBasename(string $className): string
     {
-        $position = strrpos($class, '\\');
-        $shortClassName = $position === false ? $class : substr($class, $position + 1);
+        $namespaceSeparatorPosition = strrpos($className, '\\');
+        $shortClassName = $namespaceSeparatorPosition === false
+            ? $className
+            : substr($className, $namespaceSeparatorPosition + 1);
 
         // A real class-string is non-empty; keep a stable fallback if malformed test or integration data ever reaches this private boundary.
         if ($shortClassName === '') {

@@ -77,7 +77,7 @@ class StrandsClientFactory
      */
     public function create(string $agentName): StrandsClient
     {
-        // The app may request a named agent from a route or UI choice, such as "support" or "analyst".
+        // The caller selects one configured agent name, such as "support" or "analyst".
         if (!isset($this->agents[$agentName])) {
             throw new \InvalidArgumentException(sprintf(
                 'Unknown Strands agent "%s". Configured agents: %s',
@@ -86,19 +86,19 @@ class StrandsClientFactory
             ));
         }
 
-        $config = $this->agents[$agentName];
+        $agentConfig = $this->agents[$agentName];
 
         // All agents created by this factory share the same middleware stack.
         // Per-agent middleware is not supported - use separate factories if needed.
         return new StrandsClient(
             config: new StrandsConfig(
-                endpoint: $config['endpoint'],
-                auth: $this->resolveAuth($config['auth']),
-                timeout: $config['timeout'],
-                connectTimeout: $config['connect_timeout'] ?? 10,
-                maxRetries: $config['max_retries'] ?? 0,
-                retryDelayMs: $config['retry_delay_ms'] ?? 500,
-                retryableStatusCodes: $config['retryable_status_codes'] ?? [429, 502, 503, 504],
+                endpoint: $agentConfig['endpoint'],
+                auth: $this->resolveAuth($agentConfig['auth']),
+                timeout: $agentConfig['timeout'],
+                connectTimeout: $agentConfig['connect_timeout'] ?? 10,
+                maxRetries: $agentConfig['max_retries'] ?? 0,
+                retryDelayMs: $agentConfig['retry_delay_ms'] ?? 500,
+                retryableStatusCodes: $agentConfig['retryable_status_codes'] ?? [429, 502, 503, 504],
             ),
             logger: $this->logger,
             middleware: $this->middleware,
