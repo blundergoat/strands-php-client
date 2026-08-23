@@ -135,14 +135,18 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Confirms factory receives tagged middleware so framework users receive a correctly configured client.
+     * Confirms tagged middleware runs for the default client so framework users can register request hooks.
      *
      * @return void
      */
-    public function testFactoryReceivesTaggedMiddleware(): void
+    public function testTaggedMiddlewareRunsForResolvedDefaultClient(): void
     {
+        $middlewareFailure = new \RuntimeException('Tagged middleware reached the default client.');
         $requestMiddleware = $this->createMock(RequestMiddleware::class);
-        $requestMiddleware->expects($this->never())->method('beforeRequest');
+        $requestMiddleware
+            ->expects($this->once())
+            ->method('beforeRequest')
+            ->willThrowException($middlewareFailure);
 
         $app = $this->createRegisteredApplication([
             'default' => 'primary',
@@ -155,16 +159,11 @@ class StrandsServiceProviderTest extends TestCase
             ],
         ], [$requestMiddleware]);
 
-        $factory = $app->make(StrandsClientFactory::class);
-        $this->assertInstanceOf(StrandsClientFactory::class, $factory);
+        $strandsClient = $app->make(StrandsClient::class);
+        $this->assertInstanceOf(StrandsClient::class, $strandsClient);
 
-        // Verify middleware was passed by checking the factory's private property
-        $reflectionProperty = new \ReflectionProperty(StrandsClientFactory::class, 'middleware');
-        $reflectionProperty->setAccessible(true);
-        $middleware = $reflectionProperty->getValue($factory);
-
-        $this->assertCount(1, $middleware);
-        $this->assertSame($requestMiddleware, $middleware[0]);
+        $this->expectExceptionObject($middlewareFailure);
+        $strandsClient->invoke('Hello');
     }
 
     /**

@@ -503,51 +503,34 @@ class AgentInputTest extends TestCase
     }
 
     /**
-     * Protects "with image normalizes mime casing and whitespace" so the agent receives the request the user assembled.
+     * Protects image format derivation so upload MIME variants produce the wire format the agent expects.
      *
+     * @param string $mediaType MIME type or format supplied by the upload flow.
+     * @param string $expectedFormat Normalized image format sent to the agent.
      * @return void
      */
-    public function testWithImageNormalizesMimeCasingAndWhitespace(): void
+    #[DataProvider('imageFormatProvider')]
+    public function testWithImageDerivesFormat(string $mediaType, string $expectedFormat): void
     {
         $input = AgentInput::text('Describe this')
-            ->withImage('base64data', ' IMAGE/JPEG ; charset=binary');
+            ->withImage('base64data', $mediaType);
 
         $payload = $input->toPayloadValue();
 
         $this->assertIsArray($payload);
-        $this->assertSame('jpeg', $payload['content'][1]['format']);
+        $this->assertSame($expectedFormat, $payload['content'][1]['format']);
     }
 
     /**
-     * Protects "with image accepts format without mime prefix" so the agent receives the request the user assembled.
+     * Supplies image MIME variants that exercise normalization without duplicating test structure.
      *
-     * @return void
+     * @return iterable<string, array{0: string, 1: string}> MIME input and expected wire format.
      */
-    public function testWithImageAcceptsFormatWithoutMimePrefix(): void
+    public static function imageFormatProvider(): iterable
     {
-        $input = AgentInput::text('Describe this')
-            ->withImage('base64data', 'PNG');
-
-        $payload = $input->toPayloadValue();
-
-        $this->assertIsArray($payload);
-        $this->assertSame('png', $payload['content'][1]['format']);
-    }
-
-    /**
-     * Protects "with image preserves compound subtype format" so the agent receives the request the user assembled.
-     *
-     * @return void
-     */
-    public function testWithImagePreservesCompoundSubtypeFormat(): void
-    {
-        $input = AgentInput::text('Analyse')
-            ->withImage('base64data', 'image/svg+xml');
-
-        $payload = $input->toPayloadValue();
-
-        $this->assertIsArray($payload);
-        $this->assertSame('svg+xml', $payload['content'][1]['format']);
+        yield 'normalizes MIME casing and whitespace' => [' IMAGE/JPEG ; charset=binary', 'jpeg'];
+        yield 'accepts format without MIME prefix' => ['PNG', 'png'];
+        yield 'preserves compound subtype format' => ['image/svg+xml', 'svg+xml'];
     }
 
     /**
