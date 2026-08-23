@@ -1,6 +1,6 @@
 ---
 category: gruff-php
-last_reviewed: 2026-08-08
+last_reviewed: 2026-08-23
 ---
 
 > **Version boundary (2026-08-08).** These entries were written against `blundergoat/gruff-php` **v0.1.x**. The package is now pinned at **^0.5.1** in `composer.json` `require-dev`. Two things changed that this bucket depends on: the analyzer's rule directory was renamed from Rule to Rules, and the `naming.parameter-type-name` rule was **removed** and replaced by `naming.identifier-quality`, which exposes a single global `ignoredNames` option instead of a parameter-only allowlist. Evidence paths below have been re-pointed at the v0.5.1 layout and re-verified; anything that depended on the removed rule now sits in the resolved section at the end of this file. Re-validate a rule's mechanics against the installed source before acting on an entry created before this line.
@@ -46,6 +46,26 @@ The rule's escape hatch is structural: it walks `TestQualityNodeHelper::testScop
 A literal `$auth` → `$apiKeyAuth` replace turns `$author` into `$apiKeyAuthor` and `$auth1` into `$apiKeyAuth1`. Use a word-boundary regex (`\$<name>\b` with Python `re`, or `sed -E 's/\$<name>\b/$<new>/g'`) — PHP identifier characters `[A-Za-z0-9_]` are word characters under `\b`, so `\$auth\b` matches `$auth->` but not `$author` and not `$auth1`.
 
 **Concrete case:** the bulk rename script for `naming.abbreviation-allowlist` would have corrupted `$author`-style names in tests had it used plain replace-all. See `.goat-flow/learning-loop/patterns/gruff-php.md` for the regex pattern.
+
+## Footgun: Inlining callback delegates can expose required parameters as unused
+
+**Status:** active | **Created:** 2026-08-23 | **Evidence:** ACTUAL_MEASURED
+**Decision changed:** Compare whole-file rules before inlining callbacks; allowlist exact symbols if a required parameter becomes unused.
+**Trigger phase:** VERIFY
+**Incident count:** 1 | **Latest occurrence:** 2026-08-23
+
+In `StreamCallbackHandler`, replacing nine calls to `continueStream($event)` with direct `return null` removed nine
+`waste.one-line-method` advisories but created nine higher-severity `waste.unused-parameter` warnings. The callback parameter belongs to the protected
+override contract, so removing it or adding a fake read would make the API less truthful.
+
+**Evidence:**
+
+- `src/Streaming/StreamCallbackHandler.php` (search: `return self::continueStream($event);`) preserves the typed event for every override hook.
+- `vendor/blundergoat/gruff-php/src/Rules/Waste/OneLineMethodRule.php` (search: `allowedSymbols`) provides an exact contract allowlist.
+- `vendor/blundergoat/gruff-php/src/Rules/Waste/UnusedParameterRule.php` (search: `usedVariableNames`) treats only real body reads as parameter use.
+
+**Defensive workflow:** Preserve the typed callback signature and meaningful delegation, then allowlist only the verified contract symbols in
+`.gruff-php.yaml`. Compare identical file/rule results and rerun the full summary so one analyzer category cannot silently replace another.
 
 ## Resolved Entries
 

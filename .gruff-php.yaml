@@ -668,7 +668,17 @@ rules:
             minParameters: 1
             minInFileCallers: 2
             namedAlternativeFactoryExempt: true
-            allowedSymbols: []
+            allowedSymbols:
+                # These typed hooks delegate so `$event` stays available to subclasses without triggering unused-parameter findings.
+                - 'StreamCallbackHandler::onText()'
+                - 'StreamCallbackHandler::onToolUse()'
+                - 'StreamCallbackHandler::onToolResult()'
+                - 'StreamCallbackHandler::onThinking()'
+                - 'StreamCallbackHandler::onCitation()'
+                - 'StreamCallbackHandler::onReasoningSignature()'
+                - 'StreamCallbackHandler::onReasoningRedacted()'
+                - 'StreamCallbackHandler::onComplete()'
+                - 'StreamCallbackHandler::onError()'
     # Flags variables that only store a value immediately returned by the next statement, when the assignment and the return are the only two statements in their block.
     waste.redundant-variable:
         enabled: true
