@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Strands Extension behavior for app integrations.
- *
- * Use this file when changing Strands Extension or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
 
 use PHPUnit\Framework\TestCase;
@@ -20,20 +13,21 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 
 /**
- * Exercises Strands Extension through the public surface used by application code.
+ * Verifies the Symfony extension registers the factory, named clients, aliases, logger, and middleware wiring.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing dependency-injection service definitions or autoconfiguration.
+ * They protect the client service an application receives for each configured agent.
  */
 class StrandsExtensionTest extends TestCase
 {
     /**
-     * Load extension for the test scenario.
+     * Loads one Strands configuration into a fresh Symfony container builder.
+     * Use it to inspect the services an application receives after extension registration.
      *
-     * @param array<string, mixed> $config Configuration values passed to the helper.
-     * @return ContainerBuilder Value produced by the method.
+     * @param array<string, mixed> $config Bundle settings; empty represents an app with no configured agents.
+     * @return ContainerBuilder Loaded container; never null and possibly free of named clients when agents are empty.
      */
-    private function loadExtension(array $config): ContainerBuilder
+    private function containerWithExtensionConfig(array $config): ContainerBuilder
     {
         $containerBuilder = new ContainerBuilder();
         $containerBuilder->setDefinition('logger', new Definition(NullLogger::class));
@@ -44,13 +38,13 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Confirms registers factory service so framework users receive a correctly configured client.
+     * Confirms the extension registers the client factory so Symfony can build named agent services.
      *
      * @return void
      */
     public function testRegistersFactoryService(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
@@ -63,13 +57,13 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Confirms registers named agent services so framework users receive a correctly configured client.
+     * Confirms the extension registers one service for each configured agent name.
      *
      * @return void
      */
     public function testRegistersNamedAgentServices(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
                 'skeptic' => ['endpoint' => 'http://agent:8000'],
@@ -83,13 +77,13 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Confirms named clients stay retrievable via `$container->get()` after compile so framework users receive a correctly configured client.
+     * Confirms named clients stay retrievable via `$container->get()` after compile so Symfony apps resolve configured agent services predictably.
      *
      * @return void
      */
     public function testNamedAgentServicesArePublic(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
@@ -101,13 +95,13 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Confirms first agent is default alias so framework users receive a correctly configured client.
+     * Confirms first agent is default alias so Symfony apps resolve configured agent services predictably.
      *
      * @return void
      */
     public function testFirstAgentIsDefaultAlias(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
                 'skeptic' => ['endpoint' => 'http://agent:8000'],
@@ -120,13 +114,13 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Confirms empty agents registers nothing so framework users receive a correctly configured client.
+     * Confirms an empty agent map registers no named services or misleading default alias.
      *
      * @return void
      */
     public function testEmptyAgentsRegistersNothing(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [],
         ]);
 
@@ -134,13 +128,13 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Confirms agent service uses factory so framework users receive a correctly configured client.
+     * Confirms each named agent service uses the client factory before application code resolves it.
      *
      * @return void
      */
     public function testAgentServiceUsesFactory(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'primary' => ['endpoint' => 'http://agent:8000'],
             ],
@@ -154,13 +148,13 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Confirms factory receives agents argument so framework users receive a correctly configured client.
+     * Confirms the client factory receives every configured agent definition.
      *
      * @return void
      */
     public function testFactoryReceivesAgentsArgument(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
@@ -175,13 +169,13 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Confirms factory receives logger argument so framework users receive a correctly configured client.
+     * Confirms the client factory receives Symfony's logger for operator-visible diagnostics.
      *
      * @return void
      */
     public function testFactoryReceivesLoggerArgument(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
@@ -195,13 +189,13 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Confirms agent service receives name argument so framework users receive a correctly configured client.
+     * Confirms each named service asks the factory for its own configured agent.
      *
      * @return void
      */
     public function testAgentServiceReceivesNameArgument(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
@@ -212,13 +206,13 @@ class StrandsExtensionTest extends TestCase
     }
 
     /**
-     * Confirms factory receives middleware argument so framework users receive a correctly configured client.
+     * Confirms the client factory receives tagged middleware in application order.
      *
      * @return void
      */
     public function testFactoryReceivesMiddlewareArgument(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
@@ -237,7 +231,7 @@ class StrandsExtensionTest extends TestCase
      */
     public function testRequestMiddlewareAutoconfigured(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
@@ -254,7 +248,7 @@ class StrandsExtensionTest extends TestCase
      */
     public function testMultipleAgentsEachGetCorrectName(): void
     {
-        $containerBuilder = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
                 'skeptic' => ['endpoint' => 'http://agent:8001'],

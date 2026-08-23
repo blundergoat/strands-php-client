@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Strands Service Provider behavior for app integrations.
- *
- * Use this file when changing Strands Service Provider or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Integration\Laravel;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
@@ -23,15 +16,15 @@ use StrandsPhpClient\Integration\StrandsClientFactory;
 use StrandsPhpClient\StrandsClient;
 
 /**
- * Exercises Strands Service Provider through the public surface used by application code.
+ * Verifies Laravel publishes usable defaults and registers default, named, factory, and middleware-aware client bindings.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing package configuration or container registration.
+ * They protect the client instance an application resolves for each configured agent.
  */
 class StrandsServiceProviderTest extends TestCase
 {
     /**
-     * Confirms config file exists so framework users receive a correctly configured client.
+     * Confirms config file exists so Laravel apps start with a usable agent configuration.
      *
      * @return void
      */
@@ -43,7 +36,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Confirms config returns array so framework users receive a correctly configured client.
+     * Confirms config returns array so Laravel apps start with a usable agent configuration.
      *
      * @return void
      */
@@ -55,7 +48,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Confirms config has default key so framework users receive a correctly configured client.
+     * Confirms config has default key so Laravel apps start with a usable agent configuration.
      *
      * @return void
      */
@@ -67,7 +60,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Confirms config has agents key so framework users receive a correctly configured client.
+     * Confirms config has agents key so Laravel apps start with a usable agent configuration.
      *
      * @return void
      */
@@ -80,7 +73,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Confirms config default agent has required keys so framework users receive a correctly configured client.
+     * Confirms config default agent has required keys so Laravel apps start with a usable agent configuration.
      *
      * @return void
      */
@@ -99,7 +92,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Confirms config auth has required keys so framework users receive a correctly configured client.
+     * Confirms config auth has required keys so Laravel apps start with a usable agent configuration.
      *
      * @return void
      */
@@ -116,7 +109,7 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Confirms config defaults so framework users receive a correctly configured client.
+     * Confirms config defaults so Laravel apps start with a usable agent configuration.
      *
      * @return void
      */
@@ -206,14 +199,14 @@ class StrandsServiceProviderTest extends TestCase
         $this->assertSame($skepticClient, $app->make('strands.client.skeptic'));
 
         // default should use the configured default agent name
-        $this->assertSame('http://agent:8000', $this->extractEndpoint($defaultClient));
-        $this->assertSame('http://agent:8000', $this->extractEndpoint($analystClient));
-        $this->assertSame('http://agent:8001', $this->extractEndpoint($skepticClient));
+        $this->assertSame('http://agent:8000', $this->endpointFromClient($defaultClient));
+        $this->assertSame('http://agent:8000', $this->endpointFromClient($analystClient));
+        $this->assertSame('http://agent:8001', $this->endpointFromClient($skepticClient));
         $this->assertNotSame($analystClient, $skepticClient);
     }
 
     /**
-     * Build the small Laravel container used to exercise package registration as an application would.
+     * Builds the small Laravel container used to exercise package registration as an application would.
      * Empty middleware means the app registered no request hooks.
      *
      * @param array{
@@ -335,10 +328,10 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Read one dotted Laravel config path while the test container resolves an agent.
+     * Reads one dotted Laravel config path while the test container resolves an agent.
      * Use it to mirror values such as strands.default that application code expects from the real repository.
      *
-     * @param array<string, mixed> $config client settings chosen by the application.
+     * @param array<string, mixed> $config Application settings; empty means no values are registered.
      * @param string $configPath Dotted config path; empty cannot resolve a setting and returns the fallback.
      * @param mixed $default Fallback for missing config; null means the caller wants absence represented as null.
      * @return mixed Configured value or the fallback; null only when the value is missing and the fallback is null.
@@ -361,10 +354,10 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Write one dotted Laravel config path while the package registers an agent.
+     * Writes one dotted Laravel config path while the package registers an agent.
      * Use it to mirror package defaults and explicit null or empty values exactly as the real repository stores them.
      *
-     * @param array<string, mixed> $config client settings chosen by the application.
+     * @param array<string, mixed> $config Application settings; empty means this write creates the first path.
      * @param string $configPath Dotted config path; empty means there is no setting to update.
      * @param mixed $configValue Value stored for the app; null or empty remains an intentional configured value.
      * @return void No returned value; updates client or observer state.
@@ -396,12 +389,13 @@ class StrandsServiceProviderTest extends TestCase
     }
 
     /**
-     * Extract endpoint for assertions.
+     * Reads the endpoint from a container-resolved client so tests can distinguish named agents.
+     * Use it after Laravel registration when a caller-selected binding must target one URL.
      *
-     * @param StrandsClient $strandsClient Client instance inspected by the test helper.
-     * @return string String value produced by the helper.
+     * @param StrandsClient $strandsClient Container-resolved client; never null.
+     * @return string Configured endpoint; never empty for the registered test agents.
      */
-    private function extractEndpoint(StrandsClient $strandsClient): string
+    private function endpointFromClient(StrandsClient $strandsClient): string
     {
         $reflectionProperty = new \ReflectionProperty(StrandsClient::class, 'config');
         $reflectionProperty->setAccessible(true);

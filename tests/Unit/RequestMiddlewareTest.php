@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Request Middleware behavior for app integrations.
- *
- * Use this file when changing Request Middleware or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
@@ -24,15 +17,15 @@ use StrandsPhpClient\StrandsClient;
 use StrandsPhpClient\Streaming\StreamResult;
 
 /**
- * Exercises Request Middleware through the public surface used by application code.
+ * Verifies middleware wraps invoke, typed stream, custom JSON, and custom SSE requests in the documented lifecycle.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing request mutation, completion callbacks, setup failures, cancellation, or middleware ordering.
+ * They protect app hooks that add context, logging, tracing, or cleanup around an agent call.
  */
 class RequestMiddlewareTest extends TestCase
 {
     /**
-     * Load one decoded agent response used while testing middleware around an app request.
+     * Loads one decoded agent response used while testing middleware around an app request.
      * Use it when the scenario needs realistic wire data; the returned map is never empty for a valid fixture.
      *
      * @param string $name Fixture filename; empty cannot identify a response file and triggers a RuntimeException.

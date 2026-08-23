@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises the usage values an application shows for cost and response speed.
- *
- * It covers missing fields, fractional timings, numeric strings, and unsafe numbers.
- * Failures here mean a user could see misleading token or latency information.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Response;
 
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -24,7 +17,7 @@ use StrandsPhpClient\Response\Usage;
 final class UsageTest extends TestCase
 {
     /**
-     * Protects "from array defaults every usage field to zero" so token and timing readouts remain safe for users.
+     * Verifies Usage::fromArray() defaults every usage field to zero so callers never display or log corrupt metrics.
      *
      * @return void
      */
@@ -43,7 +36,7 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Protects "from array rounds fractional token counts" so token and timing readouts remain safe for users.
+     * Verifies Usage::fromArray() rounds fractional token counts so callers never display or log corrupt metrics.
      *
      * @return void
      */
@@ -59,7 +52,7 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Protects "from array rounds fractional timing values to integers" so token and timing readouts remain safe for users.
+     * Verifies Usage::fromArray() rounds fractional timing values to integers so callers never display or log corrupt metrics.
      *
      * @return void
      */
@@ -77,7 +70,7 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Protects "from array rejects unsafe numeric values" so token and timing readouts remain safe for users.
+     * Verifies Usage::fromArray() rejects unsafe numeric values so callers never display or log corrupt metrics.
      *
      * @param int|float|string $wireValue Non-finite or out-of-range value supplied by a wrapper.
      * @return void The assertion protects cost and latency displays from corrupt numeric input.
@@ -91,10 +84,10 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Supplies the input variants for the related usage-normalization scenario.
-     * An empty provider would leave a caller-visible edge case unverified.
+     * Lists unsafe wire numbers that must become zero before callers display or log them.
+     * An empty provider would leave corrupt usage values unverified.
      *
-     * @return iterable<string, array{0: int|float|string}> Unsafe wire values and readable scenario labels.
+     * @return iterable<string, array{0: int|float|string}> Non-empty unsafe-number cases and readable labels.
      */
     public static function unsafeNumericUsageProvider(): iterable
     {
@@ -106,7 +99,7 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Protects "from array preserves exact integer string at platform boundary" so token and timing readouts remain safe for users.
+     * Verifies Usage::fromArray() preserves an exact integer string at the platform boundary so callers never display or log corrupt metrics.
      *
      * @return void The assertion protects wrappers that encode large integer counters as strings.
      */
@@ -118,10 +111,10 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Protects "constructor rejects fractional timing values to keep integer contract" so token and timing readouts remain safe for users.
+     * Verifies the Usage constructor rejects fractional timing values to keep integer contract so callers never display or log corrupt metrics.
      *
-     * @param \Closure(): Usage $constructUsage Builds the usage object for the selected timing field.
-     * @param string $expectedParameter Identifies the rejected constructor parameter.
+     * @param \Closure(): Usage $constructUsage Non-null factory for the usage object under test.
+     * @param string $expectedParameter Non-empty name of the rejected constructor parameter.
      * @return void
      */
     #[DataProvider('fractionalTimingConstructorProvider')]
@@ -136,10 +129,10 @@ final class UsageTest extends TestCase
     }
 
     /**
-     * Supplies the input variants for the related usage-normalization scenario.
-     * An empty provider would leave a caller-visible edge case unverified.
+     * Lists fractional timing arguments the typed constructor must reject.
+     * An empty provider would leave one caller-facing timing field unverified.
      *
-     * @return iterable<string, array{0: \Closure(): Usage, 1: string}> Constructor and parameter-name cases.
+     * @return iterable<string, array{0: \Closure(): Usage, 1: string}> Non-empty constructor and parameter-name cases.
      */
     public static function fractionalTimingConstructorProvider(): iterable
     {

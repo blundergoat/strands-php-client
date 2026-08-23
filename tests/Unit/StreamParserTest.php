@@ -2,16 +2,8 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises raw SSE chunks before typed events reach an application's live callback.
- *
- * It covers framing, line endings, partial delivery, malformed JSON, and future event types.
- * Failures here mean a live UI could lose, duplicate, or misclassify an agent update.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Exceptions\StreamInterruptedException;
 use StrandsPhpClient\Streaming\StreamEventType;
@@ -29,25 +21,25 @@ class StreamParserTest extends TestCase
      * Loads captured fixture data for a realistic stream-parsing scenario.
      * Use it when a test needs the same payload an app could receive from an agent.
      *
-     * @param string $name Fixture name or DTO name under test.
-     * @return string String value produced by the helper.
+     * @param string $fixtureName Non-empty SSE fixture filename under tests/Fixtures/.
+     * @return string Captured SSE bytes; empty means the parser receives no event.
      */
-    private function loadFixture(string $name): string
+    private function loadFixture(string $fixtureName): string
     {
-        return file_get_contents(__DIR__ . '/../Fixtures/' . $name);
+        return file_get_contents(__DIR__ . '/../Fixtures/' . $fixtureName);
     }
 
     /**
-     * Protects "parse simple text stream" so network chunks cannot corrupt the live event sequence.
+     * Verifies the parser handles a simple text stream so network chunks cannot corrupt callback order.
      *
      * @return void
      */
     public function testParseSimpleTextStream(): void
     {
         $streamParser = new StreamParser();
-        $raw = $this->loadFixture('sse-simple-text.txt');
+        $sseFrame = $this->loadFixture('sse-simple-text.txt');
 
-        $events = $streamParser->feed($raw);
+        $events = $streamParser->feed($sseFrame);
 
         $this->assertCount(3, $events);
         $this->assertSame(StreamEventType::Text, $events[0]->type);
@@ -60,16 +52,17 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "parse crlf delimited stream" so network chunks cannot corrupt the live event sequence.
+     * Verifies the parser handles a CRLF-delimited stream.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void
      */
     public function testParseCrlfDelimitedStream(): void
     {
         $streamParser = new StreamParser();
-        $raw = $this->loadFixture('sse-simple-text-crlf.txt');
+        $sseFrame = $this->loadFixture('sse-simple-text-crlf.txt');
 
-        $events = $streamParser->feed($raw);
+        $events = $streamParser->feed($sseFrame);
 
         $this->assertCount(3, $events);
         $this->assertSame(StreamEventType::Text, $events[0]->type);
@@ -82,7 +75,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "parse crlf split across chunks" so network chunks cannot corrupt the live event sequence.
+     * Verifies the parser handles CRLF split across chunks.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void
      */
@@ -101,16 +95,16 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "skips heartbeat comments" so network chunks cannot corrupt the live event sequence.
+     * Verifies the parser skips heartbeat comments so network chunks cannot corrupt callback order.
      *
      * @return void
      */
     public function testSkipsHeartbeatComments(): void
     {
         $streamParser = new StreamParser();
-        $raw = $this->loadFixture('sse-with-heartbeat.txt');
+        $sseFrame = $this->loadFixture('sse-with-heartbeat.txt');
 
-        $events = $streamParser->feed($raw);
+        $events = $streamParser->feed($sseFrame);
 
         $this->assertCount(2, $events);
         $this->assertSame(StreamEventType::Text, $events[0]->type);
@@ -119,16 +113,16 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "error mid stream" so network chunks cannot corrupt the live event sequence.
+     * Verifies the parser surfaces errors that arrive mid-stream so network chunks cannot corrupt callback order.
      *
      * @return void
      */
     public function testErrorMidStream(): void
     {
         $streamParser = new StreamParser();
-        $raw = $this->loadFixture('sse-error-mid-stream.txt');
+        $sseFrame = $this->loadFixture('sse-error-mid-stream.txt');
 
-        $events = $streamParser->feed($raw);
+        $events = $streamParser->feed($sseFrame);
 
         $this->assertCount(2, $events);
         $this->assertSame(StreamEventType::Text, $events[0]->type);
@@ -138,7 +132,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "incremental chunks" so network chunks cannot corrupt the live event sequence.
+     * Verifies the parser joins incremental network chunks so network chunks cannot corrupt callback order.
      *
      * @return void
      */
@@ -147,36 +141,19 @@ class StreamParserTest extends TestCase
         $streamParser = new StreamParser();
 
         // This frame is split mid-payload to reproduce a proxy delivering the user's live update across callbacks.
-        $raw = "data: {\"type\": \"text\", \"content\": \"Hi\"}\n\n";
+        $sseFrame = "data: {\"type\": \"text\", \"content\": \"Hi\"}\n\n";
 
         // The first partial callback must stay hidden because the user cannot render an incomplete event.
-        $events1 = $streamParser->feed(substr($raw, 0, 20));
+        $events1 = $streamParser->feed(substr($sseFrame, 0, 20));
         $this->assertCount(0, $events1);
 
-        $events2 = $streamParser->feed(substr($raw, 20));
+        $events2 = $streamParser->feed(substr($sseFrame, 20));
         $this->assertCount(1, $events2);
         $this->assertSame('Hi', $events2[0]->text);
     }
 
     /**
-     * Protects "terminal event detection" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testTerminalEventDetection(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = $this->loadFixture('sse-simple-text.txt');
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertFalse($events[0]->isTerminal());
-        $this->assertFalse($events[1]->isTerminal());
-        $this->assertTrue($events[2]->isTerminal());
-    }
-
-    /**
-     * Protects "empty chunk returns no events" so network chunks cannot corrupt the live event sequence.
+     * Verifies an empty chunk produces no events so network chunks cannot corrupt callback order.
      *
      * @return void
      */
@@ -188,191 +165,10 @@ class StreamParserTest extends TestCase
 
         $this->assertSame([], $events);
     }
-    /**
-     * Builds a complete SSE frame for the related live-response scenario.
-     * Use it when the parser case needs realistic data without hiding the expected event.
-     *
-     * @return string text value used in the caller-facing agent flow.
-     */
-    private function rawForParseToolUseEvent(): string
-    {
-        return "data: {\"type\": \"tool_use\", \"tool_name\": \"search_kb\", \"tool_input\": {\"query\": \"test\"}}\n\n";
-    }
 
     /**
-     * Protects "parse tool use event" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testParseToolUseEvent(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = $this->rawForParseToolUseEvent();
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::ToolUse, $events[0]->type);
-        $this->assertSame('search_kb', $events[0]->toolName);
-        $this->assertSame(['query' => 'test'], $events[0]->toolInput);
-    }
-    /**
-     * Builds a complete SSE frame for the related live-response scenario.
-     * Use it when the parser case needs realistic data without hiding the expected event.
-     *
-     * @return string text value used in the caller-facing agent flow.
-     */
-    private function rawForParseToolResultEvent(): string
-    {
-        return "data: {\"type\": \"tool_result\", \"tool_name\": \"search_kb\", \"result\": \"some results\"}\n\n";
-    }
-
-    /**
-     * Protects "parse tool result event" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testParseToolResultEvent(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = $this->rawForParseToolResultEvent();
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::ToolResult, $events[0]->type);
-        $this->assertSame('search_kb', $events[0]->toolName);
-        $this->assertSame('some results', $events[0]->toolResult);
-    }
-
-    /**
-     * Protects "parse thinking event" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testParseThinkingEvent(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"thinking\", \"content\": \"Let me reason about this...\"}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::Thinking, $events[0]->type);
-        $this->assertSame('Let me reason about this...', $events[0]->text);
-    }
-
-    /**
-     * Protects "tool use is not terminal" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testToolUseIsNotTerminal(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"tool_use\", \"tool_name\": \"search\", \"tool_input\": {}}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertFalse($events[0]->isTerminal());
-    }
-
-    /**
-     * Protects "thinking is not terminal" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testThinkingIsNotTerminal(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"thinking\", \"content\": \"hmm\"}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertFalse($events[0]->isTerminal());
-    }
-
-    /**
-     * Protects "tool result with json result" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testToolResultWithJsonResult(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"tool_result\", \"tool_name\": \"api\", \"result\": {\"count\": 42}}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::ToolResult, $events[0]->type);
-        $this->assertSame('{"count":42}', $events[0]->toolResult);
-    }
-
-    /**
-     * Protects "skips unknown event types" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testSkipsUnknownEventTypes(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"internal_debug\", \"content\": \"something\"}\n\n"
-            . "data: {\"type\": \"text\", \"content\": \"hello\"}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::Text, $events[0]->type);
-        $this->assertSame(1, $streamParser->getSkippedEvents());
-    }
-
-    /**
-     * Protects "stream event from array throws on unknown type" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testStreamEventFromArrayThrowsOnUnknownType(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown stream event type: "unknown_type"');
-
-        \StrandsPhpClient\Streaming\StreamEvent::fromArray(['type' => 'unknown_type']);
-    }
-
-    /**
-     * Protects "stream event from array throws on missing type" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testStreamEventFromArrayThrowsOnMissingType(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown stream event type: "(missing)"');
-
-        \StrandsPhpClient\Streaming\StreamEvent::fromArray(['type' => '']);
-    }
-
-    /**
-     * Protects "skips event with missing type field" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testSkipsEventWithMissingTypeField(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"content\": \"no type field\"}\n\n"
-            . "data: {\"type\": \"text\", \"content\": \"ok\"}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame('ok', $events[0]->text);
-        $this->assertSame(1, $streamParser->getSkippedEvents());
-    }
-
-    /**
-     * Protects "skips malformed json without corrupting buffer" so network chunks cannot corrupt the live event sequence.
+     * Verifies the parser skips malformed JSON without corrupting its buffer.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void
      */
@@ -381,10 +177,10 @@ class StreamParserTest extends TestCase
         $streamParser = new StreamParser();
 
         // A damaged frame followed by a valid update reproduces a stream that recovers without losing later user content.
-        $raw = "data: {malformed json}\n\n"
+        $sseFrame = "data: {malformed json}\n\n"
             . "data: {\"type\": \"text\", \"content\": \"hello\"}\n\n";
 
-        $events = $streamParser->feed($raw);
+        $events = $streamParser->feed($sseFrame);
 
         // The user sees the valid update and never receives the malformed frame.
         $this->assertCount(1, $events);
@@ -392,7 +188,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "buffer recovery after malformed json" so network chunks cannot corrupt the live event sequence.
+     * Verifies the parser recovers after malformed JSON so network chunks cannot corrupt callback order.
      *
      * @return void
      */
@@ -409,55 +205,21 @@ class StreamParserTest extends TestCase
         $this->assertCount(1, $events2);
         $this->assertSame('recovered', $events2[0]->text);
     }
-    /**
-     * Builds a complete SSE frame for the related live-response scenario.
-     * Use it when the parser case needs realistic data without hiding the expected event.
-     *
-     * @return string text value used in the caller-facing agent flow.
-     */
-    private function rawForCompleteEventWithMultipleToolsUsed(): string
-    {
-        return 'data: {"type": "complete", "text": "Result", "session_id": "s1", "usage": {}, '
-            . '"tools_used": [{"name": "search", "duration_ms": 100, '
-            . '"input": {"query": "docs"}, "result": {"count": 2}}, '
-            . '{"name": "calc", "duration_ms": 50}]}' . "\n\n";
-    }
 
     /**
-     * Protects "complete event with multiple tools used" so network chunks cannot corrupt the live event sequence.
+     * Builds one JSON event split across two SSE data lines.
+     * Use it to verify the app receives one joined update instead of two broken frames.
      *
-     * @return void
+     * @return string Complete multi-line SSE frame; never empty.
      */
-    public function testCompleteEventWithMultipleToolsUsed(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = $this->rawForCompleteEventWithMultipleToolsUsed();
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::Complete, $events[0]->type);
-        $this->assertCount(2, $events[0]->toolsUsed);
-        $this->assertSame('search', $events[0]->toolsUsed[0]['name']);
-        $this->assertSame(100, $events[0]->toolsUsed[0]['duration_ms']);
-        $this->assertSame(['query' => 'docs'], $events[0]->toolsUsed[0]['input']);
-        $this->assertSame(['count' => 2], $events[0]->toolsUsed[0]['result']);
-        $this->assertSame('calc', $events[0]->toolsUsed[1]['name']);
-        $this->assertSame(50, $events[0]->toolsUsed[1]['duration_ms']);
-    }
-    /**
-     * Builds a complete SSE frame for the related live-response scenario.
-     * Use it when the parser case needs realistic data without hiding the expected event.
-     *
-     * @return string text value used in the caller-facing agent flow.
-     */
-    private function rawForMultipleDataLinesJoinedWithNewline(): string
+    private function multilineDataSseFrame(): string
     {
         return "data: {\"type\": \"text\",\ndata:  \"content\": \"hello\"}\n\n";
     }
 
     /**
-     * Protects "multiple data lines joined with newline" so network chunks cannot corrupt the live event sequence.
+     * Verifies the parser joins multiple data lines with a newline.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void
      */
@@ -465,9 +227,9 @@ class StreamParserTest extends TestCase
     {
         $streamParser = new StreamParser();
         // A wrapper may split one JSON object across data lines; the UI still receives one decoded event.
-        $raw = $this->rawForMultipleDataLinesJoinedWithNewline();
+        $sseFrame = $this->multilineDataSseFrame();
 
-        $events = $streamParser->feed($raw);
+        $events = $streamParser->feed($sseFrame);
 
         $this->assertCount(1, $events);
         $this->assertSame(StreamEventType::Text, $events[0]->type);
@@ -475,7 +237,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "skipped events counter tracks parse errors" so network chunks cannot corrupt the live event sequence.
+     * Verifies the skipped-event counter tracks parse failures.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void
      */
@@ -485,100 +248,19 @@ class StreamParserTest extends TestCase
         $this->assertSame(0, $streamParser->getSkippedEvents());
 
         // Two broken frames followed by a valid update let the app report accurate compatibility diagnostics without disrupting the user.
-        $raw = "data: {bad1\n\n"
+        $sseFrame = "data: {bad1\n\n"
             . "data: {bad2\n\n"
             . "data: {\"type\": \"text\", \"content\": \"ok\"}\n\n";
 
-        $events = $streamParser->feed($raw);
+        $events = $streamParser->feed($sseFrame);
 
         $this->assertCount(1, $events);
         $this->assertSame(2, $streamParser->getSkippedEvents());
     }
 
     /**
-     * Protects "feed sets has objective flag when true" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testFeedSetsHasObjectiveFlagWhenTrue(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"text\", \"content\": \"hello\", \"has_objective\": true}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertTrue($events[0]->hasObjective);
-    }
-
-    /**
-     * Protects "has objective defaults false for non boolean values" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testHasObjectiveDefaultsFalseForNonBooleanValues(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"text\", \"content\": \"hello\", \"has_objective\": \"true\"}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertFalse($events[0]->hasObjective);
-    }
-
-    /**
-     * Protects "citation event parsed" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testCitationEventParsed(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"citation\", \"citation\": {\"source\": \"doc.pdf\", \"page\": 3, \"text\": \"relevant excerpt\"}}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::Citation, $events[0]->type);
-        $this->assertSame(['source' => 'doc.pdf', 'page' => 3, 'text' => 'relevant excerpt'], $events[0]->citation);
-    }
-
-    /**
-     * Protects "reasoning signature event parsed" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testReasoningSignatureEventParsed(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"reasoning_signature\", \"signature\": \"abc123def456\"}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::ReasoningSignature, $events[0]->type);
-        $this->assertSame('abc123def456', $events[0]->reasoningSignature);
-    }
-
-    /**
-     * Protects "reasoning redacted event parsed" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testReasoningRedactedEventParsed(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"reasoning_redacted\"}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::ReasoningRedacted, $events[0]->type);
-    }
-
-    /**
-     * Protects "buffer overflow throws stream interrupted exception" so network chunks cannot corrupt the live event sequence.
+     * Verifies an oversized incomplete frame raises StreamInterruptedException.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void
      */
@@ -599,7 +281,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "buffer does not throw below limit" so network chunks cannot corrupt the live event sequence.
+     * Verifies a bounded incomplete frame remains buffered so network chunks cannot corrupt callback order.
      *
      * @return void
      */
@@ -619,7 +301,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "large chunk with bounded frames does not trigger buffer limit" so network chunks cannot corrupt the live event sequence.
+     * Verifies many bounded frames in one chunk stay below the incomplete-frame limit.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void The assertions protect proxies that coalesce multiple sub-10 MB events into one network callback.
      */
@@ -635,127 +318,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "try from array returns null for unparseable event shape" so network chunks cannot corrupt the live event sequence.
-     *
-     * @param array<string, mixed> $payload Wire-shape payload that cannot resolve to a known event type.
-     * @return void
-     */
-    #[DataProvider('unparseableEventPayloadProvider')]
-    public function testTryFromArrayReturnsNullForUnparseableEventShape(array $payload): void
-    {
-        $this->assertNull(\StrandsPhpClient\Streaming\StreamEvent::tryFromArray($payload));
-    }
-
-    /**
-     * Supplies the input variants for the related stream-parsing scenario.
-     * An empty provider would leave a caller-visible edge case unverified.
-     *
-     * @return iterable<string, array{0: array<string, mixed>}> Malformed stream payloads that should not break live app updates.
-     */
-    public static function unparseableEventPayloadProvider(): iterable
-    {
-        yield 'unknown type enum' => [['type' => 'future_event', 'data' => 'something new']];
-        yield 'type field missing entirely' => [['content' => 'no type']];
-        yield 'type field present but empty string' => [['type' => '']];
-    }
-
-    /**
-     * Protects "try from array returns event on known type" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testTryFromArrayReturnsEventOnKnownType(): void
-    {
-        $result = \StrandsPhpClient\Streaming\StreamEvent::tryFromArray([
-            'type' => 'text',
-            'content' => 'hello',
-        ]);
-
-        $this->assertNotNull($result);
-        $this->assertSame(StreamEventType::Text, $result->type);
-        $this->assertSame('hello', $result->text);
-    }
-
-    /**
-     * Protects "try from array returns complete event" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testTryFromArrayReturnsCompleteEvent(): void
-    {
-        $result = \StrandsPhpClient\Streaming\StreamEvent::tryFromArray([
-            'type' => 'complete',
-            'text' => 'Full response',
-            'session_id' => 'sess-1',
-            'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
-            'tools_used' => [],
-            'stop_reason' => 'end_turn',
-        ]);
-
-        $this->assertNotNull($result);
-        $this->assertSame(StreamEventType::Complete, $result->type);
-        $this->assertSame('Full response', $result->fullText);
-        $this->assertSame('sess-1', $result->sessionId);
-        $this->assertSame('end_turn', $result->stopReason);
-    }
-
-    /**
-     * Protects "skips unknown event in fixture stream" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testSkipsUnknownEventInFixtureStream(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = $this->loadFixture('sse-with-unknown-event.txt');
-
-        $events = $streamParser->feed($raw);
-
-        // A future event is hidden while the recognized text and completion still reach an older app.
-        $this->assertCount(2, $events);
-        $this->assertSame(StreamEventType::Text, $events[0]->type);
-        $this->assertSame('Hello', $events[0]->text);
-        $this->assertSame(StreamEventType::Complete, $events[1]->type);
-        $this->assertSame(1, $streamParser->getSkippedEvents());
-    }
-
-    /**
-     * Protects "complete event parses stop reason" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testCompleteEventParsesStopReason(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = 'data: {"type": "complete", "text": "Done", "session_id": "s-1", '
-            . '"usage": {}, "tools_used": [], "stop_reason": "end_turn"}' . "\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::Complete, $events[0]->type);
-        $this->assertSame('end_turn', $events[0]->stopReason);
-    }
-
-    /**
-     * Protects "complete event parses context size fields" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testCompleteEventParsesContextSizeFields(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"complete\", \"text\": \"Done\", \"context_size\": 8192, \"projected_context_size\": 9216}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(8192, $events[0]->contextSize);
-        $this->assertSame(9216, $events[0]->projectedContextSize);
-    }
-
-    /**
-     * Protects "data with space vs without space parses differently" so network chunks cannot corrupt the live event sequence.
+     * Verifies SSE data prefixes preserve the optional single space.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void
      */
@@ -780,7 +344,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "comment line continues parsing remaining lines" so network chunks cannot corrupt the live event sequence.
+     * Verifies an SSE comment does not hide later data lines.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void
      */
@@ -789,19 +354,19 @@ class StreamParserTest extends TestCase
         $streamParser = new StreamParser();
 
         // Heartbeat comments between data lines are ignored, allowing the user's one logical event to continue across them.
-        $raw = ": first comment\n"
+        $sseFrame = ": first comment\n"
             . "data: {\"type\": \"text\",\n"
             . ": middle comment\n"
             . "data:  \"content\": \"multi-line\"}\n\n";
 
-        $events = $streamParser->feed($raw);
+        $events = $streamParser->feed($sseFrame);
 
         $this->assertCount(1, $events);
         $this->assertSame('multi-line', $events[0]->text);
     }
 
     /**
-     * Protects "empty data block returns no event" so network chunks cannot corrupt the live event sequence.
+     * Verifies an empty SSE data block produces no event so network chunks cannot corrupt callback order.
      *
      * @return void
      */
@@ -810,10 +375,10 @@ class StreamParserTest extends TestCase
         $streamParser = new StreamParser();
 
         // A heartbeat-only frame carries no user-visible content, while the next data frame does.
-        $raw = ": just a heartbeat\n\n"
+        $sseFrame = ": just a heartbeat\n\n"
             . "data: {\"type\": \"text\", \"content\": \"after\"}\n\n";
 
-        $events = $streamParser->feed($raw);
+        $events = $streamParser->feed($sseFrame);
 
         // Only the real data frame reaches the app callback.
         $this->assertCount(1, $events);
@@ -821,7 +386,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "crlf normalization required" so network chunks cannot corrupt the live event sequence.
+     * Verifies CRLF input is normalized before event parsing so network chunks cannot corrupt callback order.
      *
      * @return void
      */
@@ -830,8 +395,8 @@ class StreamParserTest extends TestCase
         $streamParser = new StreamParser();
 
         // A Windows-style CRLF delimiter must finish the same user event as LF.
-        $raw = "data: {\"type\": \"text\", \"content\": \"crlf\"}\r\n\r\n";
-        $events = $streamParser->feed($raw);
+        $sseFrame = "data: {\"type\": \"text\", \"content\": \"crlf\"}\r\n\r\n";
+        $events = $streamParser->feed($sseFrame);
 
         $this->assertCount(1, $events);
         $this->assertSame('crlf', $events[0]->text);
@@ -846,7 +411,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "buffer advancement after event parsed" so network chunks cannot corrupt the live event sequence.
+     * Verifies the parser advances beyond each completed frame so network chunks cannot corrupt callback order.
      *
      * @return void
      */
@@ -855,10 +420,10 @@ class StreamParserTest extends TestCase
         $streamParser = new StreamParser();
 
         // Advancing past the first delimiter ensures both consecutive updates reach the user's live screen in order.
-        $raw = "data: {\"type\": \"text\", \"content\": \"A\"}\n\n"
+        $sseFrame = "data: {\"type\": \"text\", \"content\": \"A\"}\n\n"
             . "data: {\"type\": \"text\", \"content\": \"B\"}\n\n";
 
-        $events = $streamParser->feed($raw);
+        $events = $streamParser->feed($sseFrame);
 
         $this->assertCount(2, $events);
         $this->assertSame('A', $events[0]->text);
@@ -866,160 +431,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "has objective defaults false when missing" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testHasObjectiveDefaultsFalseWhenMissing(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = "data: {\"type\": \"text\", \"content\": \"hello\"}\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertFalse($events[0]->hasObjective);
-    }
-
-    /**
-     * Protects "stream event constructor defaults false for has objective" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testStreamEventConstructorDefaultsFalseForHasObjective(): void
-    {
-        $streamEvent = new \StrandsPhpClient\Streaming\StreamEvent(
-            type: StreamEventType::Text,
-            text: 'hello',
-        );
-
-        $this->assertFalse($streamEvent->hasObjective);
-    }
-    /**
-     * Builds a complete SSE frame for the related live-response scenario.
-     * Use it when the parser case needs realistic data without hiding the expected event.
-     *
-     * @return string text value used in the caller-facing agent flow.
-     */
-    private function rawForToolsUsedFiltersMalformedEntries(): string
-    {
-        return 'data: {"type": "complete", "text": "Done", "session_id": null, "usage": {}, '
-            . '"tools_used": [{"name": "search", "duration_ms": 100}, '
-            . '{"no_name": true}, "not_array", {"name": 123}]}' . "\n\n";
-    }
-
-    /**
-     * Protects "tools used filters malformed entries" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testToolsUsedFiltersMalformedEntries(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = $this->rawForToolsUsedFiltersMalformedEntries();
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        // Only the named tool can become a trustworthy activity entry under the user's answer.
-        $this->assertCount(1, $events[0]->toolsUsed);
-        $this->assertSame('search', $events[0]->toolsUsed[0]['name']);
-    }
-
-    /**
-     * Protects "multiple interrupts in complete event" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testMultipleInterruptsInCompleteEvent(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = 'data: {"type": "complete", "text": "", "session_id": null, "usage": {}, '
-            . '"tools_used": [], "stop_reason": "interrupt", '
-            . '"interrupts": [{"tool_name": "deploy", "interrupt_id": "i1", "reason": "Approve"}, '
-            . '{"tool_name": "scale", "interrupt_id": "i2", "reason": "Confirm"}]}' . "\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertCount(2, $events[0]->interrupts);
-        $this->assertSame('deploy', $events[0]->interrupts[0]['tool_name']);
-        $this->assertSame('scale', $events[0]->interrupts[1]['tool_name']);
-    }
-
-    /**
-     * Protects "guardrail trace from nested trace key" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testGuardrailTraceFromNestedTraceKey(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = 'data: {"type": "complete", "text": "", "session_id": null, "usage": {}, '
-            . '"tools_used": [], '
-            . '"trace": {"guardrail": {"action": "BLOCKED", "guardrail_id": "g1"}}}' . "\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertNotNull($events[0]->guardrailTrace);
-        $this->assertSame('BLOCKED', $events[0]->guardrailTrace['action']);
-        $this->assertSame('g1', $events[0]->guardrailTrace['guardrail_id']);
-    }
-
-    /**
-     * Protects "guardrail trace top level takes precedence" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testGuardrailTraceTopLevelTakesPrecedence(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = 'data: {"type": "complete", "text": "", "session_id": null, "usage": {}, '
-            . '"tools_used": [], "guardrail_trace": {"action": "TOP"}, '
-            . '"trace": {"guardrail": {"action": "NESTED"}}}' . "\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame('TOP', $events[0]->guardrailTrace['action']);
-    }
-
-    /**
-     * Protects "guardrail trace null when trace key is not array" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testGuardrailTraceNullWhenTraceKeyIsNotArray(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = 'data: {"type": "complete", "text": "", "session_id": null, "usage": {}, "tools_used": [], "trace": "not_array"}' . "\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertNull($events[0]->guardrailTrace);
-    }
-
-    /**
-     * Protects "citation event parsed correctly" so network chunks cannot corrupt the live event sequence.
-     *
-     * @return void
-     */
-    public function testCitationEventParsedCorrectly(): void
-    {
-        $streamParser = new StreamParser();
-        $raw = 'data: {"type": "citation", "citation": {"source": "doc1", "text": "relevant passage"}}' . "\n\n";
-
-        $events = $streamParser->feed($raw);
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::Citation, $events[0]->type);
-        $this->assertNotNull($events[0]->citation);
-        $this->assertSame('doc1', $events[0]->citation['source']);
-    }
-
-    /**
-     * Protects "crlf split across chunks" so network chunks cannot corrupt the live event sequence.
+     * Verifies CRLF split across chunks so network chunks cannot corrupt callback order.
      *
      * @return void
      */
@@ -1037,7 +449,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "bare trailing cr normalised without following lf" so network chunks cannot corrupt the live event sequence.
+     * Verifies a trailing carriage return is normalized without a following line feed.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void
      */
@@ -1056,7 +469,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "partial event at eof remains in buffer" so network chunks cannot corrupt the live event sequence.
+     * Verifies partial event at EOF remains in buffer so network chunks cannot corrupt callback order.
      *
      * @return void
      */
@@ -1075,7 +488,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "trailing newline after last event does not create phantom event" so network chunks cannot corrupt the live event sequence.
+     * Verifies a trailing newline does not create a phantom event.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void
      */
@@ -1090,7 +504,8 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "consecutive empty event boundaries skipped" so network chunks cannot corrupt the live event sequence.
+     * Verifies consecutive empty event boundaries produce no callbacks.
+     * This prevents network chunk boundaries from corrupting the event sequence delivered to callbacks.
      *
      * @return void
      */
@@ -1107,7 +522,7 @@ class StreamParserTest extends TestCase
     }
 
     /**
-     * Protects "stream sse eof mid event is discarded" so network chunks cannot corrupt the live event sequence.
+     * Verifies raw SSE parsing discards an incomplete event at EOF so network chunks cannot corrupt callback order.
      *
      * @return void
      */

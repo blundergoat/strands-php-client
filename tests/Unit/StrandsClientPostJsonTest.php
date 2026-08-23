@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Strands Client Post Json behavior for app integrations.
- *
- * Use this file when changing Strands Client Post Json or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
@@ -21,33 +14,34 @@ use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\StrandsClient;
 
 /**
- * Exercises Strands Client Post Json through the public surface used by application code.
+ * Verifies custom JSON requests preserve paths and payloads while sharing authentication, retries, timeouts, and logging.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing StrandsClient::postJson() or shared request orchestration.
+ * They protect domain-specific endpoints that return raw response objects to the calling app.
  */
 class StrandsClientPostJsonTest extends TestCase
 {
     /**
-     * Create mock transport for the test scenario.
+     * Builds a transport that returns one controlled custom-endpoint response.
+     * Use it when the scenario needs response data without inspecting transport calls.
      *
-     * @param array<string, mixed> $response Parsed response data for the operation.
-     * @return HttpTransport Value produced by the method.
+     * @param array<string, mixed> $responseData Parsed response map; empty models a valid empty JSON object.
+     * @return HttpTransport Mock transport returning the supplied custom response.
      */
-    private function createMockTransport(array $response): HttpTransport
+    private function mockTransportReturning(array $responseData): HttpTransport
     {
-        $mock = $this->createMock(HttpTransport::class);
-        $mock->method('post')->willReturn($response);
+        $mockTransport = $this->createMock(HttpTransport::class);
+        $mockTransport->method('post')->willReturn($responseData);
 
-        return $mock;
+        return $mockTransport;
     }
 
     /**
-     * Build a transport whose post() throws once and then returns the given payload on every subsequent call.
+     * Builds a transport whose post() throws once and then returns the given payload on later calls.
      * Keeps retry-counting state out of test bodies so each retry test reads linearly.
      *
      * @param \Throwable $throwOnce Exception thrown by the first call to post().
-     * @param array<string, mixed> $thenReturn Payload returned by every call after the first.
+     * @param array<string, mixed> $thenReturn Later response fields; empty models an endpoint with no response fields.
      * @return HttpTransport Mocked transport with the throw-then-return sequence wired up.
      */
     private function transportThrowsOnceThenReturns(\Throwable $throwOnce, array $thenReturn): HttpTransport
@@ -155,7 +149,7 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturnArgument(0);
 
-        $transport = $this->createMockTransport(['summary' => 'test']);
+        $transport = $this->mockTransportReturning(['summary' => 'test']);
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(
@@ -183,7 +177,7 @@ class StrandsClientPostJsonTest extends TestCase
             'verification' => ['score' => 95, 'verdict' => 'excellent'],
         ];
 
-        $transport = $this->createMockTransport($expected);
+        $transport = $this->mockTransportReturning($expected);
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -263,7 +257,7 @@ class StrandsClientPostJsonTest extends TestCase
      */
     public function testPostJsonThrowsOnEncodingFailure(): void
     {
-        $transport = $this->createMockTransport([]);
+        $transport = $this->mockTransportReturning([]);
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -287,7 +281,7 @@ class StrandsClientPostJsonTest extends TestCase
      */
     public function testPostJsonLogsDebug(): void
     {
-        $transport = $this->createMockTransport(['summary' => 'test']);
+        $transport = $this->mockTransportReturning(['summary' => 'test']);
 
         $logger = $this->createMock(LoggerInterface::class);
         $debugCalls = [];
@@ -409,7 +403,7 @@ class StrandsClientPostJsonTest extends TestCase
      */
     public function testPostJsonRejectsZeroTimeout(): void
     {
-        $transport = $this->createMockTransport([]);
+        $transport = $this->mockTransportReturning([]);
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
@@ -429,7 +423,7 @@ class StrandsClientPostJsonTest extends TestCase
      */
     public function testPostJsonRejectsNegativeTimeout(): void
     {
-        $transport = $this->createMockTransport([]);
+        $transport = $this->mockTransportReturning([]);
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),

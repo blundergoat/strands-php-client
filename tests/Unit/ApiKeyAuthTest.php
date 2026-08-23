@@ -2,28 +2,21 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Api Key Auth behavior for app integrations.
- *
- * Use this file when changing Api Key Auth or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Auth\ApiKeyAuth;
 
 /**
- * Exercises Api Key Auth through the public surface used by application code.
+ * Verifies API-key authentication adds the header name and value prefix configured by the calling app.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing default bearer behavior or custom authentication headers.
+ * They protect existing request headers while ensuring the agent receives usable credentials.
  */
 class ApiKeyAuthTest extends TestCase
 {
     /**
-     * Confirms the default bearer authentication is applied so authenticated requests reach the agent with the intended headers.
+     * Confirms the default bearer authentication is applied so the gateway receives the authentication format configured by the application.
      *
      * @return void
      */
@@ -39,7 +32,7 @@ class ApiKeyAuthTest extends TestCase
     }
 
     /**
-     * Confirms a custom API-key header name is applied so authenticated requests reach the agent with the intended headers.
+     * Confirms a custom API-key header name is applied so the gateway receives the authentication format configured by the application.
      *
      * @return void
      */
@@ -55,7 +48,7 @@ class ApiKeyAuthTest extends TestCase
     }
 
     /**
-     * Confirms a custom API-key prefix is applied so authenticated requests reach the agent with the intended headers.
+     * Confirms a custom API-key prefix is applied so the gateway receives the authentication format configured by the application.
      *
      * @return void
      */
@@ -69,7 +62,7 @@ class ApiKeyAuthTest extends TestCase
     }
 
     /**
-     * Confirms existing headers are preserved so authenticated requests reach the agent with the intended headers.
+     * Confirms existing headers are preserved so the gateway receives the authentication format configured by the application.
      *
      * @return void
      */

@@ -2,32 +2,25 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Interrupt Detail behavior for app integrations.
- *
- * Use this file when changing Interrupt Detail or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\InterruptDetail;
 
 /**
- * Exercises Interrupt Detail through the public surface used by application code.
+ * Verifies interrupt details hydrate defensively and produce the resume input needed after a user decision.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing interrupt identifiers, messages, reasons, or resume serialization.
+ * They protect approval and clarification flows from losing the action being resumed.
  */
 class InterruptDetailTest extends TestCase
 {
     /**
-     * Data fixture for testFromArrayHydratesAllFields().
+     * Builds a complete interrupt payload for an approval or clarification prompt.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Wire fields supplied to InterruptDetail::fromArray(); never empty.
      */
-    private function dataForFromArrayHydratesAllFields(): array
+    private function completeInterruptPayload(): array
     {
         return [
             'tool_name' => 'deploy',
@@ -39,13 +32,13 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Confirms fromArray() hydrates all fields so the app renders trustworthy answer details.
+     * Confirms fromArray() hydrates all fields so approval flows can safely inspect or resume an action.
      *
      * @return void
      */
     public function testFromArrayHydratesAllFields(): void
     {
-        $interruptData = $this->dataForFromArrayHydratesAllFields();
+        $interruptData = $this->completeInterruptPayload();
 
         $interruptDetail = InterruptDetail::fromArray($interruptData);
 
@@ -57,7 +50,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Confirms fromArray() handles missing fields so the app renders trustworthy answer details.
+     * Confirms fromArray() handles missing fields so approval flows can safely inspect or resume an action.
      *
      * @return void
      */
@@ -72,11 +65,11 @@ class InterruptDetailTest extends TestCase
         $this->assertNull($interruptDetail->reason);
     }
     /**
-     * Data fixture for testFromArrayHandlesNonStringValues().
+     * Builds malformed interrupt fields like those a loosely typed endpoint could return.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Invalid wire values supplied to defensive parsing; never empty.
      */
-    private function dataForFromArrayHandlesNonStringValues(): array
+    private function malformedInterruptPayload(): array
     {
         return [
             'tool_name' => 123,
@@ -89,13 +82,13 @@ class InterruptDetailTest extends TestCase
 
 
     /**
-     * Confirms fromArray() handles non string values so the app renders trustworthy answer details.
+     * Confirms fromArray() rejects non-string fields so malformed responses cannot corrupt approval flows.
      *
      * @return void
      */
     public function testFromArrayHandlesNonStringValues(): void
     {
-        $interruptData = $this->dataForFromArrayHandlesNonStringValues();
+        $interruptData = $this->malformedInterruptPayload();
 
         $interruptDetail = InterruptDetail::fromArray($interruptData);
 
@@ -107,7 +100,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Confirms callers can instantiate the DTO directly so the app renders trustworthy answer details.
+     * Confirms callers can instantiate the DTO directly so approval flows can safely inspect or resume an action.
      *
      * @return void
      */
@@ -127,7 +120,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Confirms toResumeInput() uses interrupt ID so the app renders trustworthy answer details.
+     * Confirms toResumeInput() uses interrupt ID so approval flows can safely inspect or resume an action.
      *
      * @return void
      */
@@ -149,7 +142,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Confirms toResumeInput() falls back to tool use ID so the app renders trustworthy answer details.
+     * Confirms toResumeInput() falls back to tool use ID so approval flows can safely inspect or resume an action.
      *
      * @return void
      */
@@ -169,7 +162,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Confirms toResumeInput() throws when no identifier so the app renders trustworthy answer details.
+     * Confirms toResumeInput() throws when no identifier so approval flows can safely inspect or resume an action.
      *
      * @return void
      */
@@ -186,7 +179,7 @@ class InterruptDetailTest extends TestCase
     }
 
     /**
-     * Confirms fromArray() with neither ID produces detail so the app renders trustworthy answer details.
+     * Confirms fromArray() with neither ID produces detail so approval flows can safely inspect or resume an action.
      *
      * @return void
      */

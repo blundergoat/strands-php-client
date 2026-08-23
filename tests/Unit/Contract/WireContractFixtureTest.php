@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Wire Contract Fixture behavior for app integrations.
- *
- * Use this file when changing Wire Contract Fixture or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Contract;
 
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -18,10 +11,10 @@ use StrandsPhpClient\Streaming\StreamEventType;
 use StrandsPhpClient\Streaming\StreamParser;
 
 /**
- * Exercises Wire Contract Fixture through the public surface used by application code.
+ * Verifies every Wire Contract fixture remains structured and parseable through its matching client boundary.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when adding or changing request, response, error, custom endpoint, or stream fixtures.
+ * They protect the v1 payload shapes shared by wrappers and calling applications.
  */
 final class WireContractFixtureTest extends TestCase
 {
@@ -29,9 +22,10 @@ final class WireContractFixtureTest extends TestCase
     private const FIXTURE_DIR = __DIR__ . '/../../Fixtures/wire-contract';
 
     /**
-     * Provides app-facing scenarios for invoke response fixture.
+     * Lists every invoke-response fixture that a calling application must still hydrate.
+     * Use it to keep new terminal response shapes inside the executable contract suite.
      *
-     * @return iterable<string, array{string}> Scenario data for invoke response fixture behavior.
+     * @return iterable<string, array{string}> Invoke-response paths; empty means required contract fixtures are missing.
      */
     public static function invokeResponseFixtureProvider(): iterable
     {
@@ -45,9 +39,10 @@ final class WireContractFixtureTest extends TestCase
     }
 
     /**
-     * Provides app-facing scenarios for invoke request fixture.
+     * Lists every invoke-request fixture that a wrapper must accept from calling applications.
+     * Use it to keep new request envelopes inside the executable contract suite.
      *
-     * @return iterable<string, array{string}> Scenario data for invoke request fixture behavior.
+     * @return iterable<string, array{string}> Invoke-request paths; empty means required contract fixtures are missing.
      */
     public static function invokeRequestFixtureProvider(): iterable
     {
@@ -61,9 +56,10 @@ final class WireContractFixtureTest extends TestCase
     }
 
     /**
-     * Provides app-facing scenarios for stream fixture.
+     * Lists every stream fixture whose terminal event sequence must remain parseable.
+     * Use it when adding a caller-visible typed or error stream profile.
      *
-     * @return iterable<string, array{string}> Scenario data for stream fixture behavior.
+     * @return iterable<string, array{string}> Stream fixture paths; empty means required contract fixtures are missing.
      */
     public static function streamFixtureProvider(): iterable
     {
@@ -77,9 +73,10 @@ final class WireContractFixtureTest extends TestCase
     }
 
     /**
-     * Provides app-facing scenarios for non invoke json fixture.
+     * Lists custom JSON response fixtures that remain outside typed invoke and error checks.
+     * Use it to verify domain-specific endpoint objects stay structurally valid.
      *
-     * @return iterable<string, array{string}> Scenario data for non invoke json fixture behavior.
+     * @return iterable<string, array{string}> Custom JSON paths; empty means no domain-specific fixtures are registered.
      */
     public static function nonInvokeJsonFixtureProvider(): iterable
     {
@@ -111,7 +108,7 @@ final class WireContractFixtureTest extends TestCase
     #[DataProvider('invokeResponseFixtureProvider')]
     public function testInvokeResponseFixturesParseAsAgentResponses(string $path): void
     {
-        $fixtureData = self::jsonFixture($path);
+        $fixtureData = self::loadJsonFixture($path);
 
         $response = AgentResponse::fromArray($fixtureData);
 
@@ -128,7 +125,7 @@ final class WireContractFixtureTest extends TestCase
     #[DataProvider('invokeRequestFixtureProvider')]
     public function testInvokeRequestFixturesAreValidRequestEnvelopes(string $path): void
     {
-        $fixtureData = self::jsonFixture($path);
+        $fixtureData = self::loadJsonFixture($path);
 
         $this->assertArrayHasKey('message', $fixtureData, basename($path));
         $this->assertTrue(
@@ -154,7 +151,7 @@ final class WireContractFixtureTest extends TestCase
      */
     public function testErrorResponseFixtureIsStructuredJson(): void
     {
-        $fixtureData = self::jsonFixture(self::FIXTURE_DIR . '/error-response.json');
+        $fixtureData = self::loadJsonFixture(self::FIXTURE_DIR . '/error-response.json');
 
         $this->assertArrayHasKey('message', $fixtureData);
         $this->assertIsString($fixtureData['message']);
@@ -179,7 +176,7 @@ final class WireContractFixtureTest extends TestCase
     #[DataProvider('nonInvokeJsonFixtureProvider')]
     public function testOtherJsonFixturesAreStructuredObjects(string $path): void
     {
-        $fixtureData = self::jsonFixture($path);
+        $fixtureData = self::loadJsonFixture($path);
 
         $this->assertNotSame([], $fixtureData, basename($path));
     }
@@ -194,7 +191,7 @@ final class WireContractFixtureTest extends TestCase
     public function testStreamFixturesParseToTerminalEvents(string $path): void
     {
         $streamParser = new StreamParser();
-        $events = $streamParser->feed(self::textFixture($path));
+        $events = $streamParser->feed(self::loadTextFixture($path));
 
         $this->assertNotSame([], $events, basename($path));
         $this->assertSame(0, $streamParser->getSkippedEvents(), basename($path));
@@ -209,14 +206,15 @@ final class WireContractFixtureTest extends TestCase
     }
 
     /**
-     * Supports the json fixture step in the app-facing flow.
+     * Decodes one Wire Contract JSON file after proving its contents are readable.
+     * Use it when a fixture represents a request, response, error, or custom endpoint object.
      *
-     * @param string $path request path that becomes part of the signed URL.
-     * @return array<string, mixed> Fixture data used to verify the public wire contract.
+     * @param string $path Full fixture path; empty cannot identify a contract example.
+     * @return array<string, mixed> Decoded fixture fields; an empty object remains a valid explicit fixture.
      */
-    private static function jsonFixture(string $path): array
+    private static function loadJsonFixture(string $path): array
     {
-        $raw = self::textFixture($path);
+        $raw = self::loadTextFixture($path);
         $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
 
         self::assertIsArray($decoded, basename($path));
@@ -226,12 +224,13 @@ final class WireContractFixtureTest extends TestCase
     }
 
     /**
-     * Handle text fixture.
+     * Loads raw JSON or SSE fixture bytes before decoding or stream parsing.
+     * Use it to keep filesystem validation in one place for every contract example.
      *
-     * @param string $path Fixture path supplied by the data provider.
-     * @return string String value produced by the helper.
+     * @param string $path Full fixture path; empty cannot identify a contract example.
+     * @return string Fixture bytes; never empty for the committed Wire Contract examples.
      */
-    private static function textFixture(string $path): string
+    private static function loadTextFixture(string $path): string
     {
         $raw = file_get_contents($path);
         self::assertIsString($raw, basename($path));

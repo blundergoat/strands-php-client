@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Psr Http Transport behavior for app integrations.
- *
- * Use this file when changing Psr Http Transport or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -25,20 +18,21 @@ use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\PsrHttpTransport;
 
 /**
- * Exercises Psr Http Transport through the public surface used by application code.
+ * Verifies PSR-18 requests carry the caller payload and surface decoded responses, agent errors, and transport failures.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing request factories, JSON handling, error parsing, or unsupported streaming behavior.
+ * They protect applications that inject a PSR HTTP client instead of Symfony HttpClient.
  */
 class PsrHttpTransportTest extends TestCase
 {
     /**
-     * Create transport for the test scenario.
+     * Builds a PSR transport whose injected client returns one controlled response.
+     * Use it to inspect caller-visible decoding and error behavior without network access.
      *
-     * @param ResponseInterface $response Parsed response data for the operation.
-     * @return PsrHttpTransport Value produced by the method.
+     * @param ResponseInterface $response Controlled HTTP response returned to the transport; never null.
+     * @return PsrHttpTransport Transport wired to the controlled PSR collaborators.
      */
-    private function createTransport(
+    private function transportReturning(
         ResponseInterface $response,
     ): PsrHttpTransport {
         $stream = $this->createMock(StreamInterface::class);
@@ -60,13 +54,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Create response for the test scenario.
+     * Builds a PSR response with the status and body an agent gateway could return.
+     * Use it to model successful JSON, structured errors, plain text, or malformed JSON.
      *
-     * @param int $statusCode HTTP status code for the operation.
-     * @param string $body Request or response body used by the scenario.
-     * @return ResponseInterface Value produced by the method.
+     * @param int $statusCode HTTP status observed by the calling application.
+     * @param string $body Raw response body; empty represents an agent response with no content.
+     * @return ResponseInterface Controlled PSR response; never null.
      */
-    private function createResponse(int $statusCode, string $body): ResponseInterface
+    private function psrResponse(int $statusCode, string $body): ResponseInterface
     {
         $bodyStream = $this->createMock(StreamInterface::class);
         $bodyStream->method('__toString')->willReturn($body);
@@ -79,14 +74,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() returns decoded JSON so the app receives a clear answer or failure.
+     * Confirms post() returns decoded JSON so callers receive usable agent response fields.
      *
      * @return void
      */
     public function testPostReturnsDecodedJson(): void
     {
-        $response = $this->createResponse(200, '{"text":"hello","session_id":"s1"}');
-        $psrHttpTransport = $this->createTransport($response);
+        $response = $this->psrResponse(200, '{"text":"hello","session_id":"s1"}');
+        $psrHttpTransport = $this->transportReturning($response);
 
         $result = $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
 
@@ -95,18 +90,18 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() surfaces the agent error message from each documented error-response shape so the app receives a clear answer or failure.
+     * Confirms post() surfaces each documented error message so callers can present an actionable failure.
      *
-     * @param string $responseBody Body returned by the mock PSR-7 response.
+     * @param string $responseBody Non-empty body returned by the mock PSR-7 response.
      * @param int $statusCode HTTP status the mock PSR-7 response reports.
-     * @param string $expectedMessage Substring AgentErrorException::getMessage() must contain.
+     * @param string $expectedMessage Non-empty message callers must receive in AgentErrorException.
      * @return void
      */
     #[DataProvider('postErrorBodyProvider')]
     public function testPostThrowsAgentErrorOnDocumentedErrorShape(string $responseBody, int $statusCode, string $expectedMessage): void
     {
-        $response = $this->createResponse($statusCode, $responseBody);
-        $psrHttpTransport = $this->createTransport($response);
+        $response = $this->psrResponse($statusCode, $responseBody);
+        $psrHttpTransport = $this->transportReturning($response);
 
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessage($expectedMessage);
@@ -115,9 +110,9 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Cases for testPostThrowsAgentErrorOnDocumentedErrorShape().
+     * Lists documented error bodies and the message each caller exception must expose.
      *
-     * @return iterable<string, array{0: string, 1: int, 2: string}> Error body cases that keep transport failures clear to callers.
+     * @return iterable<string, array{0: string, 1: int, 2: string}> Non-empty error-body cases and caller messages.
      */
     public static function postErrorBodyProvider(): iterable
     {
@@ -127,14 +122,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() throws strands exception on invalid JSON so the app receives a clear answer or failure.
+     * Confirms post() throws StrandsException for invalid JSON so the app receives a clear failure instead of a corrupt answer.
      *
      * @return void
      */
     public function testPostThrowsStrandsExceptionOnInvalidJson(): void
     {
-        $response = $this->createResponse(200, 'not json at all');
-        $psrHttpTransport = $this->createTransport($response);
+        $response = $this->psrResponse(200, 'not json at all');
+        $psrHttpTransport = $this->transportReturning($response);
 
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
@@ -146,7 +141,7 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() wraps client exception so the app receives a clear answer or failure.
+     * Confirms post() wraps a PSR client failure so callers receive the library's documented exception type.
      *
      * @return void
      */
@@ -166,14 +161,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() sends headers so the app receives a clear answer or failure.
+     * Confirms post() forwards application headers to the PSR request unchanged.
      *
      * @return void
      */
     public function testPostSendsHeaders(): void
     {
         $psr17Factory = new Psr17Factory();
-        $response = $this->createResponse(200, '{"text":"ok"}');
+        $response = $this->psrResponse(200, '{"text":"ok"}');
 
         $capturedRequest = null;
         $httpClient = $this->createMock(ClientInterface::class);
@@ -200,14 +195,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms stream() throws strands exception so the app receives a clear answer or failure.
+     * Confirms stream() throws StrandsException so the app receives a clear failure instead of invalid events.
      *
      * @return void
      */
     public function testStreamThrowsStrandsException(): void
     {
-        $response = $this->createResponse(200, '{}');
-        $psrHttpTransport = $this->createTransport($response);
+        $response = $this->psrResponse(200, '{}');
+        $psrHttpTransport = $this->transportReturning($response);
 
         try {
             $psrHttpTransport->stream('http://example.com/stream', [], '{}', 30, 10, function () {
@@ -230,7 +225,7 @@ class PsrHttpTransportTest extends TestCase
     public function testTimeoutWarningLoggedOnceWithContext(): void
     {
         $psr17Factory = new Psr17Factory();
-        $response = $this->createResponse(200, '{"text":"ok"}');
+        $response = $this->psrResponse(200, '{"text":"ok"}');
 
         $httpClient = $this->createMock(ClientInterface::class);
         $httpClient->expects($this->any())->method('sendRequest')->willReturn($response);
@@ -264,14 +259,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() error prefers detail over error so the app receives a clear answer or failure.
+     * Confirms post() prefers specific detail over a generic error so callers receive the most useful message.
      *
      * @return void
      */
     public function testPostErrorPrefersDetailOverError(): void
     {
-        $response = $this->createResponse(422, '{"detail":"Specific detail","error":"General error"}');
-        $psrHttpTransport = $this->createTransport($response);
+        $response = $this->psrResponse(422, '{"detail":"Specific detail","error":"General error"}');
+        $psrHttpTransport = $this->transportReturning($response);
 
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
@@ -284,14 +279,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() error handles array detail so the app receives a clear answer or failure.
+     * Confirms post() renders an array of validation details as a readable caller error.
      *
      * @return void
      */
     public function testPostErrorHandlesArrayDetail(): void
     {
-        $response = $this->createResponse(422, '{"detail":["Error 1","Error 2"]}');
-        $psrHttpTransport = $this->createTransport($response);
+        $response = $this->psrResponse(422, '{"detail":["Error 1","Error 2"]}');
+        $psrHttpTransport = $this->transportReturning($response);
 
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
@@ -303,14 +298,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() error falls back to content when no detail or error so the app receives a clear answer or failure.
+     * Confirms post() falls back to response content when standard error fields are absent.
      *
      * @return void
      */
     public function testPostErrorFallsBackToContentWhenNoDetailOrError(): void
     {
-        $response = $this->createResponse(500, '{"some_key":"value"}');
-        $psrHttpTransport = $this->createTransport($response);
+        $response = $this->psrResponse(500, '{"some_key":"value"}');
+        $psrHttpTransport = $this->transportReturning($response);
 
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
@@ -322,14 +317,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() does not throw on 399 status code so the app receives a clear answer or failure.
+     * Confirms post() accepts status 399 so only documented HTTP errors become caller exceptions.
      *
      * @return void
      */
     public function testPostDoesNotThrowOn399StatusCode(): void
     {
-        $response = $this->createResponse(399, '{"text":"ok"}');
-        $psrHttpTransport = $this->createTransport($response);
+        $response = $this->psrResponse(399, '{"text":"ok"}');
+        $psrHttpTransport = $this->transportReturning($response);
 
         $result = $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
 
@@ -337,14 +332,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() error includes response body so the app receives a clear answer or failure.
+     * Confirms post() preserves a structured error body so forms can inspect field-level failure details.
      *
      * @return void
      */
     public function testPostErrorIncludesResponseBody(): void
     {
-        $response = $this->createResponse(422, '{"detail":"Validation failed","errors":[{"field":"name","msg":"required"}]}');
-        $psrHttpTransport = $this->createTransport($response);
+        $response = $this->psrResponse(422, '{"detail":"Validation failed","errors":[{"field":"name","msg":"required"}]}');
+        $psrHttpTransport = $this->transportReturning($response);
 
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
@@ -359,14 +354,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() error response body null for plain text so the app receives a clear answer or failure.
+     * Confirms a plain-text error has a null response body so apps do not mistake unstructured text for fields.
      *
      * @return void
      */
     public function testPostErrorResponseBodyNullForPlainText(): void
     {
-        $response = $this->createResponse(500, 'Internal Server Error');
-        $psrHttpTransport = $this->createTransport($response);
+        $response = $this->psrResponse(500, 'Internal Server Error');
+        $psrHttpTransport = $this->transportReturning($response);
 
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);
@@ -378,14 +373,14 @@ class PsrHttpTransportTest extends TestCase
     }
 
     /**
-     * Confirms post() does not double wrap strands exception so the app receives a clear answer or failure.
+     * Confirms post() preserves an existing StrandsException so callers retain its original failure details.
      *
      * @return void
      */
     public function testPostDoesNotDoubleWrapStrandsException(): void
     {
-        $response = $this->createResponse(200, 'not json');
-        $psrHttpTransport = $this->createTransport($response);
+        $response = $this->psrResponse(200, 'not json');
+        $psrHttpTransport = $this->transportReturning($response);
 
         try {
             $psrHttpTransport->post('http://example.com/invoke', [], '{}', 30, 10);

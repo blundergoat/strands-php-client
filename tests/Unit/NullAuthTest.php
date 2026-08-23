@@ -2,28 +2,21 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Null Auth behavior for app integrations.
- *
- * Use this file when changing Null Auth or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Auth\NullAuth;
 
 /**
- * Exercises Null Auth through the public surface used by application code.
+ * Verifies unauthenticated requests preserve every caller header without adding credentials.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing the no-auth strategy or shared header handling.
+ * They protect agents that rely on network-level trust or application-supplied headers.
  */
 class NullAuthTest extends TestCase
 {
     /**
-     * Confirms headers are returned unmodified so authenticated requests reach the agent with the intended headers.
+     * Confirms headers are returned unmodified so unauthenticated gateways receive exactly the application's headers.
      *
      * @return void
      */
@@ -37,11 +30,11 @@ class NullAuthTest extends TestCase
         $this->assertSame($headers, $result);
     }
     /**
-     * Test fixture for testPreservesAllMultipleHeaders().
+     * Builds the application headers that no-auth mode must pass through unchanged.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, string> Non-empty request headers supplied by the calling application.
      */
-    private function dataForPreservesAllMultipleHeaders(): array
+    private function applicationRequestHeaders(): array
     {
         return [
             'Content-Type' => 'application/json',
@@ -58,7 +51,7 @@ class NullAuthTest extends TestCase
     public function testPreservesAllMultipleHeaders(): void
     {
         $nullAuth = new NullAuth();
-        $headers = $this->dataForPreservesAllMultipleHeaders();
+        $headers = $this->applicationRequestHeaders();
 
         $result = $nullAuth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
 

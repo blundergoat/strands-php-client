@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Stream Event Citation behavior for app integrations.
- *
- * Use this file when changing Stream Event Citation or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Streaming;
 
 use PHPUnit\Framework\TestCase;
@@ -17,15 +10,15 @@ use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 
 /**
- * Exercises Stream Event Citation through the public surface used by application code.
+ * Verifies citation stream events expose a typed Citation while preserving partial and legacy flat data.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing StreamEvent citation hydration or compatibility fields.
+ * They protect source details shown while an answer is still streaming.
  */
 class StreamEventCitationTest extends TestCase
 {
     /**
-     * Confirms getCitationObject() returns typed citation so live answer updates and completion state stay reliable.
+     * Confirms getCitationObject() returns typed citation so apps receive reliable live updates.
      *
      * @return void
      */
@@ -50,7 +43,7 @@ class StreamEventCitationTest extends TestCase
     }
 
     /**
-     * Confirms getCitationObject() returns null when no citation so live answer updates and completion state stay reliable.
+     * Confirms getCitationObject() returns null when no citation so apps receive reliable live updates.
      *
      * @return void
      */
@@ -62,7 +55,7 @@ class StreamEventCitationTest extends TestCase
     }
 
     /**
-     * Confirms getCitationObject() handles partial data so live answer updates and completion state stay reliable.
+     * Confirms getCitationObject() handles partial data so apps receive reliable live updates.
      *
      * @return void
      */
@@ -85,7 +78,7 @@ class StreamEventCitationTest extends TestCase
     }
 
     /**
-     * Confirms getCitationObject() preserves flat citation data so live answer updates and completion state stay reliable.
+     * Confirms getCitationObject() preserves flat citation data so apps receive reliable live updates.
      *
      * @return void
      */

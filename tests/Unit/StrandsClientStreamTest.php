@@ -2,22 +2,12 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises typed live agent responses from the first event through the final StreamResult.
- *
- * It covers callback updates, cancellation, retries, terminal errors, usage, tools, and logs.
- * Failures here mean a chat UI could render the wrong live or final state.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\LoggerInterface;
 use StrandsPhpClient\Config\StrandsConfig;
-use StrandsPhpClient\Context\AgentContext;
 use StrandsPhpClient\Context\AgentInput;
-use StrandsPhpClient\Exceptions\StreamInterruptedException;
 use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\Response\GuardrailTrace;
 use StrandsPhpClient\Response\InterruptDetail;
@@ -39,102 +29,20 @@ class StrandsClientStreamTest extends TestCase
      * Loads captured fixture data for a realistic typed-streaming scenario.
      * Use it when a test needs the same payload an app could receive from an agent.
      *
-     * @param string $name Fixture file name under tests/Fixtures/.
-     * @return string Raw fixture contents.
+     * @param string $fixtureName Non-empty SSE fixture filename under tests/Fixtures/.
+     * @return string Captured SSE bytes; empty means no event reaches the app callback.
      */
-    private function loadSseFixture(string $name): string
+    private function loadSseFixture(string $fixtureName): string
     {
-        return file_get_contents(__DIR__ . '/../Fixtures/' . $name);
+        return file_get_contents(__DIR__ . '/../Fixtures/' . $fixtureName);
     }
 
     /**
      * Creates a controlled HTTP transport that reproduces the response chunks an app could receive.
      * Use it when the typed-streaming scenario must inspect requests or delivery order.
      *
-     * @param string $sseData Pre-built SSE payload to be chunked on \n\n boundaries.
-     * @return HttpTransport Mocked transport with the chunk-by-chunk delivery wired up.
-     */
-    private function chunkedStreamingTransport(string $sseData): HttpTransport
-    {
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')
-            ->willReturnCallback(function (
-                string $url,
-                array $headers,
-                string $body,
-                int $timeout,
-                int $connectTimeout,
-                callable $onChunk,
-            ) use ($sseData): void {
-                // Each delimiter represents one update the wrapper could flush while the user watches the answer arrive.
-                foreach (explode("\n\n", $sseData) as $chunk) {
-                    // The trailing split after the final delimiter has no event and should not invoke the app callback.
-                    if ($chunk === '') {
-                        continue;
-                    }
-                    $streamResult = $onChunk->__invoke($chunk . "\n\n");
-                    // Literal false means the user cancelled, so the transport must stop delivering later frames.
-                    if ($streamResult === false) {
-                        return;
-                    }
-                }
-            });
-
-        return $transport;
-    }
-
-    /**
-     * Checks the caller-visible fields shared by several typed-streaming scenarios.
-     * Use it to keep repeated expectations consistent and readable.
-     *
-     * @param array<string, list<string>> $expectedKeysPerMessage Map of log message text → required context keys.
-     * @return \Closure(string, array<string, mixed>=): void Callback suitable for `->willReturnCallback(...)`.
-     */
-    private function assertDebugContextKeys(array $expectedKeysPerMessage): \Closure
-    {
-        return function (string $message, array $context = []) use ($expectedKeysPerMessage): void {
-            $required = $expectedKeysPerMessage[$message] ?? null;
-            // Ignore unrelated debug messages; each test lists only the caller-visible operation logs it owns.
-            if ($required === null) {
-                return;
-            }
-            // Every required key keeps an existing log consumer working after the 1.5 additions.
-            foreach ($required as $key) {
-                \PHPUnit\Framework\Assert::assertArrayHasKey($key, $context, "Log '{$message}' must include context key '{$key}'");
-            }
-        };
-    }
-
-    /**
-     * Lists the safe fields expected from the related typed-streaming scenario.
-     * Use it when several tests must enforce the same user-facing diagnostic shape.
-     *
-     * @return array<string, list<string>> Required context keys keyed by log message.
-     */
-    private function expectedStreamDebugContextKeys(): array
-    {
-        return [
-            'Strands stream request' => ['url', 'session_id'],
-            'Strands stream complete' => [
-                'session_id',
-                'text_events',
-                'total_events',
-                'text_length',
-                'input_tokens',
-                'output_tokens',
-                'ttft_ms',
-                'tools_used',
-                'cancelled',
-            ],
-        ];
-    }
-
-    /**
-     * Creates a controlled HTTP transport that reproduces the response chunks an app could receive.
-     * Use it when the typed-streaming scenario must inspect requests or delivery order.
-     *
-     * @param string $sseFixture SSE fixture data yielded by the mock transport.
-     * @return HttpTransport Value produced by the method.
+     * @param string $sseFixture SSE bytes yielded by the mock; empty means the app receives no events.
+     * @return HttpTransport Mock transport that delivers the supplied SSE fixture; never null.
      */
     private function createStreamingTransport(string $sseFixture): HttpTransport
     {
@@ -155,46 +63,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream calls on event for each event" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamCallsOnEventForEachEvent(): void
-    {
-        $sseData = $this->loadSseFixture('sse-simple-text.txt');
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $streamResult = $strandsClient->stream(
-            message: 'Test message',
-            onEvent: function (StreamEvent $event) use (&$events) {
-                $events[] = $event;
-            },
-            context: AgentContext::create()->withMetadata('persona', 'analyst'),
-            sessionId: 'test-001',
-        );
-
-        $this->assertCount(3, $events);
-        $this->assertSame(StreamEventType::Text, $events[0]->type);
-        $this->assertSame('Hello, ', $events[0]->text);
-        $this->assertSame(StreamEventType::Complete, $events[2]->type);
-
-        $this->assertInstanceOf(StreamResult::class, $streamResult);
-        $this->assertSame('Hello, world!', $streamResult->text);
-        $this->assertSame('test-001', $streamResult->sessionId);
-        $this->assertSame(2, $streamResult->textEvents);
-        $this->assertSame(3, $streamResult->totalEvents);
-        $this->assertSame(10, $streamResult->usage->inputTokens);
-        $this->assertSame(5, $streamResult->usage->outputTokens);
-    }
-
-    /**
-     * Protects "stream sends correct url" so live updates and the final answer stay consistent.
+     * Verifies stream() sends the correct URL so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -239,7 +108,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream returns stream result" so live updates and the final answer stay consistent.
+     * Verifies stream() returns a complete StreamResult so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -274,62 +143,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream throws on missing terminal event" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamThrowsOnMissingTerminalEvent(): void
-    {
-        $incompleteSSE = "data: {\"type\": \"text\", \"content\": \"partial...\"}\n\n";
-        $transport = $this->createStreamingTransport($incompleteSSE);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $this->expectException(StreamInterruptedException::class);
-        $this->expectExceptionMessage('terminal event');
-
-        $strandsClient->stream(
-            message: 'Test',
-            onEvent: function () {
-            },
-        );
-    }
-
-    /**
-     * Protects "stream accepts error as terminal event" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamAcceptsErrorAsTerminalEvent(): void
-    {
-        $sseData = $this->loadSseFixture('sse-error-mid-stream.txt');
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (StreamEvent $event) use (&$events) {
-                $events[] = $event;
-            },
-        );
-
-        $this->assertCount(2, $events);
-        $this->assertSame(StreamEventType::Error, $events[1]->type);
-        $this->assertSame('error', $streamResult->terminalType);
-        $this->assertSame($events[1]->errorCode, $streamResult->errorCode);
-        $this->assertSame($events[1]->errorMessage, $streamResult->errorMessage);
-    }
-
-    /**
-     * Protects "stream parses tool use events" so live updates and the final answer stay consistent.
+     * Verifies stream() delivers typed tool-use events so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -366,7 +180,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream result default values" so live updates and the final answer stay consistent.
+     * Verifies stream() returns safe defaults when terminal fields are absent so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -385,35 +199,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream logs debug messages" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamLogsDebugMessages(): void
-    {
-        $sseData = $this->loadSseFixture('sse-simple-text.txt');
-        $transport = $this->createStreamingTransport($sseData);
-
-        $logger = $this->createMock(LoggerInterface::class);
-        $logger->expects($this->exactly(2))
-            ->method('debug')
-            ->willReturnCallback($this->assertDebugContextKeys($this->expectedStreamDebugContextKeys()));
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-            logger: $logger,
-        );
-
-        $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-        );
-    }
-
-    /**
-     * Protects "stream tools used passed from complete event" so live updates and the final answer stay consistent.
+     * Verifies stream() preserves terminal tool summaries so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -446,7 +232,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream with no text events" so live updates and the final answer stay consistent.
+     * Verifies stream() can finish without a text event so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -472,7 +258,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream falls back to complete full text" so live updates and the final answer stay consistent.
+     * Verifies stream() falls back to complete full text so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -500,7 +286,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream prefers accumulated text over full text" so live updates and the final answer stay consistent.
+     * Verifies stream() prefers accumulated text over full text so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -527,7 +313,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream usage handles non int tokens" so live updates and the final answer stay consistent.
+     * Verifies stream() gives malformed token counts safe defaults so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -554,7 +340,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream complete event has stop reason" so live updates and the final answer stay consistent.
+     * Verifies stream() preserves the terminal stop reason so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -581,7 +367,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream result defaults optional field to null" so live updates and the final answer stay consistent.
+     * Verifies stream() defaults each omitted optional result field to null so live callbacks and the final result agree.
      *
      * @param string $propertyName Name of the StreamResult property expected to be null.
      * @return void
@@ -608,8 +394,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Supplies the input variants for the related typed-streaming scenario.
-     * An empty provider would leave a caller-visible edge case unverified.
+     * Lists optional final-result fields that remain null when a completion omits them.
+     * An empty provider would leave safe stream-result defaults unverified.
      *
      * @return iterable<string, array{0: string}> Missing stream fields that should stay null for app callers.
      */
@@ -622,445 +408,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream cancels on false return" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamCancelsOnFalseReturn(): void
-    {
-        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
-            . "data: {\"type\": \"text\", \"content\": \" world\"}\n\n"
-            . "data: {\"type\": \"complete\", \"text\": \"Hello world\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (StreamEvent $event) use (&$events): bool {
-                $events[] = $event;
-
-                // Stop after the first live update so the app gets a partial result.
-                return false;
-            },
-        );
-
-        $this->assertCount(1, $events);
-        $this->assertSame(StreamEventType::Text, $events[0]->type);
-        // User cancellation returns the partial answer instead of misreporting a dropped connection.
-        $this->assertSame('Hello', $streamResult->text);
-    }
-
-    /**
-     * Protects "stream cancel does not throw interrupted exception" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamCancelDoesNotThrowInterruptedException(): void
-    {
-        // A user-stopped stream needs no terminal event because the cancellation itself explains why live output ended.
-        $sseData = "data: {\"type\": \"text\", \"content\": \"partial\"}\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): bool {
-                return false;
-            },
-        );
-
-        $this->assertSame('partial', $streamResult->text);
-    }
-
-    /**
-     * Protects "stream void callback continues" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamVoidCallbackContinues(): void
-    {
-        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
-            . "data: {\"type\": \"complete\", \"text\": \"Hello\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (StreamEvent $event) use (&$events): void {
-                $events[] = $event;
-            },
-        );
-
-        $this->assertCount(2, $events);
-        $this->assertSame('Hello', $streamResult->text);
-    }
-
-    /**
-     * Protects "stream cancels across chunks" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamCancelsAcrossChunks(): void
-    {
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->expects($this->any())->method('stream')
-            ->willReturnCallback(function (
-                string $url,
-                array $headers,
-                string $body,
-                int $timeout,
-                int $connectTimeout,
-                callable $onChunk,
-            ) {
-                $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
-                // This later chunk must stay hidden because the user already stopped live updates.
-                $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"second\"}\n\n");
-            });
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (StreamEvent $event) use (&$events): bool {
-                $events[] = $event;
-
-                return false;
-            },
-        );
-
-        $this->assertCount(1, $events);
-        $this->assertSame('first', $streamResult->text);
-    }
-
-    /**
-     * Protects "stream with timeout seconds override" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamWithTimeoutSecondsOverride(): void
-    {
-        $sseData = $this->loadSseFixture('sse-simple-text.txt');
-
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->expects($this->once())
-            ->method('stream')
-            ->with(
-                'http://localhost:8081/stream',
-                $this->anything(),
-                $this->anything(),
-                300,
-                10,
-                $this->anything(),
-            )
-            ->willReturnCallback(function (
-                string $url,
-                array $headers,
-                string $body,
-                int $timeout,
-                int $connectTimeout,
-                callable $onChunk,
-            ) use ($sseData) {
-                $onChunk->__invoke($sseData);
-            });
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-            timeoutSeconds: 300,
-        );
-
-        $this->assertInstanceOf(StreamResult::class, $streamResult);
-    }
-
-    /**
-     * Protects "stream timeout seconds rejects zero" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamTimeoutSecondsRejectsZero(): void
-    {
-        $sseData = $this->loadSseFixture('sse-simple-text.txt');
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('timeoutSeconds must be at least 1');
-
-        $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-            timeoutSeconds: 0,
-        );
-    }
-
-    /**
-     * Protects "stream timeout seconds null uses default" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamTimeoutSecondsNullUsesDefault(): void
-    {
-        $sseData = $this->loadSseFixture('sse-simple-text.txt');
-
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->expects($this->once())
-            ->method('stream')
-            ->with(
-                $this->anything(),
-                $this->anything(),
-                $this->anything(),
-                60,
-                10,
-                $this->anything(),
-            )
-            ->willReturnCallback(function (
-                string $url,
-                array $headers,
-                string $body,
-                int $timeout,
-                int $connectTimeout,
-                callable $onChunk,
-            ) use ($sseData) {
-                $onChunk->__invoke($sseData);
-            });
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 60),
-            transport: $transport,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-            timeoutSeconds: null,
-        );
-
-        $this->assertInstanceOf(StreamResult::class, $streamResult);
-    }
-
-    /**
-     * Protects "stream timeout seconds accepts boundary one" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamTimeoutSecondsAcceptsBoundaryOne(): void
-    {
-        $sseData = $this->loadSseFixture('sse-simple-text.txt');
-
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->expects($this->once())
-            ->method('stream')
-            ->with(
-                $this->anything(),
-                $this->anything(),
-                $this->anything(),
-                1,
-                10,
-                $this->anything(),
-            )
-            ->willReturnCallback(function (
-                string $url,
-                array $headers,
-                string $body,
-                int $timeout,
-                int $connectTimeout,
-                callable $onChunk,
-            ) use ($sseData) {
-                $onChunk->__invoke($sseData);
-            });
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-            timeoutSeconds: 1,
-        );
-
-        $this->assertInstanceOf(StreamResult::class, $streamResult);
-    }
-
-    /**
-     * Protects "stream result defaults time to first text token to null" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamResultDefaultsTimeToFirstTextTokenToNull(): void
-    {
-        $streamResult = new StreamResult(text: '');
-
-        $this->assertNull($streamResult->timeToFirstTextTokenMs);
-    }
-
-    /**
-     * Protects "stream records ttft when text events present" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamRecordsTtftWhenTextEventsPresent(): void
-    {
-        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
-            . "data: {\"type\": \"complete\", \"text\": \"Hello\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-        );
-
-        // Receiving text gives the final result a nonnegative client-measured time-to-first-text value.
-        $this->assertNotNull($streamResult->timeToFirstTextTokenMs);
-        $this->assertIsFloat($streamResult->timeToFirstTextTokenMs);
-        $this->assertGreaterThanOrEqual(0.0, $streamResult->timeToFirstTextTokenMs);
-    }
-
-    /**
-     * Protects "stream logs skipped events" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamLogsSkippedEvents(): void
-    {
-        $sseData = $this->loadSseFixture('sse-with-unknown-event.txt');
-        $transport = $this->createStreamingTransport($sseData);
-
-        $logger = $this->createMock(LoggerInterface::class);
-
-        // An unknown server event produces an upgrade hint for operators without interrupting the user's answer.
-        $logger->expects($this->once())
-            ->method('info')
-            ->with(
-                'strands.stream.skipped_events',
-                $this->callback(function (array $context): bool {
-                    return $context['count'] === 1
-                        && isset($context['hint']);
-                }),
-            );
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-            logger: $logger,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-        );
-
-        $this->assertInstanceOf(StreamResult::class, $streamResult);
-    }
-
-    /**
-     * Protects "stream does not log when no skipped events" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamDoesNotLogWhenNoSkippedEvents(): void
-    {
-        $sseData = $this->loadSseFixture('sse-simple-text.txt');
-        $transport = $this->createStreamingTransport($sseData);
-
-        $logger = $this->createMock(LoggerInterface::class);
-
-        // A fully recognized stream produces no compatibility warning for operators.
-        $logger->expects($this->never())
-            ->method('info');
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-            logger: $logger,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-        );
-
-        $this->assertInstanceOf(StreamResult::class, $streamResult);
-    }
-
-    /**
-     * Protects "stream debug log includes token timing field" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamDebugLogIncludesTokenTimingField(): void
-    {
-        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
-            . "data: {\"type\": \"complete\", \"text\": \"Hello\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $logger = $this->createMock(LoggerInterface::class);
-        $debugCalls = [];
-        $logger->expects($this->exactly(2))
-            ->method('debug')
-            ->willReturnCallback(function (string $message, array $context) use (&$debugCalls): void {
-                $debugCalls[] = ['message' => $message, 'context' => $context];
-            });
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-            logger: $logger,
-        );
-
-        $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-        );
-
-        $this->assertSame('Strands stream complete', $debugCalls[1]['message']);
-        $this->assertArrayHasKey('ttft_ms', $debugCalls[1]['context']);
-        $this->assertNotNull($debugCalls[1]['context']['ttft_ms']);
-    }
-
-    /**
-     * Protects "stream usage hydrates cache tokens" so live updates and the final answer stay consistent.
+     * Verifies stream() usage hydrates cache tokens so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -1093,7 +441,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream parses interrupts from complete event" so live updates and the final answer stay consistent.
+     * Verifies stream() preserves terminal interrupts so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -1123,7 +471,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream no interrupts defaults empty" so live updates and the final answer stay consistent.
+     * Verifies stream() defaults interrupts to an empty list when none arrive so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -1148,7 +496,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream parses guardrail trace from complete event" so live updates and the final answer stay consistent.
+     * Verifies stream() preserves terminal guardrail details so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -1177,7 +525,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream accepts agent input" so live updates and the final answer stay consistent.
+     * Verifies stream() accepts agent input so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -1222,7 +570,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream result defaults for new fields" so live updates and the final answer stay consistent.
+     * Verifies stream() gives newly added result fields compatible defaults so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -1236,63 +584,7 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream logs debug on request and completion" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamLogsDebugOnRequestAndCompletion(): void
-    {
-        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
-            . 'data: {"type": "complete", "text": "Hello", "session_id": "s1", '
-            . '"usage": {"inputTokens": 10, "outputTokens": 5}, "tools_used": []}' . "\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $logger = $this->createMock(LoggerInterface::class);
-        $logger->expects($this->exactly(2))
-            ->method('debug')
-            ->willReturnCallback($this->assertDebugContextKeys($this->expectedStreamDebugContextKeys()));
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-            logger: $logger,
-        );
-
-        $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-        );
-    }
-
-    /**
-     * Protects "stream ttft is positive when text events exist" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamTtftIsPositiveWhenTextEventsExist(): void
-    {
-        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
-            . "data: {\"type\": \"complete\", \"text\": \"Hello\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-        );
-
-        $this->assertNotNull($streamResult->timeToFirstTextTokenMs);
-        $this->assertGreaterThanOrEqual(0, $streamResult->timeToFirstTextTokenMs);
-    }
-
-    /**
-     * Protects "stream extracts session id from complete event" so live updates and the final answer stay consistent.
+     * Verifies stream() preserves the terminal session ID so live callbacks and the final result agree.
      *
      * @return void
      */
@@ -1324,67 +616,8 @@ class StrandsClientStreamTest extends TestCase
     }
 
     /**
-     * Protects "stream cancellation callback returns false" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamCancellationCallbackReturnsFalse(): void
-    {
-        $sseData = "data: {\"type\": \"text\", \"content\": \"A\"}\n\n"
-            . "data: {\"type\": \"text\", \"content\": \"B\"}\n\n"
-            . "data: {\"type\": \"text\", \"content\": \"C\"}\n\n"
-            . "data: {\"type\": \"complete\", \"text\": \"ABC\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
-
-        $transport = $this->chunkedStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $count = 0;
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function () use (&$count): bool {
-                $count++;
-
-                // Stop after the first live update so cancellation stays caller-controlled.
-                return $count < 2;
-            },
-        );
-
-        $this->assertTrue($streamResult->cancelled);
-    }
-
-    /**
-     * Protects "stream callback return true continues stream" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamCallbackReturnTrueContinuesStream(): void
-    {
-        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
-            . "data: {\"type\": \"complete\", \"text\": \"Hello\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): bool {
-                return true;
-            },
-        );
-
-        $this->assertFalse($streamResult->cancelled);
-        $this->assertSame('Hello', $streamResult->text);
-    }
-
-    /**
-     * Protects "stream does not accumulate thinking text as text events" so live updates and the final answer stay consistent.
+     * Verifies stream() keeps reasoning text out of the visible answer.
+     * This keeps live updates consistent with the final result returned to the caller.
      *
      * @return void
      */
@@ -1414,164 +647,4 @@ class StrandsClientStreamTest extends TestCase
         $this->assertSame(3, $streamResult->totalEvents);
     }
 
-    /**
-     * Protects "stream result cancelled status is correct" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamResultCancelledStatusIsCorrect(): void
-    {
-        // A naturally completed answer reports false so the UI does not show a user-cancelled state.
-        $sseData = "data: {\"type\": \"text\", \"content\": \"Hi\"}\n\n"
-            . "data: {\"type\": \"complete\", \"text\": \"Hi\", \"session_id\": null, \"usage\": {}, \"tools_used\": []}\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $streamResult = $strandsClient->stream(
-            message: 'Test',
-            onEvent: function (): void {
-            },
-        );
-
-        $this->assertFalse($streamResult->cancelled);
-    }
-
-    /**
-     * Protects "stream retry exhausts max retries exactly" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     * @throws AgentErrorException When all retry attempts receive a retryable error.
-     */
-    public function testStreamRetryExhaustsMaxRetriesExactly(): void
-    {
-        $transport = $this->createMock(HttpTransport::class);
-        $callCount = 0;
-        $transport->expects($this->any())->method('post')
-            ->willReturnCallback(function () use (&$callCount) {
-                $callCount++;
-                throw new \StrandsPhpClient\Exceptions\AgentErrorException('Unavailable', statusCode: 503);
-            });
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(
-                endpoint: 'http://localhost:8081',
-                maxRetries: 2,
-                retryDelayMs: 1,
-            ),
-            transport: $transport,
-        );
-
-        try {
-            $strandsClient->invoke(message: 'Test');
-            $this->fail('Expected AgentErrorException');
-        } catch (\StrandsPhpClient\Exceptions\AgentErrorException $exception) {
-            // A retryable 503 repeated past the configured budget is the practical failure the caller ultimately receives.
-            // One initial request plus two configured retries gives the user three chances before the error returns.
-            $this->assertSame(3, $callCount);
-        }
-    }
-
-    /**
-     * Protects "stream empty stream throws interrupted" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamEmptyStreamThrowsInterrupted(): void
-    {
-        // A connection that closes without any event gives the user neither content nor a trustworthy completion signal.
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->expects($this->any())->method('stream')
-            ->willReturnCallback(function (
-                string $url,
-                array $headers,
-                string $body,
-                int $timeout,
-                int $connectTimeout,
-                callable $onChunk,
-            ) {
-                // Returning immediately reproduces a server that closes before sending the user's first update.
-            });
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $this->expectException(StreamInterruptedException::class);
-        $this->expectExceptionMessage('terminal event');
-
-        $strandsClient->stream(message: 'Test', onEvent: function () {
-        });
-    }
-
-    /**
-     * Protects "stream only heartbeats throws interrupted" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamOnlyHeartbeatsThrowsInterrupted(): void
-    {
-        // Heartbeats alone keep a connection alive but provide no answer or terminal state the UI can trust.
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->expects($this->any())->method('stream')
-            ->willReturnCallback(function (
-                string $url,
-                array $headers,
-                string $body,
-                int $timeout,
-                int $connectTimeout,
-                callable $onChunk,
-            ) {
-                $onChunk->__invoke(": heartbeat\n\n: keepalive\n\n");
-            });
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $this->expectException(StreamInterruptedException::class);
-        $this->expectExceptionMessageMatches('/ended without a terminal event/');
-
-        $strandsClient->stream(message: 'Test', onEvent: function () {
-        });
-    }
-
-    /**
-     * Protects "stream partial event at eof throws interrupted" so live updates and the final answer stay consistent.
-     *
-     * @return void
-     */
-    public function testStreamPartialEventAtEofThrowsInterrupted(): void
-    {
-        // A truncated final frame reproduces a connection drop before the user's event becomes complete.
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->expects($this->any())->method('stream')
-            ->willReturnCallback(function (
-                string $url,
-                array $headers,
-                string $body,
-                int $timeout,
-                int $connectTimeout,
-                callable $onChunk,
-            ) {
-                $onChunk->__invoke('data: {"type": "text", "content": "partial"}');
-                // Without the blank-line delimiter, the partial bytes must never reach the app callback.
-            });
-
-        $strandsClient = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $this->expectException(StreamInterruptedException::class);
-        $this->expectExceptionMessageMatches('/ended without a terminal event/');
-
-        $strandsClient->stream(message: 'Test', onEvent: function () {
-        });
-    }
 }

@@ -63,7 +63,7 @@ class WireNumberConsistencyTest extends TestCase
      * Supplies the wrapper numbers every screen has to read identically, including the ones no screen may show.
      * An empty provider would leave the shared parsing rule unverified for invoke, stream, and citation alike.
      *
-     * @return iterable<string, array{0: int|float|string, 1: ?int}> Wire values paired with the value every screen should show.
+     * @return iterable<string, array{0: int|float|string, 1: ?int}> Wire values and display values; null means every hydrator rejects the input.
      */
     public static function wholeNumberWireValueProvider(): iterable
     {

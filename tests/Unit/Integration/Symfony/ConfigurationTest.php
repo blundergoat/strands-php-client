@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Configuration behavior for app integrations.
- *
- * Use this file when changing Configuration or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Integration\Symfony;
 
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -17,31 +10,32 @@ use StrandsPhpClient\Integration\Symfony\DependencyInjection\Configuration;
 use Symfony\Component\Config\Definition\Processor;
 
 /**
- * Exercises Configuration through the public surface used by application code.
+ * Verifies Symfony accepts documented Strands settings, fills defaults, and rejects invalid agent definitions clearly.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing the bundle configuration tree or normalized values.
+ * They protect the settings application services receive after container compilation.
  */
 class ConfigurationTest extends TestCase
 {
     /**
-     * Process config for assertions.
+     * Normalizes one application config map through Symfony's Strands configuration tree.
+     * Use it to inspect the defaults and validation result services receive at runtime.
      *
-     * @param array<string, mixed> $config Configuration values passed to the helper.
-     * @return array<string, mixed> Decoded fixture or processed configuration array.
+     * @param array<string, mixed> $config Application settings; empty means no explicit Strands values.
+     * @return array<string, mixed> Normalized settings; never empty because the tree supplies defaults.
      */
-    private function processConfig(array $config): array
+    private function processSymfonyConfig(array $config): array
     {
         $processor = new Processor();
 
         return $processor->processConfiguration(new Configuration(), [$config]);
     }
     /**
-     * Test fixture for testMinimalConfig().
+     * Builds an endpoint-only agent config so Symfony can supply the documented defaults.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty agent config with no optional overrides.
      */
-    private function dataForMinimalConfig(): array
+    private function minimalAgentConfig(): array
     {
         return [
             'agents' => [
@@ -60,7 +54,7 @@ class ConfigurationTest extends TestCase
      */
     public function testMinimalConfig(): void
     {
-        $config = $this->processConfig($this->dataForMinimalConfig());
+        $config = $this->processSymfonyConfig($this->minimalAgentConfig());
 
         $this->assertArrayHasKey('analyst', $config['agents']);
         $this->assertSame('http://agent:8000', $config['agents']['analyst']['endpoint']);
@@ -68,11 +62,11 @@ class ConfigurationTest extends TestCase
         $this->assertSame(120, $config['agents']['analyst']['timeout']);
     }
     /**
-     * Test fixture for testMultipleAgents().
+     * Builds three named agents that application services can select independently.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config containing three agent definitions.
      */
-    private function dataForMultipleAgents(): array
+    private function multipleAgentConfig(): array
     {
         return [
             'agents' => [
@@ -91,16 +85,16 @@ class ConfigurationTest extends TestCase
      */
     public function testMultipleAgents(): void
     {
-        $config = $this->processConfig($this->dataForMultipleAgents());
+        $config = $this->processSymfonyConfig($this->multipleAgentConfig());
 
         $this->assertCount(3, $config['agents']);
     }
     /**
-     * Test fixture for testCustomTimeout().
+     * Builds an agent config whose request timeout overrides the bundle default.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config with an explicit timeout.
      */
-    private function dataForCustomTimeout(): array
+    private function customTimeoutConfig(): array
     {
         return [
             'agents' => [
@@ -120,16 +114,16 @@ class ConfigurationTest extends TestCase
      */
     public function testCustomTimeout(): void
     {
-        $config = $this->processConfig($this->dataForCustomTimeout());
+        $config = $this->processSymfonyConfig($this->customTimeoutConfig());
 
         $this->assertSame(60, $config['agents']['primary']['timeout']);
     }
     /**
-     * Test fixture for testAuthDriverDefault().
+     * Builds an agent config with no auth driver so Symfony must choose the safe default.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config whose auth section is omitted.
      */
-    private function dataForAuthDriverDefault(): array
+    private function configWithoutAuthDriver(): array
     {
         return [
             'agents' => [
@@ -148,16 +142,16 @@ class ConfigurationTest extends TestCase
      */
     public function testAuthDriverDefault(): void
     {
-        $config = $this->processConfig($this->dataForAuthDriverDefault());
+        $config = $this->processSymfonyConfig($this->configWithoutAuthDriver());
 
         $this->assertSame('null', $config['agents']['primary']['auth']['driver']);
     }
     /**
-     * Test fixture for testExplicitNullAuth().
+     * Builds an agent config that explicitly selects unauthenticated requests.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config with the null auth driver selected.
      */
-    private function dataForExplicitNullAuth(): array
+    private function nullAuthConfig(): array
     {
         return [
             'agents' => [
@@ -177,16 +171,16 @@ class ConfigurationTest extends TestCase
      */
     public function testExplicitNullAuth(): void
     {
-        $config = $this->processConfig($this->dataForExplicitNullAuth());
+        $config = $this->processSymfonyConfig($this->nullAuthConfig());
 
         $this->assertSame('null', $config['agents']['primary']['auth']['driver']);
     }
     /**
-     * Test fixture for testApiKeyAuthDriver().
+     * Builds API-key auth with only the credential so Symfony must fill header defaults.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config with API-key authentication enabled.
      */
-    private function dataForApiKeyAuthDriver(): array
+    private function apiKeyAuthConfig(): array
     {
         return [
             'agents' => [
@@ -209,7 +203,7 @@ class ConfigurationTest extends TestCase
      */
     public function testApiKeyAuthDriver(): void
     {
-        $config = $this->processConfig($this->dataForApiKeyAuthDriver());
+        $config = $this->processSymfonyConfig($this->apiKeyAuthConfig());
 
         $this->assertSame('api_key', $config['agents']['primary']['auth']['driver']);
         $this->assertSame('sk-test-123', $config['agents']['primary']['auth']['api_key']);
@@ -217,11 +211,11 @@ class ConfigurationTest extends TestCase
         $this->assertSame('Bearer ', $config['agents']['primary']['auth']['value_prefix']);
     }
     /**
-     * Test fixture for testApiKeyAuthWithCustomHeader().
+     * Builds API-key auth with the custom header an application gateway expects.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config with an empty prefix and custom header.
      */
-    private function dataForApiKeyAuthWithCustomHeader(): array
+    private function customApiKeyHeaderConfig(): array
     {
         return [
             'agents' => [
@@ -246,7 +240,7 @@ class ConfigurationTest extends TestCase
      */
     public function testApiKeyAuthWithCustomHeader(): void
     {
-        $config = $this->processConfig($this->dataForApiKeyAuthWithCustomHeader());
+        $config = $this->processSymfonyConfig($this->customApiKeyHeaderConfig());
 
         $this->assertSame('X-API-Key', $config['agents']['primary']['auth']['header_name']);
         $this->assertSame('', $config['agents']['primary']['auth']['value_prefix']);
@@ -256,8 +250,8 @@ class ConfigurationTest extends TestCase
      * Each invalid-agent-config case must surface an InvalidConfigurationException whose
      * message identifies the offending field so consumers can act on it.
      *
-     * @param array<string, mixed> $primaryOverrides Overrides merged into the 'primary' agent block.
-     * @param string $expectedMessagePattern Regex the exception message must match.
+     * @param array<string, mixed> $primaryOverrides Non-empty invalid settings merged into the primary agent.
+     * @param string $expectedMessagePattern Non-empty regex identifying the caller-visible configuration error.
      * @return void
      */
     #[DataProvider('invalidAgentConfigProvider')]
@@ -266,7 +260,7 @@ class ConfigurationTest extends TestCase
         $this->expectException(\Symfony\Component\Config\Definition\Exception\InvalidConfigurationException::class);
         $this->expectExceptionMessageMatches($expectedMessagePattern);
 
-        $this->processConfig([
+        $this->processSymfonyConfig([
             'agents' => [
                 'primary' => array_merge(['endpoint' => 'http://agent:8000'], $primaryOverrides),
             ],
@@ -274,9 +268,10 @@ class ConfigurationTest extends TestCase
     }
 
     /**
-     * Invalid-agent-config cases for testInvalidAgentConfigRejectedWithIdentifyingMessage().
+     * Lists invalid agent settings and the configuration guidance Symfony must expose.
+     * An empty provider would leave one application-startup failure unverified.
      *
-     * @return iterable<string, array{0: array<string, mixed>, 1: string}> Scenario data for invalid agent config behavior.
+     * @return iterable<string, array{0: array<string, mixed>, 1: string}> Invalid overrides and expected messages; never empty.
      */
     public static function invalidAgentConfigProvider(): iterable
     {
@@ -289,11 +284,11 @@ class ConfigurationTest extends TestCase
         yield 'negative retry_delay_ms' => [['retry_delay_ms' => -1], '/retry_delay_ms/'];
     }
     /**
-     * Test fixture for testNewConfigDefaults().
+     * Builds an endpoint-only agent config so Symfony must add connection and retry defaults.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config with all retry fields omitted.
      */
-    private function dataForNewConfigDefaults(): array
+    private function configWithoutRetryFields(): array
     {
         return [
             'agents' => [
@@ -312,7 +307,7 @@ class ConfigurationTest extends TestCase
      */
     public function testNewConfigDefaults(): void
     {
-        $config = $this->processConfig($this->dataForNewConfigDefaults());
+        $config = $this->processSymfonyConfig($this->configWithoutRetryFields());
 
         $agent = $config['agents']['primary'];
         $this->assertSame(10, $agent['connect_timeout']);
@@ -320,11 +315,11 @@ class ConfigurationTest extends TestCase
         $this->assertSame(500, $agent['retry_delay_ms']);
     }
     /**
-     * Test fixture for testCustomRetrySettings().
+     * Builds the retry and connection settings an application chose for one agent.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config with explicit retry and connection values.
      */
-    private function dataForCustomRetrySettings(): array
+    private function customRetryConfig(): array
     {
         return [
             'agents' => [
@@ -346,7 +341,7 @@ class ConfigurationTest extends TestCase
      */
     public function testCustomRetrySettings(): void
     {
-        $config = $this->processConfig($this->dataForCustomRetrySettings());
+        $config = $this->processSymfonyConfig($this->customRetryConfig());
 
         $agent = $config['agents']['primary'];
         $this->assertSame(3, $agent['max_retries']);
@@ -355,13 +350,13 @@ class ConfigurationTest extends TestCase
     }
 
     /**
-     * Confirms accepts boundary max retries so framework users receive a correctly configured client.
+     * Confirms configuration accepts the maximum retry boundary so Symfony apps receive the documented limits.
      *
      * @return void
      */
     public function testAcceptsBoundaryMaxRetries(): void
     {
-        $configZero = $this->processConfig([
+        $configZero = $this->processSymfonyConfig([
             'agents' => [
                 'primary' => [
                     'endpoint' => 'http://agent:8000',
@@ -371,7 +366,7 @@ class ConfigurationTest extends TestCase
         ]);
         $this->assertSame(0, $configZero['agents']['primary']['max_retries']);
 
-        $configMax = $this->processConfig([
+        $configMax = $this->processSymfonyConfig([
             'agents' => [
                 'primary' => [
                     'endpoint' => 'http://agent:8000',
@@ -382,11 +377,11 @@ class ConfigurationTest extends TestCase
         $this->assertSame(20, $configMax['agents']['primary']['max_retries']);
     }
     /**
-     * Test fixture for testAcceptsBoundaryTimeouts().
+     * Builds the minimum accepted timeout values for a caller that wants fast failure.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config with each timeout boundary set to one.
      */
-    private function dataForAcceptsBoundaryTimeouts(): array
+    private function minimumTimeoutConfig(): array
     {
         return [
             'agents' => [
@@ -402,13 +397,13 @@ class ConfigurationTest extends TestCase
 
 
     /**
-     * Confirms accepts boundary timeouts so framework users receive a correctly configured client.
+     * Confirms configuration accepts the documented timeout boundaries so Symfony apps receive the documented limits.
      *
      * @return void
      */
     public function testAcceptsBoundaryTimeouts(): void
     {
-        $config = $this->processConfig($this->dataForAcceptsBoundaryTimeouts());
+        $config = $this->processSymfonyConfig($this->minimumTimeoutConfig());
 
         $agent = $config['agents']['primary'];
         $this->assertSame(1, $agent['timeout']);
@@ -416,11 +411,11 @@ class ConfigurationTest extends TestCase
         $this->assertSame(1, $agent['retry_delay_ms']);
     }
     /**
-     * Test fixture for testDefaultRetryableStatusCodes().
+     * Builds an agent config that relies on the documented retryable status codes.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config with retryable status codes omitted.
      */
-    private function dataForDefaultRetryableStatusCodes(): array
+    private function configWithoutRetryableStatusCodes(): array
     {
         return [
             'agents' => [
@@ -439,16 +434,16 @@ class ConfigurationTest extends TestCase
      */
     public function testDefaultRetryableStatusCodes(): void
     {
-        $config = $this->processConfig($this->dataForDefaultRetryableStatusCodes());
+        $config = $this->processSymfonyConfig($this->configWithoutRetryableStatusCodes());
 
         $this->assertSame([429, 502, 503, 504], $config['agents']['primary']['retryable_status_codes']);
     }
     /**
-     * Test fixture for testCustomRetryableStatusCodes().
+     * Builds the HTTP failures an application explicitly chose to retry.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config with a custom retryable status-code list.
      */
-    private function dataForCustomRetryableStatusCodes(): array
+    private function customRetryableStatusCodesConfig(): array
     {
         return [
             'agents' => [
@@ -468,16 +463,16 @@ class ConfigurationTest extends TestCase
      */
     public function testCustomRetryableStatusCodes(): void
     {
-        $config = $this->processConfig($this->dataForCustomRetryableStatusCodes());
+        $config = $this->processSymfonyConfig($this->customRetryableStatusCodesConfig());
 
         $this->assertSame([429, 500, 502, 503], $config['agents']['primary']['retryable_status_codes']);
     }
     /**
-     * Test fixture for testEmptyRetryableStatusCodes().
+     * Builds an empty retryable status list for an application that disables status-based retries.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config containing an intentionally empty status list.
      */
-    private function dataForEmptyRetryableStatusCodes(): array
+    private function emptyRetryableStatusCodesConfig(): array
     {
         return [
             'agents' => [
@@ -497,16 +492,16 @@ class ConfigurationTest extends TestCase
      */
     public function testEmptyRetryableStatusCodes(): void
     {
-        $config = $this->processConfig($this->dataForEmptyRetryableStatusCodes());
+        $config = $this->processSymfonyConfig($this->emptyRetryableStatusCodesConfig());
 
         $this->assertSame([], $config['agents']['primary']['retryable_status_codes']);
     }
     /**
-     * Test fixture for testDefaultRetryableFields().
+     * Builds an endpoint-only config used to verify the complete retry default set.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Non-empty config with every retry setting omitted.
      */
-    private function dataForDefaultRetryableFields(): array
+    private function endpointOnlyConfigForRetryDefaults(): array
     {
         return [
             'agents' => [
@@ -525,7 +520,7 @@ class ConfigurationTest extends TestCase
      */
     public function testDefaultRetryableFields(): void
     {
-        $config = $this->processConfig($this->dataForDefaultRetryableFields());
+        $config = $this->processSymfonyConfig($this->endpointOnlyConfigForRetryDefaults());
 
         $agent = $config['agents']['primary'];
         $this->assertSame(120, $agent['timeout']);

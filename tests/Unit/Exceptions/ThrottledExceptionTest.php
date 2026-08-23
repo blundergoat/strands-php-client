@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Throttled Exception behavior for app integrations.
- *
- * Use this file when changing Throttled Exception or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Exceptions;
 
 use PHPUnit\Framework\TestCase;
@@ -16,10 +9,10 @@ use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\ThrottledException;
 
 /**
- * Exercises Throttled Exception through the public surface used by application code.
+ * Verifies rate-limit failures retain their HTTP details and remain catchable through the shared agent-error type.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing the exception hierarchy or throttling response handling.
+ * They protect applications that tell users when and why an agent request must be retried.
  */
 class ThrottledExceptionTest extends TestCase
 {

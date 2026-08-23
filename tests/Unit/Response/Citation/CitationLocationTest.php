@@ -2,32 +2,25 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Citation Location behavior for app integrations.
- *
- * Use this file when changing Citation Location or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Response\Citation;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\Citation\CitationLocation;
 
 /**
- * Exercises Citation Location through the public surface used by application code.
+ * Verifies document, web, search, and chunk citation locations hydrate optional indexes without unsafe coercion.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing citation position parsing or supported location types.
+ * They protect the source link and highlighted range a calling application can present with an answer.
  */
 class CitationLocationTest extends TestCase
 {
     /**
-     * Data fixture for testFromArrayDocumentLocation().
+     * Builds the page and character range for a cited document.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Document location fields supplied by the agent; never empty.
      */
-    private function dataForFromArrayDocumentLocation(): array
+    private function documentLocationPayload(): array
     {
         return [
             'type' => 'DOCUMENT',
@@ -45,7 +38,7 @@ class CitationLocationTest extends TestCase
      */
     public function testFromArrayDocumentLocation(): void
     {
-        $locationData = $this->dataForFromArrayDocumentLocation();
+        $locationData = $this->documentLocationPayload();
 
         $location = CitationLocation::fromArray($locationData);
 
@@ -57,11 +50,11 @@ class CitationLocationTest extends TestCase
         $this->assertNull($location->url);
     }
     /**
-     * Data fixture for testFromArrayWebLocation().
+     * Builds the URL and title for a cited web page.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Web location fields supplied by the agent; never empty.
      */
-    private function dataForFromArrayWebLocation(): array
+    private function webLocationPayload(): array
     {
         return [
             'type' => 'WEB',
@@ -78,7 +71,7 @@ class CitationLocationTest extends TestCase
      */
     public function testFromArrayWebLocation(): void
     {
-        $locationData = $this->dataForFromArrayWebLocation();
+        $locationData = $this->webLocationPayload();
 
         $location = CitationLocation::fromArray($locationData);
 
@@ -87,11 +80,11 @@ class CitationLocationTest extends TestCase
         $this->assertSame('Article Title', $location->title);
     }
     /**
-     * Data fixture for testFromArraySearchResultLocation().
+     * Builds the query and rank for a cited search result.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Search-result location fields supplied by the agent; never empty.
      */
-    private function dataForFromArraySearchResultLocation(): array
+    private function searchResultLocationPayload(): array
     {
         return [
             'type' => 'SEARCH_RESULT',
@@ -109,7 +102,7 @@ class CitationLocationTest extends TestCase
      */
     public function testFromArraySearchResultLocation(): void
     {
-        $locationData = $this->dataForFromArraySearchResultLocation();
+        $locationData = $this->searchResultLocationPayload();
 
         $location = CitationLocation::fromArray($locationData);
 
@@ -118,11 +111,11 @@ class CitationLocationTest extends TestCase
         $this->assertSame(3, $location->searchResultRank);
     }
     /**
-     * Data fixture for testFromArrayChunkLocation().
+     * Builds the chunk range for a cited passage.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Chunk location fields supplied by the agent; never empty.
      */
-    private function dataForFromArrayChunkLocation(): array
+    private function chunkLocationPayload(): array
     {
         return [
             'type' => 'CHUNK',
@@ -139,7 +132,7 @@ class CitationLocationTest extends TestCase
      */
     public function testFromArrayChunkLocation(): void
     {
-        $locationData = $this->dataForFromArrayChunkLocation();
+        $locationData = $this->chunkLocationPayload();
 
         $location = CitationLocation::fromArray($locationData);
 
@@ -148,7 +141,7 @@ class CitationLocationTest extends TestCase
     }
 
     /**
-     * Confirms fromArray() rejects non numeric strings so the app renders trustworthy answer details.
+     * Confirms fromArray() rejects non-numeric strings so apps do not highlight an invented source range.
      *
      * @return void
      */
@@ -163,11 +156,11 @@ class CitationLocationTest extends TestCase
         $this->assertNull($location->startCharacterIndex);
     }
     /**
-     * Data fixture for testFromArrayAcceptsNumericStringsAndFloats().
+     * Builds numeric location values encoded in common JSON-compatible forms.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Coercible numeric location fields; never empty.
      */
-    private function dataForFromArrayAcceptsNumericStringsAndFloats(): array
+    private function coercibleNumericLocationPayload(): array
     {
         return [
             'search_result_rank' => '5',
@@ -178,13 +171,13 @@ class CitationLocationTest extends TestCase
 
 
     /**
-     * Confirms fromArray() accepts numeric strings and floats so the app renders trustworthy answer details.
+     * Confirms fromArray() accepts numeric strings and floats so apps can highlight the intended source range.
      *
      * @return void
      */
     public function testFromArrayAcceptsNumericStringsAndFloats(): void
     {
-        $locationData = $this->dataForFromArrayAcceptsNumericStringsAndFloats();
+        $locationData = $this->coercibleNumericLocationPayload();
 
         $location = CitationLocation::fromArray($locationData);
 
@@ -194,7 +187,7 @@ class CitationLocationTest extends TestCase
     }
 
     /**
-     * Confirms fractional numeric strings and floats use nearest-integer rounding so the app renders trustworthy answer details.
+     * Confirms fractional numeric strings and floats use nearest-integer rounding so apps can highlight the intended source range.
      *
      * @return void
      */

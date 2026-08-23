@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Agent Error Exception behavior for app integrations.
- *
- * Use this file when changing Agent Error Exception or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Exceptions;
 
 use PHPUnit\Framework\TestCase;
@@ -18,10 +11,10 @@ use StrandsPhpClient\Exceptions\MaxTokensException;
 use StrandsPhpClient\Exceptions\ThrottledException;
 
 /**
- * Exercises Agent Error Exception through the public surface used by application code.
+ * Verifies HTTP agent failures become the documented typed exception with the most useful available message.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing status mapping, structured error parsing, or exception subclasses.
+ * They protect the recovery choices and diagnostic detail available to calling applications.
  */
 class AgentErrorExceptionTest extends TestCase
 {
@@ -110,11 +103,11 @@ class AgentErrorExceptionTest extends TestCase
         $this->assertInstanceOf(MaxTokensException::class, $agentErrorException);
     }
     /**
-     * Data fixture for testAllSubclassesCaughtByParent().
+     * Builds the specialized failures that callers may catch through AgentErrorException.
      *
-     * @return array<string, mixed> Exception subclasses that app code can catch through the parent type.
+     * @return list<AgentErrorException> Non-empty list of specialized failures catchable through the parent type.
      */
-    private function dataForAllSubclassesCaughtByParent(): array
+    private function specializedAgentErrors(): array
     {
         return [
             new ThrottledException('test', statusCode: 429),
@@ -132,7 +125,7 @@ class AgentErrorExceptionTest extends TestCase
      */
     public function testAllSubclassesCaughtByParent(): void
     {
-        $exceptions = $this->dataForAllSubclassesCaughtByParent();
+        $exceptions = $this->specializedAgentErrors();
 
         // Every specialized failure must remain catchable by apps that use only the documented parent exception.
         foreach ($exceptions as $exceptionToCatch) {

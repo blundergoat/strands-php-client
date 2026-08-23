@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Consumer Compatibility behavior for app integrations.
- *
- * Use this file when changing Consumer Compatibility or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Contract;
 
 use PHPUnit\Framework\TestCase;
@@ -20,10 +13,10 @@ use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 
 /**
- * Exercises Consumer Compatibility through the public surface used by application code.
+ * Verifies real consumer profiles still work through typed streams and custom JSON or SSE endpoints.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing wire parsing, custom endpoint handling, or forward-compatible fields.
+ * They protect domain-specific response data that calling applications read directly.
  */
 class ConsumerCompatibilityTest extends TestCase
 {
@@ -36,7 +29,7 @@ class ConsumerCompatibilityTest extends TestCase
     {
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
-            transport: $this->streamingTransport($this->fixture('consumer-summit-stream.sse')),
+            transport: $this->streamingTransport($this->loadFixtureContents('consumer-summit-stream.sse')),
         );
 
         $events = [];
@@ -71,13 +64,13 @@ class ConsumerCompatibilityTest extends TestCase
     public function testAmbientScribeCustomPostJsonProfilesPreserveRawArrays(): void
     {
         $responses = [
-            'http://wrapper.test/session/session-001/history' => $this->jsonFixture('custom-ambient-history-response.json'),
-            'http://wrapper.test/session/session-001/roles' => $this->jsonFixture('custom-ambient-roles-response.json'),
+            'http://wrapper.test/session/session-001/history' => $this->loadJsonFixture('custom-ambient-history-response.json'),
+            'http://wrapper.test/session/session-001/roles' => $this->loadJsonFixture('custom-ambient-roles-response.json'),
         ];
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
-            transport: $this->postTransport($responses),
+            transport: $this->postTransportReturning($responses),
         );
 
         $history = $strandsClient->postJson('/session/session-001/history', [], timeout: 10);
@@ -97,13 +90,13 @@ class ConsumerCompatibilityTest extends TestCase
     public function testHalaxyCustomPostJsonProfilesPreserveRawArrays(): void
     {
         $responses = [
-            'http://wrapper.test/file-metadata' => $this->jsonFixture('custom-halaxy-file-metadata-response.json'),
-            'http://wrapper.test/suggested-actions/analyse' => $this->jsonFixture('custom-halaxy-suggested-actions-analysis-response.json'),
+            'http://wrapper.test/file-metadata' => $this->loadJsonFixture('custom-halaxy-file-metadata-response.json'),
+            'http://wrapper.test/suggested-actions/analyse' => $this->loadJsonFixture('custom-halaxy-suggested-actions-analysis-response.json'),
         ];
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
-            transport: $this->postTransport($responses),
+            transport: $this->postTransportReturning($responses),
         );
 
         $metadata = $strandsClient->postJson('/file-metadata', [
@@ -129,13 +122,13 @@ class ConsumerCompatibilityTest extends TestCase
     public function testHealthkitCustomPostJsonProfilesPreserveRawArrays(): void
     {
         $responses = [
-            'http://wrapper.test/chat' => $this->jsonFixture('custom-healthkit-chat-response.json'),
-            'http://wrapper.test/intent' => $this->jsonFixture('custom-healthkit-intent-response.json'),
+            'http://wrapper.test/chat' => $this->loadJsonFixture('custom-healthkit-chat-response.json'),
+            'http://wrapper.test/intent' => $this->loadJsonFixture('custom-healthkit-intent-response.json'),
         ];
 
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
-            transport: $this->postTransport($responses),
+            transport: $this->postTransportReturning($responses),
         );
 
         $chat = $strandsClient->postJson('/chat', ['message' => 'Hi'], timeout: 45);
@@ -156,7 +149,7 @@ class ConsumerCompatibilityTest extends TestCase
     {
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
-            transport: $this->streamingTransport($this->fixture('custom-halaxy-file-summarise-stream.sse')),
+            transport: $this->streamingTransport($this->loadFixtureContents('custom-halaxy-file-summarise-stream.sse')),
         );
 
         $events = [];
@@ -183,7 +176,7 @@ class ConsumerCompatibilityTest extends TestCase
     {
         $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://wrapper.test'),
-            transport: $this->streamingTransport($this->fixture('custom-healthkit-booking-respond-stream.sse')),
+            transport: $this->streamingTransport($this->loadFixtureContents('custom-healthkit-booking-respond-stream.sse')),
         );
 
         $events = [];
@@ -201,12 +194,13 @@ class ConsumerCompatibilityTest extends TestCase
     }
 
     /**
-     * Supports the post transport step in the app-facing flow.
+     * Builds a POST-only transport that returns the fixture mapped to each custom endpoint URL.
+     * Use it to verify consumer-specific JSON remains available to the calling application.
      *
-     * @param array<string, array<string, mixed>> $responses Fixture responses returned by the mock transport.
-     * @return HttpTransport Value returned to app code.
+     * @param array<string, array<string, mixed>> $responses URL-keyed fixture responses; empty means every POST is unexpected.
+     * @return HttpTransport Controlled transport used by the custom-endpoint scenarios.
      */
-    private function postTransport(array $responses): HttpTransport
+    private function postTransportReturning(array $responses): HttpTransport
     {
         $transport = $this->createMock(HttpTransport::class);
         $transport->method('post')
@@ -220,10 +214,11 @@ class ConsumerCompatibilityTest extends TestCase
     }
 
     /**
-     * Create a streaming transport for the supplied SSE fixture data.
+     * Builds a streaming transport that delivers one captured SSE fixture to the caller callback.
+     * Use it to exercise a real consumer event profile without network access.
      *
-     * @param string $sseData SSE fixture data yielded by the mock transport.
-     * @return HttpTransport Value produced by the method.
+     * @param string $sseData Captured event bytes; empty means the callback receives no event data.
+     * @return HttpTransport Controlled transport used by typed or raw streaming scenarios.
      */
     private function streamingTransport(string $sseData): HttpTransport
     {
@@ -244,12 +239,13 @@ class ConsumerCompatibilityTest extends TestCase
     }
 
     /**
-     * Handle fixture.
+     * Loads one captured Wire Contract fixture exactly as a consuming wrapper emitted it.
+     * Use it when a compatibility scenario needs raw JSON or SSE bytes.
      *
-     * @param string $filename Fixture filename to load.
-     * @return string String value produced by the helper.
+     * @param string $filename Basename under the wire-contract fixture directory; empty cannot identify a fixture.
+     * @return string Captured fixture bytes; never empty for the selected compatibility profiles.
      */
-    private function fixture(string $filename): string
+    private function loadFixtureContents(string $filename): string
     {
         $contents = file_get_contents(__DIR__ . '/../../Fixtures/wire-contract/' . $filename);
         self::assertIsString($contents);
@@ -258,17 +254,18 @@ class ConsumerCompatibilityTest extends TestCase
     }
 
     /**
-     * Supports the json fixture step in the app-facing flow.
+     * Decodes one captured JSON fixture into the raw map returned by a custom endpoint.
+     * Use it when the application consumes domain fields outside the typed invoke contract.
      *
-     * @param string $filename Fixture file used for wire-contract checks.
-     * @return array<string, mixed> Fixture data used to verify the public wire contract.
+     * @param string $filename JSON fixture basename; empty cannot identify a captured response.
+     * @return array<string, mixed> Decoded response map; never empty for these consumer profiles.
      */
-    private function jsonFixture(string $filename): array
+    private function loadJsonFixture(string $filename): array
     {
-        $fixtureData = json_decode($this->fixture($filename), true, flags: JSON_THROW_ON_ERROR);
+        $fixtureData = json_decode($this->loadFixtureContents($filename), true, flags: JSON_THROW_ON_ERROR);
         self::assertIsArray($fixtureData);
 
-        /** @var array<string, mixed> $data validated before app code uses it. */
+        /** @var array<string, mixed> $fixtureData validated before app code uses it. */
         return $fixtureData;
     }
 }

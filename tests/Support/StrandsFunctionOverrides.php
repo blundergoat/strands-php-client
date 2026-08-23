@@ -1,10 +1,10 @@
 <?php
 
 /**
- * Exercises caller-visible Strands Function Overrides behavior for app integrations.
+ * Provides a test-only class_exists() override for integration auto-detection.
  *
- * Use this file when changing Strands Function Overrides or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
+ * Use this file when a test models an optional framework class as installed or missing.
+ * It keeps client-factory behavior deterministic without changing application dependencies.
  */
 
 declare(strict_types=1);
@@ -13,10 +13,11 @@ namespace StrandsPhpClient;
 
 /**
  * Test-only function override to control class_exists() checks inside the Strands namespace.
+ * Use it when an integration test simulates a Laravel or Symfony dependency being available.
  *
  * @internal
  *
- * @param string $class Class name being checked by integration auto-detection.
+ * @param string $class Non-empty class name checked by integration auto-detection.
  * @param bool $autoload Whether PHP should autoload while checking the class.
  * @return bool True when the simulated or real class exists.
  */

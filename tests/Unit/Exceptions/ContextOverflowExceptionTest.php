@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Context Overflow Exception behavior for app integrations.
- *
- * Use this file when changing Context Overflow Exception or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Exceptions;
 
 use PHPUnit\Framework\TestCase;
@@ -16,10 +9,10 @@ use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Exceptions\ContextOverflowException;
 
 /**
- * Exercises Context Overflow Exception through the public surface used by application code.
+ * Verifies context-overflow failures remain catchable through both their specific and shared agent-error types.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing the exception hierarchy or context-limit error handling.
+ * They protect applications that offer users a shorter or fresh conversation after overflow.
  */
 class ContextOverflowExceptionTest extends TestCase
 {

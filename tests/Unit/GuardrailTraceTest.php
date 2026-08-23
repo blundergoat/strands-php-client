@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Guardrail Trace behavior for app integrations.
- *
- * Use this file when changing Guardrail Trace or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
@@ -16,19 +9,19 @@ use StrandsPhpClient\Response\GuardrailAssessment;
 use StrandsPhpClient\Response\GuardrailTrace;
 
 /**
- * Exercises Guardrail Trace through the public surface used by application code.
+ * Verifies guardrail traces hydrate supported fields, discard malformed assessments, and expose typed assessment objects.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing safety-result parsing or the cached assessment view.
+ * They protect the safety explanation a calling application can show after an intervention.
  */
 class GuardrailTraceTest extends TestCase
 {
     /**
-     * Data fixture for testFromArrayHydratesAllFields().
+     * Builds a complete guardrail trace that an app could show after an intervention.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Wire fields supplied to GuardrailTrace::fromArray(); never empty.
      */
-    private function dataForFromArrayHydratesAllFields(): array
+    private function completeGuardrailTracePayload(): array
     {
         return [
             'action' => 'INTERVENED',
@@ -41,13 +34,13 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Confirms fromArray() hydrates all fields so the app renders trustworthy answer details.
+     * Confirms fromArray() hydrates all fields so apps can safely present a guardrail result.
      *
      * @return void
      */
     public function testFromArrayHydratesAllFields(): void
     {
-        $traceData = $this->dataForFromArrayHydratesAllFields();
+        $traceData = $this->completeGuardrailTracePayload();
 
         $trace = GuardrailTrace::fromArray($traceData);
 
@@ -59,7 +52,7 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Confirms fromArray() handles missing fields so the app renders trustworthy answer details.
+     * Confirms fromArray() handles missing fields so apps can safely present a guardrail result.
      *
      * @return void
      */
@@ -72,11 +65,11 @@ class GuardrailTraceTest extends TestCase
         $this->assertNull($trace->modelOutput);
     }
     /**
-     * Data fixture for testFromArrayFiltersNonArrayAssessments().
+     * Builds a trace containing valid and malformed assessment entries.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Mixed assessment values supplied to defensive parsing; never empty.
      */
-    private function dataForFromArrayFiltersNonArrayAssessments(): array
+    private function mixedGuardrailAssessmentPayload(): array
     {
         return [
             'action' => 'NONE',
@@ -91,13 +84,13 @@ class GuardrailTraceTest extends TestCase
 
 
     /**
-     * Confirms fromArray() filters non array assessments so the app renders trustworthy answer details.
+     * Confirms fromArray() filters non-array assessments so apps can safely present a guardrail result.
      *
      * @return void
      */
     public function testFromArrayFiltersNonArrayAssessments(): void
     {
-        $traceData = $this->dataForFromArrayFiltersNonArrayAssessments();
+        $traceData = $this->mixedGuardrailAssessmentPayload();
 
         $trace = GuardrailTrace::fromArray($traceData);
 
@@ -107,7 +100,7 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Confirms fromArray() handles non array assessments so the app renders trustworthy answer details.
+     * Confirms fromArray() handles a non-array assessment list so apps can safely present a guardrail result.
      *
      * @return void
      */
@@ -124,7 +117,7 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Confirms fromArray() handles non string model output so the app renders trustworthy answer details.
+     * Confirms fromArray() ignores non-string model output so apps can safely present a guardrail result.
      *
      * @return void
      */
@@ -141,7 +134,7 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Confirms getAssessmentObjects() returns typed list so the app renders trustworthy answer details.
+     * Confirms getAssessmentObjects() returns typed list so apps can safely present a guardrail result.
      *
      * @return void
      */
@@ -167,7 +160,7 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Confirms getAssessmentObjects() caches result so the app renders trustworthy answer details.
+     * Confirms getAssessmentObjects() caches result so apps can safely present a guardrail result.
      *
      * @return void
      */
@@ -188,7 +181,7 @@ class GuardrailTraceTest extends TestCase
     }
 
     /**
-     * Confirms getAssessmentObjects() returns empty for no assessments so the app renders trustworthy answer details.
+     * Confirms getAssessmentObjects() returns empty for no assessments so apps can safely present a guardrail result.
      *
      * @return void
      */

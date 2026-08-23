@@ -2,32 +2,25 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Guardrail Assessment behavior for app integrations.
- *
- * Use this file when changing Guardrail Assessment or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Response;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\GuardrailAssessment;
 
 /**
- * Exercises Guardrail Assessment through the public surface used by application code.
+ * Verifies guardrail assessments hydrate supported policy maps and accept only safe confidence values.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing assessment parsing or optional policy categories.
+ * They protect the safety reason and score a calling application can present after an intervention.
  */
 class GuardrailAssessmentTest extends TestCase
 {
     /**
-     * Data fixture for testFromArrayWithAllPolicies().
+     * Builds an intervention containing every supported guardrail policy category.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Complete assessment fields supplied by the agent; never empty.
      */
-    private function dataForFromArrayWithAllPolicies(): array
+    private function completeAssessmentPayload(): array
     {
         return [
             'type' => 'content_filter',
@@ -47,7 +40,7 @@ class GuardrailAssessmentTest extends TestCase
      */
     public function testFromArrayWithAllPolicies(): void
     {
-        $assessmentData = $this->dataForFromArrayWithAllPolicies();
+        $assessmentData = $this->completeAssessmentPayload();
 
         $assessment = GuardrailAssessment::fromArray($assessmentData);
 
@@ -60,11 +53,11 @@ class GuardrailAssessmentTest extends TestCase
         $this->assertSame(['threshold' => 0.7], $assessment->contextualGroundingPolicy);
     }
     /**
-     * Data fixture for testFromArrayWithMinimalData().
+     * Builds the smallest guardrail result an app can still identify and display.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Required assessment fields supplied by the agent; never empty.
      */
-    private function dataForFromArrayWithMinimalData(): array
+    private function minimalAssessmentPayload(): array
     {
         return [
             'type' => 'topic_filter',
@@ -80,7 +73,7 @@ class GuardrailAssessmentTest extends TestCase
      */
     public function testFromArrayWithMinimalData(): void
     {
-        $assessmentData = $this->dataForFromArrayWithMinimalData();
+        $assessmentData = $this->minimalAssessmentPayload();
 
         $assessment = GuardrailAssessment::fromArray($assessmentData);
 
@@ -106,11 +99,11 @@ class GuardrailAssessmentTest extends TestCase
         $this->assertNull($assessment->action);
     }
     /**
-     * Data fixture for testFromArrayIgnoresNonArrayPolicies().
+     * Builds malformed policy fields like those a loosely typed endpoint could return.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Invalid policy values supplied to defensive parsing; never empty.
      */
-    private function dataForFromArrayIgnoresNonArrayPolicies(): array
+    private function malformedPolicyPayload(): array
     {
         return [
             'type' => 'test',
@@ -121,13 +114,13 @@ class GuardrailAssessmentTest extends TestCase
 
 
     /**
-     * Confirms fromArray() ignores non array policies so the app renders trustworthy answer details.
+     * Confirms fromArray() ignores non-array policies so apps do not present malformed safety details.
      *
      * @return void
      */
     public function testFromArrayIgnoresNonArrayPolicies(): void
     {
-        $assessmentData = $this->dataForFromArrayIgnoresNonArrayPolicies();
+        $assessmentData = $this->malformedPolicyPayload();
 
         $assessment = GuardrailAssessment::fromArray($assessmentData);
 

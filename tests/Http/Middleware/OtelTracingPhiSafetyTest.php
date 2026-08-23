@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Otel Tracing Phi Safety behavior for app integrations.
- *
- * Use this file when changing Otel Tracing Phi Safety or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Http\Middleware;
 
 use OpenTelemetry\SDK\Trace\ImmutableSpan;
@@ -20,10 +13,10 @@ use StrandsPhpClient\Exceptions\AgentErrorException;
 use StrandsPhpClient\Http\Middleware\OtelTracingMiddleware;
 
 /**
- * Exercises Otel Tracing Phi Safety through the public surface used by application code.
+ * Verifies tracing exports useful operation labels without prompts, answers, session IDs, or tool payloads.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing span attributes, event serialization, or error labels.
+ * They protect user data while preserving the diagnostics an operator needs.
  */
 final class OtelTracingPhiSafetyTest extends TestCase
 {
@@ -37,7 +30,8 @@ final class OtelTracingPhiSafetyTest extends TestCase
     private OtelTracingMiddleware $middleware;
 
     /**
-     * Handle set up.
+     * Starts isolated in-memory tracing so each simulated caller request has its own export state.
+     * Use it automatically before PHI-safety checks.
      *
      * @return void
      */
@@ -49,7 +43,8 @@ final class OtelTracingPhiSafetyTest extends TestCase
     }
 
     /**
-     * Handle tear down.
+     * Shuts down the test tracer so exported spans cannot leak into the next caller scenario.
+     * Use it automatically after PHI-safety checks.
      *
      * @return void
      */
@@ -115,7 +110,7 @@ final class OtelTracingPhiSafetyTest extends TestCase
             25.0,
         );
 
-        $immutableSpan = $this->getOnlySpan();
+        $immutableSpan = $this->onlyExportedSpan();
         $serializedSpan = $this->serializeSpan($immutableSpan);
 
         // Every value an app or user supplied must stay out of exported telemetry.
@@ -165,7 +160,7 @@ final class OtelTracingPhiSafetyTest extends TestCase
             new AgentErrorException($message, statusCode: 422, errorCode: $errorCode),
         );
 
-        $immutableSpan = $this->getOnlySpan();
+        $immutableSpan = $this->onlyExportedSpan();
         $serializedSpan = $this->serializeSpan($immutableSpan);
 
         $this->assertStringNotContainsString($message, $serializedSpan);
@@ -175,11 +170,12 @@ final class OtelTracingPhiSafetyTest extends TestCase
     }
 
     /**
-     * Handle get only span.
+     * Returns the single span exported for the simulated caller operation.
+     * Use it when a safety assertion needs the exact telemetry an operator would receive.
      *
-     * @return ImmutableSpan Value produced by the method.
+     * @return ImmutableSpan Exported span; never null because the helper first asserts exactly one span.
      */
-    private function getOnlySpan(): ImmutableSpan
+    private function onlyExportedSpan(): ImmutableSpan
     {
         $this->tracerProvider->forceFlush();
         $spans = $this->exporter->getSpans();
@@ -189,12 +185,13 @@ final class OtelTracingPhiSafetyTest extends TestCase
     }
 
     /**
-     * Supports the span attributes step in the app-facing flow.
+     * Copies exported span labels into the map inspected for sensitive caller values.
+     * Use it when the assertion needs the same attribute surface an exporter receives.
      *
-     * @param ImmutableSpan $immutableSpan Value supplied by app code.
-     * @return array<string, mixed> Span data used to prove telemetry stays safe for app users.
+     * @param ImmutableSpan $immutableSpan Exported span whose attributes may be empty when no labels were recorded.
+     * @return array<string, mixed> Non-empty exported span data used to prove telemetry stays safe for app users.
      */
-    private function spanAttributes(ImmutableSpan $immutableSpan): array
+    private function exportedSpanAttributes(ImmutableSpan $immutableSpan): array
     {
         $attributes = [];
         // Copy only named span attributes so the safety assertion sees the same labels an exporter receives.
@@ -212,7 +209,7 @@ final class OtelTracingPhiSafetyTest extends TestCase
      * Serialize every exported span surface checked for sensitive values.
      *
      * @param ImmutableSpan $immutableSpan Span captured by the in-memory exporter.
-     * @return string JSON representation of the span name, status, attributes, and events.
+     * @return string Non-empty JSON representation of the span name, status, attributes, and events.
      */
     private function serializeSpan(ImmutableSpan $immutableSpan): string
     {
@@ -236,7 +233,7 @@ final class OtelTracingPhiSafetyTest extends TestCase
         return json_encode([
             'name' => $immutableSpan->getName(),
             'status' => $immutableSpan->getStatus()->getDescription(),
-            'attributes' => $this->spanAttributes($immutableSpan),
+            'attributes' => $this->exportedSpanAttributes($immutableSpan),
             'events' => $events,
         ], JSON_THROW_ON_ERROR);
     }

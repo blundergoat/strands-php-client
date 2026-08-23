@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Response Observer behavior for app integrations.
- *
- * Use this file when changing Response Observer or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\MockObject\MockObject;
@@ -23,15 +16,15 @@ use StrandsPhpClient\Streaming\StreamResult;
 use StrandsPhpClient\Streaming\StreamSseSummary;
 
 /**
- * Exercises Response Observer through the public surface used by application code.
+ * Verifies parsed invoke, stream, custom JSON, and custom SSE results reach response observers exactly once.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing observer registration, auto-detection, or sanitized stream summaries.
+ * They protect app logging and telemetry that depend on the completed caller result.
  */
 final class ResponseObserverTest extends TestCase
 {
     /**
-     * Confirms invoke notifies response observer with parsed response so the app renders trustworthy answer details.
+     * Confirms invoke() sends the parsed response to observers so monitoring sees the caller-visible outcome.
      *
      * @return void
      */
@@ -61,7 +54,7 @@ final class ResponseObserverTest extends TestCase
     }
 
     /**
-     * Confirms stream() notifies response observer with parsed result so the app renders trustworthy answer details.
+     * Confirms stream() sends the parsed result to observers so monitoring sees the caller-visible outcome.
      *
      * @return void
      */
@@ -103,7 +96,7 @@ final class ResponseObserverTest extends TestCase
     }
 
     /**
-     * Confirms postJson() notifies response observer with raw response so the app renders trustworthy answer details.
+     * Confirms postJson() sends its raw response to observers so monitoring sees the caller-visible outcome.
      *
      * @return void
      */
@@ -133,7 +126,7 @@ final class ResponseObserverTest extends TestCase
     }
 
     /**
-     * Confirms streamSse() notifies response observer with sanitized summary so the app renders trustworthy answer details.
+     * Confirms streamSse() sends a sanitized summary to observers so monitoring sees the outcome without response content.
      *
      * @return void
      */
@@ -182,7 +175,7 @@ final class ResponseObserverTest extends TestCase
     }
 
     /**
-     * Confirms middleware implementing ResponseObserver is auto-detected and notified so the app renders trustworthy answer details.
+     * Confirms middleware that also observes responses is detected automatically and receives the caller-visible outcome.
      *
      * @return void
      */
@@ -206,7 +199,7 @@ final class ResponseObserverTest extends TestCase
     }
 
     /**
-     * Confirms an observer registered as middleware and observer is notified once so the app renders trustworthy answer details.
+     * Confirms an object registered in both roles receives one notification for each caller-visible outcome.
      *
      * @return void
      */

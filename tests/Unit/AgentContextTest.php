@@ -2,23 +2,16 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Agent Context behavior for app integrations.
- *
- * Use this file when changing Agent Context or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Context\AgentContext;
 
 /**
- * Exercises Agent Context through the public surface used by application code.
+ * Verifies immutable context builders preserve the metadata and supporting material selected by the calling app.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing system prompts, permissions, documents, structured data, or serialization.
+ * They protect follow-up requests from mutation and omit fields the caller left empty.
  */
 class AgentContextTest extends TestCase
 {

@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Stream Callback Handler behavior for app integrations.
- *
- * Use this file when changing Stream Callback Handler or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Streaming;
 
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -18,10 +11,10 @@ use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 
 /**
- * Exercises Stream Callback Handler through the public surface used by application code.
+ * Verifies every typed stream event reaches its matching callback hook and preserves cancellation results.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when adding event types or changing callback dispatch and subclass overrides.
+ * They protect live application updates from being routed to the wrong handler or cancelled accidentally.
  */
 class StreamCallbackHandlerTest extends TestCase
 {
@@ -36,9 +29,9 @@ class StreamCallbackHandlerTest extends TestCase
             private ?StreamEvent $received = null;
 
             /**
-             * Return the event captured for the app text callback.
+             * Returns the event received by the simulated live-text hook.
              *
-             * @return StreamEvent|null captured event, or null before dispatch.
+             * @return StreamEvent|null Captured event, or null before the simulated update is dispatched.
              */
             public function received(): ?StreamEvent
             {
@@ -46,10 +39,10 @@ class StreamCallbackHandlerTest extends TestCase
             }
 
             /**
-             * Handle a text event in the anonymous test handler.
+             * Records a text event so the test can prove the live-answer hook ran.
              *
-             * @param StreamEvent $streamEvent Stream event being handled.
-             * @return bool|null False cancels the stream; null continues it.
+             * @param StreamEvent $streamEvent Text update delivered to the application hook.
+             * @return bool|null Null keeps the simulated stream running; this hook never cancels it.
              */
             protected function onText(StreamEvent $streamEvent): ?bool
             {
@@ -72,7 +65,7 @@ class StreamCallbackHandlerTest extends TestCase
      * This protects the live UI update expected for every event type.
      *
      * @param StreamEvent $streamEvent Event sent through the handler under test.
-     * @param string $expectedHook Name of the hook expected to record the event.
+     * @param string $expectedHook Non-empty hook name expected to record the event.
      * @return void
      */
     #[DataProvider('dispatchProvider')]
@@ -83,9 +76,9 @@ class StreamCallbackHandlerTest extends TestCase
             private array $calls = [];
 
             /**
-             * Return the hooks reached by the app stream event.
+             * Returns the hooks reached by the app stream event.
              *
-             * @return list<string> hook names recorded during dispatch.
+             * @return list<string> Hook names recorded during dispatch; empty before the first event.
              */
             public function calls(): array
             {
@@ -216,9 +209,9 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Cases for testEventDispatchesToMatchingHook().
+     * Lists event types and the application hook each one must reach.
      *
-     * @return iterable<string, array{0: StreamEvent, 1: string}> Streaming callback scenarios that map events to app updates.
+     * @return iterable<string, array{0: StreamEvent, 1: string}> Non-empty event-to-callback cases for live app updates.
      */
     public static function dispatchProvider(): iterable
     {
@@ -237,7 +230,7 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Confirms handler is callable so live answer updates and completion state stay reliable.
+     * Confirms handler is callable so apps receive reliable live updates.
      *
      * @return void
      */
@@ -249,7 +242,7 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Confirms handler returns null by default so live answer updates and completion state stay reliable.
+     * Confirms handler returns null by default so apps receive reliable live updates.
      *
      * @return void
      */
@@ -263,7 +256,7 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Confirms concrete subclass can override specific methods so live answer updates and completion state stay reliable.
+     * Confirms concrete subclass can override specific methods so apps receive reliable live updates.
      *
      * @return void
      */
@@ -274,9 +267,9 @@ class StreamCallbackHandlerTest extends TestCase
             private array $log = [];
 
             /**
-             * Return callback output collected by the concrete test handler.
+             * Returns callback output collected by the concrete test handler.
              *
-             * @return list<string> entries produced by stream hooks.
+             * @return list<string> Entries produced by stream hooks; empty before an event is dispatched.
              */
             public function log(): array
             {
@@ -284,10 +277,10 @@ class StreamCallbackHandlerTest extends TestCase
             }
 
             /**
-             * Handle a text event in the anonymous test handler.
+             * Records text updates the application would append to its live answer.
              *
-             * @param StreamEvent $streamEvent Stream event being handled.
-             * @return bool|null False cancels the stream; null continues it.
+             * @param StreamEvent $streamEvent Text update delivered to the application hook.
+             * @return bool|null Null keeps the simulated stream running; this hook never cancels it.
              */
             protected function onText(StreamEvent $streamEvent): ?bool
             {
@@ -297,10 +290,10 @@ class StreamCallbackHandlerTest extends TestCase
             }
 
             /**
-             * Handle a tool-use event in the anonymous test handler.
+             * Records tool-use updates the application could show in its activity view.
              *
-             * @param StreamEvent $streamEvent Stream event being handled.
-             * @return bool|null False cancels the stream; null continues it.
+             * @param StreamEvent $streamEvent Tool-use update delivered to the application hook.
+             * @return bool|null Null keeps the simulated stream running; this hook never cancels it.
              */
             protected function onToolUse(StreamEvent $streamEvent): ?bool
             {
@@ -318,7 +311,7 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Confirms all event types dispatch without error so live answer updates and completion state stay reliable.
+     * Confirms all event types dispatch without error so apps receive reliable live updates.
      *
      * @return void
      */
@@ -334,7 +327,7 @@ class StreamCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Confirms typed handler can cancel stream so live answer updates and completion state stay reliable.
+     * Confirms typed handler can cancel stream so apps receive reliable live updates.
      *
      * @return void
      */
@@ -342,10 +335,10 @@ class StreamCallbackHandlerTest extends TestCase
     {
         $handler = new class () extends StreamCallbackHandler {
             /**
-             * Handle a text event in the anonymous test handler.
+             * Cancels when text arrives, matching an app that stops after its first update.
              *
-             * @param StreamEvent $streamEvent Stream event being handled.
-             * @return bool|null False cancels the stream; null continues it.
+             * @param StreamEvent $streamEvent Text update that triggers caller-requested cancellation.
+             * @return bool|null False stops the stream; this hook never continues it with null.
              */
             protected function onText(StreamEvent $streamEvent): ?bool
             {

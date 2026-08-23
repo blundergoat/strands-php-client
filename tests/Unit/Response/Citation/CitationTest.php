@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Citation behavior for app integrations.
- *
- * Use this file when changing Citation or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Response\Citation;
 
 use PHPUnit\Framework\TestCase;
@@ -18,19 +11,19 @@ use StrandsPhpClient\Response\Citation\CitationLocation;
 use StrandsPhpClient\Response\Citation\CitationSourceContent;
 
 /**
- * Exercises Citation through the public surface used by application code.
+ * Verifies citation hydration preserves structured and legacy flat source details without replacing richer locations.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing citation content, location fallback, or compatibility fields.
+ * They protect the source label, link, and excerpt a calling application presents with an answer.
  */
 class CitationTest extends TestCase
 {
     /**
-     * Data fixture for testFromArrayWithFullData().
+     * Builds a citation with location, source content, and generated content.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Complete wire citation fields; never empty.
      */
-    private function dataForFromArrayWithFullData(): array
+    private function completeCitationPayload(): array
     {
         return [
             'location' => [
@@ -55,13 +48,13 @@ class CitationTest extends TestCase
     }
 
     /**
-     * Confirms fromArray() hydrates complete citation data so the app renders trustworthy answer details.
+     * Confirms fromArray() hydrates complete citation data so apps can present accurate sources with an answer.
      *
      * @return void
      */
     public function testFromArrayWithFullData(): void
     {
-        $citationData = $this->dataForFromArrayWithFullData();
+        $citationData = $this->completeCitationPayload();
 
         $citation = Citation::fromArray($citationData);
 
@@ -82,11 +75,11 @@ class CitationTest extends TestCase
         $this->assertSame('The generated text', $citation->generatedContent->text);
     }
     /**
-     * Data fixture for testFromArrayWithPartialData().
+     * Builds a partial web citation like an agent response with no excerpt.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Available wire citation fields; never empty.
      */
-    private function dataForFromArrayWithPartialData(): array
+    private function partialWebCitationPayload(): array
     {
         return [
             'location' => [
@@ -104,7 +97,7 @@ class CitationTest extends TestCase
      */
     public function testFromArrayWithPartialData(): void
     {
-        $citationData = $this->dataForFromArrayWithPartialData();
+        $citationData = $this->partialWebCitationPayload();
 
         $citation = Citation::fromArray($citationData);
 
@@ -116,11 +109,11 @@ class CitationTest extends TestCase
         $this->assertNull($citation->generatedContent);
     }
     /**
-     * Data fixture for testFromArrayPreservesFlatCitationData().
+     * Builds the legacy flat citation shape still accepted from older agents.
      *
-     * @return array<string, mixed> Scenario values; an empty array means this case has no fixture data.
+     * @return array<string, mixed> Legacy source, title, and text fields; never empty.
      */
-    private function dataForFromArrayPreservesFlatCitationData(): array
+    private function legacyFlatCitationPayload(): array
     {
         return [
             'source' => 'https://example.com/docs',
@@ -131,13 +124,13 @@ class CitationTest extends TestCase
 
 
     /**
-     * Confirms fromArray() preserves flat citation data so the app renders trustworthy answer details.
+     * Confirms fromArray() preserves flat citation data so apps can present accurate sources with an answer.
      *
      * @return void
      */
     public function testFromArrayPreservesFlatCitationData(): void
     {
-        $citationData = $this->dataForFromArrayPreservesFlatCitationData();
+        $citationData = $this->legacyFlatCitationPayload();
 
         $citation = Citation::fromArray($citationData);
 
@@ -150,7 +143,7 @@ class CitationTest extends TestCase
     }
 
     /**
-     * Confirms fromArray() maps flat document source to source content so the app renders trustworthy answer details.
+     * Confirms fromArray() maps flat document source to source content so apps can present accurate sources with an answer.
      *
      * @return void
      */
@@ -168,7 +161,7 @@ class CitationTest extends TestCase
     }
 
     /**
-     * Confirms either flat source field can construct a citation location so the app renders trustworthy answer details.
+     * Confirms either flat source field can construct a citation location so apps can present accurate sources with an answer.
      *
      * @return void
      */
@@ -182,7 +175,7 @@ class CitationTest extends TestCase
     }
 
     /**
-     * Confirms explicit structured location data wins over legacy flat fields so the app renders trustworthy answer details.
+     * Confirms explicit structured location data wins over legacy flat fields so apps can present accurate sources with an answer.
      *
      * @return void
      */

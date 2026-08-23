@@ -21,7 +21,7 @@ use StrandsPhpClient\Http\Middleware\OtelTracingMiddleware;
 class OtelTracingSpanLifecycleTest extends TestCase
 {
     /**
-     * Protects the span opened for a request whose setup fails before tracing can register it.
+     * Verifies a tracing setup failure still ends the span before the caller receives the error.
      * Without this the span would stay open for the life of the process and every later agent call would hang beneath it in the trace.
      *
      * @return void
@@ -46,6 +46,7 @@ class OtelTracingSpanLifecycleTest extends TestCase
             $failingSetupMiddleware->beforeRequest('https://agent.example.com/invoke', [], '{}');
             $this->fail('beforeRequest() should surface the tracer failure so the caller sees why the request stopped.');
         } catch (\RuntimeException $expectedTracerFailure) {
+            // For example, a tracer can reject an attribute before transport starts; the caller still receives that original setup failure.
             $this->assertSame('attribute rejected', $expectedTracerFailure->getMessage());
         }
 
@@ -54,7 +55,7 @@ class OtelTracingSpanLifecycleTest extends TestCase
     }
 
     /**
-     * Protects the span teardown when releasing the traced context fails partway through.
+     * Verifies span teardown still ends the span when releasing its traced context fails.
      * A tracer that cannot detach must not also skip ending the span, or the next request the user makes inherits a finished one as its parent.
      *
      * @return void

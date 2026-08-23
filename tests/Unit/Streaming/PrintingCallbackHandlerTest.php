@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises caller-visible Printing Callback Handler behavior for app integrations.
- *
- * Use this file when changing Printing Callback Handler or its integration boundary.
- * It protects the request, UI update, or failure an application user sees.
- */
-
 namespace StrandsPhpClient\Tests\Unit\Streaming;
 
 use PHPUnit\Framework\TestCase;
@@ -17,15 +10,15 @@ use StrandsPhpClient\Streaming\StreamEvent;
 use StrandsPhpClient\Streaming\StreamEventType;
 
 /**
- * Exercises Printing Callback Handler through the public surface used by application code.
+ * Verifies the sample printing handler writes answer text, completion spacing, and errors to the intended output stream.
  *
- * Use these tests when changing the feature or its integration boundary.
- * They protect the request, UI update, or failure an application user sees.
+ * Use these tests when changing console streaming output or event-to-output routing.
+ * They protect command-line users from mixed diagnostic and answer text.
  */
 class PrintingCallbackHandlerTest extends TestCase
 {
     /**
-     * Confirms text event writes text so live answer updates and completion state stay reliable.
+     * Confirms text event writes text so apps receive reliable live updates.
      *
      * @return void
      */
@@ -42,7 +35,7 @@ class PrintingCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Confirms complete event writes newline so live answer updates and completion state stay reliable.
+     * Confirms complete event writes newline so apps receive reliable live updates.
      *
      * @return void
      */
@@ -58,24 +51,25 @@ class PrintingCallbackHandlerTest extends TestCase
         $this->assertSame(PHP_EOL, $output);
     }
     /**
-     * Test fixture for testErrorEventWritesToStderr().
+     * Starts with empty error output so the test records only what one failed live update writes.
+     * Use it to distinguish diagnostic output from answer text.
      *
-     * @return string text value used in the caller-facing agent flow.
+     * @return string Empty accumulator before the error callback runs.
      */
-    private function rawForErrorEventWritesToStderr(): string
+    private function emptyErrorOutput(): string
     {
         return '';
     }
 
 
     /**
-     * Confirms error event writes to stderr so live answer updates and completion state stay reliable.
+     * Confirms error event writes to stderr so apps receive reliable live updates.
      *
      * @return void
      */
     public function testErrorEventWritesToStderr(): void
     {
-        $errorOutput = $this->rawForErrorEventWritesToStderr();
+        $errorOutput = $this->emptyErrorOutput();
         $printingCallbackHandler = new PrintingCallbackHandler(errorWriter: static function (string $message) use (&$errorOutput): void {
             $errorOutput .= $message;
         });
@@ -91,11 +85,12 @@ class PrintingCallbackHandlerTest extends TestCase
         $this->assertSame('Error [ERR_001]: Something failed' . PHP_EOL, $errorOutput);
     }
     /**
-     * Test fixture for testNonTextEventsProduceNoOutput().
+     * Starts with empty standard output so hidden stream activity cannot be mistaken for answer text.
+     * Use it before dispatching tool, reasoning, citation, or other non-text events.
      *
-     * @return string text value used in the caller-facing agent flow.
+     * @return string Empty accumulator before the output callback runs.
      */
-    private function rawForNonTextEventsProduceNoOutput(): string
+    private function emptyStandardOutput(): string
     {
         return '';
     }
@@ -108,7 +103,7 @@ class PrintingCallbackHandlerTest extends TestCase
      */
     public function testNonTextEventsProduceNoOutput(): void
     {
-        $output = $this->rawForNonTextEventsProduceNoOutput();
+        $output = $this->emptyStandardOutput();
         $printingCallbackHandler = new PrintingCallbackHandler(outputWriter: static function (string $message) use (&$output): void {
             $output .= $message;
         });
@@ -130,7 +125,7 @@ class PrintingCallbackHandlerTest extends TestCase
     }
 
     /**
-     * Confirms multiple text events concatenate so live answer updates and completion state stay reliable.
+     * Confirms multiple text events concatenate so apps receive reliable live updates.
      *
      * @return void
      */

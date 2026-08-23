@@ -2,13 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Exercises a streamed stop reason added after the public 1.4 enum was released.
- *
- * It mirrors an application receiving a newer wrapper value while remaining on client 1.x.
- * Failures here mean the UI could lose the reason a streamed answer stopped.
- */
-
 namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
@@ -25,7 +18,7 @@ use StrandsPhpClient\StrandsClient;
 final class StrandsClientStreamStopReasonTest extends TestCase
 {
     /**
-     * Protects "stream preserves unknown raw stop reason" so apps can show newer outcomes without breaking 1.x enum switches.
+     * Verifies stream() preserves unknown raw stop reason, keeping newer raw outcomes visible without breaking exhaustive 1.x enum switches.
      *
      * @return void
      */
