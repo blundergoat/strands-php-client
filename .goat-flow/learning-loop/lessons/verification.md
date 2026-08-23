@@ -1,6 +1,6 @@
 ---
 category: verification
-last_reviewed: 2026-08-10
+last_reviewed: 2026-08-23
 ---
 
 ## Lesson: A Passing Checker Can Mean Unchecked, Not Clean
@@ -65,3 +65,12 @@ last_reviewed: 2026-08-10
 **What happened:** While reviewing PR #6, a battery of git commands was piped into `.goat-flow/hooks/deny-dangerous.sh` as `bash .goat-flow/hooks/deny-dangerous.sh policy < payload.json`, mirroring the `"policy"` argument that appears in the host hook command. Every command returned exit 0. The run looked like a clean all-clear across the whole destructive-git surface. The controls in the same batch — `git push`, `git commit`, `rm -rf /` — also returned exit 0, which is what exposed the mistake. `main()` routes an unrecognised positional into `CHECK_COMMAND`, so the hook had evaluated the literal string `policy`, found it harmless, and never read the payload. The mode argument belongs to `run-with-bash.mjs` and is not forwarded to the shell script.
 **Evidence:** `.goat-flow/hooks/deny-dangerous.sh` (search: `unexpected argument`) now fails closed when a bare argument arrives alongside a payload on stdin; `.goat-flow/hooks/run-with-bash.mjs` (search: `spawnSync(`) shows the launcher passing only the hook script path.
 **Prevention:** Every probe of a checker carries at least one input the checker must reject. Read the control lines before the findings; identical verdicts across controls and subjects mean the harness is wrong. For goat-flow hooks specifically, drive them the way a host does — no positional arguments, payload on stdin — or use the documented `--check=<command>` form.
+
+## Lesson: A Shell Whose Directory Persists Can Silence A Coverage Search
+
+**Created:** 2026-08-23
+**Decision changed:** Before treating an empty search result as "no coverage exists", confirm the search ran from the directory the paths are relative to. An empty result and a mis-rooted result look identical.
+**Trigger phase:** READ
+**What happened:** While adding regression tests for the numeric hydrators, one command ended with `cd examples/python-gateway` to run the gateway smoke tests. The harness keeps the working directory between calls, so the next two commands ran from there. `grep -rln ... tests/` matched the gateway's own `tests/` and reported no existing numeric-edge coverage, and `ls tests/Http/Middleware/` reported that the OTel test directory did not exist — minutes after an earlier command had listed both files in it. Read at face value, the first result would have justified a duplicate test and the second would have contradicted a verified fact already in evidence.
+**Evidence:** `tests/Unit/Response/UsageTest.php` (search: `numeric string beyond float range`) held the prior coverage the mis-rooted grep missed; `tests/Http/Middleware/OtelTracingMiddlewareTest.php` existed throughout.
+**Prevention:** End a directory-changing command with an explicit return, or pass the target path instead of changing directory. When a search result contradicts something already established in the session, re-run it with `pwd` in the same command before believing the newer answer; the contradiction is the signal, and the cheaper explanation is usually the harness, not the repository.

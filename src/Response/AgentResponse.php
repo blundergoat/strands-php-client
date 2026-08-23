@@ -191,8 +191,8 @@ class AgentResponse
             citations: self::parseCitations($data),
             message: self::parseMessage($data),
             wrapperMetadata: $wrapperMetadata,
-            contextSize: self::nullableIntField($data, 'context_size'),
-            projectedContextSize: self::nullableIntField($data, 'projected_context_size'),
+            contextSize: WireNumber::optionalWholeNumber($data, 'context_size'),
+            projectedContextSize: WireNumber::optionalWholeNumber($data, 'projected_context_size'),
             rawStopReason: is_string($rawStopReason) ? $rawStopReason : null,
         );
     }
@@ -379,61 +379,6 @@ class AgentResponse
 
         // Missing or malformed message metadata leaves advanced displays unavailable rather than creating an empty DTO.
         return $messageData !== null ? Message::fromArray($messageData) : null;
-    }
-
-    /**
-     * Reads an optional context-size field without exposing unsafe numeric conversions to the UI.
-     * Use it during hydration; missing, nonnumeric, non-finite, or out-of-range values become null so the hint can be omitted.
-     *
-     * @param array<string, mixed> $responseData Decoded response containing an optional context-size field.
-     * @param string $responseFieldName Response field that may contain a token count; an empty name finds no field and returns null.
-     * @return ?int Token count for UI hints, or null when unavailable.
-     */
-    private static function nullableIntField(array $responseData, string $responseFieldName): ?int
-    {
-        $wireValue = $responseData[$responseFieldName] ?? null;
-        // Already a clean integer token count — hand it straight to the app.
-        if (is_int($wireValue)) {
-            return $wireValue;
-        }
-
-        // Some wrappers report the count as a float; accept it only when rounding cannot overflow PHP's integer range.
-        if (is_float($wireValue)) {
-            return self::roundedNullableInt($wireValue);
-        }
-
-        // Other wrappers send numeric strings; preserve exact integers such as PHP_INT_MAX before falling back to float parsing.
-        if (is_string($wireValue) && is_numeric($wireValue)) {
-            $integerContextSize = filter_var($wireValue, FILTER_VALIDATE_INT);
-
-            // A valid integer string can go straight to the UI without a precision-losing float conversion.
-            if ($integerContextSize !== false) {
-                return $integerContextSize;
-            }
-
-            return self::roundedNullableInt((float) $wireValue);
-        }
-
-        return null;
-    }
-
-    /**
-     * Rounds a context-size number only when it fits the nullable integer shown by app code.
-     * Use it after parsing float or numeric-string wire values; unsafe values return null rather than a misleading token count.
-     *
-     * @param float $wireValue Context-size value supplied by a wrapper; non-finite or out-of-range values mean the size is unavailable.
-     * @return int|null Rounded token count, or null so the UI can omit an unsafe or unusable context-size hint.
-     */
-    private static function roundedNullableInt(float $wireValue): ?int
-    {
-        $roundedContextSize = round($wireValue);
-
-        // Do not turn NaN, infinity, or an overflowing float into an unrelated integer that the user could mistake for a real limit.
-        if (!is_finite($roundedContextSize) || $roundedContextSize >= (float) PHP_INT_MAX || $roundedContextSize < (float) PHP_INT_MIN) {
-            return null;
-        }
-
-        return (int) $roundedContextSize;
     }
 
     /**

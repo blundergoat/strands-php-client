@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace StrandsPhpClient\Response\Citation;
 
+use StrandsPhpClient\Response\WireNumber;
+
 /**
  * Where in a source a citation points, so the app can deep-link to it.
  *
@@ -54,16 +56,16 @@ final readonly class CitationLocation
     {
         return new self(
             type: self::optionalStringField($data, 'type'),
-            startCharacterIndex: self::optionalIntegerField($data, 'start_character_index'),
-            endCharacterIndex: self::optionalIntegerField($data, 'end_character_index'),
-            startChunkIndex: self::optionalIntegerField($data, 'start_chunk_index'),
-            endChunkIndex: self::optionalIntegerField($data, 'end_chunk_index'),
-            startPageIndex: self::optionalIntegerField($data, 'start_page_index'),
-            endPageIndex: self::optionalIntegerField($data, 'end_page_index'),
+            startCharacterIndex: WireNumber::optionalWholeNumber($data, 'start_character_index'),
+            endCharacterIndex: WireNumber::optionalWholeNumber($data, 'end_character_index'),
+            startChunkIndex: WireNumber::optionalWholeNumber($data, 'start_chunk_index'),
+            endChunkIndex: WireNumber::optionalWholeNumber($data, 'end_chunk_index'),
+            startPageIndex: WireNumber::optionalWholeNumber($data, 'start_page_index'),
+            endPageIndex: WireNumber::optionalWholeNumber($data, 'end_page_index'),
             url: self::optionalStringField($data, 'url'),
             title: self::optionalStringField($data, 'title'),
             searchQuery: self::optionalStringField($data, 'search_query'),
-            searchResultRank: self::optionalIntegerField($data, 'search_result_rank'),
+            searchResultRank: WireNumber::optionalWholeNumber($data, 'search_result_rank'),
         );
     }
 
@@ -79,34 +81,5 @@ final readonly class CitationLocation
         $fieldValue = $locationData[$fieldName] ?? null;
 
         return is_string($fieldValue) ? $fieldValue : null;
-    }
-
-    /**
-     * Read an optional numeric offset (page/chunk/character), tolerating wire quirks.
-     *
-     * @param array<string, mixed> $locationData Raw location JSON; empty means the citation has no numeric offset.
-     * @param string $fieldName Location field to read, such as start_page_index.
-     * @return ?int The offset the app can jump to, or null when absent.
-     */
-    private static function optionalIntegerField(array $locationData, string $fieldName): ?int
-    {
-        $fieldValue = $locationData[$fieldName] ?? null;
-
-        // Already an integer index — hand it back directly.
-        if (is_int($fieldValue)) {
-            return $fieldValue;
-        }
-
-        // A float index gets rounded to the nearest whole position.
-        if (is_float($fieldValue)) {
-            return (int) round($fieldValue);
-        }
-
-        // A numeric string (e.g. "3") is accepted and coerced.
-        if (is_string($fieldValue) && is_numeric($fieldValue)) {
-            return (int) round((float) $fieldValue);
-        }
-
-        return null;
     }
 }

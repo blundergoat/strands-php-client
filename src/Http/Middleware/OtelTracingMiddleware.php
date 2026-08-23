@@ -102,44 +102,45 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             ->spanBuilder($spanName)
             ->setSpanKind(SpanKind::KIND_CLIENT)
             ->startSpan();
-
-        $span->setAttribute('http.request.method', 'POST');
-        $span->setAttribute('url.full', self::sanitizeUrl($url));
-        $span->setAttribute('gen_ai.system', 'strands');
-        $span->setAttribute('gen_ai.operation.name', $operation);
-        $span->setAttribute('strands.otel.policy', self::ATTRIBUTE_POLICY);
-        $span->setAttribute('strands.endpoint.route', $route);
-
-        $host = parse_url($url, PHP_URL_HOST);
-        // Record which agent host the call went to, when the URL names one.
-        if (is_string($host)) {
-            $span->setAttribute('server.address', $host);
-        }
-
-        $port = parse_url($url, PHP_URL_PORT);
-        // Record the port too, when the URL specifies a non-default one.
-        if (is_int($port)) {
-            $span->setAttribute('server.port', $port);
-        }
-
-        $scope = $span->activate();
+        $scope = null;
 
         try {
+            $span->setAttribute('http.request.method', 'POST');
+            $span->setAttribute('url.full', self::sanitizeUrl($url));
+            $span->setAttribute('gen_ai.system', 'strands');
+            $span->setAttribute('gen_ai.operation.name', $operation);
+            $span->setAttribute('strands.otel.policy', self::ATTRIBUTE_POLICY);
+            $span->setAttribute('strands.endpoint.route', $route);
+
+            $host = parse_url($url, PHP_URL_HOST);
+            // Record which agent host the call went to, when the URL names one.
+            if (is_string($host)) {
+                $span->setAttribute('server.address', $host);
+            }
+
+            $port = parse_url($url, PHP_URL_PORT);
+            // Record the port too, when the URL specifies a non-default one.
+            if (is_int($port)) {
+                $span->setAttribute('server.port', $port);
+            }
+
+            $scope = $span->activate();
+
             $carrier = $headers;
             $this->propagator->inject(
                 $carrier,
                 ArrayAccessGetterSetter::getInstance(),
                 Context::getCurrent(),
             );
+
+            $this->spanStack->push([$span, $scope]);
         } catch (\Throwable $exception) {
-            // For example, a custom propagator may reject an unexpected carrier shape; close the span before returning the setup failure.
-            $scope->detach();
-            $span->end();
+            // For example, a custom propagator rejects an unexpected carrier shape, or a tracer fails while attributes are being set.
+            // The span never reached the stack that afterResponse() drains, so closing it here is what stops it from staying open for the process.
+            self::endSpanAndReleaseScope($span, $scope);
 
             throw $exception;
         }
-
-        $this->spanStack->push([$span, $scope]);
 
         /** @var array<string, string> $injectedHeaders validated before app code uses it. */
         $injectedHeaders = $carrier;
@@ -164,9 +165,9 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             return;
         }
 
-        try {
-            [$span, $scope] = $this->spanStack->pop();
+        [$span, $scope] = $this->spanStack->pop();
 
+        try {
             // A real HTTP status (not the 0 sentinel) is worth recording on the trace.
             if ($statusCode > 0) {
                 $span->setAttribute('http.response.status_code', $statusCode);
@@ -194,13 +195,42 @@ class OtelTracingMiddleware implements RequestMiddleware, ResponseObserver
             if ($error === null && $statusCode >= 400) {
                 $span->setStatus(StatusCode::STATUS_ERROR, sprintf('HTTP %d', $statusCode));
             }
-
-            $scope->detach();
-            $span->end();
         } catch (\Throwable $tracingException) {
-            // For example, an exporter can fail while a span ends; tracing must never replace the user's successful result or original agent error.
+            // For example, an exporter rejects an attribute while the span is annotated. Tracing must never replace the answer the user already has.
             // Discard the captured exception explicitly so static analysis can see that the middleware contract intentionally swallows it.
             unset($tracingException);
+        } finally {
+            // The span has already left the stack, so nothing else can close it. Teardown runs even when the annotations above failed.
+            self::endSpanAndReleaseScope($span, $scope);
+        }
+    }
+
+    /**
+     * Ends one request span and releases the context the request was traced under.
+     * Use it for a normal close and for a failed setup alike, because each step still runs when the other fails.
+     * Without both, a broken exporter would leave the app's next agent call recorded as a child of a request that already finished.
+     *
+     * @param SpanInterface $span Span opened for the request being closed.
+     * @param ?ScopeInterface $scope Scope to release; null means setup failed before the span was ever activated.
+     * @return void No value; the span ends and the scope is released as far as the tracer allows.
+     */
+    private static function endSpanAndReleaseScope(SpanInterface $span, ?ScopeInterface $scope): void
+    {
+        // A scope exists only once activation succeeded, and leaving it attached would trace the user's next call as a child of this one.
+        if ($scope !== null) {
+            try {
+                $scope->detach();
+            } catch (\Throwable $detachException) {
+                // For example, a context storage implementation rejects an out-of-order detach; the span below must still be ended.
+                unset($detachException);
+            }
+        }
+
+        try {
+            $span->end();
+        } catch (\Throwable $endException) {
+            // For example, an exporter times out as the span ends; the user's answer or original agent error still stands.
+            unset($endException);
         }
     }
 

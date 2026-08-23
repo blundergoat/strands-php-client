@@ -146,7 +146,8 @@ info "CHANGELOG header:  line $HEADER_LINENO -> $NEW_HEADER"
 
 # ── Rewrite CHANGELOG ────────────────────────────────────────────
 TMPFILE=$(mktemp)
-trap 'rm -f "$TMPFILE"' EXIT
+LINKS_TMP=""
+trap 'rm -f "$TMPFILE" ${LINKS_TMP:+"$LINKS_TMP"}' EXIT
 
 # Lines before the existing Unreleased header
 # Preserve any changelog introduction above the release heading; line one has no prefix to copy.
@@ -165,6 +166,40 @@ fi
 # Everything after the existing Unreleased header line
 tail -n +$((HEADER_LINENO + 1)) "$CHANGELOG" >> "$TMPFILE"
 
+# ── Restamp the comparison links at the foot of the changelog ────
+# Left alone, the stamped heading has no link to click and Unreleased still compares from the previous release, so shipped changes look unreleased.
+LINK_LINE=$(grep -n -E '^\[Unreleased\]: .+/compare/.+\.\.\.HEAD$' "$TMPFILE" | head -1 || true)
+
+# A changelog with no Unreleased comparison link has nothing to restamp, so the body edit above stands on its own.
+if [[ -z "$LINK_LINE" ]]; then
+    warn "No '[Unreleased]: .../compare/<tag>...HEAD' link found; comparison links left unchanged"
+elif grep -q -E "^\[${NEW_VERSION//./\\.}\]: " "$TMPFILE"; then
+    warn "Comparison link for $NEW_VERSION already present; comparison links left unchanged"
+else
+    LINK_LINENO="${LINK_LINE%%:*}"
+    LINK_TEXT="${LINK_LINE#*:}"
+
+    # The existing link names both the repository and the tag this release builds on, so no new input is needed.
+    if [[ "$LINK_TEXT" =~ ^\[Unreleased\]:\ (.+)/compare/(.+)\.\.\.HEAD$ ]]; then
+        COMPARE_BASE_URL="${BASH_REMATCH[1]}"
+        PREVIOUS_TAG="${BASH_REMATCH[2]}"
+
+        LINKS_TMP=$(mktemp)
+        {
+            head -n $((LINK_LINENO - 1)) "$TMPFILE"
+            printf '[Unreleased]: %s/compare/v%s...HEAD\n' "$COMPARE_BASE_URL" "$NEW_VERSION"
+            printf '[%s]: %s/compare/%s...v%s\n' "$NEW_VERSION" "$COMPARE_BASE_URL" "$PREVIOUS_TAG" "$NEW_VERSION"
+            tail -n +$((LINK_LINENO + 1)) "$TMPFILE"
+        } > "$LINKS_TMP"
+        mv "$LINKS_TMP" "$TMPFILE"
+        LINKS_TMP=""
+
+        info "Comparison links: [$NEW_VERSION] from $PREVIOUS_TAG, [Unreleased] from v$NEW_VERSION"
+    else
+        warn "Unrecognised '[Unreleased]' link format; comparison links left unchanged"
+    fi
+fi
+
 # A dry run shows exactly what users would see in the changelog without writing the file.
 if [[ "$DRY_RUN" == "true" ]]; then
     echo ""
@@ -172,11 +207,16 @@ if [[ "$DRY_RUN" == "true" ]]; then
     diff -u "$CHANGELOG" "$TMPFILE" || true
     echo ""
     ok "Dry-run complete (no changes written)"
-else
-    mv "$TMPFILE" "$CHANGELOG"
-    trap - EXIT
-    ok "Rewrote $CHANGELOG"
+    echo ""
+    info "Re-run without --dry-run to stamp $CHANGELOG, then tag the release."
+    echo ""
+
+    exit 0
 fi
+
+mv "$TMPFILE" "$CHANGELOG"
+trap - EXIT
+ok "Rewrote $CHANGELOG"
 
 # ── Print git tag command for user to run ────────────────────────
 echo ""

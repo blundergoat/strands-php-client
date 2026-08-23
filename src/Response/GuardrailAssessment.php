@@ -26,7 +26,7 @@ final readonly class GuardrailAssessment
      * @param array<string, mixed>|null $contextualGroundingPolicy Details; null means this policy did not apply; an empty map is preserved.
      * @param string|null $name Normalized policy name; null means unavailable, while an empty string is preserved.
      * @param string|null $result Normalized result; null means unavailable, while an empty string is preserved.
-     * @param float|null $confidence Confidence from 0.0 to 1.0; null means no score was reported.
+     * @param float|null $confidence Confidence from 0.0 to 1.0; null means no score was reported or the wrapper sent one the app cannot display.
      */
     public function __construct(
         public ?string $type = null,
@@ -71,31 +71,7 @@ final readonly class GuardrailAssessment
             contextualGroundingPolicy: $contextualGroundingPolicy,
             name: is_string($data['name'] ?? null) ? $data['name'] : null,
             result: is_string($data['result'] ?? null) ? $data['result'] : null,
-            confidence: self::optionalFloatField($data, 'confidence'),
+            confidence: WireNumber::optionalDecimal($data, 'confidence'),
         );
-    }
-
-    /**
-     * Read a confidence score, tolerating number-or-string wire values.
-     *
-     * @param array<string, mixed> $assessmentData Raw assessment JSON; empty means no confidence was reported.
-     * @param string $fieldName Assessment field holding the score, such as confidence.
-     * @return ?float Score the app can show as a percentage, or null when absent.
-     */
-    private static function optionalFloatField(array $assessmentData, string $fieldName): ?float
-    {
-        $fieldValue = $assessmentData[$fieldName] ?? null;
-
-        // Accept a plain number as-is (an int or float both become a float score).
-        if (is_float($fieldValue) || is_int($fieldValue)) {
-            return (float) $fieldValue;
-        }
-
-        // Some wrappers send the score as a numeric string (e.g. "0.87").
-        if (is_string($fieldValue) && is_numeric($fieldValue)) {
-            return (float) $fieldValue;
-        }
-
-        return null;
     }
 }

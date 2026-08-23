@@ -1,6 +1,6 @@
 ---
 category: transport-and-streaming
-last_reviewed: 2026-08-22
+last_reviewed: 2026-08-23
 ---
 
 # Footguns — Transport & Streaming
@@ -84,6 +84,8 @@ measures both outcomes without model credentials and is the durable guard when t
 **Status:** active | **Created:** 2026-05-24 | **Evidence:** ACTUAL_MEASURED
 
 `src/Response/Usage.php` (search: `intField`) owns the defensive type-checking for token counts. Every consumer routes through it: `AgentResponse::parseUsage()` (search: `private static function parseUsage`), `MessageMetadata::fromArray()`, `OtelTracingMiddleware` (search: `setUsageAttributes($span, Usage::fromArray`), and `StrandsClient` at both the stream-complete and raw-usage paths (search: `Usage::fromArray($completeEvent->usage)`). The old `StrandsClient::usageFromArray()` passthrough was removed — do not reintroduce a wrapper. Adding a parallel hydrator (e.g., a per-transport "fast path") forks the defensive logic, historically the source of silent zero-token bugs when the API returned numeric strings instead of ints.
+
+The same rule covers the *optional* numbers beside a counter: `src/Response/WireNumber.php` (search: `optionalWholeNumber`) is canonical for every nullable wire number, and `AgentResponse`, `StreamEvent`, `CitationLocation`, and `GuardrailAssessment` all read through it. These two hydrators answer different questions and are not a fork: `Usage` returns a required counter that defaults to `0`, while `WireNumber` returns `null` so the caller can omit an unusable value. Both were forked once before: until the 1.5 line, three private `optionalIntegerField()` copies existed and only the `AgentResponse` copy had the range guard, so a wrapper sending `context_size: "9223372036854775807"` hydrated as `PHP_INT_MAX` on invoke and `PHP_INT_MIN` on the stream and citation paths. `tests/Unit/Response/WireNumberConsistencyTest.php` (search: `testEveryHydratorAgreesOnOneWireNumber`) now fails if the paths ever disagree again.
 
 ## Footgun: `src/StrandsClient.php` is a coordination hot-spot
 

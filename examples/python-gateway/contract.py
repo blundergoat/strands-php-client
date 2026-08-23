@@ -72,8 +72,10 @@ def build_invoke_response(
         "text": text,
         "agent": agent,
         "usage": extract_usage(usage),
-        "stop_reason": stop_reason,
     }
+    # The contract types this field as a string, so an unknown reason is omitted rather than sent as null.
+    if stop_reason is not None:
+        response["stop_reason"] = stop_reason
     # A session ID means the user can continue this conversation in a later request.
     if session_id is not None:
         response["session_id"] = session_id

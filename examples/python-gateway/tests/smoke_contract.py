@@ -63,6 +63,16 @@ def test_invoke_response() -> None:
     assert response["text"] == "Echo"
     assert response["usage"]["input_tokens"] == 1
     assert response["context_size"] == 128
+    assert response["stop_reason"] == "end_turn"
+
+
+def test_invoke_response_omits_an_unknown_stop_reason() -> None:
+    """Verify a wrapper that cannot name why the agent stopped leaves the field out instead of sending null.
+    Run this case when the invoke response builder changes, because the contract types stop_reason as a string when present."""
+    response = build_invoke_response(text="Echo", stop_reason=None)
+
+    assert "stop_reason" not in response
+    assert response["text"] == "Echo"
 
 
 def test_sse_mapping() -> None:
@@ -412,6 +422,7 @@ if __name__ == "__main__":
     test_usage_mapping()
     test_usage_mapping_rejects_non_finite_numbers()
     test_invoke_response()
+    test_invoke_response_omits_an_unknown_stop_reason()
     test_sse_mapping()
     test_sse_frame_rejects_non_finite_numbers()
     test_sdk_python_stream_event_mapping()

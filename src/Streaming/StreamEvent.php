@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Streaming;
 
 use StrandsPhpClient\Response\Citation\Citation;
+use StrandsPhpClient\Response\WireNumber;
 
 /**
  * A single typed event from an SSE stream.
@@ -144,8 +145,8 @@ class StreamEvent
             stopReason: self::optionalStringField($eventData, 'stop_reason'),
             interrupts: self::listOfMaps($eventData, 'interrupts'),
             guardrailTrace: self::parseGuardrailTrace($eventData),
-            contextSize: self::optionalIntegerField($eventData, 'context_size'),
-            projectedContextSize: self::optionalIntegerField($eventData, 'projected_context_size'),
+            contextSize: WireNumber::optionalWholeNumber($eventData, 'context_size'),
+            projectedContextSize: WireNumber::optionalWholeNumber($eventData, 'projected_context_size'),
         );
     }
 
@@ -351,34 +352,6 @@ class StreamEvent
         // A structured result (array/object) is JSON-encoded so the UI can display it.
         if ($rawToolResult !== null) {
             return json_encode($rawToolResult) ?: null;
-        }
-
-        return null;
-    }
-
-    /**
-     * Reads a token count field while tolerating numeric wire variations.
-     *
-     * @param array<string, mixed> $eventData Raw event JSON; empty means no token count was reported.
-     * @param string $fieldName Stream event field that may contain a token count.
-     * @return ?int Token count for UI hints, or null when unavailable.
-     */
-    private static function optionalIntegerField(array $eventData, string $fieldName): ?int
-    {
-        $fieldValue = $eventData[$fieldName] ?? null;
-        // Already a clean integer token count — hand it straight to the app.
-        if (is_int($fieldValue)) {
-            return $fieldValue;
-        }
-
-        // Some wrappers report the count as a float; round to whole tokens.
-        if (is_float($fieldValue)) {
-            return (int) round($fieldValue);
-        }
-
-        // Others send it as a numeric string (e.g. "8192"); accept those too.
-        if (is_string($fieldValue) && is_numeric($fieldValue)) {
-            return (int) round((float) $fieldValue);
         }
 
         return null;
