@@ -13,16 +13,60 @@ use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\StrandsClient;
 
+/**
+ * Verifies custom JSON requests preserve paths and payloads while sharing authentication, retries, timeouts, and logging.
+ *
+ * Use these tests when changing StrandsClient::postJson() or shared request orchestration.
+ * They protect domain-specific endpoints that return raw response objects to the calling app.
+ */
 class StrandsClientPostJsonTest extends TestCase
 {
-    private function createMockTransport(array $response): HttpTransport
+    /**
+     * Builds a transport that returns one controlled custom-endpoint response.
+     * Use it when the scenario needs response data without inspecting transport calls.
+     *
+     * @param array<string, mixed> $responseData Parsed response map; empty models a valid empty JSON object.
+     * @return HttpTransport Mock transport returning the supplied custom response.
+     */
+    private function mockTransportReturning(array $responseData): HttpTransport
     {
-        $mock = $this->createMock(HttpTransport::class);
-        $mock->method('post')->willReturn($response);
+        $mockTransport = $this->createMock(HttpTransport::class);
+        $mockTransport->method('post')->willReturn($responseData);
 
-        return $mock;
+        return $mockTransport;
     }
 
+    /**
+     * Builds a transport whose post() throws once and then returns the given payload on later calls.
+     * Keeps retry-counting state out of test bodies so each retry test reads linearly.
+     *
+     * @param \Throwable $throwOnce Exception thrown by the first call to post().
+     * @param array<string, mixed> $thenReturn Later response fields; empty models an endpoint with no response fields.
+     * @return HttpTransport Mocked transport with the throw-then-return sequence wired up.
+     */
+    private function transportThrowsOnceThenReturns(\Throwable $throwOnce, array $thenReturn): HttpTransport
+    {
+        $transport = $this->createMock(HttpTransport::class);
+        $callCount = 0;
+        $transport->method('post')
+            ->willReturnCallback(function () use (&$callCount, $throwOnce, $thenReturn): array {
+                $callCount++;
+                // The first app request models a transient failure; a retry receives the successful payload.
+                if ($callCount === 1) {
+                    throw $throwOnce;
+                }
+
+                return $thenReturn;
+            });
+
+        return $transport;
+    }
+
+    /**
+     * Confirms postJson() sends correct URL so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonSendsCorrectUrl(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -37,14 +81,21 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['summary' => 'test']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081/'),
             transport: $transport,
         );
 
-        $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $result = $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
+
+        $this->assertSame(['summary' => 'test'], $result);
     }
 
+    /**
+     * Confirms postJson() sends correct payload so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonSendsCorrectPayload(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -55,29 +106,36 @@ class StrandsClientPostJsonTest extends TestCase
                 $this->callback(fn (array $headers) => $headers['Content-Type'] === 'application/json'
                     && $headers['Accept'] === 'application/json'),
                 $this->callback(function (string $body) {
-                    $data = json_decode($body, true);
+                    $responseData = json_decode($body, true);
 
-                    return $data['file_base64'] === 'abc'
-                        && $data['file_name'] === 'test.pdf'
-                        && $data['mime_type'] === 'application/pdf';
+                    return $responseData['file_base64'] === 'abc'
+                        && $responseData['file_name'] === 'test.pdf'
+                        && $responseData['mime_type'] === 'application/pdf';
                 }),
                 $this->anything(),
                 $this->anything(),
             )
             ->willReturn(['summary' => 'test']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $client->postJson('/file-summarise', [
+        $result = $strandsClient->postJson('/file-summarise', [
             'file_base64' => 'abc',
             'file_name' => 'test.pdf',
             'mime_type' => 'application/pdf',
         ]);
+
+        $this->assertSame(['summary' => 'test'], $result);
     }
 
+    /**
+     * Confirms postJson() applies auth so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonAppliesAuth(): void
     {
         $auth = $this->createMock(AuthStrategy::class);
@@ -91,9 +149,9 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturnArgument(0);
 
-        $transport = $this->createMockTransport(['summary' => 'test']);
+        $transport = $this->mockTransportReturning(['summary' => 'test']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 auth: $auth,
@@ -101,9 +159,16 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $result = $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
+
+        $this->assertSame(['summary' => 'test'], $result);
     }
 
+    /**
+     * Confirms postJson() returns decoded array so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonReturnsDecodedArray(): void
     {
         $expected = [
@@ -112,33 +177,31 @@ class StrandsClientPostJsonTest extends TestCase
             'verification' => ['score' => 95, 'verdict' => 'excellent'],
         ];
 
-        $transport = $this->createMockTransport($expected);
+        $transport = $this->mockTransportReturning($expected);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $result = $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $result = $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
 
         $this->assertSame($expected, $result);
     }
 
+    /**
+     * Confirms postJson() retries on transient error so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonRetriesOnTransientError(): void
     {
-        $transport = $this->createMock(HttpTransport::class);
-        $callCount = 0;
-        $transport->method('post')
-            ->willReturnCallback(function () use (&$callCount) {
-                $callCount++;
-                if ($callCount === 1) {
-                    throw new AgentErrorException('Service unavailable', statusCode: 503);
-                }
+        $transport = $this->transportThrowsOnceThenReturns(
+            new AgentErrorException('Service unavailable', statusCode: 503),
+            ['summary' => 'test'],
+        );
 
-                return ['summary' => 'test'];
-            });
-
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 maxRetries: 2,
@@ -147,23 +210,28 @@ class StrandsClientPostJsonTest extends TestCase
             transport: $transport,
         );
 
-        $result = $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $result = $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
 
         $this->assertSame('test', $result['summary']);
-        $this->assertSame(2, $callCount);
     }
 
-    public function testPostJsonDoesNotRetryOn400(): void
+    /**
+     * Confirms postJson() does not retry on 400 so callers keep the documented result.
+     *
+     * @return void
+     * @throws AgentErrorException When the custom endpoint rejects the request.
+     */
+    public function testPostJsonDoesNotRetryOnBadRequest(): void
     {
         $transport = $this->createMock(HttpTransport::class);
         $callCount = 0;
-        $transport->method('post')
+        $transport->expects($this->any())->method('post')
             ->willReturnCallback(function () use (&$callCount) {
                 $callCount++;
                 throw new AgentErrorException('Bad request', statusCode: 400);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 maxRetries: 3,
@@ -173,36 +241,47 @@ class StrandsClientPostJsonTest extends TestCase
         );
 
         try {
-            $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+            $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
             $this->fail('Expected AgentErrorException');
-        } catch (AgentErrorException $e) {
-            $this->assertSame(400, $e->statusCode);
+        } catch (AgentErrorException $agentErrorException) {
+            // For example, invalid form input is a permanent 400; return it immediately instead of making the user wait through retries.
+            $this->assertSame(400, $agentErrorException->statusCode);
             $this->assertSame(1, $callCount, 'Should not retry on 400');
         }
     }
 
+    /**
+     * Confirms postJson() throws on encoding failure so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonThrowsOnEncodingFailure(): void
     {
-        $transport = $this->createMockTransport([]);
+        $transport = $this->mockTransportReturning([]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         try {
-            $client->postJson('/file-summarise', ['bad_value' => NAN]);
+            $strandsClient->postJson('/file-summarise', ['bad_value' => NAN]);
             $this->fail('Expected StrandsException');
-        } catch (StrandsException $e) {
-            // Verify the message contains BOTH the prefix AND the original exception message
-            $this->assertStringContainsString('Failed to encode request payload', $e->getMessage());
-            $this->assertStringContainsString('Inf and NaN', $e->getMessage());
+        } catch (StrandsException $encodingException) {
+            // For example, an app can pass a non-finite metric; the UI needs the client context and original JSON failure.
+            $this->assertStringContainsString('Failed to encode request payload', $encodingException->getMessage());
+            $this->assertStringContainsString('Inf and NaN', $encodingException->getMessage());
         }
     }
 
+    /**
+     * Confirms postJson() logs debug so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonLogsDebug(): void
     {
-        $transport = $this->createMockTransport(['summary' => 'test']);
+        $transport = $this->mockTransportReturning(['summary' => 'test']);
 
         $logger = $this->createMock(LoggerInterface::class);
         $debugCalls = [];
@@ -212,13 +291,13 @@ class StrandsClientPostJsonTest extends TestCase
                 $debugCalls[] = ['message' => $message, 'context' => $context];
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             logger: $logger,
         );
 
-        $client->postJson('/file-summarise', ['file_base64' => 'abc']);
+        $strandsClient->postJson('/file-summarise', ['file_base64' => 'abc']);
 
         // Request log must include url and path
         $this->assertSame('Strands postJson request', $debugCalls[0]['message']);
@@ -230,6 +309,11 @@ class StrandsClientPostJsonTest extends TestCase
         $this->assertArrayHasKey('url', $debugCalls[1]['context']);
     }
 
+    /**
+     * Confirms postJson() uses config timeout by default so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonUsesConfigTimeoutByDefault(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -244,14 +328,21 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['ok' => true]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
             transport: $transport,
         );
 
-        $client->postJson('/test', ['data' => 'test']);
+        $result = $strandsClient->postJson('/test', ['data' => 'test']);
+
+        $this->assertSame(['ok' => true], $result);
     }
 
+    /**
+     * Confirms postJson() uses per request timeout so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonUsesPerRequestTimeout(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -266,14 +357,21 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['ok' => true]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
             transport: $transport,
         );
 
-        $client->postJson('/file-metadata', ['data' => 'test'], timeout: 30);
+        $result = $strandsClient->postJson('/file-metadata', ['data' => 'test'], timeout: 30);
+
+        $this->assertSame(['ok' => true], $result);
     }
 
+    /**
+     * Confirms postJson() handles empty path so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonHandlesEmptyPath(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -288,21 +386,26 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['ok' => true]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $result = $client->postJson('', ['data' => 'test']);
+        $result = $strandsClient->postJson('', ['data' => 'test']);
 
         $this->assertSame(['ok' => true], $result);
     }
 
+    /**
+     * Confirms postJson() rejects zero timeout so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonRejectsZeroTimeout(): void
     {
-        $transport = $this->createMockTransport([]);
+        $transport = $this->mockTransportReturning([]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -310,14 +413,19 @@ class StrandsClientPostJsonTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('timeout must be at least 1');
 
-        $client->postJson('/test', ['data' => 'test'], timeout: 0);
+        $strandsClient->postJson('/test', ['data' => 'test'], timeout: 0);
     }
 
+    /**
+     * Confirms postJson() rejects negative timeout so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonRejectsNegativeTimeout(): void
     {
-        $transport = $this->createMockTransport([]);
+        $transport = $this->mockTransportReturning([]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -325,9 +433,14 @@ class StrandsClientPostJsonTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('timeout must be at least 1');
 
-        $client->postJson('/test', ['data' => 'test'], timeout: -10);
+        $strandsClient->postJson('/test', ['data' => 'test'], timeout: -10);
     }
 
+    /**
+     * Confirms postJson() null timeout uses default so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonNullTimeoutUsesDefault(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -342,14 +455,21 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['ok' => true]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120),
             transport: $transport,
         );
 
-        $client->postJson('/test', ['data' => 'test'], timeout: null);
+        $result = $strandsClient->postJson('/test', ['data' => 'test'], timeout: null);
+
+        $this->assertSame(['ok' => true], $result);
     }
 
+    /**
+     * Confirms postJson() accepts boundary one timeout so callers keep the documented result.
+     *
+     * @return void
+     */
     public function testPostJsonAcceptsBoundaryOneTimeout(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -364,11 +484,13 @@ class StrandsClientPostJsonTest extends TestCase
             )
             ->willReturn(['ok' => true]);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $client->postJson('/test', ['data' => 'test'], timeout: 1);
+        $result = $strandsClient->postJson('/test', ['data' => 'test'], timeout: 1);
+
+        $this->assertSame(['ok' => true], $result);
     }
 }

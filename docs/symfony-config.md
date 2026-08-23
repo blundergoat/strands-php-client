@@ -1,6 +1,6 @@
 # Symfony Bundle Configuration
 
-The Strands PHP Client includes a Symfony bundle that registers `StrandsClient` services from YAML configuration. This guide covers every configuration option with examples.
+The Symfony bundle registers `StrandsClient` services from YAML configuration. This guide explains every option and when to change it.
 
 ## Table of Contents
 
@@ -14,6 +14,7 @@ The Strands PHP Client includes a Symfony bundle that registers `StrandsClient` 
   - [connect_timeout](#connect_timeout)
   - [max_retries](#max_retries)
   - [retry_delay_ms](#retry_delay_ms)
+  - [retryable_status_codes](#retryable_status_codes)
 - [Examples](#examples)
   - [Local Development](#local-development)
   - [Production with API Key](#production-with-api-key)
@@ -60,16 +61,24 @@ AGENT_ENDPOINT=http://localhost:8081
 ```php
 use StrandsPhpClient\StrandsClient;
 
-class MyService
+/**
+ * Answers questions submitted through a Symfony application screen.
+ *
+ * Use this service when the screen should send every question to the first configured agent.
+ * The returned string is the completed answer a controller can render or serialize.
+ */
+final class AgentAnswerService
 {
+    /** Inject the default agent alias created by the bundle. */
     public function __construct(
-        private readonly StrandsClient $client,
+        private readonly StrandsClient $agentClient,
     ) {
     }
 
-    public function ask(string $question): string
+    /** Return the agent's completed answer for the question submitted by the user. */
+    public function answerQuestion(string $question): string
     {
-        return $this->client->invoke(message: $question)->text;
+        return $this->agentClient->invoke(message: $question)->text;
     }
 }
 ```
@@ -88,6 +97,9 @@ return [
 
 The bundle auto-detects `symfony/http-client` and creates `SymfonyHttpTransport` instances, so both `invoke()` and `stream()` work out of the box.
 
+`RequestMiddleware` receives `strands.middleware`, while `ResponseObserver` receives `strands.response_observer`. Observability can then read parsed
+responses and sanitized custom-endpoint summaries without changing the request-middleware interface.
+
 ## Full Configuration Reference
 
 Every option with its default value:
@@ -98,33 +110,31 @@ strands:
         # Each key becomes a service: strands.client.<name>
         my_agent:
 
-            # REQUIRED -The URL where the Strands agent is running.
+            # REQUIRED - the URL where the Strands agent is running.
             endpoint: 'http://localhost:8081'
 
             # Authentication settings
             auth:
-                # Which auth strategy to use: 'null', 'api_key', or 'sigv4'
+                # Null means unauthenticated access; choose api_key or sigv4 for a protected agent endpoint.
                 driver: 'null'                    # default: 'null'
 
                 # Only used when driver is 'api_key':
-                api_key: ~                        # default: null (required for api_key driver)
+                api_key: ~                        # null is valid until api_key is selected, then the client cannot be created without a key
                 header_name: 'Authorization'      # default: 'Authorization'
                 value_prefix: 'Bearer '           # default: 'Bearer '
 
                 # Only used when driver is 'sigv4':
-                region: ~                         # default: null (required for sigv4 driver)
+                region: ~                         # null is valid until sigv4 is selected, then the client cannot be created without a region
                 service: 'execute-api'            # default: 'execute-api'
-                access_key_id: ~                  # default: null (falls back to env)
-                secret_access_key: ~              # default: null (falls back to env)
-                session_token: ~                  # default: null
+                access_key_id: ~                  # with both keys null, read AWS_ACCESS_KEY_ID from the PHP process
+                secret_access_key: ~              # with both keys null, read AWS_SECRET_ACCESS_KEY from the PHP process
+                session_token: ~                  # null means explicit credentials have no token; env fallback reads AWS_SESSION_TOKEN
 
             # How long to wait for the agent to respond (seconds).
-            # LLMs can be slow -120s is generous but safe.
+            # LLMs can be slow - 120s is generous but safe.
             timeout: 120                          # default: 120
 
-            # How long to wait for the initial TCP connection (seconds).
-            # Separate from timeout so a down server fails fast
-            # without affecting slow LLM generation.
+            # This separate connection limit lets a down server fail quickly without shortening slow model generation.
             connect_timeout: 10                   # default: 10
 
             # How many times to retry on transient errors (429, 502, 503, 504).
@@ -143,19 +153,11 @@ strands:
 
 ### endpoint (required)
 
-The full URL of the Strands agent HTTP API. The client appends `/invoke` or `/stream` to this URL.
+The full URL of the Strands agent HTTP API. The client appends `/invoke` or `/stream` to this URL. Use `http://agent:8000` for a Docker service,
+`http://localhost:8081` for a directly hosted local gateway, or an HTTPS URL in production.
 
 ```yaml
-# Local Docker setup
-endpoint: 'http://agent:8000'
-
-# Local development (no Docker)
-endpoint: 'http://localhost:8081'
-
-# Production
-endpoint: 'https://api.example.com/agent'
-
-# Using an environment variable (recommended)
+# Let each deployment supply its own local or production URL.
 endpoint: '%env(AGENT_ENDPOINT)%'
 ```
 
@@ -209,7 +211,11 @@ auth:
     service: 'execute-api'                # Optional (default)
 ```
 
-When `access_key_id` and `secret_access_key` are omitted, the factory calls `SigV4Auth::fromEnvironment()`, which reads `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from the process environment. This is the recommended approach for ECS/EC2/Lambda deployments.
+When `access_key_id` and `secret_access_key` are omitted, the factory reads `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from the PHP process.
+Temporary credentials also require `AWS_SESSION_TOKEN`.
+
+This is an environment-variable lookup, not the AWS default credential-provider chain. For an EC2 instance profile, ECS task role, Lambda execution
+role, or shared profile, resolve the credentials separately and inject or pass all required values.
 
 To pass credentials explicitly (e.g. from Symfony secrets):
 
@@ -224,12 +230,12 @@ auth:
 
 ### timeout
 
-Response timeout in seconds. This is the maximum time to wait for the agent to finish responding. LLMs can take a while, especially with tool use, so the default of 120 seconds (2 minutes) is intentionally generous.
+Response timeout in seconds. It limits how long the client waits for the agent to finish; the 120-second default leaves room for model generation and
+tool calls.
 
 ```yaml
-timeout: 120    # default
-timeout: 300    # 5 minutes for complex agent tasks with multiple tool calls
-timeout: 30     # shorter timeout for simple, fast agents
+# The default is 120; use 300 for tool-heavy agents or 30 for a consistently fast endpoint.
+timeout: 120
 ```
 
 This applies to both `invoke()` (total time) and `stream()` (time between chunks).
@@ -242,44 +248,55 @@ Connection timeout in seconds. How long to wait for the initial TCP connection t
 - A **slow LLM response** doesn't get confused with a down server (timeout: 120s)
 
 ```yaml
-connect_timeout: 10    # default
-connect_timeout: 5     # fail faster if the server is unreachable
+# The default is 10; use 5 when the UI should report an unreachable endpoint sooner.
+connect_timeout: 10
 ```
 
 ### max_retries
 
-Maximum number of retries on transient HTTP errors. When a request fails with a retryable status code (429, 502, 503, 504), the client will retry up to this many times before throwing an exception.
+Maximum number of retries after the first request. HTTP responses retry only when their status appears in `retryable_status_codes`; connection and
+response-processing failures also use this retry budget.
 
 ```yaml
-max_retries: 0     # default -no retries, fail immediately
-max_retries: 2     # retry twice (3 total attempts)
-max_retries: 5     # retry 5 times (for critical production workloads)
+# The default is 0; use 2 for three total attempts or a larger value only when the user can tolerate the added wait.
+max_retries: 0
 ```
 
-Retries apply to `invoke()` and `postJson()` calls. Streaming requests (`stream()`, `streamSse()`) are not retried - you'd need to restart the entire stream.
+Retries apply to `invoke()` and `postJson()`. Streaming calls are not retried because a replacement request could duplicate text or tool activity the
+user already received.
 
 ### retry_delay_ms
 
-Base delay between retries in milliseconds. Uses **exponential backoff** -the delay doubles after each retry:
+Base delay between retries in milliseconds. The base doubles for each retry and is capped at 30 seconds. Each actual delay is randomized to 50–100% of
+that base so several application requests do not retry the agent together.
 
-| Retry | Delay (500ms base) | Delay (1000ms base) |
-|-------|--------------------|---------------------|
-| 1st   | 500ms              | 1000ms              |
-| 2nd   | 1000ms             | 2000ms              |
-| 3rd   | 2000ms             | 4000ms              |
-| 4th   | 4000ms             | 8000ms              |
+| Retry | Actual delay (500ms base) | Actual delay (1000ms base) |
+|-------|---------------------------|----------------------------|
+| 1st   | 250–500ms                 | 500–1000ms                 |
+| 2nd   | 500–1000ms                | 1000–2000ms                |
+| 3rd   | 1000–2000ms               | 2000–4000ms                |
+| 4th   | 2000–4000ms               | 4000–8000ms                |
 
 ```yaml
-retry_delay_ms: 500     # default
-retry_delay_ms: 1000    # start with 1 second (more conservative)
-retry_delay_ms: 100     # start with 100ms (aggressive retries)
+# The default is 500; use 1000 for slower retries or 100 when the agent service recovers quickly.
+retry_delay_ms: 500
+```
+
+### retryable_status_codes
+
+HTTP statuses that may be retried when `max_retries` is greater than zero. Values must be integers from 400 through 599. An empty list disables status
+retries while leaving connection and response-processing retries available.
+
+```yaml
+retryable_status_codes: [429, 502, 503, 504] # default
+# Add 500 when the wrapper uses it for transient errors; use [] to retry connection and response-processing failures only.
 ```
 
 ## Examples
 
 ### Local Development
 
-Minimal config for running against a local Docker Compose or `start-dev.sh` setup:
+Minimal config for a local gateway, whether it runs directly or through Docker Compose:
 
 ```yaml
 # config/packages/strands.yaml
@@ -316,12 +333,13 @@ strands:
 ```dotenv
 # .env (or set via your deployment platform)
 AGENT_ENDPOINT=https://agent.internal.example.com
-AGENT_API_KEY=sk-prod-abc123def456
+AGENT_API_KEY=replace-with-a-secret-from-your-deployment-platform
 ```
 
 ### Multiple Agents (Council Pattern)
 
-Multiple named agents that share the same endpoint but get different personas via context metadata (as used in the-summit-chat):
+Register several named clients against one endpoint, as in `the-summit-chatroom`. Configuration creates the services; the caller supplies
+`AgentContext` metadata when the wrapper uses a value such as `persona` to select agent instructions.
 
 ```yaml
 # config/packages/strands.yaml
@@ -338,7 +356,8 @@ strands:
             timeout: 300
 ```
 
-Each agent creates a separate `StrandsClient` service (`strands.client.analyst`, `strands.client.skeptic`, `strands.client.strategist`), even though they point to the same endpoint. The persona is selected via `AgentContext` metadata at call time.
+Each entry creates a separate service, such as `strands.client.analyst`, even when several use the same endpoint. The caller selects a persona through
+`AgentContext` metadata at call time.
 
 ### High-Availability with Retries
 
@@ -359,11 +378,12 @@ strands:
 ```
 
 With `max_retries: 3` and `retry_delay_ms: 500`, the retry timing is:
+
 - Attempt 1: immediate
-- Retry 1: after 500ms
-- Retry 2: after 1000ms
-- Retry 3: after 2000ms
-- Total max wait: ~3.5 seconds of retry delays before giving up
+- Retry 1: after 250–500ms
+- Retry 2: after 500–1000ms
+- Retry 3: after 1000–2000ms
+- Total retry delay: about 1.75–3.5 seconds before the final failure reaches the caller
 
 ## Service Injection
 
@@ -374,10 +394,17 @@ The **first** agent in your config is automatically aliased as the default `Stra
 ```php
 use StrandsPhpClient\StrandsClient;
 
-class MyService
+/**
+ * Receives the default client for an application service that answers user questions.
+ *
+ * Use this pattern when every method in the service should talk to the first configured agent.
+ * Add task-specific methods here rather than resolving the client from Symfony's container at each call site.
+ */
+final class AgentAnswerService
 {
+    /** Inject the default agent once for later user requests. */
     public function __construct(
-        private readonly StrandsClient $client,
+        private readonly StrandsClient $agentClient,
     ) {
     }
 }
@@ -396,11 +423,19 @@ $client = $container->get('strands.client.analyst');
 The recommended way to inject specific named clients in Symfony 6.4+:
 
 ```php
-use StrandsPhpClient\StrandsClient;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
-class CouncilOrchestrator
+use StrandsPhpClient\StrandsClient;
+
+/**
+ * Receives the specialist agents used by a council-style answer screen.
+ *
+ * Use this orchestrator when analyst, skeptic, and strategist responses contribute to one user decision.
+ * Later methods can call the named clients in the order the interface presents them.
+ */
+final class CouncilOrchestrator
 {
+    /** Inject each named agent once so a request never needs a runtime service lookup. */
     public function __construct(
         #[Autowire(service: 'strands.client.analyst')]
         private readonly StrandsClient $analyst,
@@ -428,7 +463,7 @@ timeout: '%env(int:AGENT_TIMEOUT)%'          # Cast to integer
 ```dotenv
 # .env.local (not committed to git)
 AGENT_ENDPOINT=http://localhost:8081
-AGENT_API_KEY=sk-dev-abc123
+AGENT_API_KEY=replace-with-your-local-secret
 AGENT_TIMEOUT=60
 ```
 
@@ -436,14 +471,14 @@ AGENT_TIMEOUT=60
 
 When Symfony boots, the bundle processes your config through three classes:
 
-1. **`Configuration`** -Defines the schema (what keys are allowed, their types, defaults). Validates your YAML against this schema. If you typo a key name or use the wrong type, Symfony throws a clear error at boot time.
+1. **`Configuration`** defines the allowed keys, types, and defaults. A misspelled key or invalid type fails during container compilation.
 
-2. **`StrandsExtension`** -Reads the validated config and registers services in the DI container:
+2. **`StrandsExtension`** - Reads the validated config and registers services in the DI container:
    - One `StrandsClientFactory` service (holds all agent configs)
    - One `StrandsClient` service per agent (created via the factory)
    - An alias from `StrandsClient::class` to the first agent
 
-3. **`StrandsClientFactory`** -Called at runtime to create each `StrandsClient`. It:
+3. **`StrandsClientFactory`** - Called at runtime to create each `StrandsClient`. It:
    - Looks up the agent config by name
    - Resolves the auth driver (`'null'` → `NullAuth`, `'api_key'` → `ApiKeyAuth`, `'sigv4'` → `SigV4Auth`)
    - Builds a `StrandsConfig` with all settings
@@ -453,4 +488,4 @@ When Symfony boots, the bundle processes your config through three classes:
 YAML Config → Configuration (validate) → StrandsExtension (register services) → StrandsClientFactory (create clients)
 ```
 
-The logger is automatically injected from Symfony's `logger` service (MonologBundle), so all `StrandsClient` debug/warning logs appear in your standard Symfony log files.
+The bundle injects Symfony's `logger` service, so `StrandsClient` records use the application's normal log destinations and retention policy.

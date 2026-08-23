@@ -7,8 +7,19 @@ namespace StrandsPhpClient\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Context\AgentContext;
 
+/**
+ * Verifies immutable context builders preserve the metadata and supporting material selected by the calling app.
+ *
+ * Use these tests when changing system prompts, permissions, documents, structured data, or serialization.
+ * They protect follow-up requests from mutation and omit fields the caller left empty.
+ */
 class AgentContextTest extends TestCase
 {
+    /**
+     * Confirms create() returns empty context so the agent receives the request the user assembled.
+     *
+     * @return void
+     */
     public function testCreateReturnsEmptyContext(): void
     {
         $context = AgentContext::create();
@@ -16,6 +27,11 @@ class AgentContextTest extends TestCase
         $this->assertSame([], $context->toArray());
     }
 
+    /**
+     * Confirms withMetadata() adds each UI context value so the agent receives the request the user assembled.
+     *
+     * @return void
+     */
     public function testWithMetadataAddsKeyValue(): void
     {
         $context = AgentContext::create()
@@ -28,6 +44,11 @@ class AgentContextTest extends TestCase
         $this->assertSame(1, $array['metadata']['round']);
     }
 
+    /**
+     * Confirms withSystemPrompt() adds the app's instructions so the agent receives the request the user assembled.
+     *
+     * @return void
+     */
     public function testWithSystemPromptAddsPrompt(): void
     {
         $context = AgentContext::create()
@@ -38,7 +59,12 @@ class AgentContextTest extends TestCase
         $this->assertSame('You are a helpful assistant.', $array['system_prompt']);
     }
 
-    public function testImmutability(): void
+    /**
+     * Confirms withMetadata returns a new instance and leaves the original unchanged so the agent receives the request the user assembled.
+     *
+     * @return void
+     */
+    public function testWithMetadataReturnsNewInstanceAndPreservesOriginal(): void
     {
         $original = AgentContext::create();
         $withMeta = $original->withMetadata('key', 'value');
@@ -47,6 +73,11 @@ class AgentContextTest extends TestCase
         $this->assertSame(['metadata' => ['key' => 'value']], $withMeta->toArray());
     }
 
+    /**
+     * Confirms callers can build a full context so the agent receives the request the user assembled.
+     *
+     * @return void
+     */
     public function testFullContext(): void
     {
         $context = AgentContext::create()
@@ -65,6 +96,11 @@ class AgentContextTest extends TestCase
         $this->assertSame($expected, $context->toArray());
     }
 
+    /**
+     * Confirms withPermission() adds each access token so the agent receives the request the user assembled.
+     *
+     * @return void
+     */
     public function testWithPermissionAddsToken(): void
     {
         $context = AgentContext::create()
@@ -76,6 +112,11 @@ class AgentContextTest extends TestCase
         $this->assertSame(['read:patients', 'write:notes'], $array['permissions']);
     }
 
+    /**
+     * Confirms withDocument() adds an uploaded file so the agent receives the request the user assembled.
+     *
+     * @return void
+     */
     public function testWithDocumentAddsDocument(): void
     {
         $content = base64_encode('Hello, world!');
@@ -90,6 +131,11 @@ class AgentContextTest extends TestCase
         $this->assertSame('text/plain', $array['documents'][0]['mime_type']);
     }
 
+    /**
+     * Confirms multiple uploaded files retain their order so the agent receives the request the user assembled.
+     *
+     * @return void
+     */
     public function testWithMultipleDocuments(): void
     {
         $context = AgentContext::create()
@@ -103,6 +149,11 @@ class AgentContextTest extends TestCase
         $this->assertSame('b.json', $array['documents'][1]['name']);
     }
 
+    /**
+     * Confirms withStructuredData() adds keyed app data so the agent receives the request the user assembled.
+     *
+     * @return void
+     */
     public function testWithStructuredDataAddsData(): void
     {
         $context = AgentContext::create()
@@ -115,6 +166,11 @@ class AgentContextTest extends TestCase
         $this->assertSame(['id' => 'CL-789'], $array['structured_data']['clinic']);
     }
 
+    /**
+     * Confirms all context fields can be combined so the agent receives the request the user assembled.
+     *
+     * @return void
+     */
     public function testFullContextWithAllFields(): void
     {
         $docContent = base64_encode('file contents');
@@ -134,6 +190,11 @@ class AgentContextTest extends TestCase
         $this->assertSame(['score' => 95], $array['structured_data']['metrics']);
     }
 
+    /**
+     * Confirms withSystemPrompt() leaves the original context unchanged so callers can safely reuse it.
+     *
+     * @return void
+     */
     public function testSystemPromptImmutability(): void
     {
         $original = AgentContext::create();
@@ -143,6 +204,11 @@ class AgentContextTest extends TestCase
         $this->assertSame(['system_prompt' => 'Be helpful'], $withPrompt->toArray());
     }
 
+    /**
+     * Confirms withPermission() leaves the original context unchanged so callers can safely reuse it.
+     *
+     * @return void
+     */
     public function testPermissionImmutability(): void
     {
         $original = AgentContext::create();
@@ -152,6 +218,11 @@ class AgentContextTest extends TestCase
         $this->assertSame(['permissions' => ['admin']], $withPerm->toArray());
     }
 
+    /**
+     * Confirms withDocument() leaves the original context unchanged so callers can safely reuse it.
+     *
+     * @return void
+     */
     public function testDocumentImmutability(): void
     {
         $original = AgentContext::create();
@@ -161,6 +232,11 @@ class AgentContextTest extends TestCase
         $this->assertCount(1, $withDoc->toArray()['documents']);
     }
 
+    /**
+     * Confirms withStructuredData() leaves the original context unchanged so callers can safely reuse it.
+     *
+     * @return void
+     */
     public function testStructuredDataImmutability(): void
     {
         $original = AgentContext::create();
@@ -170,6 +246,11 @@ class AgentContextTest extends TestCase
         $this->assertSame(['structured_data' => ['key' => 'value']], $withData->toArray());
     }
 
+    /**
+     * Confirms empty fields are omitted so the agent receives the request the user assembled.
+     *
+     * @return void
+     */
     public function testEmptyFieldsAreOmitted(): void
     {
         $context = AgentContext::create()

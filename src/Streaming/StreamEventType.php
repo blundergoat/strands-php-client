@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Streaming;
 
 /**
- * All possible types of streaming events from the agent.
+ * The kinds of events that arrive while an answer is streaming in.
+ *
+ * Apps map them to visible text, tool activity, reasoning, citations, or terminal state as the agent works.
+ * Unknown future types are skipped so a newer wrapper does not break an older client.
  */
 enum StreamEventType: string
 {

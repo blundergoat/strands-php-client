@@ -1,0 +1,20 @@
+{
+    "name": "strands-wrapper",
+    "wire_version": "1",
+    "endpoints": {
+        "invoke": "/invoke",
+        "stream": "/stream",
+        "health": "/health"
+    },
+    "features": {
+        "rich_input": true,
+        "streaming": true,
+        "message_metadata": true,
+        "context_size": true,
+        "cache_points": true,
+        "document_context": true,
+        "document_citations": true,
+        "stream_resume": false,
+        "a2a": false
+    }
+}

@@ -1,0 +1,10 @@
+{
+    "message": "Summarise the latest note.",
+    "session_id": "session-001",
+    "context": {
+        "metadata": {
+            "persona": "analyst",
+            "correlation_id": "corr-001"
+        }
+    }
+}

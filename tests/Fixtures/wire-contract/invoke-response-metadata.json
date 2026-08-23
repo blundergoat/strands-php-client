@@ -1,0 +1,15 @@
+{
+    "text": "The document contains a referral summary.",
+    "agent": "metadata-builder",
+    "session_id": "session-003",
+    "usage": {
+        "input_tokens": 390,
+        "output_tokens": 95
+    },
+    "model": "claude-3-5-sonnet",
+    "request_id": "req-001",
+    "metadata": {
+        "document_type": "referral",
+        "confidence": 0.91
+    }
+}

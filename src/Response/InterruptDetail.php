@@ -7,18 +7,21 @@ namespace StrandsPhpClient\Response;
 /**
  * Details of an interrupt raised by the agent (human-in-the-loop).
  *
- * When an agent's tool requires user approval before proceeding,
- * it returns an interrupt. The caller can inspect, approve/deny,
- * and resume the conversation.
+ * It describes a tool action that needs user approval before the agent can continue.
+ * Callers can inspect the reason, collect a decision, and use the interrupt identifier to resume the conversation.
  */
 final readonly class InterruptDetail
 {
     /**
+     * Hold one interrupt the agent raised while awaiting a response.
+     *
+     * Usually built by fromArray(); call toResumeInput() to send the user's answer back.
+     *
      * @param string      $toolName     The tool that raised the interrupt.
-     * @param array<string, mixed> $toolInput  The input/arguments the tool was called with.
-     * @param string|null $toolUseId    Unique ID for the tool invocation (for resume).
-     * @param string|null $interruptId  Server-assigned interrupt identifier (for resume).
-     * @param string|null $reason       Human-readable reason for the interrupt.
+     * @param array<string, mixed> $toolInput Tool arguments; empty means the paused action reported no input.
+     * @param string|null $toolUseId Tool invocation ID; null means resume must use interruptId instead.
+     * @param string|null $interruptId Interrupt ID; null means resume must use toolUseId instead.
+     * @param string|null $reason User-facing explanation; null means unavailable, while an empty string is preserved.
      */
     public function __construct(
         public string $toolName,
@@ -37,27 +40,32 @@ final readonly class InterruptDetail
      *
      * @param mixed $response  The approval/denial value to send back (e.g. 'Approved', ['action' => 'allow']).
      *
+     * @return \StrandsPhpClient\Context\AgentInput Input that resumes the paused turn with the user's answer.
      * @throws \LogicException If neither interruptId nor toolUseId is available.
      */
     public function toResumeInput(mixed $response): \StrandsPhpClient\Context\AgentInput
     {
-        $id = $this->interruptId ?? $this->toolUseId;
+        $resumeInterruptId = $this->interruptId ?? $this->toolUseId;
 
-        if ($id === null) {
+        // Without an ID, the wrapper cannot associate the response with a paused action.
+        if ($resumeInterruptId === null) {
             throw new \LogicException(
                 'Cannot resume: InterruptDetail has neither interruptId nor toolUseId.',
             );
         }
 
-        return \StrandsPhpClient\Context\AgentInput::interruptResponse($id, $response);
+        return \StrandsPhpClient\Context\AgentInput::interruptResponse($resumeInterruptId, $response);
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Build this object from the agent's raw JSON.
+     *
+     * @param array<string, mixed> $data raw decoded JSON from the agent.
+     * @return self New instance ready for app code.
      */
     public static function fromArray(array $data): self
     {
-        /** @var array<string, mixed> $toolInput */
+        /** @var array<string, mixed> $toolInput validated before app code uses it. */
         $toolInput = is_array($data['tool_input'] ?? null) ? $data['tool_input'] : [];
 
         return new self(

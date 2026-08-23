@@ -46,3 +46,14 @@ infection.json5         export-ignore
 phpmd.xml               export-ignore
 phpstan.neon            export-ignore
 phpunit.xml             export-ignore
+
+# Agent workflow tooling - not part of the shipped library
+/.goat-flow/            export-ignore
+/.claude/               export-ignore
+/.agents/               export-ignore
+/.codex/                export-ignore
+/examples/              export-ignore
+/package.json           export-ignore
+/package-lock.json      export-ignore
+/AGENTS.md              export-ignore
+/.gruff-php.yaml        export-ignore

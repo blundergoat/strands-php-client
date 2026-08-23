@@ -9,17 +9,22 @@ use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 /**
- * Configuration tree (schema) for the "strands:" config key.
+ * Defines and validates the shape of the app's `strands:` config.
+ *
+ * Symfony uses it to validate each agent's endpoint, authentication, timeouts, and retry policy.
+ * Invalid app configuration fails during container compilation rather than during a user's first request.
  */
 class Configuration implements ConfigurationInterface
 {
     /**
-     * @return TreeBuilder
+     * Build the validation schema Symfony applies to the app's `strands:` config.
+     *
+     * @return TreeBuilder The config tree Symfony validates the app's YAML against.
      */
     public function getConfigTreeBuilder(): TreeBuilder
     {
         $treeBuilder = new TreeBuilder('strands');
-        /** @var ArrayNodeDefinition $rootNode */
+        /** @var ArrayNodeDefinition $rootNode validated before app code uses it. */
         $rootNode = $treeBuilder->getRootNode();
 
         $rootNode
@@ -61,18 +66,16 @@ class Configuration implements ConfigurationInterface
     }
 
     /**
-     * Define the auth configuration node.
+     * Define the authentication choices available in an app's strands.yaml file.
+     * Use null for local agents, api_key for header credentials, or sigv4 for IAM-protected endpoints.
      *
-     * Supports three drivers:
-     *   'null'    - NullAuth (no authentication, default)
-     *   'api_key' - ApiKeyAuth (sends API key in an HTTP header)
-     *   'sigv4'   - SigV4Auth (AWS Signature V4 for IAM-protected endpoints)
+     * @return ArrayNodeDefinition The `auth` sub-schema (driver plus its per-driver options).
      */
     private function authNode(): ArrayNodeDefinition
     {
-        $builder = new TreeBuilder('auth');
-        /** @var ArrayNodeDefinition $node */
-        $node = $builder->getRootNode();
+        $treeBuilder = new TreeBuilder('auth');
+        /** @var ArrayNodeDefinition $node validated before app code uses it. */
+        $node = $treeBuilder->getRootNode();
 
         $node
             ->addDefaultsIfNotSet()
@@ -126,13 +129,13 @@ class Configuration implements ConfigurationInterface
      * @param int    $default      The default value in seconds
      * @param string $description  Human-readable description
      *
-     * @return \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition
+     * @return \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition A validated seconds-based timeout node (minimum 1).
      */
     private function timeoutNode(string $name, int $default, string $description): \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition
     {
-        $builder = new TreeBuilder($name, 'integer');
-        /** @var \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition $node */
-        $node = $builder->getRootNode();
+        $treeBuilder = new TreeBuilder($name, 'integer');
+        /** @var \Symfony\Component\Config\Definition\Builder\IntegerNodeDefinition $node validated before app code uses it. */
+        $node = $treeBuilder->getRootNode();
 
         $node
             ->defaultValue($default)

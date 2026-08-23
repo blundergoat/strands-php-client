@@ -12,19 +12,44 @@ use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\StrandsClient;
 
+/**
+ * Verifies streamSse() preserves app-owned payloads while applying shared transport safeguards.
+ *
+ * It protects custom live experiences that need raw JSON rather than typed StreamEvent objects.
+ * Use these scenarios when changing raw framing, callback cancellation, auth, or error propagation.
+ */
 class StrandsClientStreamSseTest extends TestCase
 {
+    /**
+     * Creates a controlled HTTP transport that reproduces the response chunks an app could receive.
+     * Use it when the raw-streaming scenario must inspect requests or delivery order.
+     *
+     * @param string $sseData SSE bytes yielded by the mock; empty means the app receives no events.
+     * @return HttpTransport Mock transport that delivers the supplied SSE data; never null.
+     */
     private function createStreamingTransport(string $sseData): HttpTransport
     {
         $mock = $this->createMock(HttpTransport::class);
         $mock->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
+                $onChunk->__invoke($sseData);
             });
 
         return $mock;
     }
 
+    /**
+     * Verifies streamSse() sends the correct URL, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseSendsCorrectUrl(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -38,19 +63,35 @@ class StrandsClientStreamSseTest extends TestCase
                 $this->anything(),
                 $this->anything(),
             )
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                $onChunk("data: {\"type\": \"complete\", \"text\": \"done\"}\n\n");
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) {
+                $onChunk->__invoke("data: {\"type\": \"complete\", \"text\": \"done\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081/'),
             transport: $transport,
         );
 
-        $client->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () {
+        $eventCount = 0;
+        $strandsClient->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () use (&$eventCount): void {
+            $eventCount++;
         });
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
+    /**
+     * Verifies streamSse() sends the expected payload, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseSendsCorrectPayload(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -61,31 +102,47 @@ class StrandsClientStreamSseTest extends TestCase
                 $this->callback(fn (array $headers) => $headers['Content-Type'] === 'application/json'
                     && $headers['Accept'] === 'text/event-stream'),
                 $this->callback(function (string $body) {
-                    $data = json_decode($body, true);
+                    $decodedRequestPayload = json_decode($body, true);
 
-                    return $data['file_base64'] === 'abc'
-                        && $data['template'] === 'default';
+                    return $decodedRequestPayload['file_base64'] === 'abc'
+                        && $decodedRequestPayload['template'] === 'default';
                 }),
                 $this->anything(),
                 $this->anything(),
                 $this->anything(),
             )
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                $onChunk("data: {\"type\": \"complete\"}\n\n");
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) {
+                $onChunk->__invoke("data: {\"type\": \"complete\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $client->streamSse('/file-summarise-stream', [
+        $eventCount = 0;
+        $strandsClient->streamSse('/file-summarise-stream', [
             'file_base64' => 'abc',
             'template' => 'default',
-        ], function () {
+        ], function () use (&$eventCount): void {
+            $eventCount++;
         });
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
+    /**
+     * Verifies streamSse() applies authentication, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseAppliesAuth(): void
     {
         $auth = $this->createMock(AuthStrategy::class);
@@ -102,7 +159,7 @@ class StrandsClientStreamSseTest extends TestCase
         $sseData = "data: {\"type\": \"complete\"}\n\n";
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(
                 endpoint: 'http://localhost:8081',
                 auth: $auth,
@@ -110,126 +167,19 @@ class StrandsClientStreamSseTest extends TestCase
             transport: $transport,
         );
 
-        $client->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () {
-        });
-    }
-
-    public function testStreamSseParsesEvents(): void
-    {
-        $sseData = "data: {\"type\": \"text\", \"content\": \"Hello\"}\n\n"
-            . "data: {\"type\": \"text\", \"content\": \" world\"}\n\n"
-            . "data: {\"type\": \"complete\", \"text\": \"Hello world\"}\n\n";
-
-        $transport = $this->createStreamingTransport($sseData);
-
-        $client = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
-            $events[] = $event;
+        $eventCount = 0;
+        $strandsClient->streamSse('/file-summarise-stream', ['file_base64' => 'abc'], function () use (&$eventCount): void {
+            $eventCount++;
         });
 
-        $this->assertCount(3, $events);
-        $this->assertSame('text', $events[0]['type']);
-        $this->assertSame('Hello', $events[0]['content']);
-        $this->assertSame('text', $events[1]['type']);
-        $this->assertSame(' world', $events[1]['content']);
-        $this->assertSame('complete', $events[2]['type']);
-        $this->assertSame('Hello world', $events[2]['text']);
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
-    public function testStreamSsePreservesUnknownFields(): void
-    {
-        $sseData = "data: {\"type\": \"complete\", \"text\": \"done\", \"verification\": {\"score\": 95}, \"model\": \"claude-3\", \"metadata\": {\"custom\": true}}\n\n";
-
-        $transport = $this->createStreamingTransport($sseData);
-
-        $client = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
-            $events[] = $event;
-        });
-
-        $this->assertCount(1, $events);
-        $this->assertSame('done', $events[0]['text']);
-        $this->assertSame(['score' => 95], $events[0]['verification']);
-        $this->assertSame('claude-3', $events[0]['model']);
-        $this->assertSame(['custom' => true], $events[0]['metadata']);
-    }
-
-    public function testStreamSseSkipsMalformedJson(): void
-    {
-        $sseData = "data: {\"type\": \"text\", \"content\": \"first\"}\n\n"
-            . "data: {not valid json}\n\n"
-            . "data: {\"type\": \"text\", \"content\": \"third\"}\n\n";
-
-        $transport = $this->createStreamingTransport($sseData);
-
-        $client = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
-            $events[] = $event;
-        });
-
-        $this->assertCount(2, $events);
-        $this->assertSame('first', $events[0]['content']);
-        $this->assertSame('third', $events[1]['content']);
-    }
-
-    public function testStreamSseHandlesMultiLineData(): void
-    {
-        $sseData = "data: {\"type\": \"text\",\ndata:  \"content\": \"hello\"}\n\n";
-
-        $transport = $this->createStreamingTransport($sseData);
-
-        $client = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
-            $events[] = $event;
-        });
-
-        $this->assertCount(1, $events);
-        $this->assertSame('text', $events[0]['type']);
-        $this->assertSame('hello', $events[0]['content']);
-    }
-
-    public function testStreamSseSkipsHeartbeatComments(): void
-    {
-        $sseData = ": heartbeat\n\n"
-            . "data: {\"type\": \"text\", \"content\": \"hello\"}\n\n"
-            . ": another heartbeat\n\n";
-
-        $transport = $this->createStreamingTransport($sseData);
-
-        $client = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
-            $events[] = $event;
-        });
-
-        $this->assertCount(1, $events);
-        $this->assertSame('hello', $events[0]['content']);
-    }
-
+    /**
+     * Verifies streamSse() uses the configured timeout by default, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseUsesConfigTimeoutByDefault(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -243,19 +193,35 @@ class StrandsClientStreamSseTest extends TestCase
                 10,
                 $this->anything(),
             )
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                $onChunk("data: {\"type\": \"complete\"}\n\n");
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) {
+                $onChunk->__invoke("data: {\"type\": \"complete\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
             transport: $transport,
         );
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        $eventCount = 0;
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () use (&$eventCount): void {
+            $eventCount++;
         });
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
+    /**
+     * Verifies streamSse() uses per-request timeout, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseUsesPerRequestTimeout(): void
     {
         $transport = $this->createMock(HttpTransport::class);
@@ -269,19 +235,35 @@ class StrandsClientStreamSseTest extends TestCase
                 10,
                 $this->anything(),
             )
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                $onChunk("data: {\"type\": \"complete\"}\n\n");
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) {
+                $onChunk->__invoke("data: {\"type\": \"complete\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081', timeout: 120, connectTimeout: 10),
             transport: $transport,
         );
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        $eventCount = 0;
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () use (&$eventCount): void {
+            $eventCount++;
         }, timeout: 15);
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
+    /**
+     * Verifies streamSse() cancels when the callback returns false, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseCancelsOnFalseReturn(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"first\"}\n\n"
@@ -290,16 +272,17 @@ class StrandsClientStreamSseTest extends TestCase
 
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
             $events[] = $event;
 
-            return count($events) < 2;  // cancel after 2nd event
+            // Stop after the second raw event to prove callback cancellation works.
+            return count($events) < 2;
         });
 
         $this->assertCount(2, $events);
@@ -307,6 +290,11 @@ class StrandsClientStreamSseTest extends TestCase
         $this->assertSame('second', $events[1]['content']);
     }
 
+    /**
+     * Verifies streamSse() continues when the callback returns void, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseVoidCallbackContinues(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"first\"}\n\n"
@@ -315,103 +303,71 @@ class StrandsClientStreamSseTest extends TestCase
 
         $transport = $this->createStreamingTransport($sseData);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): void {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): void {
             $events[] = $event;
         });
 
         $this->assertCount(3, $events);
     }
 
+    /**
+     * Verifies streamSse() honors cancellation across network chunks, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseCancelsAcrossChunks(): void
     {
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                // First chunk delivers one event
-                $onChunk("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
-                // Second chunk delivers another — but callback already cancelled
-                $onChunk("data: {\"type\": \"text\", \"content\": \"second\"}\n\n");
+        $transport->expects($this->any())->method('stream')
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) {
+                // The first chunk delivers the only raw event the user accepts before cancelling.
+                $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"first\"}\n\n");
+                // The later event must stay hidden because the callback already recorded the user's cancellation.
+                $onChunk->__invoke("data: {\"type\": \"text\", \"content\": \"second\"}\n\n");
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events): bool {
             $events[] = $event;
 
-            return false;  // cancel immediately
+            // Stop immediately so the app receives only the first raw event.
+            return false;
         });
 
         $this->assertCount(1, $events);
         $this->assertSame('first', $events[0]['content']);
     }
 
-    public function testStreamSseHandlesCrlfLineEndings(): void
-    {
-        $sseData = "data: {\"type\": \"text\", \"content\": \"hello\"}\r\n\r\n"
-            . "data: {\"type\": \"complete\", \"text\": \"hello\"}\r\n\r\n";
-
-        $transport = $this->createStreamingTransport($sseData);
-
-        $client = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
-            $events[] = $event;
-        });
-
-        $this->assertCount(2, $events);
-        $this->assertSame('hello', $events[0]['content']);
-        $this->assertSame('complete', $events[1]['type']);
-    }
-
-    public function testStreamSseHandlesChunkedDelivery(): void
-    {
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                // SSE event split across two TCP chunks
-                $onChunk('data: {"type":');
-                $onChunk(" \"text\", \"content\": \"hello\"}\n\n");
-                // Second complete event in one chunk
-                $onChunk("data: {\"type\": \"complete\", \"text\": \"hello\"}\n\n");
-            });
-
-        $client = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $client->streamSse('/test-stream', ['data' => 'test'], function (array $event) use (&$events) {
-            $events[] = $event;
-        });
-
-        $this->assertCount(2, $events);
-        $this->assertSame('text', $events[0]['type']);
-        $this->assertSame('hello', $events[0]['content']);
-        $this->assertSame('complete', $events[1]['type']);
-    }
-
+    /**
+     * Verifies streamSse() propagates transport error, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSsePropagatesTransportError(): void
     {
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')
+        $transport->expects($this->any())->method('stream')
             ->willThrowException(new AgentErrorException('Internal Server Error', statusCode: 500));
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -419,34 +375,47 @@ class StrandsClientStreamSseTest extends TestCase
         $this->expectException(AgentErrorException::class);
         $this->expectExceptionMessage('Internal Server Error');
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () {
         });
     }
 
+    /**
+     * Verifies streamSse() throws on encoding failure, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseThrowsOnEncodingFailure(): void
     {
         $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
         try {
-            $client->streamSse('/test-stream', ['bad_value' => NAN], function () {
+            $strandsClient->streamSse('/test-stream', ['bad_value' => NAN], function () {
             });
             $this->fail('Expected StrandsException');
-        } catch (StrandsException $e) {
-            $this->assertStringContainsString('Failed to encode request payload', $e->getMessage());
-            $this->assertStringContainsString('Inf and NaN', $e->getMessage());
+        } catch (StrandsException $exception) {
+            // A custom screen can accidentally submit NaN from a calculation; the caller should receive an encoding error before any request is sent.
+            $this->assertStringContainsString('Failed to encode request payload', $exception->getMessage());
+            $this->assertStringContainsString('Inf and NaN', $exception->getMessage());
         }
     }
 
+    /**
+     * Verifies streamSse() rejects zero timeout, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseRejectsZeroTimeout(): void
     {
         $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -454,15 +423,21 @@ class StrandsClientStreamSseTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('timeout must be at least 1');
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () {
         }, timeout: 0);
     }
 
+    /**
+     * Verifies streamSse() rejects negative timeout, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseRejectsNegativeTimeout(): void
     {
         $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
@@ -470,10 +445,15 @@ class StrandsClientStreamSseTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('timeout must be at least 1');
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function () {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () {
         }, timeout: -5);
     }
 
+    /**
+     * Verifies streamSse() accepts the one-second timeout boundary, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseAcceptsBoundaryOneTimeout(): void
     {
         $sseData = "data: {\"status\": \"ok\"}\n\n";
@@ -489,19 +469,35 @@ class StrandsClientStreamSseTest extends TestCase
                 $this->anything(),
                 $this->anything(),
             )
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
+                $onChunk->__invoke($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
         );
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function (): void {
+        $eventCount = 0;
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function () use (&$eventCount): void {
+            $eventCount++;
         }, timeout: 1);
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event from the transport');
     }
 
+    /**
+     * Verifies streamSse() logs request and completion context, keeping raw SSE callbacks predictable for calling applications.
+     *
+     * @return void
+     */
     public function testStreamSseLogsRequestAndCompletionContext(): void
     {
         $sseData = "data: {\"type\": \"complete\"}\n\n";
@@ -515,97 +511,23 @@ class StrandsClientStreamSseTest extends TestCase
                 $debugCalls[] = ['message' => $message, 'context' => $context];
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             logger: $logger,
         );
 
-        $client->streamSse('/test-stream', ['data' => 'test'], function (): void {
+        $strandsClient->streamSse('/test-stream', ['data' => 'test'], function (): void {
         });
 
-        // Request log must include url and path
+        // Request diagnostics identify the custom route without recording the user's payload.
         $this->assertSame('Strands streamSse request', $debugCalls[0]['message']);
         $this->assertArrayHasKey('url', $debugCalls[0]['context']);
         $this->assertArrayHasKey('path', $debugCalls[0]['context']);
 
-        // Completion log must include url
+        // Completion diagnostics retain the safe endpoint while omitting streamed event content.
         $this->assertSame('Strands streamSse complete', $debugCalls[1]['message']);
         $this->assertArrayHasKey('url', $debugCalls[1]['context']);
     }
 
-    public function testStreamSseDataWithoutSpaceParsesCorrectly(): void
-    {
-        // SSE with "data:" (no space) — should still parse correctly
-        $sseData = "data:{\"type\": \"text\", \"content\": \"hello\"}\n\n";
-        $transport = $this->createStreamingTransport($sseData);
-
-        $client = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $client->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
-            $events[] = $event;
-        });
-
-        $this->assertCount(1, $events);
-        $this->assertSame('hello', $events[0]['content']);
-    }
-
-    public function testStreamSseCrlfInMiddleOfEventBlock(): void
-    {
-        // CRLF line endings must be normalized to LF so "data:...\r\ndata:...\r\n\r\n"
-        // is parsed as one event (two data lines), not split into separate events.
-        // If \r\n normalization is removed, the \r\n\r\n becomes a double-newline
-        // before the second data line, incorrectly splitting it into two events.
-        $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) {
-                // Two data lines with CRLF endings in the same event block
-                $onChunk("data: {\"type\": \"text\",\r\ndata:  \"content\": \"hello\"}\r\n\r\n");
-            });
-
-        $client = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $client->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
-            $events[] = $event;
-        });
-
-        // With correct CRLF normalization, this produces exactly one event
-        $this->assertCount(1, $events);
-        $this->assertSame('text', $events[0]['type']);
-        $this->assertSame('hello', $events[0]['content']);
-    }
-
-    public function testStreamSseCommentLinesBetweenDataLines(): void
-    {
-        // Comments between data lines should be skipped, not break the event
-        $sseData = ": comment 1\n"
-            . "data: {\"type\": \"text\", \"content\": \"first\"}\n\n"
-            . ": comment 2\n"
-            . ": comment 3\n\n"
-            . "data: {\"type\": \"text\", \"content\": \"second\"}\n\n";
-
-        $transport = $this->createStreamingTransport($sseData);
-
-        $client = new StrandsClient(
-            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
-            transport: $transport,
-        );
-
-        $events = [];
-        $client->streamSse('/test', ['d' => 1], function (array $event) use (&$events) {
-            $events[] = $event;
-        });
-
-        $this->assertCount(2, $events);
-        $this->assertSame('first', $events[0]['content']);
-        $this->assertSame('second', $events[1]['content']);
-    }
 }

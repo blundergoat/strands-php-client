@@ -12,35 +12,58 @@ use StrandsPhpClient\StrandsClient;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 
+/**
+ * Verifies the Symfony extension registers the factory, named clients, aliases, logger, and middleware wiring.
+ *
+ * Use these tests when changing dependency-injection service definitions or autoconfiguration.
+ * They protect the client service an application receives for each configured agent.
+ */
 class StrandsExtensionTest extends TestCase
 {
-    private function loadExtension(array $config): ContainerBuilder
+    /**
+     * Loads one Strands configuration into a fresh Symfony container builder.
+     * Use it to inspect the services an application receives after extension registration.
+     *
+     * @param array<string, mixed> $config Bundle settings; empty represents an app with no configured agents.
+     * @return ContainerBuilder Loaded container; never null and possibly free of named clients when agents are empty.
+     */
+    private function containerWithExtensionConfig(array $config): ContainerBuilder
     {
-        $container = new ContainerBuilder();
-        $container->setDefinition('logger', new Definition(NullLogger::class));
-        $extension = new StrandsExtension();
-        $extension->load([$config], $container);
+        $containerBuilder = new ContainerBuilder();
+        $containerBuilder->setDefinition('logger', new Definition(NullLogger::class));
+        $strandsExtension = new StrandsExtension();
+        $strandsExtension->load([$config], $containerBuilder);
 
-        return $container;
+        return $containerBuilder;
     }
 
+    /**
+     * Confirms the extension registers the client factory so Symfony can build named agent services.
+     *
+     * @return void
+     */
     public function testRegistersFactoryService(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $this->assertTrue($container->hasDefinition('strands.client_factory'));
+        $this->assertTrue($containerBuilder->hasDefinition('strands.client_factory'));
 
-        $factoryDef = $container->getDefinition('strands.client_factory');
+        $factoryDef = $containerBuilder->getDefinition('strands.client_factory');
         $this->assertSame(StrandsClientFactory::class, $factoryDef->getClass());
     }
 
+    /**
+     * Confirms the extension registers one service for each configured agent name.
+     *
+     * @return void
+     */
     public function testRegistersNamedAgentServices(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
                 'skeptic' => ['endpoint' => 'http://agent:8000'],
@@ -48,58 +71,96 @@ class StrandsExtensionTest extends TestCase
             ],
         ]);
 
-        $this->assertTrue($container->hasDefinition('strands.client.analyst'));
-        $this->assertTrue($container->hasDefinition('strands.client.skeptic'));
-        $this->assertTrue($container->hasDefinition('strands.client.strategist'));
+        $this->assertTrue($containerBuilder->hasDefinition('strands.client.analyst'));
+        $this->assertTrue($containerBuilder->hasDefinition('strands.client.skeptic'));
+        $this->assertTrue($containerBuilder->hasDefinition('strands.client.strategist'));
     }
 
+    /**
+     * Confirms named clients stay retrievable via `$container->get()` after compile so Symfony apps resolve configured agent services predictably.
+     *
+     * @return void
+     */
+    public function testNamedAgentServicesArePublic(): void
+    {
+        $containerBuilder = $this->containerWithExtensionConfig([
+            'agents' => [
+                'analyst' => ['endpoint' => 'http://agent:8000'],
+            ],
+        ]);
+
+        // Application docs promise direct access to a named client from Symfony's container.
+        // A public definition prevents compilation from inlining or removing that caller-visible service.
+        $this->assertTrue($containerBuilder->getDefinition('strands.client.analyst')->isPublic());
+    }
+
+    /**
+     * Confirms first agent is default alias so Symfony apps resolve configured agent services predictably.
+     *
+     * @return void
+     */
     public function testFirstAgentIsDefaultAlias(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
                 'skeptic' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $this->assertTrue($container->hasAlias(StrandsClient::class));
-        $alias = $container->getAlias(StrandsClient::class);
+        $this->assertTrue($containerBuilder->hasAlias(StrandsClient::class));
+        $alias = $containerBuilder->getAlias(StrandsClient::class);
         $this->assertSame('strands.client.analyst', (string) $alias);
     }
 
+    /**
+     * Confirms an empty agent map registers no named services or misleading default alias.
+     *
+     * @return void
+     */
     public function testEmptyAgentsRegistersNothing(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [],
         ]);
 
-        $this->assertFalse($container->hasDefinition('strands.client_factory'));
+        $this->assertFalse($containerBuilder->hasDefinition('strands.client_factory'));
     }
 
+    /**
+     * Confirms each named agent service uses the client factory before application code resolves it.
+     *
+     * @return void
+     */
     public function testAgentServiceUsesFactory(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'primary' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $def = $container->getDefinition('strands.client.primary');
-        $factory = $def->getFactory();
+        $definition = $containerBuilder->getDefinition('strands.client.primary');
+        $factory = $definition->getFactory();
 
         $this->assertIsArray($factory);
         $this->assertSame('create', $factory[1]);
     }
 
+    /**
+     * Confirms the client factory receives every configured agent definition.
+     *
+     * @return void
+     */
     public function testFactoryReceivesAgentsArgument(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $factoryDef = $container->getDefinition('strands.client_factory');
+        $factoryDef = $containerBuilder->getDefinition('strands.client_factory');
         $agentsArg = $factoryDef->getArgument('$agents');
 
         $this->assertIsArray($agentsArg);
@@ -107,69 +168,94 @@ class StrandsExtensionTest extends TestCase
         $this->assertSame('http://agent:8000', $agentsArg['analyst']['endpoint']);
     }
 
+    /**
+     * Confirms the client factory receives Symfony's logger for operator-visible diagnostics.
+     *
+     * @return void
+     */
     public function testFactoryReceivesLoggerArgument(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $factoryDef = $container->getDefinition('strands.client_factory');
+        $factoryDef = $containerBuilder->getDefinition('strands.client_factory');
         $loggerArg = $factoryDef->getArgument('$logger');
 
         $this->assertInstanceOf(\Symfony\Component\DependencyInjection\Reference::class, $loggerArg);
         $this->assertSame('logger', (string) $loggerArg);
     }
 
+    /**
+     * Confirms each named service asks the factory for its own configured agent.
+     *
+     * @return void
+     */
     public function testAgentServiceReceivesNameArgument(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $def = $container->getDefinition('strands.client.analyst');
-        $this->assertSame('analyst', $def->getArgument(0));
+        $definition = $containerBuilder->getDefinition('strands.client.analyst');
+        $this->assertSame('analyst', $definition->getArgument(0));
     }
 
+    /**
+     * Confirms the client factory receives tagged middleware in application order.
+     *
+     * @return void
+     */
     public function testFactoryReceivesMiddlewareArgument(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $factoryDef = $container->getDefinition('strands.client_factory');
+        $factoryDef = $containerBuilder->getDefinition('strands.client_factory');
         $middlewareArg = $factoryDef->getArgument('$middleware');
 
         $this->assertInstanceOf(\Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument::class, $middlewareArg);
     }
 
+    /**
+     * Confirms request middleware is autoconfigured so framework users receive the expected request behavior.
+     *
+     * @return void
+     */
     public function testRequestMiddlewareAutoconfigured(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
             ],
         ]);
 
-        $autoconfigured = $container->getAutoconfiguredInstanceof();
+        $autoconfigured = $containerBuilder->getAutoconfiguredInstanceof();
         $this->assertArrayHasKey(\StrandsPhpClient\Http\RequestMiddleware::class, $autoconfigured);
     }
 
+    /**
+     * Confirms each configured agent keeps its name so framework users can resolve the intended assistant.
+     *
+     * @return void
+     */
     public function testMultipleAgentsEachGetCorrectName(): void
     {
-        $container = $this->loadExtension([
+        $containerBuilder = $this->containerWithExtensionConfig([
             'agents' => [
                 'analyst' => ['endpoint' => 'http://agent:8000'],
                 'skeptic' => ['endpoint' => 'http://agent:8001'],
             ],
         ]);
 
-        $this->assertSame('analyst', $container->getDefinition('strands.client.analyst')->getArgument(0));
-        $this->assertSame('skeptic', $container->getDefinition('strands.client.skeptic')->getArgument(0));
+        $this->assertSame('analyst', $containerBuilder->getDefinition('strands.client.analyst')->getArgument(0));
+        $this->assertSame('skeptic', $containerBuilder->getDefinition('strands.client.skeptic')->getArgument(0));
     }
 }

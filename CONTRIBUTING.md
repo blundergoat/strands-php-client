@@ -54,14 +54,19 @@ Before submitting, make sure everything passes:
 composer preflight
 ```
 
-This runs:
-- **PHPUnit** -All tests must pass
-- **PHPStan Level 10** -Strictest static analysis
-- **PHP-CS-Fixer** -PSR-12 code style
-- **PHPMD** -Mess detector (design, codesize, unusedcode)
-- **Cyclomatic complexity** -Max 20 per method
-- **Coverage** -Minimum 80% line coverage (when run with `--coverage-min=80`)
-- **Infection** -Mutation testing with minimum 90% MSI
+This runs, in order:
+- **Composer validate** - `composer.json` is well-formed and strict-valid
+- **Security audit** - no known advisories against the locked dependencies
+- **Branch alias** - the `dev-main` alias in `composer.json` matches the newest `CHANGELOG.md` version
+- **Shellcheck** - every `.sh` file under `scripts/` and `.goat-flow/hooks/`
+- **PHP-CS-Fixer** - PSR-12 code style, dry-run only
+- **Cyclomatic complexity** - max 20 per method
+- **PHPMD** - mess detector (codesize, design, unusedcode)
+- **PHPStan Level 10** - strictest static analysis
+- **PHPUnit** - all tests must pass
+- **Coverage** - minimum 80% line coverage; pass `--coverage-min=N` to change the threshold
+
+Mutation testing is skipped by default. Run it with `./scripts/preflight-checks.sh --mutate` or `composer preflight:mutate`; `infection.json5` sets both `minMsi` and `minCoveredMsi` to 90. It needs a coverage driver (Xdebug or PCOV) and is slow.
 
 ### 4. Submit a PR
 
@@ -102,9 +107,15 @@ composer test:coverage
 # Coverage XML: coverage.xml
 ```
 
+### What CI covers
+
+CI runs the suite against PHP 8.2, 8.3, and 8.4, crossed with Symfony `^6.4` and `^7.0`, plus a separate Laravel job across `^10.0`, `^11.0`, and `^12.0`.
+
+`composer.json` also allows Symfony `^8.0`, and that allowance is correct for consumers — nothing in the library blocks it. CI cannot cover it yet: `phpmd/phpmd` depends on `pdepend/pdepend`, whose newest release still constrains `symfony/config` to `^7.0`, so Symfony 8 will not resolve alongside this project's dev tooling. Adding an `^8.0` matrix leg fails during dependency installation with a PDepend conflict, not a real incompatibility. Leave the matrix alone until PDepend supports Symfony 8.
+
 ### Writing tests
 
-- All tests use mocked HTTP responses -no network, no Docker, no API keys
+- All tests use mocked HTTP responses - no network, no Docker, no API keys
 - Use `$this->createMock()` for `HttpTransport` and `StrandsClient`
 - Use fixture files in `tests/Fixtures/` for realistic test data
 - Test names should be descriptive: `testInvokeRetriesOnTransientError`

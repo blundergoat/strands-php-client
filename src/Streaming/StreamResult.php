@@ -10,29 +10,41 @@ use StrandsPhpClient\Response\StopReason;
 use StrandsPhpClient\Response\Usage;
 
 /**
- * The accumulated result of a completed stream() call.
+ * Holds the final app-facing result assembled after stream() stops.
  *
- * Aggregates all events into a single object: full text, session ID,
- * token usage, tool history, stop reason, interrupts, guardrail traces,
- * and citations. Also captures client-side metrics like TTFT.
+ * Read it after live callbacks to render final text, continue the session, show usage and tools, handle interrupts, or explain errors and guardrails.
+ * It also exposes event counts and client-measured time to first text token for caller and operational diagnostics.
+ *
+ * Typed stop reasons preserve 1.x switches, while rawStopReason retains future wire values.
+ *
+ * @SuppressWarnings("PHPMD.ExcessiveParameterList") -- this public DTO constructor is append-only throughout 1.x.
  */
 class StreamResult
 {
     /**
-     * @param string          $text                    The full text assembled from all Text events.
-     * @param string|null     $sessionId               Session ID from the Complete event.
+     * Stores the live updates and terminal fields as one result after streaming finishes.
+     * StrandsClient builds it automatically; app code reads it for final state and conversation controls.
+     *
+     * @param string          $text                    Full assembled answer; empty means the stream produced no text.
+     * @param string|null     $sessionId               Conversation ID; null means no resumable session was reported.
      * @param Usage           $usage                   Token usage statistics.
-     * @param list<array{name: string, duration_ms?: int}>  $toolsUsed  Tools the agent used.
+     * @param list<array{name: string, duration_ms?: int, input?: array<string, mixed>, result?: array<string, mixed>}> $toolsUsed
+     *        Tools the agent used; empty means no activity to show.
      * @param int             $textEvents              Number of Text events received.
      * @param int             $totalEvents             Total number of events received.
-     * @param StopReason|null $stopReason              Why the agent stopped generating output.
+     * @param StopReason|null $stopReason              Known 1.x reason; null means absent or newer, when rawStopReason may still explain it.
      * @param bool            $cancelled               True if the stream was cancelled by the onEvent callback.
-     * @param float|null      $timeToFirstTextTokenMs  Client-measured ms from stream start to first Text event.
-     *                                                   Not the same as Usage::$timeToFirstByteMs, which is
-     *                                                   server-reported time from request receipt to first byte sent.
-     * @param list<InterruptDetail> $interrupts        Interrupts raised by the agent (human-in-the-loop).
-     * @param GuardrailTrace|null $guardrailTrace      Guardrail intervention trace data.
-     * @param list<array<string, mixed>> $citations    Citation content blocks accumulated during streaming.
+     * @param float|null      $timeToFirstTextTokenMs  Client time from stream start to first Text event; null means no text arrived.
+     *                                                  This differs from server-reported Usage::$timeToFirstByteMs.
+     * @param list<InterruptDetail> $interrupts        Follow-up prompts raised by the agent; empty means nothing is awaiting an answer.
+     * @param GuardrailTrace|null $guardrailTrace      Intervention detail; null means no guardrail trace was returned.
+     * @param list<array<string, mixed>> $citations    Raw citation blocks; empty means no sources are available to render.
+     * @param int|null $contextSize                    Current context tokens; null means the wrapper supplied no capacity value.
+     * @param int|null $projectedContextSize           Projected next-turn context tokens; null means the wrapper supplied no forecast.
+     * @param string|null $terminalType                Terminal type; null means no complete/error event was observed; empty is preserved.
+     * @param string|null $errorCode                   Terminal error code; null means no code was reported, while an empty string is preserved.
+     * @param string|null $errorMessage                Terminal error text; null means no message was reported, while an empty string is preserved.
+     * @param string|null $rawStopReason               Exact wire stop reason, including future values; null means the wrapper supplied none.
      */
     public function __construct(
         public readonly string $text,
@@ -47,11 +59,20 @@ class StreamResult
         public readonly array $interrupts = [],
         public readonly ?GuardrailTrace $guardrailTrace = null,
         public readonly array $citations = [],
+        public readonly ?int $contextSize = null,
+        public readonly ?int $projectedContextSize = null,
+        public readonly ?string $terminalType = null,
+        public readonly ?string $errorCode = null,
+        public readonly ?string $errorMessage = null,
+        public readonly ?string $rawStopReason = null,
     ) {
     }
 
     /**
-     * Whether the agent was interrupted and is waiting for user input.
+     * Reports whether the agent paused with interrupt details to answer.
+     * Use it to decide whether the caller needs to answer an item from $interrupts.
+     *
+     * @return bool true when at least one interrupt needs a response.
      */
     public function isInterrupted(): bool
     {

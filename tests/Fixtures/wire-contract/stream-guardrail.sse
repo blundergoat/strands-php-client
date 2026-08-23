@@ -1,0 +1,4 @@
+data: {"type":"text","content":"I cannot provide that content."}
+
+data: {"type":"complete","text":"I cannot provide that content.","session_id":"session-005","stop_reason":"guardrail_intervened","guardrail_trace":{"action":"INTERVENED","assessments":[{"name":"safety","result":"blocked","confidence":0.98}],"model_output":"Blocked by safety policy."}}
+

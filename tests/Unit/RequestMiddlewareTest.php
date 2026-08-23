@@ -6,31 +6,51 @@ namespace StrandsPhpClient\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use StrandsPhpClient\Auth\AuthStrategy;
 use StrandsPhpClient\Config\StrandsConfig;
 use StrandsPhpClient\Exceptions\AgentErrorException;
+use StrandsPhpClient\Exceptions\StrandsException;
 use StrandsPhpClient\Http\HttpTransport;
 use StrandsPhpClient\Http\RequestMiddleware;
+use StrandsPhpClient\Response\AgentResponse;
 use StrandsPhpClient\StrandsClient;
+use StrandsPhpClient\Streaming\StreamResult;
 
+/**
+ * Verifies middleware wraps invoke, typed stream, custom JSON, and custom SSE requests in the documented lifecycle.
+ *
+ * Use these tests when changing request mutation, completion callbacks, setup failures, cancellation, or middleware ordering.
+ * They protect app hooks that add context, logging, tracing, or cleanup around an agent call.
+ */
 class RequestMiddlewareTest extends TestCase
 {
     /**
-     * @return array<string, mixed>
+     * Loads one decoded agent response used while testing middleware around an app request.
+     * Use it when the scenario needs realistic wire data; the returned map is never empty for a valid fixture.
+     *
+     * @param string $name Fixture filename; empty cannot identify a response file and triggers a RuntimeException.
+     * @return array<string, mixed> Decoded response fields; never null or empty for the fixtures used here.
      */
     private function loadFixture(string $name): array
     {
-        $path = __DIR__ . '/../Fixtures/' . $name;
-        $content = file_get_contents($path);
-        if ($content === false) {
-            throw new \RuntimeException("Fixture not found: $path");
+        $fixturePath = __DIR__ . '/../Fixtures/' . $name;
+        $fixtureContents = file_get_contents($fixturePath);
+        // A missing fixture means the test cannot model the agent response the application would receive.
+        if ($fixtureContents === false) {
+            throw new \RuntimeException("Fixture not found: $fixturePath");
         }
 
-        /** @var array<string, mixed> $data */
-        $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        /** @var array<string, mixed> $fixtureData Validated response fields used by the middleware scenario. */
+        $fixtureData = json_decode($fixtureContents, true, 512, JSON_THROW_ON_ERROR);
 
-        return $data;
+        return $fixtureData;
     }
 
+    /**
+     * Confirms beforeRequest() called on invoke so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareBeforeRequestCalledOnInvoke(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -53,22 +73,29 @@ class RequestMiddlewareTest extends TestCase
             ->method('post')
             ->with(
                 $this->anything(),
-                $this->callback(fn (array $h) => ($h['X-Trace-Id'] ?? null) === 'abc-123'),
+                $this->callback(fn (array $headers) => ($headers['X-Trace-Id'] ?? null) === 'abc-123'),
                 $this->anything(),
                 $this->anything(),
                 $this->anything(),
             )
             ->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->invoke(message: 'Test');
+        $response = $strandsClient->invoke(message: 'Test');
+
+        $this->assertInstanceOf(AgentResponse::class, $response);
     }
 
+    /**
+     * Confirms afterResponse() called on success so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnSuccess(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
@@ -90,20 +117,27 @@ class RequestMiddlewareTest extends TestCase
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('post')->willReturn($fixture);
+        $transport->expects($this->any())->method('post')->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->invoke(message: 'Test');
+        $response = $strandsClient->invoke(message: 'Test');
+
+        $this->assertInstanceOf(AgentResponse::class, $response);
     }
 
+    /**
+     * Confirms afterResponse() called onError so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnError(): void
     {
-        $error = new AgentErrorException('Bad request', statusCode: 400);
+        $agentErrorException = new AgentErrorException('Bad request', statusCode: 400);
 
         $middleware = $this->createMock(RequestMiddleware::class);
         $middleware->expects($this->once())
@@ -118,28 +152,103 @@ class RequestMiddlewareTest extends TestCase
                 'http://localhost:8081/invoke',
                 400,
                 $this->greaterThan(0),
-                $this->identicalTo($error),
+                $this->identicalTo($agentErrorException),
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('post')->willThrowException($error);
+        $transport->expects($this->any())->method('post')->willThrowException($agentErrorException);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         $this->expectException(AgentErrorException::class);
-        $client->invoke(message: 'Test');
+        $this->expectExceptionMessage('Bad request');
+        $strandsClient->invoke(message: 'Test');
     }
 
+    /**
+     * Confirms afterResponse() runs when request setup fails after beforeRequest so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
+    public function testMiddlewareAfterResponseCalledWhenRequestSetupFailsAfterBeforeRequest(): void
+    {
+        $setupException = new \RuntimeException('auth failed');
+
+        $middleware = $this->createMock(RequestMiddleware::class);
+        $middleware->expects($this->once())
+            ->method('beforeRequest')
+            ->willReturnCallback(fn (string $url, array $headers, string $body) => [
+                'headers' => $headers,
+                'body' => $body,
+            ]);
+        $middleware->expects($this->once())
+            ->method('afterResponse')
+            ->with(
+                'http://localhost:8081/invoke',
+                0,
+                $this->greaterThanOrEqual(0),
+                $this->identicalTo($setupException),
+            );
+
+        $auth = $this->createMock(AuthStrategy::class);
+        $auth->expects($this->once())
+            ->method('authenticate')
+            ->willThrowException($setupException);
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081', auth: $auth),
+            transport: $transport,
+            middleware: [$middleware],
+        );
+
+        $this->expectExceptionObject($setupException);
+        $strandsClient->invoke(message: 'Test');
+    }
+
+    /**
+     * Confirms setup failures before middleware starts do not send after response so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
+    public function testMiddlewareAfterResponseNotCalledWhenEncodingFailsBeforeBeforeRequest(): void
+    {
+        $middleware = $this->createMock(RequestMiddleware::class);
+        $middleware->expects($this->never())->method('beforeRequest');
+        $middleware->expects($this->never())->method('afterResponse');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+            middleware: [$middleware],
+        );
+
+        $this->expectException(StrandsException::class);
+        $this->expectExceptionMessage('Failed to encode request payload');
+
+        $strandsClient->postJson('/file-summarise', ['bad_value' => NAN]);
+    }
+
+    /**
+     * Confirms afterResponse() exception is logged so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseExceptionIsLogged(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
 
         $middleware = $this->createMock(RequestMiddleware::class);
-        $middleware->method('beforeRequest')
+        $middleware->expects($this->any())->method('beforeRequest')
             ->willReturnCallback(fn (string $url, array $headers, string $body) => [
                 'headers' => $headers,
                 'body' => $body,
@@ -152,13 +261,13 @@ class RequestMiddlewareTest extends TestCase
             ->method('warning')
             ->with(
                 'Middleware afterResponse threw an exception',
-                $this->callback(fn (array $ctx) => is_string($ctx['error'] ?? null) && str_contains($ctx['error'], 'middleware broke')),
+                $this->callback(fn (array $context) => is_string($context['error'] ?? null) && str_contains($context['error'], 'middleware broke')),
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('post')->willReturn($fixture);
+        $transport->expects($this->any())->method('post')->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             logger: $logger,
@@ -166,16 +275,23 @@ class RequestMiddlewareTest extends TestCase
         );
 
         // Should NOT throw — middleware exceptions are caught
-        $client->invoke(message: 'Test');
+        $response = $strandsClient->invoke(message: 'Test');
+
+        $this->assertInstanceOf(AgentResponse::class, $response);
     }
 
+    /**
+     * Confirms multiple middleware executed in order so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMultipleMiddlewareExecutedInOrder(): void
     {
         $fixture = $this->loadFixture('invoke-analyst-response.json');
         $callOrder = [];
 
         $mw1 = $this->createMock(RequestMiddleware::class);
-        $mw1->method('beforeRequest')
+        $mw1->expects($this->any())->method('beforeRequest')
             ->willReturnCallback(function (string $url, array $headers, string $body) use (&$callOrder) {
                 $callOrder[] = 'mw1:before';
 
@@ -187,7 +303,7 @@ class RequestMiddlewareTest extends TestCase
             });
 
         $mw2 = $this->createMock(RequestMiddleware::class);
-        $mw2->method('beforeRequest')
+        $mw2->expects($this->any())->method('beforeRequest')
             ->willReturnCallback(function (string $url, array $headers, string $body) use (&$callOrder) {
                 $callOrder[] = 'mw2:before';
 
@@ -199,27 +315,32 @@ class RequestMiddlewareTest extends TestCase
             });
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('post')
+        $transport->expects($this->any())->method('post')
             ->with(
                 $this->anything(),
-                $this->callback(fn (array $h) => ($h['X-First'] ?? null) === '1' && ($h['X-Second'] ?? null) === '2'),
+                $this->callback(fn (array $headers) => ($headers['X-First'] ?? null) === '1' && ($headers['X-Second'] ?? null) === '2'),
                 $this->anything(),
                 $this->anything(),
                 $this->anything(),
             )
             ->willReturn($fixture);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$mw1, $mw2],
         );
 
-        $client->invoke(message: 'Test');
+        $strandsClient->invoke(message: 'Test');
 
         $this->assertSame(['mw1:before', 'mw2:before', 'mw1:after', 'mw2:after'], $callOrder);
     }
 
+    /**
+     * Confirms middleware called on stream so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareCalledOnStream(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hi\"}\n\n"
@@ -247,27 +368,41 @@ class RequestMiddlewareTest extends TestCase
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+        $transport->expects($this->any())->method('stream')
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
+                $onChunk->__invoke($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->stream(
+        $streamResult = $strandsClient->stream(
             message: 'Test',
             onEvent: function (): void {
             },
         );
+
+        $this->assertInstanceOf(StreamResult::class, $streamResult);
     }
 
+    /**
+     * Confirms middleware called on stream error so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareCalledOnStreamError(): void
     {
-        $error = new AgentErrorException('Server error', statusCode: 500);
+        $agentErrorException = new AgentErrorException('Server error', statusCode: 500);
 
         $middleware = $this->createMock(RequestMiddleware::class);
         $middleware->method('beforeRequest')
@@ -281,27 +416,33 @@ class RequestMiddlewareTest extends TestCase
                 'http://localhost:8081/stream',
                 500,
                 $this->greaterThan(0),
-                $this->identicalTo($error),
+                $this->identicalTo($agentErrorException),
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')
-            ->willThrowException($error);
+        $transport->expects($this->any())->method('stream')
+            ->willThrowException($agentErrorException);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         $this->expectException(AgentErrorException::class);
-        $client->stream(
+        $this->expectExceptionMessage('Server error');
+        $strandsClient->stream(
             message: 'Test',
             onEvent: function (): void {
             },
         );
     }
 
+    /**
+     * Confirms middleware called on stream interrupted so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareCalledOnStreamInterrupted(): void
     {
         // Stream with no terminal event
@@ -323,25 +464,38 @@ class RequestMiddlewareTest extends TestCase
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+        $transport->expects($this->any())->method('stream')
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
+                $onChunk->__invoke($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         $this->expectException(\StrandsPhpClient\Exceptions\StreamInterruptedException::class);
-        $client->stream(
+        $this->expectExceptionMessageMatches('/ended without a terminal event/');
+        $strandsClient->stream(
             message: 'Test',
             onEvent: function (): void {
             },
         );
     }
 
+    /**
+     * Confirms middleware applied to post JSON so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareAppliedToPostJson(): void
     {
         $middleware = $this->createMock(RequestMiddleware::class);
@@ -359,22 +513,29 @@ class RequestMiddlewareTest extends TestCase
             ->method('post')
             ->with(
                 $this->anything(),
-                $this->callback(fn (array $h) => ($h['X-Custom'] ?? null) === 'traced'),
+                $this->callback(fn (array $headers) => ($headers['X-Custom'] ?? null) === 'traced'),
                 $this->anything(),
                 $this->anything(),
                 $this->anything(),
             )
             ->willReturn(['result' => 'ok']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->postJson('/custom', ['key' => 'value']);
+        $result = $strandsClient->postJson('/custom', ['key' => 'value']);
+
+        $this->assertSame(['result' => 'ok'], $result);
     }
 
+    /**
+     * Confirms afterResponse() called on post JSON success so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnPostJsonSuccess(): void
     {
         $middleware = $this->createMock(RequestMiddleware::class);
@@ -393,20 +554,27 @@ class RequestMiddlewareTest extends TestCase
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('post')->willReturn(['result' => 'ok']);
+        $transport->expects($this->any())->method('post')->willReturn(['result' => 'ok']);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->postJson('/custom', ['key' => 'value']);
+        $result = $strandsClient->postJson('/custom', ['key' => 'value']);
+
+        $this->assertSame(['result' => 'ok'], $result);
     }
 
+    /**
+     * Confirms afterResponse() called on post JSON error so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnPostJsonError(): void
     {
-        $error = new AgentErrorException('Not found', statusCode: 404);
+        $agentErrorException = new AgentErrorException('Not found', statusCode: 404);
 
         $middleware = $this->createMock(RequestMiddleware::class);
         $middleware->method('beforeRequest')
@@ -420,22 +588,28 @@ class RequestMiddlewareTest extends TestCase
                 $this->stringContains('/custom'),
                 404,
                 $this->greaterThan(0),
-                $this->identicalTo($error),
+                $this->identicalTo($agentErrorException),
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('post')->willThrowException($error);
+        $transport->expects($this->any())->method('post')->willThrowException($agentErrorException);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         $this->expectException(AgentErrorException::class);
-        $client->postJson('/custom', ['key' => 'value']);
+        $this->expectExceptionMessage('Not found');
+        $strandsClient->postJson('/custom', ['key' => 'value']);
     }
 
+    /**
+     * Confirms afterResponse() called on stream SSE success so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnStreamSseSuccess(): void
     {
         $sseData = "data: {\"status\": \"ok\"}\n\n";
@@ -456,24 +630,40 @@ class RequestMiddlewareTest extends TestCase
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+        $transport->expects($this->any())->method('stream')
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
+                $onChunk->__invoke($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->streamSse('/custom-stream', ['key' => 'value'], function (): void {
+        $eventCount = 0;
+        $strandsClient->streamSse('/custom-stream', ['key' => 'value'], function () use (&$eventCount): void {
+            $eventCount++;
         });
+
+        $this->assertSame(1, $eventCount, 'onEvent must receive each parsed SSE event');
     }
 
+    /**
+     * Confirms afterResponse() called on stream SSE error so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnStreamSseError(): void
     {
-        $error = new AgentErrorException('Server error', statusCode: 500);
+        $agentErrorException = new AgentErrorException('Server error', statusCode: 500);
 
         $middleware = $this->createMock(RequestMiddleware::class);
         $middleware->method('beforeRequest')
@@ -487,23 +677,29 @@ class RequestMiddlewareTest extends TestCase
                 $this->stringContains('/custom-stream'),
                 500,
                 $this->greaterThan(0),
-                $this->identicalTo($error),
+                $this->identicalTo($agentErrorException),
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')->willThrowException($error);
+        $transport->expects($this->any())->method('stream')->willThrowException($agentErrorException);
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         $this->expectException(AgentErrorException::class);
-        $client->streamSse('/custom-stream', ['key' => 'value'], function (): void {
+        $this->expectExceptionMessage('Server error');
+        $strandsClient->streamSse('/custom-stream', ['key' => 'value'], function (): void {
         });
     }
 
+    /**
+     * Confirms afterResponse() called on stream SSE cancelled so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testMiddlewareAfterResponseCalledOnStreamSseCancelled(): void
     {
         $sseData = "data: {\"status\": \"partial\"}\n\n";
@@ -524,20 +720,133 @@ class RequestMiddlewareTest extends TestCase
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+        $transport->expects($this->any())->method('stream')
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
+                $onChunk->__invoke($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
-        $client->streamSse('/custom-stream', ['key' => 'value'], fn () => false);
+        $cancelCalls = 0;
+        $strandsClient->streamSse('/custom-stream', ['key' => 'value'], function () use (&$cancelCalls): bool {
+            $cancelCalls++;
+
+            return false;
+        });
+
+        $this->assertSame(1, $cancelCalls, 'onEvent must run once before returning false cancels the stream');
     }
 
+    /**
+     * Confirms a middleware whose beforeRequest threw still receives afterResponse so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
+    public function testSetupFailureNotifiesMiddlewareThatThrewInBeforeRequest(): void
+    {
+        $setupException = new \RuntimeException('middleware exploded');
+
+        $middleware = $this->createMock(RequestMiddleware::class);
+        $middleware->expects($this->once())
+            ->method('beforeRequest')
+            ->willThrowException($setupException);
+        $middleware->expects($this->once())
+            ->method('afterResponse')
+            ->with(
+                'http://localhost:8081/invoke',
+                0,
+                $this->greaterThanOrEqual(0),
+                $this->identicalTo($setupException),
+            );
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+            middleware: [$middleware],
+        );
+
+        $this->expectExceptionObject($setupException);
+        $strandsClient->invoke(message: 'Test');
+    }
+
+    /**
+     * Confirms middleware never entered before a setup failure gets no afterResponse so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
+    public function testSetupFailureSkipsMiddlewareNeverEntered(): void
+    {
+        $setupException = new \RuntimeException('second middleware exploded');
+        $callOrder = [];
+
+        $enteredMiddleware = $this->createMock(RequestMiddleware::class);
+        $enteredMiddleware->expects($this->once())->method('beforeRequest')
+            ->willReturnCallback(function (string $url, array $headers, string $body) use (&$callOrder) {
+                $callOrder[] = 'mw1:before';
+
+                return ['headers' => $headers, 'body' => $body];
+            });
+        $enteredMiddleware->expects($this->once())->method('afterResponse')
+            ->willReturnCallback(function () use (&$callOrder) {
+                $callOrder[] = 'mw1:after';
+            });
+
+        $throwingMiddleware = $this->createMock(RequestMiddleware::class);
+        $throwingMiddleware->expects($this->once())->method('beforeRequest')
+            ->willReturnCallback(function () use (&$callOrder, $setupException) {
+                $callOrder[] = 'mw2:before';
+
+                throw $setupException;
+            });
+        $throwingMiddleware->expects($this->once())->method('afterResponse')
+            ->willReturnCallback(function () use (&$callOrder) {
+                $callOrder[] = 'mw2:after';
+            });
+
+        $unreachedMiddleware = $this->createMock(RequestMiddleware::class);
+        $unreachedMiddleware->expects($this->never())->method('beforeRequest');
+        $unreachedMiddleware->expects($this->never())->method('afterResponse');
+
+        $transport = $this->createMock(HttpTransport::class);
+        $transport->expects($this->never())->method('post');
+
+        $strandsClient = new StrandsClient(
+            config: new StrandsConfig(endpoint: 'http://localhost:8081'),
+            transport: $transport,
+            middleware: [$enteredMiddleware, $throwingMiddleware, $unreachedMiddleware],
+        );
+
+        // The failure must still reach the caller after teardown, so catch it here to assert ordering afterwards.
+        try {
+            $strandsClient->invoke(message: 'Test');
+            $this->fail('invoke() must rethrow the middleware setup failure');
+        } catch (\RuntimeException $caught) {
+            // For example, request middleware can reject invalid app context before transport starts; the same setup error must reach the caller.
+            $this->assertSame($setupException, $caught);
+        }
+
+        $this->assertSame(['mw1:before', 'mw2:before', 'mw1:after', 'mw2:after'], $callOrder);
+    }
+
+    /**
+     * Confirms cancelled stream reports status zero so request monitoring leaves the user outcome unchanged.
+     *
+     * @return void
+     */
     public function testCancelledStreamReportsStatusZero(): void
     {
         $sseData = "data: {\"type\": \"text\", \"content\": \"Hi\"}\n\n"
@@ -559,21 +868,30 @@ class RequestMiddlewareTest extends TestCase
             );
 
         $transport = $this->createMock(HttpTransport::class);
-        $transport->method('stream')
-            ->willReturnCallback(function (string $url, array $headers, string $body, int $timeout, int $connectTimeout, callable $onChunk) use ($sseData) {
-                $onChunk($sseData);
+        $transport->expects($this->any())->method('stream')
+            ->willReturnCallback(function (
+                string $url,
+                array $headers,
+                string $body,
+                int $timeout,
+                int $connectTimeout,
+                callable $onChunk,
+            ) use ($sseData) {
+                $onChunk->__invoke($sseData);
             });
 
-        $client = new StrandsClient(
+        $strandsClient = new StrandsClient(
             config: new StrandsConfig(endpoint: 'http://localhost:8081'),
             transport: $transport,
             middleware: [$middleware],
         );
 
         // Cancel on first event
-        $client->stream(
+        $streamResult = $strandsClient->stream(
             message: 'Test',
             onEvent: fn () => false,
         );
+
+        $this->assertTrue($streamResult->cancelled, 'Returning false from onEvent must mark the stream as cancelled');
     }
 }

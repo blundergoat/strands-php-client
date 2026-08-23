@@ -1,0 +1,13 @@
+{
+    "title": "Referral letter",
+    "document_type": "referral",
+    "confidence": 0.94,
+    "metrics": {
+        "latency_ms": 421.8
+    },
+    "usage": {
+        "input_tokens": 120,
+        "output_tokens": 32,
+        "latency_ms": 421.8
+    }
+}

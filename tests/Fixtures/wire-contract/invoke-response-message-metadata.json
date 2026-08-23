@@ -1,0 +1,35 @@
+{
+    "text": "The document contains a referral summary.",
+    "agent": "metadata-builder",
+    "session_id": "session-007",
+    "usage": {
+        "input_tokens": 410,
+        "output_tokens": 96,
+        "total_tokens": 506
+    },
+    "message": {
+        "role": "assistant",
+        "content": [
+            {
+                "type": "text",
+                "text": "The document contains a referral summary."
+            }
+        ],
+        "metadata": {
+            "usage": {
+                "input_tokens": 410,
+                "output_tokens": 96,
+                "total_tokens": 506
+            },
+            "metrics": {
+                "latency_ms": 842.5,
+                "time_to_first_byte_ms": 210.1
+            },
+            "custom": {
+                "document_type": "referral",
+                "confidence": 0.91
+            }
+        }
+    },
+    "stop_reason": "end_turn"
+}

@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace StrandsPhpClient\Exceptions;
 
 /**
- * Exception thrown when an SSE stream ends without a terminal event.
+ * Raised when a stream cannot produce a complete terminal result.
  *
- * Indicates the stream was interrupted (connection dropped, timeout, etc.)
- * and the response is likely incomplete.
+ * A timeout, oversized frame, or missing terminal event may leave the caller with partial output.
+ * Treat that output as incomplete before deciding whether to retry.
  */
 class StreamInterruptedException extends StrandsException
 {

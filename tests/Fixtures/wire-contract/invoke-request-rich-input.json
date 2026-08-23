@@ -1,0 +1,31 @@
+{
+    "message": {
+        "content": [
+            {
+                "type": "text",
+                "text": "Summarise this document."
+            },
+            {
+                "type": "document",
+                "name": "referral.pdf",
+                "format": "pdf",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": "JVBERi0xLjQK..."
+                }
+            },
+            {
+                "type": "image",
+                "format": "png",
+                "source": {
+                    "type": "url",
+                    "url": "https://example.test/chart.png",
+                    "media_type": "image/png"
+                }
+            }
+        ],
+        "structured_output_prompt": "Return JSON with summary and risks."
+    },
+    "session_id": "session-002"
+}

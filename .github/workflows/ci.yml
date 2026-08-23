@@ -7,6 +7,28 @@ on:
   pull_request:
 
 jobs:
+  # Shell linting is PHP-independent, so it runs once instead of on every
+  # matrix leg of the quality job.
+  shellcheck:
+    runs-on: ubuntu-latest
+    name: Shell scripts
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          find scripts .goat-flow/hooks -type f -name '*.sh' -print0 \
+            | xargs -0 shellcheck
+
+      # The deny-dangerous guard's own regression corpus. A policy fix that is not asserted here is
+      # lost the next time the hook logic is rebuilt, and nothing else in CI would notice.
+      - name: Run deny-dangerous policy self-test
+        run: bash .goat-flow/hooks/deny-dangerous/deny-dangerous-self-test.sh --self-test=full
+
   quality:
     runs-on: ubuntu-latest
     strategy:
@@ -17,7 +39,7 @@ jobs:
     name: PHP ${{ matrix.php }} / Symfony ${{ matrix.symfony }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -25,6 +47,10 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: none
           tools: composer:v2
+
+      - name: Exclude PHP 8.3-only development tooling
+        if: matrix.php == '8.2'
+        run: composer remove --dev blundergoat/gruff-php --no-update --no-interaction
 
       - name: Install dependencies for matrix
         run: |
@@ -53,12 +79,43 @@ jobs:
       - name: Run tests
         run: composer test
 
+  laravel:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4']
+        laravel: ['^10.0', '^11.0', '^12.0']
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Exclude PHP 8.3-only development tooling
+        if: matrix.php == '8.2'
+        run: composer remove --dev blundergoat/gruff-php --no-update --no-interaction
+
+      - name: Install dependencies for matrix
+        run: |
+          composer update --prefer-dist --no-interaction --no-progress \
+            --with illuminate/support:${{ matrix.laravel }}
+
+      - name: Run Laravel integration tests
+        run: vendor/bin/phpunit tests/Unit/Integration/Laravel
+
   coverage:
     runs-on: ubuntu-latest
     name: Coverage
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -89,10 +146,9 @@ jobs:
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     name: Mutation Testing
-    continue-on-error: true
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -104,5 +160,7 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
+      # Thresholds come from infection.json5 (minMsi / minCoveredMsi), so CI and
+      # `composer preflight:mutate` enforce the same numbers.
       - name: Run mutation testing
-        run: XDEBUG_MODE=coverage vendor/bin/infection --threads=4 --min-msi=80 --min-covered-msi=80
+        run: XDEBUG_MODE=coverage vendor/bin/infection --threads=4

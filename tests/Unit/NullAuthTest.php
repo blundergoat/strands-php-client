@@ -7,27 +7,53 @@ namespace StrandsPhpClient\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Auth\NullAuth;
 
+/**
+ * Verifies unauthenticated requests preserve every caller header without adding credentials.
+ *
+ * Use these tests when changing the no-auth strategy or shared header handling.
+ * They protect agents that rely on network-level trust or application-supplied headers.
+ */
 class NullAuthTest extends TestCase
 {
+    /**
+     * Confirms headers are returned unmodified so unauthenticated gateways receive exactly the application's headers.
+     *
+     * @return void
+     */
     public function testReturnsHeadersUnmodified(): void
     {
-        $auth = new NullAuth();
+        $nullAuth = new NullAuth();
         $headers = ['Content-Type' => 'application/json'];
 
-        $result = $auth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
+        $result = $nullAuth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
 
         $this->assertSame($headers, $result);
     }
-
-    public function testPreservesAllMultipleHeaders(): void
+    /**
+     * Builds the application headers that no-auth mode must pass through unchanged.
+     *
+     * @return array<string, string> Non-empty request headers supplied by the calling application.
+     */
+    private function applicationRequestHeaders(): array
     {
-        $auth = new NullAuth();
-        $headers = [
+        return [
             'Content-Type' => 'application/json',
             'Accept' => 'text/event-stream',
         ];
+    }
 
-        $result = $auth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
+
+    /**
+     * Confirms all caller headers are preserved so unauthenticated gateways receive the intended request.
+     *
+     * @return void
+     */
+    public function testPreservesAllMultipleHeaders(): void
+    {
+        $nullAuth = new NullAuth();
+        $headers = $this->applicationRequestHeaders();
+
+        $result = $nullAuth->authenticate($headers, 'POST', 'http://localhost/invoke', '{}');
 
         $this->assertCount(2, $result);
         $this->assertSame('application/json', $result['Content-Type']);

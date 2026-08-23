@@ -1,20 +1,54 @@
 <?php
 
+/**
+ * Covers invoke-response hydration and the two application DTO shapes used to test structured output conversion.
+ *
+ * Use this file when changing AgentResponse fields, compatibility defaults, or structured-output mapping.
+ * It protects the complete result object a caller reads after an agent invocation.
+ */
+
 declare(strict_types=1);
 
 namespace StrandsPhpClient\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use StrandsPhpClient\Response\AgentResponse;
-use StrandsPhpClient\Response\GuardrailTrace;
-use StrandsPhpClient\Response\InterruptDetail;
 use StrandsPhpClient\Response\StopReason;
 
+/**
+ * Verifies invoke responses remain safe and predictable for application code.
+ *
+ * It protects answer text, conversation continuity, usage, tools, interrupts, citations, and compatibility metadata.
+ * Use these scenarios when changing AgentResponse hydration or any public result property.
+ */
 class AgentResponseTest extends TestCase
 {
-    public function testFromArrayHydratesAllFields(): void
+    /**
+     * Loads captured fixture data for a realistic response-hydration scenario.
+     * Use it when a test needs the same payload an app could receive from an agent.
+     *
+     * @param string $relativePath Non-empty path relative to tests/Fixtures/.
+     * @return array<string, mixed> Decoded fixture fields; never empty in these scenarios.
+     */
+    private function loadJsonFixture(string $relativePath): array
     {
-        $data = [
+        return json_decode(
+            file_get_contents(__DIR__ . '/../Fixtures/' . $relativePath),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+    }
+    /**
+     * Builds a response containing every core field an invoke result exposes.
+     * Use it to verify callers receive text, session, usage, tools, and objective state together.
+     *
+     * @return array<string, mixed> Wire response fields consumed by AgentResponse::fromArray(); never empty.
+     */
+    private function completeResponsePayload(): array
+    {
+        return [
             'text' => 'Hello, world!',
             'agent' => 'analyst',
             'session_id' => 'sess-001',
@@ -27,50 +61,85 @@ class AgentResponseTest extends TestCase
                 ['name' => 'search', 'duration_ms' => 150],
             ],
         ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertSame('Hello, world!', $response->text);
-        $this->assertSame('analyst', $response->agent);
-        $this->assertSame('sess-001', $response->sessionId);
-        $this->assertTrue($response->hasObjective);
-        $this->assertSame(100, $response->usage->inputTokens);
-        $this->assertSame(50, $response->usage->outputTokens);
-        $this->assertCount(1, $response->toolsUsed);
-        $this->assertSame('search', $response->toolsUsed[0]['name']);
     }
 
+    /**
+     * Verifies AgentResponse::fromArray() hydrates all fields so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testFromArrayHydratesAllFields(): void
+    {
+        $responseData = $this->completeResponsePayload();
+
+        $agentResponse = AgentResponse::fromArray($responseData);
+
+        $this->assertSame('Hello, world!', $agentResponse->text);
+        $this->assertSame('analyst', $agentResponse->agent);
+        $this->assertSame('sess-001', $agentResponse->sessionId);
+        $this->assertTrue($agentResponse->hasObjective);
+        $this->assertSame(100, $agentResponse->usage->inputTokens);
+        $this->assertSame(50, $agentResponse->usage->outputTokens);
+        $this->assertCount(1, $agentResponse->toolsUsed);
+        $this->assertSame('search', $agentResponse->toolsUsed[0]['name']);
+    }
+
+    /**
+     * Verifies AgentResponse::fromArray() handles missing fields so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
     public function testFromArrayHandlesMissingFields(): void
     {
-        $data = ['text' => 'Minimal response'];
+        $responseData = ['text' => 'Minimal response'];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($responseData);
 
-        $this->assertSame('Minimal response', $response->text);
-        $this->assertNull($response->agent);
-        $this->assertNull($response->sessionId);
-        $this->assertFalse($response->hasObjective);
-        $this->assertSame(0, $response->usage->inputTokens);
-        $this->assertSame(0, $response->usage->outputTokens);
-        $this->assertSame([], $response->toolsUsed);
+        $this->assertSame('Minimal response', $agentResponse->text);
+        $this->assertNull($agentResponse->agent);
+        $this->assertNull($agentResponse->sessionId);
+        $this->assertFalse($agentResponse->hasObjective);
+        $this->assertSame(0, $agentResponse->usage->inputTokens);
+        $this->assertSame(0, $agentResponse->usage->outputTokens);
+        $this->assertSame([], $agentResponse->toolsUsed);
     }
-
-    public function testFromArrayHandlesEmptyUsage(): void
+    /**
+     * Builds a response whose usage object is present but empty.
+     * Use it to verify callers receive zero token counts instead of missing Usage data.
+     *
+     * @return array<string, mixed> Wire response fields consumed by AgentResponse::fromArray(); never empty.
+     */
+    private function responsePayloadWithEmptyUsage(): array
     {
-        $data = [
+        return [
             'text' => 'Test',
             'usage' => [],
         ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertSame(0, $response->usage->inputTokens);
-        $this->assertSame(0, $response->usage->outputTokens);
     }
 
-    public function testFromArrayFiltersMalformedToolsUsed(): void
+    /**
+     * Verifies AgentResponse::fromArray() defaults an empty usage block to zero values so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testFromArrayHandlesEmptyUsage(): void
     {
-        $data = [
+        $responseData = $this->responsePayloadWithEmptyUsage();
+
+        $agentResponse = AgentResponse::fromArray($responseData);
+
+        $this->assertSame(0, $agentResponse->usage->inputTokens);
+        $this->assertSame(0, $agentResponse->usage->outputTokens);
+    }
+    /**
+     * Builds a response mixing valid tool records with malformed entries.
+     * Use it to verify callers receive only tools with usable names.
+     *
+     * @return array<string, mixed> Wire response fields consumed by AgentResponse::fromArray(); never empty.
+     */
+    private function responsePayloadWithMalformedTools(): array
+    {
+        return [
             'text' => 'Test',
             'tools_used' => [
                 ['name' => 'search', 'duration_ms' => 100],
@@ -80,14 +149,29 @@ class AgentResponseTest extends TestCase
                 ['name' => 'calculator'],
             ],
         ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertCount(2, $response->toolsUsed);
-        $this->assertSame('search', $response->toolsUsed[0]['name']);
-        $this->assertSame('calculator', $response->toolsUsed[1]['name']);
     }
 
+    /**
+     * Verifies AgentResponse::fromArray() filters malformed tool summaries so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testFromArrayFiltersMalformedToolsUsed(): void
+    {
+        $responseData = $this->responsePayloadWithMalformedTools();
+
+        $agentResponse = AgentResponse::fromArray($responseData);
+
+        $this->assertCount(2, $agentResponse->toolsUsed);
+        $this->assertSame('search', $agentResponse->toolsUsed[0]['name']);
+        $this->assertSame('calculator', $agentResponse->toolsUsed[1]['name']);
+    }
+
+    /**
+     * Verifies Usage starts with safe zero values so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
     public function testUsageDefaultValues(): void
     {
         $usage = new \StrandsPhpClient\Response\Usage();
@@ -99,127 +183,233 @@ class AgentResponseTest extends TestCase
         $this->assertSame(0, $usage->latencyMs);
         $this->assertSame(0, $usage->timeToFirstByteMs);
     }
-
-    public function testFromArrayHandlesNonIntUsageValues(): void
+    /**
+     * Builds a response whose token counts use unsupported scalar and null values.
+     * Use it to verify callers receive safe zero counts instead of invalid metrics.
+     *
+     * @return array<string, mixed> Wire response fields consumed by AgentResponse::fromArray(); never empty.
+     */
+    private function responsePayloadWithNonIntegerUsage(): array
     {
-        $data = [
+        return [
             'text' => 'Test',
             'usage' => [
                 'input_tokens' => 'not_an_int',
                 'output_tokens' => '42',
             ],
         ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertSame(0, $response->usage->inputTokens);
-        $this->assertSame(0, $response->usage->outputTokens);
     }
 
+    /**
+     * Verifies AgentResponse::fromArray() handles non-integer usage values so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testFromArrayHandlesNonIntUsageValues(): void
+    {
+        $responseData = $this->responsePayloadWithNonIntegerUsage();
+
+        $agentResponse = AgentResponse::fromArray($responseData);
+
+        $this->assertSame(0, $agentResponse->usage->inputTokens);
+        $this->assertSame(42, $agentResponse->usage->outputTokens);
+    }
+
+    /**
+     * Verifies AgentResponse::fromArray() treats only literal true as an objective so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
     public function testFromArrayHasObjectiveRequiresStrictTrue(): void
     {
-        $data = [
+        $responseData = [
             'text' => 'Test',
             'has_objective' => 'true',
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($responseData);
 
-        $this->assertFalse($response->hasObjective);
+        $this->assertFalse($agentResponse->hasObjective);
     }
-
-    public function testFromArrayStripsNonIntDurationMs(): void
+    /**
+     * Builds a response whose tool duration is not an integer.
+     * Use it to verify the app still receives the tool name without an invalid duration.
+     *
+     * @return array<string, mixed> Wire response fields consumed by AgentResponse::fromArray(); never empty.
+     */
+    private function responsePayloadWithNonIntegerToolDuration(): array
     {
-        $data = [
+        return [
             'text' => 'Test',
             'tools_used' => [
                 ['name' => 'search', 'duration_ms' => 'fast'],
                 ['name' => 'calc', 'duration_ms' => 42],
             ],
         ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertCount(2, $response->toolsUsed);
-        $this->assertArrayNotHasKey('duration_ms', $response->toolsUsed[0]);
-        $this->assertSame(42, $response->toolsUsed[1]['duration_ms']);
     }
 
-    public function testFromArrayStripsExtraKeysFromToolsUsed(): void
+    /**
+     * Verifies AgentResponse::fromArray() drops non-integer tool durations so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testFromArrayStripsNonIntDurationMs(): void
     {
-        $data = [
+        $responseData = $this->responsePayloadWithNonIntegerToolDuration();
+
+        $agentResponse = AgentResponse::fromArray($responseData);
+
+        $this->assertCount(2, $agentResponse->toolsUsed);
+        $this->assertArrayNotHasKey('duration_ms', $agentResponse->toolsUsed[0]);
+        $this->assertSame(42, $agentResponse->toolsUsed[1]['duration_ms']);
+    }
+    /**
+     * Builds a response whose tool record contains wrapper-specific fields.
+     * Use it to verify callers receive the stable name and duration shape only.
+     *
+     * @return array<string, mixed> Wire response fields consumed by AgentResponse::fromArray(); never empty.
+     */
+    private function responsePayloadWithExtraToolFields(): array
+    {
+        return [
             'text' => 'Test',
             'tools_used' => [
                 ['name' => 'search', 'duration_ms' => 100, 'extra_key' => 'should_be_stripped'],
                 ['name' => 'calc', 'unknown' => 'also_stripped'],
             ],
         ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertCount(2, $response->toolsUsed);
-        $this->assertSame(['name' => 'search', 'duration_ms' => 100], $response->toolsUsed[0]);
-        $this->assertSame(['name' => 'calc'], $response->toolsUsed[1]);
     }
 
+    /**
+     * Verifies AgentResponse::fromArray() keeps only stable tool-summary fields so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testFromArrayStripsExtraKeysFromToolsUsed(): void
+    {
+        $responseData = $this->responsePayloadWithExtraToolFields();
+
+        $agentResponse = AgentResponse::fromArray($responseData);
+
+        $this->assertCount(2, $agentResponse->toolsUsed);
+        $this->assertSame(['name' => 'search', 'duration_ms' => 100], $agentResponse->toolsUsed[0]);
+        $this->assertSame(['name' => 'calc'], $agentResponse->toolsUsed[1]);
+    }
+
+    /**
+     * Verifies AgentResponse::fromArray() parses safe tool summaries so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testFromArrayParsesSafeToolSummaries(): void
+    {
+        $responseData = $this->loadJsonFixture('wire-contract/invoke-response-tools-full.json');
+
+        $agentResponse = AgentResponse::fromArray($responseData);
+
+        $this->assertSame('availability_lookup', $agentResponse->toolsUsed[0]['name']);
+        $this->assertSame(114, $agentResponse->toolsUsed[0]['duration_ms']);
+        $this->assertSame(['summary' => 'date lookup'], $agentResponse->toolsUsed[0]['input']);
+        $this->assertSame(['summary' => 'slot available'], $agentResponse->toolsUsed[0]['result']);
+    }
+
+    /**
+     * Verifies AgentResponse::fromArray() hydrates typed and raw stop reasons so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
     public function testFromArrayHydratesStopReason(): void
     {
-        $data = [
+        $responseData = [
             'text' => 'Test',
             'stop_reason' => 'end_turn',
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($responseData);
 
-        $this->assertSame(StopReason::EndTurn, $response->stopReason);
+        $this->assertSame(StopReason::EndTurn, $agentResponse->stopReason);
     }
-
-    public function testFromArrayHandlesUnknownStopReason(): void
+    /**
+     * Builds a response with a stop reason added outside the closed 1.x enum.
+     * Use it to verify callers keep the raw value without receiving a false enum case.
+     *
+     * @return array<string, mixed> Wire response fields consumed by AgentResponse::fromArray(); never empty.
+     */
+    private function responsePayloadWithUnknownStopReason(): array
     {
-        $data = [
+        return [
             'text' => 'Test',
             'stop_reason' => 'unknown_future_reason',
         ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertNull($response->stopReason);
     }
 
-    public function testFromArrayDefaultsStopReasonToNull(): void
+    /**
+     * Verifies AgentResponse::fromArray() preserves an unknown stop reason only as raw text so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testFromArrayHandlesUnknownStopReason(): void
     {
-        $data = ['text' => 'Test'];
+        $responseData = $this->responsePayloadWithUnknownStopReason();
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($responseData);
 
-        $this->assertNull($response->stopReason);
+        $this->assertNull($agentResponse->stopReason);
+        $this->assertSame('unknown_future_reason', $agentResponse->rawStopReason);
     }
 
+    /**
+     * Verifies AgentResponse::fromArray() defaults each omitted optional field to null so callers can safely read results from 1.x agents.
+     *
+     * @param string $propertyName Property on AgentResponse expected to be null when omitted.
+     * @return void
+     */
+    #[DataProvider('omittedFieldDefaultsToNullProvider')]
+    public function testFromArrayDefaultsOmittedFieldToNull(string $propertyName): void
+    {
+        $agentResponse = AgentResponse::fromArray(['text' => 'Test']);
+
+        $this->assertNull($agentResponse->{$propertyName});
+    }
+
+    /**
+     * Lists optional response properties that remain null when the agent omits them.
+     * An empty provider would leave safe result defaults unverified.
+     *
+     * @return iterable<string, array{0: string}> Optional property names; never empty.
+     */
+    public static function omittedFieldDefaultsToNullProvider(): iterable
+    {
+        yield 'stopReason' => ['stopReason'];
+        yield 'structuredOutput' => ['structuredOutput'];
+    }
+
+    /**
+     * Verifies AgentResponse::fromArray() hydrates structured output so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
     public function testFromArrayHydratesStructuredOutput(): void
     {
         $structured = ['name' => 'John', 'age' => 30, 'active' => true];
-        $data = [
+        $responseData = [
             'text' => 'Test',
             'structured_output' => $structured,
         ];
 
-        $response = AgentResponse::fromArray($data);
+        $agentResponse = AgentResponse::fromArray($responseData);
 
-        $this->assertSame($structured, $response->structuredOutput);
+        $this->assertSame($structured, $agentResponse->structuredOutput);
     }
-
-    public function testFromArrayDefaultsStructuredOutputToNull(): void
+    /**
+     * Builds a response with cache and latency metrics in its usage block.
+     * Use it to verify callers can display the full supported usage summary.
+     *
+     * @return array<string, mixed> Wire response fields consumed by AgentResponse::fromArray(); never empty.
+     */
+    private function responsePayloadWithCacheUsage(): array
     {
-        $data = ['text' => 'Test'];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertNull($response->structuredOutput);
-    }
-
-    public function testFromArrayHydratesCacheTokens(): void
-    {
-        $data = [
+        return [
             'text' => 'Test',
             'usage' => [
                 'input_tokens' => 100,
@@ -230,334 +420,281 @@ class AgentResponseTest extends TestCase
                 'time_to_first_byte_ms' => 200,
             ],
         ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertSame(100, $response->usage->inputTokens);
-        $this->assertSame(50, $response->usage->outputTokens);
-        $this->assertSame(80, $response->usage->cacheReadInputTokens);
-        $this->assertSame(20, $response->usage->cacheWriteInputTokens);
-        $this->assertSame(1500, $response->usage->latencyMs);
-        $this->assertSame(200, $response->usage->timeToFirstByteMs);
     }
 
-    public function testUsageDefaultsToZeroForMissingCacheFields(): void
+    /**
+     * Verifies AgentResponse::fromArray() hydrates cache tokens so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testFromArrayHydratesCacheTokens(): void
     {
-        $data = [
+        $responseData = $this->responsePayloadWithCacheUsage();
+
+        $agentResponse = AgentResponse::fromArray($responseData);
+
+        $this->assertSame(100, $agentResponse->usage->inputTokens);
+        $this->assertSame(50, $agentResponse->usage->outputTokens);
+        $this->assertSame(80, $agentResponse->usage->cacheReadInputTokens);
+        $this->assertSame(20, $agentResponse->usage->cacheWriteInputTokens);
+        $this->assertSame(1500, $agentResponse->usage->latencyMs);
+        $this->assertSame(200, $agentResponse->usage->timeToFirstByteMs);
+    }
+
+    /**
+     * Verifies AgentResponse::fromArray() accepts camelCase usage and rounds fractional latency so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testFromArrayParsesUsageCamelCaseAndRoundsFloatLatency(): void
+    {
+        $expectedLatencyMs = 843;
+        $expectedTimeToFirstByteMs = 210;
+        $agentResponse = AgentResponse::fromArray([
+            'text' => 'Test',
+            'usage' => [
+                'inputTokens' => 100,
+                'outputTokens' => '50',
+                'totalTokens' => 151,
+                'cacheReadInputTokens' => '10',
+                'cacheWriteInputTokens' => 5.0,
+                'latencyMs' => 842.5,
+                'timeToFirstByteMs' => '210.1',
+            ],
+        ]);
+
+        $this->assertSame(100, $agentResponse->usage->inputTokens);
+        $this->assertSame(50, $agentResponse->usage->outputTokens);
+        $this->assertSame(151, $agentResponse->usage->totalTokens());
+        $this->assertSame(10, $agentResponse->usage->cacheReadInputTokens);
+        $this->assertSame(5, $agentResponse->usage->cacheWriteInputTokens);
+        $this->assertSame($expectedLatencyMs, $agentResponse->usage->latencyMs);
+        $this->assertSame($expectedTimeToFirstByteMs, $agentResponse->usage->timeToFirstByteMs);
+    }
+
+    /**
+     * Verifies snake_case usage takes precedence over camelCase compatibility fields so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testSnakeCaseUsageWinsOverCamelCase(): void
+    {
+        $agentResponse = AgentResponse::fromArray([
+            'text' => 'Test',
+            'usage' => [
+                'input_tokens' => 10,
+                'inputTokens' => 999,
+            ],
+        ]);
+
+        $this->assertSame(10, $agentResponse->usage->inputTokens);
+    }
+    /**
+     * Builds a response whose usage block omits cache metrics.
+     * Use it to verify legacy responses still produce zero cache counts for callers.
+     *
+     * @return array<string, mixed> Wire response fields consumed by AgentResponse::fromArray(); never empty.
+     */
+    private function responsePayloadWithoutCacheUsage(): array
+    {
+        return [
             'text' => 'Test',
             'usage' => [
                 'input_tokens' => 100,
                 'output_tokens' => 50,
             ],
         ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertSame(0, $response->usage->cacheReadInputTokens);
-        $this->assertSame(0, $response->usage->cacheWriteInputTokens);
-        $this->assertSame(0, $response->usage->latencyMs);
-        $this->assertSame(0, $response->usage->timeToFirstByteMs);
     }
 
-    public function testTotalTokensReturnsSum(): void
+    /**
+     * Verifies usage defaults to zero for missing cache fields so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testUsageDefaultsToZeroForMissingCacheFields(): void
     {
-        $usage = new \StrandsPhpClient\Response\Usage(inputTokens: 100, outputTokens: 50);
+        $responseData = $this->responsePayloadWithoutCacheUsage();
 
-        $this->assertSame(150, $usage->totalTokens());
+        $agentResponse = AgentResponse::fromArray($responseData);
+
+        $this->assertSame(0, $agentResponse->usage->cacheReadInputTokens);
+        $this->assertSame(0, $agentResponse->usage->cacheWriteInputTokens);
+        $this->assertSame(0, $agentResponse->usage->latencyMs);
+        $this->assertSame(0, $agentResponse->usage->timeToFirstByteMs);
     }
 
-    public function testTotalTokensDefaultsToZero(): void
+    /**
+     * Verifies total tokens follows documented fallback chain so callers can safely read results from 1.x agents.
+     *
+     * @param \Closure(): \StrandsPhpClient\Response\Usage $buildUsage Non-null factory for the Usage instance under test.
+     * @param int $expectedTotal Expected return value of totalTokens().
+     * @return void
+     */
+    #[DataProvider('totalTokensProvider')]
+    public function testTotalTokensFollowsDocumentedFallbackChain(\Closure $buildUsage, int $expectedTotal): void
     {
-        $usage = new \StrandsPhpClient\Response\Usage();
-
-        $this->assertSame(0, $usage->totalTokens());
+        $this->assertSame($expectedTotal, $buildUsage()->totalTokens());
     }
 
-    public function testFromArrayCapturesUnknownKeysAsMetadata(): void
+    /**
+     * Lists usage combinations and the total token count callers should receive.
+     * An empty provider would leave the documented fallback order unverified.
+     *
+     * @return iterable<string, array{0: \Closure(): \StrandsPhpClient\Response\Usage, 1: int}> Usage factories and expected totals; never empty.
+     */
+    public static function totalTokensProvider(): iterable
     {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/invoke-response-with-metadata.json'),
-            true,
+        yield 'sums input+output when wire totalTokens absent' => [
+            static fn (): \StrandsPhpClient\Response\Usage => new \StrandsPhpClient\Response\Usage(inputTokens: 100, outputTokens: 50),
+            150,
+        ];
+        yield 'prefers wire totalTokens when present' => [
+            static fn (): \StrandsPhpClient\Response\Usage => new \StrandsPhpClient\Response\Usage(
+                inputTokens: 100,
+                outputTokens: 50,
+                totalTokens: 160,
+            ),
+            160,
+        ];
+        yield 'defaults to zero when no fields supplied' => [
+            static fn (): \StrandsPhpClient\Response\Usage => new \StrandsPhpClient\Response\Usage(),
+            0,
+        ];
+    }
+
+    /**
+     * Verifies structuredOutputAs() uses a DTO fromArray() factory when available so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testStructuredOutputAsWithFromArrayFactory(): void
+    {
+        $responseData = [
+            'text' => 'Test',
+            'structured_output' => ['name' => 'John', 'age' => 30],
+        ];
+
+        $agentResponse = AgentResponse::fromArray($responseData);
+        $structuredOutput = $agentResponse->structuredOutputAs(TestStructuredDto::class);
+
+        $this->assertInstanceOf(TestStructuredDto::class, $structuredOutput);
+        $this->assertSame('John', $structuredOutput->name);
+        $this->assertSame(30, $structuredOutput->age);
+    }
+
+    /**
+     * Verifies structuredOutputAs() falls back to named constructor arguments so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testStructuredOutputAsWithConstructor(): void
+    {
+        $responseData = [
+            'text' => 'Test',
+            'structured_output' => ['name' => 'Jane', 'score' => 95.5],
+        ];
+
+        $agentResponse = AgentResponse::fromArray($responseData);
+        $structuredOutput = $agentResponse->structuredOutputAs(TestConstructorDto::class);
+
+        $this->assertInstanceOf(TestConstructorDto::class, $structuredOutput);
+        $this->assertSame('Jane', $structuredOutput->name);
+        $this->assertSame(95.5, $structuredOutput->score);
+    }
+
+    /**
+     * Verifies structuredOutputAs() rejects conversion when no structured output arrived so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testStructuredOutputAsThrowsWhenNull(): void
+    {
+        $agentResponse = AgentResponse::fromArray(['text' => 'Test']);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('No structured output in response');
+        $agentResponse->structuredOutputAs(TestStructuredDto::class);
+    }
+
+    /**
+     * Verifies structuredOutputAs() reports a field mismatch to the caller so callers can safely read results from 1.x agents.
+     *
+     * @return void
+     */
+    public function testStructuredOutputAsThrowsOnMismatch(): void
+    {
+        $responseData = [
+            'text' => 'Test',
+            'structured_output' => ['wrong_key' => 'value'],
+        ];
+
+        $agentResponse = AgentResponse::fromArray($responseData);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/Failed to hydrate/');
+        $agentResponse->structuredOutputAs(TestConstructorDto::class);
+    }
+}
+
+/**
+ * Provides a structured-output fixture with its own fromArray() factory.
+ *
+ * It represents an application DTO used to render a validated answer.
+ * Use it to verify AgentResponse prefers a public static factory over constructor spreading.
+ *
+ * @internal
+ */
+class TestStructuredDto
+{
+    /**
+     * Creates a fixture DTO used to demonstrate structured-output hydration for an app.
+     * Use it when an application DTO supplies safe defaults through its constructor.
+     *
+     * @param string $name Name hydrated for the app; empty is the safe fallback when response data omits or mistypes it.
+     * @param int $age Age hydrated for the app; zero is the safe fallback when response data omits or mistypes it.
+     */
+    public function __construct(
+        public readonly string $name = '',
+        public readonly int $age = 0,
+    ) {
+    }
+
+    /**
+     * Hydrates a fixture DTO from the structured data returned by the agent.
+     * Use it when the test needs to mirror an app-level response factory.
+     *
+     * @param array<string, mixed> $responseData Decoded response; an empty array creates a DTO with safe UI defaults.
+     * @return self New instance ready for app code.
+     */
+    public static function fromArray(array $responseData): self
+    {
+        return new self(
+            name: is_string($responseData['name'] ?? null) ? $responseData['name'] : '',
+            age: is_int($responseData['age'] ?? null) ? $responseData['age'] : 0,
         );
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertSame('Response text', $response->text);
-        $this->assertSame('test-agent', $response->agent);
-        $this->assertSame('test-session-002', $response->sessionId);
-        $this->assertSame(100, $response->usage->inputTokens);
-        $this->assertSame(50, $response->usage->outputTokens);
-
-        // Unknown keys should be captured in metadata
-        $this->assertArrayHasKey('trace_id', $response->metadata);
-        $this->assertSame('abc-123-def', $response->metadata['trace_id']);
-        $this->assertArrayHasKey('model_id', $response->metadata);
-        $this->assertSame('claude-3-sonnet', $response->metadata['model_id']);
-        $this->assertArrayHasKey('request_id', $response->metadata);
-        $this->assertSame('req-456', $response->metadata['request_id']);
     }
+}
 
-    public function testFromArrayMetadataEmptyWhenNoUnknownKeys(): void
-    {
-        $data = [
-            'text' => 'Test',
-            'agent' => 'test',
-            'session_id' => 's1',
-            'usage' => ['input_tokens' => 10, 'output_tokens' => 5],
-            'tools_used' => [],
-            'has_objective' => false,
-            'stop_reason' => 'end_turn',
-            'structured_output' => null,
-        ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertSame([], $response->metadata);
-    }
-
-    public function testFromArrayMetadataExcludesKnownKeys(): void
-    {
-        $data = [
-            'text' => 'Test',
-            'session_id' => 's1',
-            'custom_field' => 'custom_value',
-        ];
-
-        $response = AgentResponse::fromArray($data);
-
-        // 'text' and 'session_id' should NOT be in metadata
-        $this->assertArrayNotHasKey('text', $response->metadata);
-        $this->assertArrayNotHasKey('session_id', $response->metadata);
-        // 'custom_field' should be in metadata
-        $this->assertSame('custom_value', $response->metadata['custom_field']);
-    }
-
-    public function testFromArrayHandlesAllStopReasons(): void
-    {
-        $reasons = [
-            'end_turn' => StopReason::EndTurn,
-            'tool_use' => StopReason::ToolUse,
-            'max_tokens' => StopReason::MaxTokens,
-            'stop_sequence' => StopReason::StopSequence,
-            'content_filtered' => StopReason::ContentFiltered,
-            'guardrail_intervened' => StopReason::GuardrailIntervened,
-            'interrupt' => StopReason::Interrupt,
-        ];
-
-        foreach ($reasons as $raw => $expected) {
-            $response = AgentResponse::fromArray(['text' => 'Test', 'stop_reason' => $raw]);
-            $this->assertSame($expected, $response->stopReason, "Failed for stop_reason: $raw");
-        }
-    }
-
-    public function testFromArrayParsesInterrupts(): void
-    {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/invoke-interrupt-response.json'),
-            true,
-        );
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertTrue($response->isInterrupted());
-        $this->assertCount(1, $response->interrupts);
-        $this->assertInstanceOf(InterruptDetail::class, $response->interrupts[0]);
-        $this->assertSame('deploy', $response->interrupts[0]->toolName);
-        $this->assertSame(['environment' => 'production', 'version' => '2.0.0'], $response->interrupts[0]->toolInput);
-        $this->assertSame('tu-001', $response->interrupts[0]->toolUseId);
-        $this->assertSame('int-abc-123', $response->interrupts[0]->interruptId);
-        $this->assertSame('Production deployment requires approval', $response->interrupts[0]->reason);
-        $this->assertSame(StopReason::Interrupt, $response->stopReason);
-    }
-
-    public function testFromArrayNoInterruptsDefaultsEmpty(): void
-    {
-        $response = AgentResponse::fromArray(['text' => 'Test']);
-
-        $this->assertFalse($response->isInterrupted());
-        $this->assertSame([], $response->interrupts);
-    }
-
-    public function testFromArrayParsesGuardrailTrace(): void
-    {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/invoke-guardrail-response.json'),
-            true,
-        );
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertNotNull($response->guardrailTrace);
-        $this->assertInstanceOf(GuardrailTrace::class, $response->guardrailTrace);
-        $this->assertSame('INTERVENED', $response->guardrailTrace->action);
-        $this->assertCount(1, $response->guardrailTrace->assessments);
-        $this->assertSame('content_filter', $response->guardrailTrace->assessments[0]['type']);
-        $this->assertSame('The original unsafe response text', $response->guardrailTrace->modelOutput);
-        $this->assertSame(StopReason::GuardrailIntervened, $response->stopReason);
-    }
-
-    public function testFromArrayGuardrailTraceFromNestedTrace(): void
-    {
-        $data = [
-            'text' => 'Blocked',
-            'trace' => [
-                'guardrail' => [
-                    'action' => 'INTERVENED',
-                    'assessments' => [],
-                ],
-            ],
-        ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertNotNull($response->guardrailTrace);
-        $this->assertSame('INTERVENED', $response->guardrailTrace->action);
-    }
-
-    public function testFromArrayGuardrailTraceDefaultsToNull(): void
-    {
-        $response = AgentResponse::fromArray(['text' => 'Test']);
-
-        $this->assertNull($response->guardrailTrace);
-    }
-
-    public function testFromArrayParsesCitations(): void
-    {
-        $data = json_decode(
-            file_get_contents(__DIR__ . '/../Fixtures/invoke-response-with-citations.json'),
-            true,
-        );
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertCount(1, $response->citations);
-        $this->assertSame('citationsContent', $response->citations[0]['type']);
-        $this->assertSame('https://example.com/docs', $response->citations[0]['source']);
-        $this->assertSame('Official Documentation', $response->citations[0]['title']);
-    }
-
-    public function testFromArrayCitationsDefaultsToEmpty(): void
-    {
-        $response = AgentResponse::fromArray(['text' => 'Test']);
-
-        $this->assertSame([], $response->citations);
-    }
-
-    public function testFromArrayCitationsIgnoresNonCitationBlocks(): void
-    {
-        $data = [
-            'text' => 'Test',
-            'message' => [
-                'content' => [
-                    ['type' => 'text', 'text' => 'Hello'],
-                    ['type' => 'citationsContent', 'source' => 'url'],
-                    ['type' => 'image', 'data' => 'abc'],
-                ],
-            ],
-        ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertCount(1, $response->citations);
-        $this->assertSame('citationsContent', $response->citations[0]['type']);
-    }
-
-    public function testInterruptsExcludedFromMetadata(): void
-    {
-        $data = [
-            'text' => 'Test',
-            'interrupts' => [],
-            'custom' => 'value',
-        ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertArrayNotHasKey('interrupts', $response->metadata);
-        $this->assertSame('value', $response->metadata['custom']);
-    }
-
-    public function testGuardrailTraceExcludedFromMetadata(): void
-    {
-        $data = [
-            'text' => 'Test',
-            'guardrail_trace' => ['action' => 'NONE'],
-            'trace' => ['guardrail' => ['action' => 'NONE']],
-            'message' => ['content' => []],
-        ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertArrayNotHasKey('guardrail_trace', $response->metadata);
-        $this->assertArrayNotHasKey('trace', $response->metadata);
-        $this->assertArrayNotHasKey('message', $response->metadata);
-    }
-
-    public function testHasObjectiveDefaultValue(): void
-    {
-        $response = new AgentResponse(text: 'Test');
-
-        $this->assertFalse($response->hasObjective);
-    }
-
-    public function testMultipleInterruptsAllReturned(): void
-    {
-        $data = [
-            'text' => 'Test',
-            'stop_reason' => 'interrupt',
-            'interrupts' => [
-                [
-                    'tool_name' => 'deploy',
-                    'tool_input' => ['env' => 'prod'],
-                    'tool_use_id' => 'tu-1',
-                    'interrupt_id' => 'int-1',
-                    'reason' => 'First approval',
-                ],
-                [
-                    'tool_name' => 'scale',
-                    'tool_input' => ['count' => 5],
-                    'tool_use_id' => 'tu-2',
-                    'interrupt_id' => 'int-2',
-                    'reason' => 'Second approval',
-                ],
-            ],
-        ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertCount(2, $response->interrupts);
-        $this->assertSame('deploy', $response->interrupts[0]->toolName);
-        $this->assertSame('scale', $response->interrupts[1]->toolName);
-    }
-
-    public function testMultipleCitationsAllReturned(): void
-    {
-        $data = [
-            'text' => 'Test',
-            'message' => [
-                'content' => [
-                    ['type' => 'citationsContent', 'source' => 'url1', 'title' => 'Doc 1'],
-                    ['type' => 'text', 'text' => 'some text'],
-                    ['type' => 'citationsContent', 'source' => 'url2', 'title' => 'Doc 2'],
-                ],
-            ],
-        ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertCount(2, $response->citations);
-        $this->assertSame('url1', $response->citations[0]['source']);
-        $this->assertSame('url2', $response->citations[1]['source']);
-    }
-
-    public function testCitationsReturnsEmptyWhenMessageNotArray(): void
-    {
-        $data = [
-            'text' => 'Test',
-            'message' => 'not an array',
-        ];
-
-        $response = AgentResponse::fromArray($data);
-
-        $this->assertSame([], $response->citations);
+/**
+ * Provides a structured-output fixture that can be hydrated only through named constructor arguments.
+ *
+ * It represents an application DTO without a fromArray() factory.
+ * Use it to verify constructor hydration and the user-facing mismatch error path.
+ *
+ * @internal
+ */
+class TestConstructorDto
+{
+    /**
+     * Creates a fixture DTO used to demonstrate structured-output hydration for an app.
+     * Use it when testing named-constructor hydration without a fromArray() factory.
+     *
+     * @param string $name Name required by constructor hydration; an empty value remains visible to the app.
+     * @param float $score Score required by constructor hydration and returned unchanged to the app.
+     */
+    public function __construct(
+        public readonly string $name,
+        public readonly float $score,
+    ) {
     }
 }
